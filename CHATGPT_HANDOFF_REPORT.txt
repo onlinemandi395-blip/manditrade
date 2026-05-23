@@ -1,0 +1,149 @@
+MandiTrade ChatGPT Handoff Report
+Generated: 2026-05-23
+
+1. Current Architectural State
+
+- The app is now transaction-oriented rather than UI-mutated.
+- Shared business state writes are routed through services/safe_drive_write_service.py.
+- Procurement acceptance is coordinated by services/procurement_transaction_service.py.
+- Order-side dispatch, delivery, closure, and cancellation are coordinated by services/order_transaction_service.py.
+- Query/read concerns are split into services/query/*.py.
+- UI modules are thinner than before and mostly call transaction or query services.
+- Runtime support exists for OAuth callback handling, session restoration, token storage, queue processing, backups, rollback, journaling, and health visibility.
+
+2. Main Runtime Wiring
+
+- Entry point: app.py
+- Write gateway: services/safe_drive_write_service.py
+- Procurement coordinator: services/procurement_transaction_service.py
+- Order coordinator: services/order_transaction_service.py
+- Rollback helper: services/rollback_service.py
+- Event sink: services/event_dispatcher.py
+- Query services:
+  - services/query/order_query_service.py
+  - services/query/inventory_query_service.py
+  - services/query/agreement_query_service.py
+  - services/query/procurement_query_service.py
+
+3. What Is Already Good
+
+- Centralized mutation authority exists.
+- Procurement workflow has transaction journaling and rollback.
+- Order dispatch/delivery/closure are no longer driven directly by UI writes.
+- Backup, lock, schema, hash, and version history infrastructure are present.
+- Tests currently pass: tests/test_transactions.py
+- App imports cleanly after the recent cleanup.
+
+4. Important Code Observations
+
+- app.py is still very large and acts as a service container, router, and runtime bootstrap in one file.
+- services/order_transaction_service.py is more mature than the old order flow, but create_order(...) is still less transactionally disciplined than dispatch/delivery/cancel:
+  - it does inventory mutation
+  - agreement generation
+  - agreement append
+  - queue side effects
+  - but not under the same explicit transaction journaling/rollback pattern used by dispatch/delivery/procurement
+- services/procurement_transaction_service.py emits its own events by writing files directly through _emit_event(...), while order flow uses services/event_dispatcher.py. Event architecture is inconsistent.
+- Transaction ID generation is local to each coordinator:
+  - procurement_transaction_service has its own counter
+  - order_transaction_service has its own counter
+  - both generate TXN-<year>-<counter>
+  - this can produce duplicate transaction IDs across subsystems
+- Agreement IDs and order IDs are not yet globally standardized to a single shared allocator.
+- DomainWriteGuard, InventoryDomainService, AgreementDomainService, and storage adapters are now present in app.py, but the runtime still mixes direct service calls and domain abstractions. The layering is not fully settled yet.
+- Health recovery is manual from the dashboard. There is no startup-wide unified transaction recovery pass across all coordinators.
+
+5. Highest-Risk Remaining Consistency Gaps
+
+- Order creation is not fully wrapped in a transaction context with rollback checkpoints.
+- Procurement and order coordinators use different event emission mechanisms.
+- Global ID uniqueness is not guaranteed across transaction types.
+- Some file writes still happen outside the safe-write gateway for non-business JSON/log artifacts, which may be acceptable, but the boundary should be documented in code.
+- There is only one small test and it covers the write guard, not transaction integrity.
+- No stress tests currently validate:
+  - duplicate acceptance
+  - repeated delivery confirmation
+  - crash during commit
+  - rollback after PDF creation
+  - side-effect failure after commit
+
+6. Recommended Next Actions For ChatGPT
+
+Priority A: Finish Unified Transaction Integrity
+
+1. Refactor services/order_transaction_service.py so create_order(...) uses the same explicit transaction journal + rollback model as dispatch/delivery/cancel.
+2. Introduce one global ID allocator service for:
+   - transaction IDs
+   - order IDs
+   - agreement IDs
+   - dispatch IDs
+3. Unify event emission:
+   - remove private _emit_event(...) logic from procurement_transaction_service
+   - route procurement and order events through services/event_dispatcher.py only
+
+Priority B: Recovery Hardening
+
+4. Add startup recovery orchestration in app.py or a dedicated recovery service:
+   - procurement incomplete transaction recovery
+   - order incomplete transaction recovery
+   - stale lock cleanup
+5. Expand health dashboard searchability:
+   - by transaction_id
+   - by order_id
+   - by agreement_id
+   - by manufacturer
+
+Priority C: Test Coverage
+
+6. Add transaction tests for:
+   - procurement rollback when agreement PDF creation fails
+   - procurement rollback when agreement append fails
+   - order dispatch rollback when proof storage fails
+   - delivery double-confirmation protection
+   - cancel order releasing reserved inventory
+   - create_order rollback on agreement write failure
+7. Add tests for global ID uniqueness once allocator service exists.
+
+Priority D: Structural Cleanup
+
+8. Break app.py into:
+   - app bootstrap/config wiring
+   - service container builder
+   - view routing
+9. Decide whether the following should stay:
+   - services/domain_write_guard.py
+   - services/inventory_domain_service.py
+   - services/agreement_domain_service.py
+   - services/storage/google_drive_adapter.py
+   If they remain, push more logic through them consistently. If not, simplify and remove them.
+
+7. Suggested Immediate First Task
+
+If continuing right now, the best first task is:
+
+"Refactor order_transaction_service.create_order(...) into a fully journaled rollback-safe transaction and add tests for agreement-write failure and inventory release recovery."
+
+That gives the platform one consistent transaction model for both procurement and orders.
+
+8. Verified Working Signals
+
+- pytest tests/test_transactions.py passes
+- python import of app succeeds
+- legacy orders_module UI write path has been removed from active use
+- markdown docs were deleted per user request
+
+9. Repo Cleanup Status
+
+- Markdown files removed
+- __pycache__ directories removed
+- Legacy modules/orders/lifecycle.py and modules/orders/validation.py removed
+- modules/orders/placement.py is now a thin UI layer
+
+10. Caution For Next Session
+
+- Do not reintroduce UI-owned business writes.
+- Do not add new JSON write paths outside safe_drive_write_service.py.
+- Preserve the separation:
+  - query services read
+  - transaction services mutate
+  - UI calls services only

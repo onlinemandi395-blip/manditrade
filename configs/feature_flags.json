@@ -1,0 +1,12 @@
+{
+  "flags": {
+    "manufacturer_onboarding": true,
+    "inventory_management": true,
+    "client_onboarding": false,
+    "procurement_exchange": false,
+    "agreement_engine": false,
+    "gmail_notifications": false,
+    "subscriptions": false,
+    "analytics": false
+  }
+}

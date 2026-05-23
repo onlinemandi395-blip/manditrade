@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MandiTrade Architecture</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=Space+Grotesk:wght@500;700&display=swap"
+    rel="stylesheet"
+  />
+  <style>
+    :root {
+      --bg: #f5efe1;
+      --bg-deep: #1f3b2c;
+      --bg-panel: rgba(255, 251, 242, 0.8);
+      --ink: #1f2937;
+      --muted: #5b6472;
+      --line: rgba(31, 41, 55, 0.12);
+      --accent: #d97706;
+      --accent-soft: rgba(217, 119, 6, 0.12);
+      --green: #166534;
+      --red: #b91c1c;
+      --blue: #1d4ed8;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      scroll-snap-type: y mandatory;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(245, 158, 11, 0.22), transparent 28%),
+        radial-gradient(circle at top right, rgba(22, 101, 52, 0.18), transparent 24%),
+        linear-gradient(180deg, #f9f4e7 0%, #efe6d2 100%);
+      font-family: "Manrope", sans-serif;
+    }
+
+    .grain::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.06;
+      background-image:
+        linear-gradient(rgba(0, 0, 0, 0.4) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 0, 0, 0.4) 1px, transparent 1px);
+      background-size: 14px 14px;
+      mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.75), transparent);
+    }
+
+    .slide {
+      min-height: 100vh;
+      scroll-snap-align: start;
+      padding: 48px 20px;
+      display: flex;
+      align-items: center;
+    }
+
+    .frame {
+      width: min(1220px, 100%);
+      margin: 0 auto;
+      background: rgba(255, 250, 240, 0.58);
+      border: 1px solid rgba(255, 255, 255, 0.55);
+      box-shadow: 0 24px 80px rgba(80, 57, 24, 0.12);
+      backdrop-filter: blur(20px);
+      border-radius: 32px;
+      padding: 28px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .frame::after {
+      content: "";
+      position: absolute;
+      inset: auto -80px -90px auto;
+      width: 260px;
+      height: 260px;
+      background: radial-gradient(circle, rgba(217, 119, 6, 0.16), transparent 68%);
+      pointer-events: none;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      font-size: 0.78rem;
+      font-weight: 800;
+      color: var(--green);
+      margin-bottom: 16px;
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 32px;
+      height: 2px;
+      background: currentColor;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin: 0;
+      line-height: 1.05;
+      font-family: "Space Grotesk", sans-serif;
+    }
+
+    h1 {
+      font-size: clamp(3rem, 7vw, 5.8rem);
+      letter-spacing: -0.05em;
+    }
+
+    h2 {
+      font-size: clamp(2rem, 4vw, 3.6rem);
+      letter-spacing: -0.04em;
+      margin-bottom: 12px;
+    }
+
+    h3 {
+      font-size: 1.2rem;
+      letter-spacing: -0.02em;
+      margin-bottom: 14px;
+    }
+
+    p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .lead {
+      font-size: clamp(1.08rem, 1.9vw, 1.35rem);
+      max-width: 760px;
+    }
+
+    .hero-grid,
+    .grid-2,
+    .grid-3,
+    .grid-4 {
+      display: grid;
+      gap: 18px;
+    }
+
+    .hero-grid,
+    .grid-2 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .grid-3 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .grid-4 {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .card,
+    .panel {
+      background: var(--bg-panel);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      padding: 22px;
+      position: relative;
+    }
+
+    .card strong,
+    .metric-value {
+      color: var(--ink);
+    }
+
+    .card ul,
+    .flow-list,
+    .tree-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .card li,
+    .flow-list li,
+    .tree-list li {
+      position: relative;
+      padding-left: 18px;
+      margin-top: 10px;
+      color: var(--muted);
+    }
+
+    .card li::before,
+    .flow-list li::before,
+    .tree-list li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0.7em;
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--accent);
+      transform: translateY(-50%);
+    }
+
+    .metric-strip {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 28px;
+    }
+
+    .metric {
+      background: rgba(31, 59, 44, 0.92);
+      color: #f9f4e7;
+      padding: 18px;
+      border-radius: 22px;
+    }
+
+    .metric-label {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: rgba(249, 244, 231, 0.72);
+    }
+
+    .metric-value {
+      display: block;
+      margin-top: 10px;
+      color: #fff;
+      font-size: 1.55rem;
+      font-weight: 800;
+      line-height: 1.15;
+    }
+
+    .stack-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+    }
+
+    .stack-table th,
+    .stack-table td {
+      text-align: left;
+      padding: 14px 12px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .stack-table th {
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--green);
+    }
+
+    .code-block {
+      background: #183126;
+      color: #e6f7eb;
+      border-radius: 24px;
+      padding: 22px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.96rem;
+      line-height: 1.8;
+      overflow-x: auto;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      white-space: pre;
+    }
+
+    .code-block .dim {
+      color: rgba(230, 247, 235, 0.68);
+    }
+
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .pill {
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: #9a5b08;
+      font-size: 0.92rem;
+      font-weight: 700;
+    }
+
+    .timeline {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .phase {
+      background: linear-gradient(180deg, rgba(255, 251, 242, 0.92), rgba(246, 235, 212, 0.86));
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      padding: 22px;
+    }
+
+    .phase-number {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 42px;
+      height: 42px;
+      border-radius: 14px;
+      background: rgba(22, 101, 52, 0.1);
+      color: var(--green);
+      font-weight: 800;
+      margin-bottom: 14px;
+    }
+
+    .split-highlight {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 18px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      font-size: 0.86rem;
+      font-weight: 800;
+    }
+
+    .badge-green {
+      background: rgba(22, 101, 52, 0.12);
+      color: var(--green);
+    }
+
+    .badge-red {
+      background: rgba(185, 28, 28, 0.1);
+      color: var(--red);
+    }
+
+    .badge-blue {
+      background: rgba(29, 78, 216, 0.1);
+      color: var(--blue);
+    }
+
+    .footer-note {
+      margin-top: 18px;
+      font-size: 0.94rem;
+      color: var(--muted);
+    }
+
+    @media (max-width: 980px) {
+      .hero-grid,
+      .grid-2,
+      .grid-3,
+      .grid-4,
+      .metric-strip,
+      .timeline,
+      .split-highlight {
+        grid-template-columns: 1fr;
+      }
+
+      .slide {
+        min-height: auto;
+        padding: 24px 14px;
+      }
+
+      .frame {
+        border-radius: 24px;
+        padding: 22px;
+      }
+    }
+  </style>
+</head>
+<body class="grain">
+  <section class="slide">
+    <div class="frame">
+      <div class="eyebrow">MandiTrade Codex System Prompt</div>
+      <h1>Bharat-first B2B commerce architecture built for trust, governance, and low infrastructure cost.</h1>
+      <p class="lead" style="margin-top: 20px;">
+        MandiTrade is a federated sovereign commerce network where admins govern the marketplace, manufacturers own their business data, and clients transact within tightly controlled privacy boundaries.
+      </p>
+
+      <div class="metric-strip">
+        <div class="metric">
+          <span class="metric-label">Platform Shape</span>
+          <span class="metric-value">Streamlit-first</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Storage Model</span>
+          <span class="metric-value">Google Drive native</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Data Format</span>
+          <span class="metric-value">JSON / CSV / TXT</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Operating Principle</span>
+          <span class="metric-value">Simplicity over sprawl</span>
+        </div>
+      </div>
+
+      <div class="hero-grid" style="margin-top: 22px;">
+        <div class="card">
+          <h3>Core Platform Idea</h3>
+          <p>A federated sovereign B2B commerce network for wholesalers, mandi operators, distributors, and semi-organized Bharat commerce.</p>
+        </div>
+        <div class="card">
+          <h3>Non-Negotiable Outcome</h3>
+          <p>Centralized governance without centralized business-data ownership.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="frame">
+      <div class="eyebrow">Core Principles</div>
+      <h2>Everything bends toward lightweight, modular, privacy-preserving operation.</h2>
+      <div class="grid-3" style="margin-top: 22px;">
+        <div class="card">
+          <h3>Build For Practicality</h3>
+          <ul>
+            <li>Lightweight architecture</li>
+            <li>Infrastructure minimal by default</li>
+            <li>Operationally realistic for Bharat-scale growth</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Build For Trust</h3>
+          <ul>
+            <li>Manufacturer-owned business data</li>
+            <li>Private-zone isolation</li>
+            <li>Zero unnecessary exposure of secrets or paths</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Build For Control</h3>
+          <ul>
+            <li>Admin-governed pricing and subscriptions</li>
+            <li>Configuration-driven rules</li>
+            <li>Strict role-based access boundaries</li>
+          </ul>
+        </div>
+      </div>
+      <div class="pill-row">
+        <span class="pill">No Kubernetes</span>
+        <span class="pill">No Docker orchestration</span>
+        <span class="pill">No distributed databases</span>
+        <span class="pill">No microservice sprawl</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="frame">
+      <div class="eyebrow">Final Tech Stack</div>
+      <h2>Google ecosystem native, Streamlit-led, database-free.</h2>
+      <div class="panel" style="margin-top: 18px;">
+        <table class="stack-table">
+          <thead>
+            <tr>
+              <th>Layer</th>
+              <th>Technology</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Frontend</td><td>Streamlit</td></tr>
+            <tr><td>Backend Logic</td><td>Python</td></tr>
+            <tr><td>Authentication</td><td>Google OAuth</td></tr>
+            <tr><td>Storage</td><td>Google Drive</td></tr>
+            <tr><td>Data Format</td><td>JSON / CSV / TXT</td></tr>
+            <tr><td>Notifications</td><td>Gmail API</td></tr>
+            <tr><td>Runtime Access</td><td>Google Drive runtime tokens</td></tr>
+            <tr><td>Hosting</td><td>VPS or Streamlit Cloud</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="footer-note">No dedicated SQL or NoSQL database. Google Drive is the distributed storage layer.</p>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="frame">
+      <div class="eyebrow">Architecture Rules</div>
+      <h2>The storage philosophy is the architecture.</h2>
+      <div class="grid-2" style="margin-top: 20px;">
+        <div class="card">
+          <h3>What Must Exist</h3>
+          <ul>
+            <li>JSON files for structured records</li>
+            <li>CSV for reports</li>
+            <li>TXT logs for operational traces</li>
+            <li>PDF and image proofs inside Drive</li>
+            <li>Manufacturer-specific folders with shared and private zones</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>What Must Not Exist</h3>
+          <ul>
+            <li>PostgreSQL</li>
+            <li>MySQL</li>
+            <li>MongoDB</li>
+            <li>Firebase</li>
+            <li>Any new persistence layer that breaks data sovereignty</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="frame">
+      <div class="eyebrow">Federated Storage</div>
+      <h2>Each manufacturer owns their own Google Drive container.</h2>
+      <div class="split-highlight" style="margin-top: 20px;">
+        <div class="code-block">/MANDITRADE_MANU101/
+├── shared_zone/
+│   ├── inventory.json
+│   ├── procurement.json
+│   ├── agreements.json
+│   ├── wallet_summary.json
+│   └── subscription.json
+└── private_zone/
+    ├── clients.json
+    ├── api_keys.json
+    ├── invoices/
+    ├── payments/
+    └── business_reports.csv</div>
+        <div class="card">
+          <h3>Ownership Model</h3>
+          <ul>
+            <li>Each manufacturer controls their own root folder</li>
+            <li>Shared zone supports runtime collaboration and limited governance visibility</li>
+            <li>Private zone is restricted to the manufacturer and authenticated runtime session</li>
+            <li>Admin access stops at the privacy boundary</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="frame">
+      <div class="eyebrow">Access Boundaries</div>
+      <h2>Shared zone and private zone are deliberately unequal.</h2>
+      <div class="grid-2" style="margin-top: 22px;">
+        <div class="card">
+          <span class="badge badge-green">Shared Zone</span>
+          <h3 style="margin-top: 16px;">Runtime-visible governance layer</h3>
+          <ul>
+            <li><strong>Contains:</strong> inventory, procurement, agreements, subscription, wallet summary</li>
+            <li><strong>Accessible by:</strong> application runtime and limited admin governance logic</li>
+            <li><strong>Purpose:</strong> exchange, pricing enforcement, agreement orchestration</li>
+          </ul>
+        </div>
+        <div class="card">
+          <span class="badge badge-red">Private Zone</span>
+          <h3 style="margin-top: 16px;">Manufacturer-only operational layer</h3>
+          <ul>
+            <li><strong>Contains:</strong> clients, API keys, invoices, payments, internal reports</li>
+            <li><strong>Accessible by:</strong> manufacturer and authenticated runtime session only</li>
+            <li><strong>Rule:</strong> admin must never access this zone</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="frame">
+      <div class="eyebrow">User Hierarchy</div>
+      <h2>Admin governs the network, manufacturers operate it, clients transact within it.</h2>
+      <div class="grid-3" style="margin-top: 22px;">
+        <div class="card">
+          <h3>Admin</h3>
+          <ul>
+            <li>Product registry</li>
+            <li>Mandi pricing and MRP governance</li>
+            <li>Subscriptions and feature flags</li>
+            <li>Procurement governance</li>
+            <li>Manufacturer onboarding</li>
+          </ul>
+          <p class="footer-note"><strong>Cannot:</strong> view clients, invoices, API keys, or any private zone.</p>
+        </div>
+        <div class="card">
+          <h3>Manufacturer</h3>
+          <ul>
+            <li>Manage inventory and clients</li>
+            <li>Manage orders and APIs</li>
+            <li>Join procurement exchange</li>
+            <li>Manage agreements</li>
+          </ul>
+          <p class="footer-note"><strong>Cannot:</strong> override MRP or mandi price, or access other manufacturers.</p>
+        </div>
+        <div class="card">
+          <h3>Client</h3>
+          <ul>
+            <li>Self-onboard</li>
+            <li>Browse products</li>
+            <li>Place orders</li>
+            <li>Track invoices and agreements</li>
+          </ul>
+          <p class="footer-note">Each client belongs to exactly one manufacturer.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="frame">
+      <div class="eyebrow">Runtime Security</div>
+      <h2>OAuth access is temporary, scoped, and destroyed after session use.</h2>
+      <div class="split-highlight" style="margin-top: 20px;">
+        <div class="code-block">Manufacturer login
+→ Google OAuth consent
+→ Refresh token fetched securely
+→ Temporary access token generated at runtime
+→ Drive accessed dynamically
+→ Shared/private files resolved per role
+→ Session logout
+→ Session token destroyed</div>
+        <div class="card">
+          <h3>Security Requirements</h3>
+          <ul>
+            <li>Role-based access control</li>
+            <li>Runtime session isolation</li>
+            <li>Drive permission validation</li>
+            <li>Private-zone protection</li>
+            <li>Encrypted token storage</li>
+          </ul>
+          <p class="footer-note"><strong>Never expose:</strong> raw OAuth secrets, Drive folder IDs publicly, raw links, or globally cached private data.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="frame">
+      <div class="eyebrow">Procurement Exchange</div>
+      <h2>If inventory is insufficient, the network becomes the sourcing engine.</h2>
+      <div class="grid-2" style="margin-top: 20px;">
+        <div class="card">
+          <h3>Exchange Flow</h3>
+          <ol class="flow-list">
+            <li>Manufacturer creates procurement request</li>
+            <li>Request is published to shared zone</li>
+            <li>Other manufacturers evaluate availability</li>
+            <li>One manufacturer accepts the request</li>
+            <li>Agreement is auto-generated</li>
+            <li>50% advance is collected before confirmation</li>
+          </ol>
+        </div>
+        <div class="card">
+          <h3>Agreement Lifecycle</h3>
+          <div class="pill-row">
+            <span class="pill">DRAFT</span>
+            <span class="pill">ACCEPTED</span>
+            <span class="pill">ADVANCE_PENDING</span>
+            <span class="pill">CONFIRMED</span>
+            <span class="pill">DISPATCHED</span>
+            <span class="pill">CLOSED</span>
+          </div>
+          <p class="footer-note">Every procurement order produces both agreement JSON metadata and a PDF agreement document.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="frame">
+      <div class="eyebrow">Pricing Governance</div>
+      <h2>Prices are centrally governed; execution is decentralized.</h2>
+      <div class="grid-2" style="margin-top: 20px;">
+        <div class="card">
+          <h3>Pricing Rules</h3>
+          <ul>
+            <li>Admin sets fixed mandi price</li>
+            <li>Admin sets fixed MRP</li>
+            <li>Manufacturers cannot override governed prices</li>
+            <li>Commission logic stays policy-driven, not manually negotiated per order</li>
+          </ul>
+        </div>
+        <div class="code-block">MRP = Rs 145
+Mandi Price = Rs 120
+
+Net Profit = Rs 25
+
+Admin Share = 50% of net profit
+            = Rs 12.5
+
+Manufacturer Share = Rs 12.5</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="frame">
+      <div class="eyebrow">Notifications</div>
+      <h2>Communication stays intentionally narrow: Gmail only.</h2>
+      <div class="grid-2" style="margin-top: 20px;">
+        <div class="card">
+          <h3>Notification Backbone</h3>
+          <ul>
+            <li>Gmail API</li>
+            <li>Admin Gmail sender account</li>
+            <li>No SMS integration in the current phase</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Notification Types</h3>
+          <ul>
+            <li>Onboarding invites</li>
+            <li>Order alerts</li>
+            <li>Procurement acceptance</li>
+            <li>Agreement confirmation</li>
+            <li>Payment reminders</li>
+            <li>Subscription alerts</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="frame">
+      <div class="eyebrow">Modules And Services</div>
+      <h2>The application should grow in modules, not giant files.</h2>
+      <div class="split-highlight" style="margin-top: 20px;">
+        <div class="code-block">/modules
+├── admin/
+├── manufacturer/
+├── client/
+├── procurement/
+├── agreements/
+├── notifications/
+├── inventory/
+├── pricing/
+└── onboarding/
+
+/services
+├── auth_service.py
+├── drive_service.py
+├── gmail_service.py
+├── json_service.py
+├── encryption_service.py
+└── commission_service.py
+
+/utils
+/configs</div>
+        <div class="card">
+          <h3>Required Config Files</h3>
+          <ul>
+            <li>system_config.json</li>
+            <li>oauth_config.json</li>
+            <li>subscription_plans.json</li>
+            <li>feature_flags.json</li>
+            <li>manufacturer_config.json</li>
+            <li>api_keys.json</li>
+            <li>inventory.json</li>
+            <li>clients.json</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="frame">
+      <div class="eyebrow">Coding And UI Rules</div>
+      <h2>Readable, modular, configuration-driven code with a practical Streamlit interface.</h2>
+      <div class="grid-2" style="margin-top: 20px;">
+        <div class="card">
+          <h3>Coding Principles</h3>
+          <ul>
+            <li>Modular and production-oriented</li>
+            <li>JSON-driven and config-driven</li>
+            <li>No hardcoded business policy spread across the app</li>
+            <li>No giant files and unnecessary abstractions</li>
+            <li>Compatible with Python 3.11+ and Streamlit</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>UI Principles</h3>
+          <ul>
+            <li>Modern and minimal</li>
+            <li>Bharat-business friendly</li>
+            <li>Mobile compatible</li>
+            <li>Sidebar navigation based</li>
+            <li>Use cards, metrics, tables, approval flows, and dashboard widgets</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="frame">
+      <div class="eyebrow">Phased Plan</div>
+      <h2>Build the platform in capability layers, not all at once.</h2>
+      <div class="timeline" style="margin-top: 22px;">
+        <div class="phase">
+          <div class="phase-number">1</div>
+          <h3>Foundation</h3>
+          <ul class="tree-list">
+            <li>Authentication</li>
+            <li>Onboarding</li>
+            <li>Drive integration</li>
+            <li>Manufacturer dashboard</li>
+            <li>Product registry</li>
+            <li>Inventory management</li>
+          </ul>
+        </div>
+        <div class="phase">
+          <div class="phase-number">2</div>
+          <h3>Commerce Operations</h3>
+          <ul class="tree-list">
+            <li>Client onboarding</li>
+            <li>Order flow</li>
+            <li>Procurement exchange</li>
+            <li>Agreements</li>
+            <li>Gmail notifications</li>
+          </ul>
+        </div>
+        <div class="phase">
+          <div class="phase-number">3</div>
+          <h3>Governance Expansion</h3>
+          <ul class="tree-list">
+            <li>Subscriptions</li>
+            <li>Analytics</li>
+            <li>Reporting</li>
+            <li>Advanced governance</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="frame">
+      <div class="eyebrow">Final Rule</div>
+      <h2>MandiTrade should feel like a commerce operating system, not infrastructure theater.</h2>
+      <div class="grid-4" style="margin-top: 20px;">
+        <div class="card">
+          <h3>Simplicity</h3>
+          <p>Prefer lean design over layered complexity.</p>
+        </div>
+        <div class="card">
+          <h3>Maintainability</h3>
+          <p>Keep modules readable, replaceable, and configuration-first.</p>
+        </div>
+        <div class="card">
+          <h3>Privacy Isolation</h3>
+          <p>Preserve manufacturer trust through hard access boundaries.</p>
+        </div>
+        <div class="card">
+          <h3>Operational Cost</h3>
+          <p>Stay low-cost, deployment-light, and practical to run.</p>
+        </div>
+      </div>
+      <div class="panel" style="margin-top: 22px;">
+        <p class="lead" style="max-width: none;">
+          This platform is intended to become a Bharat-scale B2B commerce operating system with federated data ownership and centralized governance. Every implementation choice should reinforce manufacturer trust, admin control, and operational practicality.
+        </p>
+      </div>
+    </div>
+  </section>
+</body>
+</html>

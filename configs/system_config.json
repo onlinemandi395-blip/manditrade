@@ -1,0 +1,39 @@
+{
+  "app": {
+    "name": "MandiTrade",
+    "tagline": "Federated Sovereign B2B Commerce Network for Bharat Wholesale Markets",
+    "environment": "development",
+    "runtime_environment": "local",
+    "default_currency": "INR",
+    "timezone": "Asia/Calcutta",
+    "demo_mode": false,
+    "staging_mode": true,
+    "pilot_mode": true,
+    "safe_mode": true
+  },
+  "security": {
+    "enable_mock_auth": true,
+    "session_timeout_minutes": 60,
+    "token_cache_dir": "data/runtime/tokens",
+    "admin_token_file": "configs/admin_token.enc",
+    "manufacturer_token_dir": "data/runtime/manufacturer_tokens",
+    "require_verification_for_admin_runtime": true,
+    "runtime_tokens_dir": "runtime/tokens"
+  },
+  "storage": {
+    "manufacturer_root_prefix": "MANDITRADE_",
+    "shared_zone_name": "shared_zone",
+    "private_zone_name": "private_zone",
+    "use_drive_api": false,
+    "local_mirror_root": "data/manufacturers"
+  },
+  "notifications": {
+    "notification_mode": "mock",
+    "use_gmail_api": false,
+    "admin_sender_email": "admin@manditrade.local"
+  },
+  "governance": {
+    "admin_profit_share_ratio": 0.5,
+    "currency_symbol": "Rs"
+  }
+}

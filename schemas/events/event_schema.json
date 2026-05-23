@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MandiTrade Event Schema",
+  "type": "object",
+  "properties": {
+    "event_id": { "type": "string" },
+    "event_type": {
+      "type": "string",
+      "enum": [
+        "ORDER_CREATED",
+        "ORDER_DISPATCHED",
+        "ORDER_DELIVERED",
+        "PROCUREMENT_ACCEPTED",
+        "AGREEMENT_CREATED",
+        "AGREEMENT_SETTLED"
+      ]
+    },
+    "event_version": { "type": "string" },
+    "transaction_id": { "type": "string" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "payload": { "type": "object" }
+  },
+  "required": [
+    "event_id", "event_type", "event_version", "timestamp"
+  ]
+}

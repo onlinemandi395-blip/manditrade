@@ -1,0 +1,71 @@
+# ------------------------------
+# Python
+# ------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+
+# ------------------------------
+# Virtual environments
+# ------------------------------
+.venv/
+venv/
+env/
+ENV/
+
+# ------------------------------
+# Test, coverage, and tool caches
+# ------------------------------
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.hypothesis/
+.mypy_cache/
+.ruff_cache/
+.pyre/
+
+# ------------------------------
+# Streamlit local secrets
+# ------------------------------
+.streamlit/secrets.toml
+
+# Keep committed Streamlit config/templates
+!.streamlit/config.toml
+!.streamlit/secrets.toml.template
+
+# ------------------------------
+# Local secrets and token material
+# ------------------------------
+configs/admin_token.enc
+configs/oauth_client.json
+*.pem
+*.key
+*.crt
+
+# ------------------------------
+# Generated runtime and local data
+# ------------------------------
+runtime/
+data/runtime/
+data/manufacturers/
+data/runtime/tokens/
+data/runtime/manufacturer_tokens/
+
+# ------------------------------
+# Logs and temp files
+# ------------------------------
+*.log
+*.tmp
+*.temp
+
+# ------------------------------
+# OS and editor files
+# ------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.swp
+*.swo
