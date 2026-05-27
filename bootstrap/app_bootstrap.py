@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import streamlit as st
 
 from bootstrap.route_registry import render_route
 from bootstrap.service_container import build_app_context
 from utils.session import clear_runtime_session, ensure_session_defaults, pop_flash, set_flash
+
+
+BUILD_COMMIT = "457c363"
+BUILD_FILE = Path(__file__).resolve()
 
 
 def render_header(app_context: dict) -> None:
@@ -47,6 +53,7 @@ def render_auth_panel(app_context: dict) -> None:
             st.link_button("Continue with Google", auth_url, use_container_width=True)
         else:
             st.info("Google OAuth staging is not ready yet. Demo mode is active for local setup.")
+        st.caption(f"Build: {BUILD_COMMIT}")
 
 
 def handle_oauth_callback(app_context: dict) -> None:
@@ -128,6 +135,7 @@ def render_security_panel(app_context: dict) -> None:
                 "admin_vault_ready": status["admin_vault_ready"],
             }
         )
+        st.caption(f"Source: {BUILD_FILE.parent.parent.name}/{BUILD_FILE.name}")
 
 
 def render_sidebar_navigation(app_context: dict) -> str:
