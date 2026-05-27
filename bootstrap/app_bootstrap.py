@@ -9,7 +9,7 @@ from bootstrap.service_container import build_app_context
 from utils.session import clear_runtime_session, ensure_session_defaults, pop_flash, set_flash
 
 
-BUILD_COMMIT = "457c363"
+BUILD_COMMIT = "sidebar-fix-20260527-1903"
 BUILD_FILE = Path(__file__).resolve()
 
 
@@ -145,13 +145,26 @@ def render_security_panel(app_context: dict) -> None:
 def render_sidebar_navigation(app_context: dict) -> str:
     current_user = app_context.get("current_user")
     security_service = app_context["security_service"]
-    sections = ["Dashboard", "My Actions", "Notifications", "Products", "Inventory", "Client Orders", "Mandi RFQ", "Ledger / Khata", "Payments", "Dispatch", "Clients"]
-    if security_service.is_admin_identity(current_user):
+    is_admin_identity = security_service.is_admin_identity(current_user)
+    sections = [
+        "Dashboard",
+        "My Actions",
+        "Notifications",
+        "Products",
+        "Inventory",
+        "Client Orders",
+        "Mandi RFQ",
+        "Ledger / Khata",
+        "Payments",
+        "Dispatch",
+        "Clients",
+    ]
+    if is_admin_identity:
         sections.append("Manufacturer Onboarding")
         sections.append("System Health")
     with st.sidebar:
         st.markdown("## Navigation")
-        if security_service.is_admin_identity(current_user):
+        if is_admin_identity:
             st.caption("Admin Nav Enabled")
         return st.radio("Go to", sections, label_visibility="collapsed")
 
