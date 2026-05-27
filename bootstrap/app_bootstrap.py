@@ -130,9 +130,9 @@ def render_security_panel(app_context: dict) -> None:
         )
 
 
-def render_sidebar_navigation() -> str:
-    current_user = st.session_state.get("user", {})
-    role = current_user.get("role")
+def render_sidebar_navigation(app_context: dict) -> str:
+    current_user = app_context.get("current_user")
+    role = current_user.role if current_user else None
     sections = ["Dashboard", "My Actions", "Notifications", "Products", "Inventory", "Client Orders", "Mandi RFQ", "Ledger / Khata", "Payments", "Dispatch", "Clients"]
     if role in {"admin", "platform_admin"}:
         sections.append("Manufacturer Onboarding")
@@ -161,6 +161,6 @@ def main() -> None:
         app_context = build_app_context()
     render_auth_panel(app_context)
     render_security_panel(app_context)
-    section = render_sidebar_navigation()
+    section = render_sidebar_navigation(app_context)
     render_header(app_context)
     render_route(section, app_context)
