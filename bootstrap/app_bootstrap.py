@@ -41,6 +41,7 @@ def render_auth_panel(app_context: dict) -> None:
                 st.caption(f"Manufacturer: {user.manufacturer_code}")
             if st.session_state.get("admin_runtime_unlocked"):
                 st.caption("Admin runtime access is unlocked for this session.")
+            st.caption(f"Build: {BUILD_COMMIT}")
             if st.button("Logout", use_container_width=True):
                 app_context["security_service"].revoke_runtime_session()
                 clear_runtime_session()
@@ -104,7 +105,7 @@ def render_security_panel(app_context: dict) -> None:
         current_user = app_context["current_user"]
         status = security_service.export_security_status()
         st.caption("Streamlit Cloud secrets hold only the verification layer and OAuth identifiers. Encrypted tokens stay outside TOML.")
-        if current_user and current_user.role in {"admin", "platform_admin"}:
+        if security_service.is_admin_identity(current_user):
             vault_ready = security_service.admin_vault_matches_user(current_user)
             expander_title = "Admin Runtime Vault" if vault_ready else "Unlock Admin Drive Runtime"
             with st.expander(expander_title, expanded=not st.session_state.get("admin_runtime_unlocked", False)):
@@ -127,6 +128,9 @@ def render_security_panel(app_context: dict) -> None:
             st.info("Admin runtime unlock is available only to the signed-in admin identity.")
         st.write(
             {
+                "current_user_role": current_user.role if current_user else None,
+                "current_user_email": current_user.email if current_user else None,
+                "is_admin_identity": security_service.is_admin_identity(current_user),
                 "verification_configured": status["verification_configured"],
                 "admin_runtime_unlocked": st.session_state.get("admin_runtime_unlocked", False),
                 "token_file_present": status["admin_token_file_present"],
@@ -140,13 +144,15 @@ def render_security_panel(app_context: dict) -> None:
 
 def render_sidebar_navigation(app_context: dict) -> str:
     current_user = app_context.get("current_user")
-    role = current_user.role if current_user else None
+    security_service = app_context["security_service"]
     sections = ["Dashboard", "My Actions", "Notifications", "Products", "Inventory", "Client Orders", "Mandi RFQ", "Ledger / Khata", "Payments", "Dispatch", "Clients"]
-    if role in {"admin", "platform_admin"}:
+    if security_service.is_admin_identity(current_user):
         sections.append("Manufacturer Onboarding")
         sections.append("System Health")
     with st.sidebar:
         st.markdown("## Navigation")
+        if security_service.is_admin_identity(current_user):
+            st.caption("Admin Nav Enabled")
         return st.radio("Go to", sections, label_visibility="collapsed")
 
 

@@ -51,6 +51,15 @@ class SecurityService:
     def get_admin_token_secret(self) -> str | None:
         return self.load_streamlit_secrets().get("admin_token", {}).get("encrypted_token")
 
+    def is_admin_identity(self, user: AuthUser | None) -> bool:
+        if not user:
+            return False
+        expected_email = (self.get_admin_email() or "").strip().lower()
+        return bool(
+            user.role in {"admin", "platform_admin"}
+            or (expected_email and user.email.strip().lower() == expected_email)
+        )
+
     @property
     def admin_vault_path(self) -> Path:
         return self.runtime_tokens_dir.parent / "admin_vault.json"
