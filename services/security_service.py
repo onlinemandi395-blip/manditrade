@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -50,13 +51,41 @@ class SecurityService:
     def get_admin_token_secret(self) -> str | None:
         return self.load_streamlit_secrets().get("admin_token", {}).get("encrypted_token")
 
+    @property
+    def admin_vault_path(self) -> Path:
+        return self.runtime_tokens_dir.parent / "admin_vault.json"
+
+    def read_admin_vault(self) -> dict[str, Any]:
+        return self.json_service.read_json(self.admin_vault_path, {})
+
+    def admin_vault_ready(self) -> bool:
+        vault = self.read_admin_vault()
+        return bool(vault.get("initialized") and vault.get("admin_email"))
+
+    def initialize_admin_vault(self, user: AuthUser, verification_key: str) -> Path:
+        payload = {
+            "initialized": True,
+            "admin_email": user.email.strip().lower(),
+            "verification_key_encrypted": self.encryption_service.encrypt(verification_key.strip()),
+            "initialized_at": datetime.now(UTC).isoformat(),
+        }
+        self.admin_vault_path.parent.mkdir(parents=True, exist_ok=True)
+        self.admin_vault_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        return self.admin_vault_path
+
+    def admin_vault_matches_user(self, user: AuthUser | None) -> bool:
+        if not user:
+            return False
+        vault = self.read_admin_vault()
+        return bool(vault.get("initialized") and vault.get("admin_email", "").strip().lower() == user.email.strip().lower())
+
     def verification_is_configured(self) -> bool:
         return bool(self.get_public_verification_key() and self.get_admin_email())
 
     def validate_admin_runtime_request(self, user: AuthUser | None, submitted_key: str) -> tuple[bool, str]:
         if not user:
             return False, "Sign in before requesting admin runtime access."
-        if user.role != "admin":
+        if user.role not in {"admin", "platform_admin"}:
             return False, "Only admin users can unlock admin runtime access."
 
         expected_email = self.get_admin_email()
@@ -64,6 +93,9 @@ class SecurityService:
             return False, "Admin email is not configured in Streamlit secrets."
         if user.email.strip().lower() != expected_email.strip().lower():
             return False, "Signed-in email is not authorized for admin Drive runtime access."
+
+        if self.admin_vault_matches_user(user):
+            return True, "Admin runtime validation succeeded through vault."
 
         if self.require_verification_for_admin_runtime:
             expected_key = self.get_public_verification_key()
@@ -130,6 +162,8 @@ class SecurityService:
             raise PermissionError(message)
         if not self.admin_token_ready():
             raise PermissionError("Long-lived admin runtime mode is not provisioned yet. Run the admin token provisioning step first.")
+        if submitted_key.strip() and not self.admin_vault_matches_user(user):
+            self.initialize_admin_vault(user, submitted_key)
 
         refresh_token = self.decrypt_refresh_token(self.admin_token_file)
         credentials_payload = self.build_runtime_credentials_payload(refresh_token=refresh_token)
@@ -139,6 +173,7 @@ class SecurityService:
             "role": user.role,
             "scope": "admin_drive_runtime",
             "access_token_present": bool(credentials.token),
+            "vault_enabled": self.admin_vault_matches_user(user),
         }
         st.session_state["auth_tokens"] = {
             "role": user.role,
@@ -180,6 +215,7 @@ class SecurityService:
             "admin_token_secret_present": bool((self.get_admin_token_secret() or "").strip()),
             "admin_token_placeholder": self.admin_token_is_placeholder(),
             "admin_token_ready": self.admin_token_ready(),
+            "admin_vault_ready": self.admin_vault_ready(),
             "manufacturer_token_dir": str(self.manufacturer_token_dir),
             "runtime_tokens_dir": str(self.runtime_tokens_dir),
             "oauth_configured": bool(google_cfg.get("client_id") and google_cfg.get("client_secret") and google_cfg.get("redirect_uri")),

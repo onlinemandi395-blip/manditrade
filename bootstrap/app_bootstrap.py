@@ -98,9 +98,18 @@ def render_security_panel(app_context: dict) -> None:
         status = security_service.export_security_status()
         st.caption("Streamlit Cloud secrets hold only the verification layer and OAuth identifiers. Encrypted tokens stay outside TOML.")
         if current_user and current_user.role in {"admin", "platform_admin"}:
-            with st.expander("Unlock Admin Drive Runtime", expanded=not st.session_state.get("admin_runtime_unlocked", False)):
-                verification_key = st.text_input("Verification Key", type="password")
-                if st.button("Validate Runtime Access", use_container_width=True):
+            vault_ready = security_service.admin_vault_matches_user(current_user)
+            expander_title = "Admin Runtime Vault" if vault_ready else "Unlock Admin Drive Runtime"
+            with st.expander(expander_title, expanded=not st.session_state.get("admin_runtime_unlocked", False)):
+                if vault_ready:
+                    st.success("One-time verification is already completed for this admin. Vault-backed unlock is available.")
+                    verification_key = ""
+                    button_label = "Unlock From Vault"
+                else:
+                    st.info("This verification key is needed only once. After successful setup, the admin vault will unlock future sessions.")
+                    verification_key = st.text_input("Verification Key", type="password")
+                    button_label = "Verify And Create Vault"
+                if st.button(button_label, use_container_width=True):
                     try:
                         runtime_state = security_service.unlock_admin_runtime(current_user, verification_key)
                         set_flash(f"Admin runtime unlocked for {runtime_state['principal']}.")
@@ -116,6 +125,7 @@ def render_security_panel(app_context: dict) -> None:
                 "token_file_present": status["admin_token_file_present"],
                 "token_placeholder_detected": status["admin_token_placeholder"],
                 "long_lived_admin_runtime_enabled": app_context.get("long_lived_admin_runtime_enabled", False),
+                "admin_vault_ready": status["admin_vault_ready"],
             }
         )
 

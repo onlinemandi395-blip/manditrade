@@ -156,3 +156,50 @@ def test_oauth_status_reports_runtime_and_session_source(tmp_path, monkeypatch):
     assert status["mock_auth_enabled"] is False
     assert status["session_source"] == "google_oauth"
     assert status["granted_scopes"] == ["openid"]
+
+
+def test_admin_vault_is_initialized_once_and_allows_future_unlocks(tmp_path, monkeypatch):
+    st.session_state.clear()
+    auth_service = AuthService(_oauth_config(), enable_mock_auth=False)
+    security_service = SecurityService(
+        encryption_service=EncryptionService(secret_seed="test-seed"),
+        auth_service=auth_service,
+        admin_token_file=tmp_path / "admin_token.enc",
+        manufacturer_token_dir=tmp_path / "manufacturer_tokens",
+        runtime_tokens_dir=tmp_path / "runtime_tokens",
+        require_verification_for_admin_runtime=True,
+    )
+
+    monkeypatch.setattr(security_service, "get_admin_email", lambda: "admin@example.com")
+    monkeypatch.setattr(security_service, "get_public_verification_key", lambda: "verify-123")
+    monkeypatch.setattr(security_service, "admin_token_ready", lambda: True)
+    monkeypatch.setattr(security_service, "decrypt_refresh_token", lambda *_args, **_kwargs: "refresh-token")
+    monkeypatch.setattr(
+        security_service,
+        "build_runtime_credentials_payload",
+        lambda refresh_token, **_kwargs: {
+            "refresh_token": refresh_token,
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "client_id": "client-id",
+            "client_secret": "client-secret",
+        },
+    )
+
+    class FakeCredentials:
+        token = "token"
+
+    monkeypatch.setattr(auth_service, "refresh_credentials", lambda _payload: FakeCredentials())
+    user = auth_service.create_authenticated_user(
+        profile={"email": "admin@example.com", "name": "Admin", "id": "sub-1", "verified_email": True},
+        email="admin@example.com",
+        role="platform_admin",
+        subject_id="sub-1",
+        granted_scopes=["openid"],
+    )
+
+    first = security_service.unlock_admin_runtime(user, "verify-123")
+    assert first["vault_enabled"] is True
+    assert security_service.admin_vault_ready() is True
+
+    second = security_service.unlock_admin_runtime(user, "")
+    assert second["vault_enabled"] is True
