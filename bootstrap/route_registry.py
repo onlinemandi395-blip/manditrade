@@ -10,6 +10,7 @@ from modules.inventory.management import render_inventory_management
 from modules.ledger.dashboard import render_ledger_dashboard
 from modules.manufacturer.dashboard import render_manufacturer_dashboard
 from modules.notifications.dashboard import render_notifications_dashboard
+from modules.onboarding.manufacturer_onboarding import render_manufacturer_onboarding
 from modules.orders.dashboard import render_orders_dashboard
 from modules.orders.dispatch import render_dispatch_management
 from modules.payments.dashboard import render_payments_dashboard
@@ -55,5 +56,7 @@ def render_route(section: str, app_context: dict) -> None:
         render_dispatch_management(app_context)
     elif section == "Clients":
         render_clients_dashboard(app_context)
+    elif section == "Manufacturer Onboarding":
+        render_manufacturer_onboarding(app_context)
     elif section == "System Health":
         render_health_dashboard(app_context)

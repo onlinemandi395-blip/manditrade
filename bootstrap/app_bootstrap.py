@@ -135,6 +135,7 @@ def render_sidebar_navigation() -> str:
     role = current_user.get("role")
     sections = ["Dashboard", "My Actions", "Notifications", "Products", "Inventory", "Client Orders", "Mandi RFQ", "Ledger / Khata", "Payments", "Dispatch", "Clients"]
     if role in {"admin", "platform_admin"}:
+        sections.append("Manufacturer Onboarding")
         sections.append("System Health")
     with st.sidebar:
         st.markdown("## Navigation")
