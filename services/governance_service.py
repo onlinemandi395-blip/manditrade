@@ -43,7 +43,15 @@ class GovernanceService:
         self.ensure_files()
         payload = self.json_service.read_json(self.products_path, {"products": []})
         products = payload.get("products", [])
-        existing = next((item for item in products if item["product_code"] == product["product_code"]), None)
+        product_key = product.get("product_id") or product.get("product_code")
+        existing = next(
+            (
+                item
+                for item in products
+                if (item.get("product_id") or item.get("product_code")) == product_key
+            ),
+            None,
+        )
         if existing:
             existing.update(product)
         else:
