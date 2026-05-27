@@ -81,6 +81,11 @@ class OAuthCallbackService:
         recent.sort(key=lambda item: item.get("created_at", ""), reverse=True)
         return recent
 
+    def _has_recent_pending_state(self, token: str | None) -> bool:
+        if not token:
+            return False
+        return self._lookup_pending_state(token) is not None
+
     def _consume_pending_state(self, token: str) -> bool:
         payload = self._read_state_store()
         states = payload.setdefault("states", [])
@@ -112,8 +117,10 @@ class OAuthCallbackService:
         existing_url = st.session_state.get("oauth_authorization_url")
         existing_state = st.session_state.get("oauth_state_token")
         existing_verifier = st.session_state.get("oauth_code_verifier")
-        if existing_url and existing_state and existing_verifier:
+        if existing_url and existing_state and existing_verifier and self._has_recent_pending_state(existing_state):
             return existing_url
+        if existing_url and existing_state and existing_verifier:
+            self.reset_authorization_state()
         flow = self.auth_service.build_flow() if self.auth_service.oauth_config["client_id"] and self.auth_service.oauth_config["client_secret"] else None
         if flow is None:
             return None
@@ -141,7 +148,12 @@ class OAuthCallbackService:
         if self._lookup_pending_state(returned_state):
             st.session_state["oauth_state_token"] = returned_state
             return returned_state
-        raise PermissionError("OAuth callback state validation failed.")
+        recent_states = self._list_recent_pending_states()
+        recent_tokens = [item.get("token", "") for item in recent_states[:3]]
+        raise PermissionError(
+            "OAuth callback state validation failed. Please restart sign-in and use a fresh Google authorization link."
+            + (f" Recent pending states: {recent_tokens}" if recent_tokens else "")
+        )
 
     def exchange_code(self, code: str, returned_state: str | None) -> dict[str, Any]:
         effective_state = self.validate_state(returned_state)
