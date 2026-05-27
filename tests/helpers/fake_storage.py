@@ -18,6 +18,7 @@ class JsonServiceStub:
 class ManufacturerPaths:
     def __init__(self, root: Path):
         self.root = root
+        self.manufacturer_root = root
         self.shared_zone = root / "shared_zone"
         self.private_zone = root / "private_zone"
 
@@ -36,6 +37,28 @@ class DriveStub:
         (paths.private_zone / "invoices").mkdir(parents=True, exist_ok=True)
         (paths.private_zone / "delivery_proofs").mkdir(parents=True, exist_ok=True)
         (paths.private_zone / "payments").mkdir(parents=True, exist_ok=True)
+        return paths
+
+    def initialize_manufacturer_workspace(
+        self,
+        manufacturer_code: str,
+        manufacturer_name: str,
+        owner_email: str | None = None,
+        status: str = "pending_approval",
+        city: str | None = None,
+    ):
+        paths = self.get_manufacturer_paths(manufacturer_code)
+        self.json_service.write_json(
+            paths.private_zone / "manufacturer_config.json",
+            {
+                "schema_version": "1.0",
+                "manufacturer_code": manufacturer_code,
+                "manufacturer_name": manufacturer_name,
+                "owner_email": owner_email or "",
+                "city": city or "",
+                "status": status,
+            },
+        )
         return paths
 
     def resolve_orders_month_dir(self, manufacturer_code: str, month_key: str) -> Path:

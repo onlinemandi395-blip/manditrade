@@ -27,6 +27,7 @@ from services.id_allocator_service import IdAllocatorService
 from services.ledger_reminder_service import LedgerReminderService
 from services.ledger_service import LedgerService
 from services.logging_service import LoggingService
+from services.manufacturer_onboarding_service import ManufacturerOnboardingService
 from services.notification_center_service import NotificationCenterService
 from services.oauth_callback_service import OAuthCallbackService
 from services.order_state_service import OrderStateService
@@ -125,6 +126,12 @@ def build_app_context() -> dict:
     client_service = ClientService(drive_service=drive_service, gmail_service=gmail_service, encryption_service=encryption_service, safe_drive_write_service=safe_drive_write_service, id_allocator_service=id_allocator_service)
     catalog_service = CatalogService(governance_root=GOVERNANCE_DIR)
     product_catalog_service = ProductCatalogService(governance_service=governance_service, id_allocator_service=id_allocator_service)
+    manufacturer_onboarding_service = ManufacturerOnboardingService(
+        drive_service=drive_service,
+        governance_service=governance_service,
+        safe_drive_write_service=safe_drive_write_service,
+        json_service=drive_service.json_service,
+    )
     domain_paths_service = DomainPathsService(drive_service=drive_service)
     dual_inventory_service = DualInventoryService(safe_drive_write_service=safe_drive_write_service, json_service=drive_service.json_service, domain_paths_service=domain_paths_service)
     trade_confirmation_service = TradeConfirmationService(safe_drive_write_service=safe_drive_write_service, json_service=drive_service.json_service, id_allocator_service=id_allocator_service, domain_paths_service=domain_paths_service)
@@ -255,6 +262,7 @@ def build_app_context() -> dict:
         "client_service": client_service,
         "catalog_service": catalog_service,
         "product_catalog_service": product_catalog_service,
+        "manufacturer_onboarding_service": manufacturer_onboarding_service,
         "dual_inventory_service": dual_inventory_service,
         "trade_confirmation_service": trade_confirmation_service,
         "ledger_service": ledger_service,
