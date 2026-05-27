@@ -5,14 +5,12 @@ import streamlit as st
 
 def render_notifications_dashboard(app_context: dict) -> None:
     st.subheader("Notifications")
-    st.caption("Gmail-only notification architecture.")
-    st.write(
-        {
-            "sender": app_context["system_config"]["notifications"]["admin_sender_email"],
-            "gmail_api_enabled": app_context["system_config"]["notifications"]["use_gmail_api"],
-        }
-    )
-    st.markdown("### Queue")
+    st.caption("In-app notification center with Gmail queue for payment reminders.")
+    user = app_context["current_user"]
+    if user and user.manufacturer_code:
+        st.markdown("### In-App")
+        st.dataframe(app_context["notification_center_service"].list_notifications(user.manufacturer_code), use_container_width=True)
+    st.markdown("### Gmail Queue")
     st.dataframe(app_context["gmail_service"].read_queue(), use_container_width=True)
     if st.button("Process Queue", use_container_width=True):
         processed = app_context["gmail_service"].process_queue()

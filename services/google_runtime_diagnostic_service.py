@@ -61,11 +61,17 @@ class GoogleRuntimeDiagnosticService:
         return self.auth_service.refresh_credentials(payload)
 
     def oauth_status(self, current_user) -> dict[str, Any]:
+        import streamlit as st
+
         google_cfg = self.security_service.get_streamlit_google_config()
+        auth_tokens = st.session_state.get("auth_tokens") or {}
         status = {
             "oauth_configured": bool(google_cfg.get("client_id") and google_cfg.get("client_secret") and google_cfg.get("redirect_uri")),
             "redirect_uri": google_cfg.get("redirect_uri", ""),
+            "runtime_environment": st.session_state.get("runtime_environment", "unknown"),
+            "mock_auth_enabled": self.auth_service.enable_mock_auth,
             "current_user_email": current_user.email if current_user else "",
+            "session_source": auth_tokens.get("session_source", current_user.session_source if current_user else "none"),
             "token_available": False,
             "token_refresh_valid": False,
             "granted_scopes": [],
@@ -77,7 +83,7 @@ class GoogleRuntimeDiagnosticService:
             credentials = self.get_current_credentials(current_user)
             status["token_available"] = bool(credentials.token or credentials.refresh_token)
             status["token_refresh_valid"] = True
-            status["granted_scopes"] = list(credentials.scopes or [])
+            status["granted_scopes"] = list(auth_tokens.get("granted_scopes") or credentials.scopes or current_user.granted_scopes or [])
         except Exception as exc:  # noqa: BLE001
             status["error"] = str(exc)
         return self._write_report("oauth_status", status)

@@ -88,13 +88,15 @@ class DriveService:
 
         shared_files: dict[str, Any] = {
             "inventory.json": {"manufacturer_code": manufacturer_code, "items": []},
-            "procurement.json": {"manufacturer_code": manufacturer_code, "requests": []},
-            "agreements.json": {"manufacturer_code": manufacturer_code, "agreements": []},
+            "rfqs.json": {"manufacturer_code": manufacturer_code, "rfqs": [], "responses": []},
+            "trade_confirmations.json": {"manufacturer_code": manufacturer_code, "confirmations": []},
             "wallet_summary.json": {"manufacturer_code": manufacturer_code, "balance": 0, "currency": "INR"},
             "subscription.json": {"manufacturer_code": manufacturer_code, "plan_code": "basic", "status": "active"},
         }
         private_files: dict[str, Any] = {
             "clients.json": {"manufacturer_code": manufacturer_code, "clients": []},
+            "ledgers.json": {"manufacturer_code": manufacturer_code, "ledgers": []},
+            "notifications.json": {"manufacturer_code": manufacturer_code, "notifications": []},
             "api_keys.json": {"manufacturer_code": manufacturer_code, "keys": []},
             "manufacturer_config.json": {
                 "manufacturer_code": manufacturer_code,
@@ -107,7 +109,7 @@ class DriveService:
 
         for file_name, payload in shared_files.items():
             document = {"schema_version": "1.0", **payload}
-            schema_name = "inventory" if file_name == "inventory.json" else "procurement" if file_name == "procurement.json" else None
+            schema_name = "inventory" if file_name == "inventory.json" else None
             self.safe_drive_write_service.replace_document(paths.shared_zone / file_name, document, schema_name=schema_name)
         for file_name, payload in private_files.items():
             document = {"schema_version": "1.0", **payload}

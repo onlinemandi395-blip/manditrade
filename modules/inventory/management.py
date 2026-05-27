@@ -7,63 +7,42 @@ from services.json_service import JsonService
 
 def render_inventory_management(app_context: dict) -> None:
     user = app_context["current_user"]
-    st.subheader("Inventory Management")
+    st.subheader("Inventory")
 
-    if not user or user.role != "manufacturer" or not user.manufacturer_code:
+    if not user or user.role not in {"manufacturer", "admin_as_manufacturer"} or not user.manufacturer_code:
         st.info("Inventory management is available for signed-in manufacturers.")
         return
 
-    drive_service = app_context["drive_service"]
-    safe_drive_write_service = app_context["safe_drive_write_service"]
-    json_service = JsonService()
-    audit_service = app_context["audit_service"]
-    paths = drive_service.get_manufacturer_paths(user.manufacturer_code)
-    inventory_path = paths.shared_zone / "inventory.json"
-    inventory = json_service.read_json(inventory_path, {"manufacturer_code": user.manufacturer_code, "items": []})
-    movement_log_path = paths.shared_zone / "inventory_movements.json"
-    movement_log = json_service.read_json(movement_log_path, {"movements": []})
+    dual_inventory_service = app_context["dual_inventory_service"]
+    inventory = dual_inventory_service.list_inventory(user.manufacturer_code)
 
     with st.form("add_inventory_item"):
-        product_code = st.text_input("Product Code")
+        product_code = st.text_input("Product ID")
         product_name = st.text_input("Product Name")
-        quantity = st.number_input("Quantity", min_value=0, step=1)
-        city = st.text_input("City", value="Jaipur")
+        unit = st.text_input("Unit", value="kg")
+        self_qty = st.number_input("Self Inventory Qty", min_value=0, step=1)
+        mandi_qty = st.number_input("Mandi Inventory Qty", min_value=0, step=1)
         submit = st.form_submit_button("Add Item")
 
     if submit and product_code and product_name:
-        new_item = {
-            "product_code": product_code.strip(),
-            "product_name": product_name.strip(),
-            "quantity": int(quantity),
-            "city": city.strip(),
-            "reserved_quantity": 0,
-        }
-        safe_drive_write_service.append_record(
-            inventory_path,
-            "items",
-            new_item,
-            schema_name="inventory",
+        dual_inventory_service.upsert_inventory_item(
+            user.manufacturer_code,
+            product_id=product_code.strip(),
+            product_name=product_name.strip(),
+            unit=unit.strip(),
+            self_available_qty=int(self_qty),
+            mandi_available_qty=int(mandi_qty),
         )
-        safe_drive_write_service.append_record(
-            movement_log_path,
-            "movements",
-            {
-                "action": "add",
-                "product_code": product_code.strip(),
-                "quantity": int(quantity),
-                "city": city.strip(),
-            },
-        )
-        audit_service.log_event(
-            "inventory_item_added",
-            actor=user.email,
-            details={"manufacturer_code": user.manufacturer_code, "product_code": product_code.strip(), "quantity": int(quantity)},
-        )
-        st.success("Inventory item saved to shared zone.")
+        st.success("Dual inventory item saved.")
         st.rerun()
-
-    inventory = json_service.read_json(inventory_path, {"manufacturer_code": user.manufacturer_code, "items": []})
-    movement_log = json_service.read_json(movement_log_path, {"movements": []})
     st.dataframe(inventory.get("items", []), use_container_width=True)
-    st.markdown("### Inventory Movement Log")
-    st.dataframe(movement_log.get("movements", []), use_container_width=True)
+    if inventory.get("items"):
+        selected = st.selectbox("Inventory Action Product", [item["product_id"] for item in inventory["items"]])
+        transfer_qty = st.number_input("Transfer Qty", min_value=1, step=1)
+        col1, col2 = st.columns(2)
+        if col1.button("Transfer Self -> Mandi", use_container_width=True):
+            dual_inventory_service.transfer_self_to_mandi(user.manufacturer_code, selected, int(transfer_qty))
+            st.rerun()
+        if col2.button("Withdraw Mandi -> Self", use_container_width=True):
+            dual_inventory_service.withdraw_mandi_to_self(user.manufacturer_code, selected, int(transfer_qty))
+            st.rerun()

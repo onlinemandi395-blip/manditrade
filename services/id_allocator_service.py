@@ -16,6 +16,12 @@ class IdAllocatorService:
         "procurement": "REQ",
         "event": "EVT",
         "client": "CLIENT",
+        "product": "PRD",
+        "rfq": "RFQ",
+        "response": "RESP",
+        "confirmation": "TC",
+        "ledger_entry": "LEDENT",
+        "notification": "NOTIF",
     }
 
     def __init__(self, counters_path: Path, file_lock_service: FileLockService) -> None:

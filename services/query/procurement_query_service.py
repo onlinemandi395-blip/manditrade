@@ -7,5 +7,9 @@ class ProcurementQueryService:
         self.json_service = json_service
 
     def list_procurement_requests(self, manufacturer_code: str) -> list[dict[str, Any]]:
-        procurement_path = self.drive_service.get_manufacturer_paths(manufacturer_code).shared_zone / "procurement.json"
-        return self.json_service.read_json(procurement_path, {"requests": []}).get("requests", [])
+        procurement_path = self.drive_service.get_manufacturer_paths(manufacturer_code).shared_zone / "rfqs.json"
+        return self.json_service.read_json(procurement_path, {"rfqs": []}).get("rfqs", [])
+
+    def list_rfq_responses(self, manufacturer_code: str) -> list[dict[str, Any]]:
+        procurement_path = self.drive_service.get_manufacturer_paths(manufacturer_code).shared_zone / "rfqs.json"
+        return self.json_service.read_json(procurement_path, {"responses": []}).get("responses", [])

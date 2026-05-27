@@ -16,6 +16,7 @@ def ensure_session_defaults() -> None:
         "oauth_authorization_url": None,
         "oauth_state_token": None,
         "oauth_code_verifier": None,
+        "manufacturer_context": None,
         "session_last_seen": time.time(),
     }
     for key, value in defaults.items():

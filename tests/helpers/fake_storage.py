@@ -35,6 +35,7 @@ class DriveStub:
         (paths.private_zone / "client_orders").mkdir(parents=True, exist_ok=True)
         (paths.private_zone / "invoices").mkdir(parents=True, exist_ok=True)
         (paths.private_zone / "delivery_proofs").mkdir(parents=True, exist_ok=True)
+        (paths.private_zone / "payments").mkdir(parents=True, exist_ok=True)
         return paths
 
     def resolve_orders_month_dir(self, manufacturer_code: str, month_key: str) -> Path:

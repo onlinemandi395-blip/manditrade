@@ -16,6 +16,10 @@ class AuthUser:
     name: str
     role: str
     manufacturer_code: str | None = None
+    session_source: str = "mock"
+    subject_id: str | None = None
+    granted_scopes: list[str] | None = None
+    token_metadata: dict[str, Any] | None = None
 
 
 class AuthService:
@@ -55,7 +59,52 @@ class AuthService:
     def create_mock_user(self, email: str, name: str, role: str, manufacturer_code: str | None = None) -> AuthUser:
         if not self.enable_mock_auth:
             raise PermissionError("Mock authentication is disabled.")
-        return AuthUser(email=email, name=name, role=role, manufacturer_code=manufacturer_code)
+        self._validate_role(role)
+        return AuthUser(
+            email=email,
+            name=name,
+            role=role,
+            manufacturer_code=manufacturer_code,
+            session_source="mock",
+        )
+
+    def create_authenticated_user(
+        self,
+        *,
+        profile: dict[str, Any],
+        email: str,
+        role: str,
+        subject_id: str | None = None,
+        manufacturer_code: str | None = None,
+        granted_scopes: list[str] | None = None,
+        token_metadata: dict[str, Any] | None = None,
+    ) -> AuthUser:
+        normalized_email = email.strip().lower()
+        if not normalized_email:
+            raise PermissionError("Authenticated Google profile is missing an email address.")
+        if not profile.get("verified_email", True):
+            raise PermissionError("Authenticated Google email is not verified.")
+        resolved_subject = (subject_id or profile.get("id") or "").strip()
+        if not resolved_subject:
+            raise PermissionError("Authenticated Google profile is missing a subject identifier.")
+        self._validate_role(role)
+        name = str(profile.get("name") or profile.get("email") or normalized_email).strip()
+        if not name:
+            raise PermissionError("Authenticated Google profile is missing a display name.")
+        return AuthUser(
+            email=normalized_email,
+            name=name,
+            role=role,
+            manufacturer_code=manufacturer_code,
+            session_source="google_oauth",
+            subject_id=resolved_subject,
+            granted_scopes=list(granted_scopes or []),
+            token_metadata=dict(token_metadata or {}),
+        )
+
+    def _validate_role(self, role: str) -> None:
+        if role not in {"admin", "manufacturer", "client", "platform_admin", "admin_as_manufacturer"}:
+            raise PermissionError(f"Unsupported user role: {role}")
 
     def serialize_user(self, user: AuthUser) -> dict[str, Any]:
         return asdict(user)

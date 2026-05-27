@@ -8,35 +8,35 @@ from services.audit_service import AuditService
 
 class OrderStateService:
     ALLOWED_TRANSITIONS = {
-        "PLACED": {"VALIDATED", "FAILED", "CANCELLED"},
-        "VALIDATED": {"CONFIRMED", "PROCUREMENT_REQUIRED", "FAILED", "CANCELLED"},
-        "CONFIRMED": {"AGREEMENT_PENDING", "FAILED", "DISPUTED", "CANCELLED"},
-        "PROCUREMENT_REQUIRED": {"AGREEMENT_PENDING", "FAILED", "CANCELLED"},
-        "AGREEMENT_PENDING": {"ADVANCE_PENDING", "CANCELLED", "FAILED"},
-        "ADVANCE_PENDING": {"DISPATCH_READY", "FAILED", "DISPUTED"},
-        "DISPATCH_READY": {"DISPATCHED", "FAILED"},
-        "DISPATCHED": {"DELIVERED", "DISPUTED"},
-        "DELIVERED": {"CLOSED", "DISPUTED"},
+        "PROPOSED": {"COUNTER_PROPOSED", "MANUFACTURER_ACCEPTED", "PROCUREMENT_REQUIRED", "CANCELLED"},
+        "COUNTER_PROPOSED": {"MANUFACTURER_ACCEPTED", "CANCELLED"},
+        "MANUFACTURER_ACCEPTED": {"PROCUREMENT_REQUIRED", "READY_TO_CONFIRM", "CONFIRMED", "CANCELLED"},
+        "PROCUREMENT_REQUIRED": {"READY_TO_CONFIRM", "CANCELLED"},
+        "READY_TO_CONFIRM": {"CONFIRMED", "CANCELLED"},
+        "CONFIRMED": {"DISPATCHED", "CANCELLED"},
+        "DISPATCHED": {"DELIVERED"},
+        "DELIVERED": {"CLOSED"},
         "CLOSED": set(),
         "CANCELLED": set(),
-        "FAILED": set(),
-        "DISPUTED": {"CLOSED"},
     }
 
     def __init__(self, audit_service: AuditService) -> None:
         self.audit_service = audit_service
 
     def can_transition(self, current_status: str, next_status: str) -> bool:
+        if current_status == next_status:
+            return True
         return next_status in self.ALLOWED_TRANSITIONS.get(current_status, set())
 
     def transition(self, order: dict[str, Any], next_status: str, actor: str, reason: str | None = None) -> dict[str, Any]:
-        current = order.get("status", "PLACED")
+        current = order.get("status", "PROPOSED")
         if not self.can_transition(current, next_status):
             raise ValueError(f"Illegal transition from {current} to {next_status}")
+        if current == next_status:
+            return order
         order["status"] = next_status
         order["updated_at"] = datetime.now(UTC).isoformat()
-        timeline = order.setdefault("status_history", [])
-        timeline.append(
+        order.setdefault("status_history", []).append(
             {
                 "from": current,
                 "to": next_status,

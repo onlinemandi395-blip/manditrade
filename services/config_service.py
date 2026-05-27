@@ -38,6 +38,9 @@ class ConfigService:
         notification_mode = system_config.get("notifications", {}).get("notification_mode", "mock")
         if notification_mode not in {"mock", "live", "disabled"}:
             issues.append("system_config.json has invalid notifications.notification_mode.")
+        enable_dev_mock_login = system_config.get("security", {}).get("enable_dev_mock_login", False)
+        if not isinstance(enable_dev_mock_login, bool):
+            issues.append("system_config.json has invalid security.enable_dev_mock_login.")
         return issues
 
     def clear_cache(self) -> None:

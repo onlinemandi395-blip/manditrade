@@ -8,12 +8,11 @@ from typing import Any
 
 
 @dataclass
-class TransactionContext:
+class ProcurementContext:
     transaction_id: str
     state: str = "PENDING"
     affected_files: list[str] = field(default_factory=list)
     backup_targets: list[Path] = field(default_factory=list)
-    rollback_cleanup_files: list[Path] = field(default_factory=list)
     created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     error_message: str = ""
 
@@ -22,258 +21,192 @@ class ProcurementTransactionService:
     def __init__(
         self,
         drive_service,
-        agreement_service,
         safe_drive_write_service,
         rollback_service,
-        order_validation_service,
-        procurement_matching_service,
         gmail_service,
         audit_service,
         logging_service,
         transactions_root: Path,
         event_dispatcher,
         id_allocator_service,
+        dual_inventory_service,
+        trade_confirmation_service,
+        ledger_service,
+        notification_center_service,
+        domain_paths_service,
     ) -> None:
         self.drive_service = drive_service
-        self.agreement_service = agreement_service
         self.safe_drive_write_service = safe_drive_write_service
         self.rollback_service = rollback_service
-        self.order_validation_service = order_validation_service
-        self.procurement_matching_service = procurement_matching_service
         self.gmail_service = gmail_service
         self.audit_service = audit_service
         self.logging_service = logging_service
         self.transactions_root = transactions_root
         self.event_dispatcher = event_dispatcher
         self.id_allocator_service = id_allocator_service
-
-    def _emit_event_safe(self, event_type: str, payload: dict[str, Any]) -> None:
-        try:
-            self.event_dispatcher.emit(event_type, payload, producer="ProcurementTransactionService")
-        except Exception as exc:  # noqa: BLE001
-            self.logging_service.log_error(
-                "event_failures",
-                "Procurement event emission failed after commit",
-                {"event_type": event_type, "payload": payload, "error": str(exc)},
-            )
-
-    def _quarantine_corrupted_journal(self, path: Path, error: str) -> dict[str, Any]:
-        quarantine_dir = self.transactions_root / "quarantine"
-        quarantine_dir.mkdir(parents=True, exist_ok=True)
-        target = quarantine_dir / path.name
-        path.replace(target)
-        payload = {
-            "transaction_id": path.stem,
-            "state": "CORRUPTED",
-            "error_message": error,
-            "quarantined_path": str(target),
-        }
-        self.logging_service.log_error(
-            "transaction_failures",
-            "Corrupted procurement journal quarantined",
-            payload,
-        )
-        return payload
+        self.dual_inventory_service = dual_inventory_service
+        self.trade_confirmation_service = trade_confirmation_service
+        self.ledger_service = ledger_service
+        self.notification_center_service = notification_center_service
+        self.domain_paths = domain_paths_service
 
     def _journal_path(self, transaction_id: str) -> Path:
         return self.transactions_root / f"{transaction_id}.json"
 
-    def _write_journal(self, context: TransactionContext) -> None:
+    def _write_journal(self, context: ProcurementContext) -> None:
         self.transactions_root.mkdir(parents=True, exist_ok=True)
-        payload = {
-            "transaction_id": context.transaction_id,
-            "state": context.state,
-            "affected_files": context.affected_files,
-            "backup_targets": [str(path) for path in context.backup_targets],
-            "rollback_cleanup_files": [str(path) for path in context.rollback_cleanup_files],
-            "created_at": context.created_at,
-            "error_message": context.error_message,
-        }
-        self._journal_path(context.transaction_id).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        self._journal_path(context.transaction_id).write_text(
+            json.dumps(
+                {
+                    "transaction_id": context.transaction_id,
+                    "state": context.state,
+                    "affected_files": context.affected_files,
+                    "backup_targets": [str(item) for item in context.backup_targets],
+                    "created_at": context.created_at,
+                    "error_message": context.error_message,
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
 
-    def _register_target(self, context: TransactionContext, target: Path) -> None:
+    def _register_target(self, context: ProcurementContext, target: Path) -> None:
         if target not in context.backup_targets:
             context.backup_targets.append(target)
             context.affected_files.append(str(target))
             self.safe_drive_write_service.backup_file(target)
 
-    def accept_procurement_request(
-        self,
-        current_user,
-        request_id: str,
-        unit_price: float,
-        advance_amount: float,
-    ) -> dict[str, Any]:
+    def _rfq_doc(self, manufacturer_code: str) -> dict[str, Any]:
+        return self.drive_service.json_service.read_json(self.domain_paths.rfq_path(manufacturer_code), {"schema_version": "2.0", "rfqs": [], "responses": []})
+
+    def create_rfq_from_shortage(self, *, manufacturer_code: str, items: list[dict[str, Any]], trade_terms: dict[str, Any]) -> dict[str, Any]:
+        path = self.domain_paths.rfq_path(manufacturer_code)
+        if not path.exists():
+            self.safe_drive_write_service.replace_document(path, {"schema_version": "2.0", "rfqs": [], "responses": []})
+        rfq = {
+            "rfq_id": self.id_allocator_service.allocate("rfq"),
+            "buyer_manufacturer_id": manufacturer_code,
+            "items": items,
+            "trade_terms": trade_terms,
+            "status": "OPEN",
+            "created_at": datetime.now(UTC).isoformat(),
+        }
+        self.safe_drive_write_service.append_record(path, "rfqs", rfq)
+        return rfq
+
+    def list_requests(self, manufacturer_code: str) -> list[dict[str, Any]]:
+        return self._rfq_doc(manufacturer_code).get("rfqs", [])
+
+    def list_responses(self, manufacturer_code: str) -> list[dict[str, Any]]:
+        return self._rfq_doc(manufacturer_code).get("responses", [])
+
+    def respond_to_rfq(self, current_user, rfq_owner_code: str, rfq_id: str, available_items: list[dict[str, Any]], supplier_terms: dict[str, Any]) -> dict[str, Any]:
         transaction_id = self.id_allocator_service.allocate("transaction")
-        context = TransactionContext(transaction_id=transaction_id, state="RUNNING")
+        context = ProcurementContext(transaction_id=transaction_id, state="RUNNING")
         self._write_journal(context)
-
-        own_paths = self.drive_service.get_manufacturer_paths(current_user.manufacturer_code)
-        procurement_path = own_paths.shared_zone / "procurement.json"
-        procurement = self.drive_service.json_service.read_json(procurement_path, {"schema_version": "1.0", "requests": []})
-        request = next((item for item in procurement.get("requests", []) if item.get("request_id") == request_id), None)
-        if not request or request.get("status") != "OPEN":
-            raise ValueError("Procurement request is no longer OPEN.")
-
-        inventory_path = own_paths.shared_zone / "inventory.json"
-        inventory = self.drive_service.json_service.read_json(inventory_path, {"schema_version": "1.0", "items": []})
-        ranked = self.procurement_matching_service.rank_suppliers(request, inventory.get("items", []))
-        supplier_item = next((item for item in ranked if int(item.get("quantity", 0) - item.get("reserved_quantity", 0)) >= int(request["required_qty"])), None)
-        if not supplier_item:
-            raise ValueError("Insufficient supplier inventory for procurement acceptance.")
-
-        minimum_advance = round(int(request["required_qty"]) * unit_price * 0.5, 2)
-        if advance_amount < minimum_advance:
-            raise ValueError("Advance must be at least 50% before procurement commit.")
-
-        buyer_paths = self.drive_service.get_manufacturer_paths(request["requested_by"])
-        agreements_path = buyer_paths.shared_zone / "agreements.json"
-        pdf_path = buyer_paths.private_zone / "invoices" / f"{transaction_id}.pdf"
-
+        rfq_path = self.domain_paths.rfq_path(rfq_owner_code)
+        inventory_path = self.domain_paths.inventory_path(current_user.manufacturer_code)
         try:
+            self._register_target(context, rfq_path)
             self._register_target(context, inventory_path)
-            self._register_target(context, procurement_path)
-            self._register_target(context, agreements_path)
+            self.dual_inventory_service.reserve_mandi_inventory(current_user.manufacturer_code, [{"product_id": item["product_id"], "qty": item["qty"]} for item in available_items])
+            response = {
+                "response_id": self.id_allocator_service.allocate("response"),
+                "supplier_manufacturer_id": current_user.manufacturer_code,
+                "rfq_id": rfq_id,
+                "available_items": available_items,
+                "supplier_terms": supplier_terms,
+                "status": "SUBMITTED",
+                "created_at": datetime.now(UTC).isoformat(),
+            }
 
-            def inventory_mutator(payload: dict[str, Any]) -> dict[str, Any]:
-                payload.setdefault("schema_version", "1.0")
-                payload.setdefault("manufacturer_code", current_user.manufacturer_code)
-                payload.setdefault("items", [])
-                matched = next((item for item in payload["items"] if item.get("product_code") == request["product_id"]), None)
-                if not matched:
-                    raise ValueError("Supplier inventory record disappeared before commit.")
-                available = int(matched.get("quantity", 0) - matched.get("reserved_quantity", 0))
-                if available < int(request["required_qty"]):
-                    raise ValueError("Supplier inventory changed before commit.")
-                matched["reserved_quantity"] = int(matched.get("reserved_quantity", 0)) + int(request["required_qty"])
-                matched["last_transaction_id"] = transaction_id
+            def mutator(payload: dict[str, Any]) -> dict[str, Any]:
+                payload.setdefault("rfqs", [])
+                payload.setdefault("responses", [])
+                rfq = next((item for item in payload["rfqs"] if item.get("rfq_id") == rfq_id), None)
+                if rfq is None:
+                    raise ValueError(f"RFQ not found: {rfq_id}")
+                if rfq.get("status") != "OPEN":
+                    raise ValueError("RFQ is not open for responses.")
+                rfq["status"] = "RESPONDED"
+                payload["responses"].append(response)
                 return payload
 
-            self.safe_drive_write_service.mutate_json(inventory_path, inventory_mutator, schema_name="inventory")
-
-            agreement = self.agreement_service.create_procurement_agreement(
-                buyer_manufacturer_id=request["requested_by"],
-                seller_manufacturer_id=current_user.manufacturer_code,
-                product_code=request["product_id"],
-                quantity=int(request["required_qty"]),
-                unit_price=unit_price,
+            self.safe_drive_write_service.mutate_json(rfq_path, mutator)
+            self.notification_center_service.create_notification(
+                rfq_owner_code,
+                user_id=rfq_owner_code,
+                notification_type="RFQ_ACCEPTED",
+                priority="HIGH",
+                title="RFQ Accepted",
+                message="A supplier accepted your mandi RFQ.",
+                source_type="RFQ",
+                source_id=rfq_id,
             )
-            agreement["transaction_id"] = transaction_id
-            agreement["advance_amount"] = minimum_advance
-            agreement = self.agreement_service.confirm_advance(agreement, advance_amount)
-            pdf_generated_path = self.agreement_service.generate_pdf(agreement, pdf_path)
-            agreement["pdf_path"] = str(pdf_generated_path)
-            context.rollback_cleanup_files.append(pdf_generated_path)
-
-            def procurement_mutator(payload: dict[str, Any]) -> dict[str, Any]:
-                payload.setdefault("schema_version", "1.0")
-                payload.setdefault("requests", [])
-                found = False
-                for item in payload["requests"]:
-                    if item.get("request_id") == request_id:
-                        if item.get("status") != "OPEN":
-                            raise ValueError("Procurement request changed before commit.")
-                        item["status"] = "ACCEPTED"
-                        item["accepted_by"] = current_user.manufacturer_code
-                        item["agreement_id"] = agreement["agreement_id"]
-                        item["transaction_id"] = transaction_id
-                        found = True
-                        break
-                if not found:
-                    raise ValueError("Procurement request missing during commit.")
-                return payload
-
-            self.safe_drive_write_service.mutate_json(procurement_path, procurement_mutator, schema_name="procurement")
-
-            if not agreements_path.exists():
-                self.safe_drive_write_service.replace_document(
-                    agreements_path,
-                    {"schema_version": "1.0", "manufacturer_code": request["requested_by"], "agreements": []},
-                )
-
-            self.safe_drive_write_service.append_record(
-                agreements_path,
-                "agreements",
-                {"schema_version": "1.0", **agreement},
-            )
-
             context.state = "COMMITTED"
             self._write_journal(context)
-
-            self.audit_service.log_event(
-                "procurement_transaction_committed",
-                actor=current_user.email,
-                details={
-                    "transaction_id": transaction_id,
-                    "request_id": request_id,
-                    "agreement_id": agreement["agreement_id"],
-                },
-            )
         except Exception as exc:  # noqa: BLE001
             context.state = "ROLLED_BACK"
             context.error_message = str(exc)
             self.rollback_service.restore_files(context.backup_targets)
-            for cleanup_target in context.rollback_cleanup_files:
-                self.rollback_service.remove_file_if_exists(cleanup_target)
             self._write_journal(context)
-            self.logging_service.log_error(
-                "transaction_failures",
-                "Procurement transaction rolled back",
-                {"transaction_id": transaction_id, "request_id": request_id, "error": str(exc)},
-            )
             raise
+        return response
 
+    def accept_rfq_response(self, buyer_user, rfq_id: str, response_id: str) -> dict[str, Any]:
+        transaction_id = self.id_allocator_service.allocate("transaction")
+        context = ProcurementContext(transaction_id=transaction_id, state="RUNNING")
+        self._write_journal(context)
+        rfq_path = self.domain_paths.rfq_path(buyer_user.manufacturer_code)
         try:
-            self._emit_event_safe(
-                "PROCUREMENT_ACCEPTED",
-                {
-                    "transaction_id": transaction_id,
-                    "correlation_id": request_id,
-                    "request_id": request_id,
-                    "agreement_id": agreement["agreement_id"],
-                    "accepted_by": current_user.manufacturer_code,
-                },
+            self._register_target(context, rfq_path)
+            payload = self._rfq_doc(buyer_user.manufacturer_code)
+            rfq = next((item for item in payload.get("rfqs", []) if item.get("rfq_id") == rfq_id), None)
+            response = next((item for item in payload.get("responses", []) if item.get("response_id") == response_id), None)
+            if rfq is None or response is None:
+                raise ValueError("RFQ response not found.")
+            rfq["status"] = "BUYER_CONFIRMED"
+            response["status"] = "BUYER_CONFIRMED"
+            self.safe_drive_write_service.replace_document(rfq_path, payload)
+            confirmation = self.trade_confirmation_service.create_confirmation(
+                buyer_user.manufacturer_code,
+                source_type="MANDI_RFQ",
+                source_id=rfq_id,
+                confirmed_by=buyer_user.email,
+                accepted_terms_snapshot={"rfq": rfq, "response": response},
             )
-            self.gmail_service.enqueue_message(
-                to_email=current_user.email,
-                subject="Procurement Request Accepted",
-                body=f"Transaction {transaction_id} accepted procurement request {request_id}.",
-                notification_type="procurement_request_accepted",
+            rfq["trade_confirmation_id"] = confirmation["confirmation_id"]
+            self.safe_drive_write_service.replace_document(rfq_path, payload)
+            amount = 0.0
+            for item in response.get("available_items", []):
+                amount += float(item.get("qty", 0)) * float(item.get("unit_price", item.get("price", 0) or 0))
+            self.ledger_service.create_entry(
+                buyer_user.manufacturer_code,
+                party_a=buyer_user.manufacturer_code,
+                party_b=response["supplier_manufacturer_id"],
+                entry_type="MANDI_SUPPLY",
+                amount=amount,
+                paid_amount=0,
+                ledger_days=int(response.get("supplier_terms", {}).get("ledger_days", 0)),
+                note=response.get("supplier_terms", {}).get("freestyle_note", ""),
             )
-            self.gmail_service.enqueue_message(
-                to_email=current_user.email,
-                subject="Agreement Generated",
-                body=f"Agreement {agreement['agreement_id']} created under transaction {transaction_id}.",
-                notification_type="agreement_generated",
-            )
+            context.state = "COMMITTED"
+            self._write_journal(context)
         except Exception as exc:  # noqa: BLE001
-            self.logging_service.log_error(
-                "notification_failures",
-                "Side effect failed after procurement commit",
-                {"transaction_id": transaction_id, "error": str(exc)},
-            )
-
-        return {
-            "transaction_id": transaction_id,
-            "request_id": request_id,
-            "agreement_id": agreement["agreement_id"],
-            "status": context.state,
-        }
+            context.state = "ROLLED_BACK"
+            context.error_message = str(exc)
+            self.rollback_service.restore_files(context.backup_targets)
+            self._write_journal(context)
+            raise
+        return {"rfq_id": rfq_id, "response_id": response_id, "status": "BUYER_CONFIRMED"}
 
     def recover_incomplete_transactions(self) -> list[dict[str, Any]]:
-        recovered: list[dict[str, Any]] = []
+        recovered = []
         self.transactions_root.mkdir(parents=True, exist_ok=True)
         for path in self.transactions_root.glob("TXN-*.json"):
-            try:
-                payload = json.loads(path.read_text(encoding="utf-8"))
-            except json.JSONDecodeError as exc:
-                recovered.append(self._quarantine_corrupted_journal(path, str(exc)))
-                continue
+            payload = json.loads(path.read_text(encoding="utf-8"))
             if payload.get("state") in {"PENDING", "RUNNING", "FAILED"}:
-                targets = [Path(item) for item in payload.get("backup_targets", [])]
-                self.rollback_service.restore_files(targets)
-                for item in payload.get("rollback_cleanup_files", []):
-                    self.rollback_service.remove_file_if_exists(Path(item))
+                self.rollback_service.restore_files([Path(item) for item in payload.get("backup_targets", [])])
                 payload["state"] = "ROLLED_BACK"
                 path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
                 recovered.append(payload)

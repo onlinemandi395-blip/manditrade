@@ -175,18 +175,46 @@ class OAuthCallbackService:
         self.security_service.encrypt_refresh_token(refresh_token, target=target)
         return str(target)
 
-    def initialize_session(self, user_payload: dict[str, Any], credentials_payload: dict[str, Any], manufacturer_code: str | None = None) -> None:
-        user = self.auth_service.create_mock_user(
-            email=user_payload["email"],
-            name=user_payload.get("name", user_payload["email"]),
-            role=user_payload["role"],
-            manufacturer_code=manufacturer_code,
-        )
+    def initialize_session(
+        self,
+        user_payload: dict[str, Any],
+        credentials_payload: dict[str, Any],
+        manufacturer_code: str | None = None,
+        session_source: str = "google_oauth",
+    ) -> None:
+        if session_source == "mock":
+            user = self.auth_service.create_mock_user(
+                email=user_payload["email"],
+                name=user_payload.get("name", user_payload["email"]),
+                role=user_payload["role"],
+                manufacturer_code=manufacturer_code,
+            )
+        elif session_source == "google_oauth":
+            token_metadata = {
+                "token_uri": credentials_payload.get("token_uri", ""),
+                "client_id_present": bool(credentials_payload.get("client_id")),
+                "refresh_token_present": bool(credentials_payload.get("refresh_token")),
+                "redirect_uri": credentials_payload.get("redirect_uri", ""),
+            }
+            user = self.auth_service.create_authenticated_user(
+                profile=user_payload.get("profile", {}),
+                email=user_payload["email"],
+                role=user_payload["role"],
+                subject_id=user_payload.get("subject_id"),
+                manufacturer_code=manufacturer_code,
+                granted_scopes=list(user_payload.get("granted_scopes") or credentials_payload.get("scopes") or []),
+                token_metadata=token_metadata,
+            )
+        else:
+            raise PermissionError(f"Unsupported session source: {session_source}")
         st.session_state["user"] = self.auth_service.serialize_user(user)
         st.session_state["auth_tokens"] = {
             "principal": user.email,
             "role": user.role,
             "manufacturer_code": manufacturer_code,
+            "session_source": user.session_source,
+            "subject_id": user.subject_id,
+            "granted_scopes": list(user.granted_scopes or []),
             "token_file": self.store_runtime_token(user.email.replace("@", "_at_"), credentials_payload["refresh_token"]),
         }
         st.session_state["runtime_drive_access"] = {
@@ -194,6 +222,7 @@ class OAuthCallbackService:
             "role": user.role,
             "manufacturer_code": manufacturer_code,
             "restored": True,
+            "session_source": user.session_source,
         }
         self.reset_authorization_state()
 

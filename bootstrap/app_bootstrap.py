@@ -29,7 +29,6 @@ def render_auth_panel(app_context: dict) -> None:
     with st.sidebar:
         st.markdown("## Access")
         user = app_context["current_user"]
-        auth_service = app_context["auth_service"]
         if user:
             st.success(f"{user.name} signed in as {user.role}")
             if user.manufacturer_code:
@@ -45,26 +44,9 @@ def render_auth_panel(app_context: dict) -> None:
 
         auth_url = app_context["oauth_callback_service"].build_authorization_url()
         if auth_url and app_context["google_runtime_enabled"]:
-            st.link_button("Google Login", auth_url, use_container_width=True)
+            st.link_button("Continue with Google", auth_url, use_container_width=True)
         else:
             st.info("Google OAuth staging is not ready yet. Demo mode is active for local setup.")
-
-        if app_context["system_config"]["app"].get("runtime_environment", "local") == "local" and auth_service.enable_mock_auth:
-            with st.expander("Mock Sign In", expanded=True):
-                role = st.selectbox("Role", ["admin", "manufacturer", "client"])
-                email = st.text_input("Email", value="admin@manditrade.local")
-                name = st.text_input("Name", value="MandiTrade User")
-                manufacturer_code = st.text_input("Manufacturer Code", value="MANU101" if role in {"manufacturer", "client"} else "")
-                if st.button("Start Session", use_container_width=True):
-                    user = auth_service.create_mock_user(
-                        email=email.strip(),
-                        name=name.strip(),
-                        role=role,
-                        manufacturer_code=manufacturer_code.strip().upper() or None,
-                    )
-                    st.session_state["user"] = auth_service.serialize_user(user)
-                    set_flash(f"Signed in as {user.role}.")
-                    st.rerun()
 
 
 def handle_oauth_callback(app_context: dict) -> None:
@@ -83,11 +65,19 @@ def handle_oauth_callback(app_context: dict) -> None:
         profile = app_context["auth_service"].fetch_google_profile(credentials)
         email = profile.get("email", "")
         admin_email = app_context["security_service"].get_admin_email()
-        role = "admin" if admin_email and email.lower() == admin_email.lower() else "manufacturer"
+        role = "platform_admin" if admin_email and email.lower() == admin_email.lower() else "manufacturer"
         app_context["oauth_callback_service"].initialize_session(
-            user_payload={"email": email, "name": profile.get("name", email), "role": role},
+            user_payload={
+                "email": email,
+                "name": profile.get("name", email),
+                "role": role,
+                "subject_id": profile.get("id"),
+                "granted_scopes": list(token_payload.get("scopes", [])),
+                "profile": profile,
+            },
             credentials_payload=token_payload,
             manufacturer_code=st.session_state.get("manufacturer_context"),
+            session_source="google_oauth",
         )
         app_context["oauth_callback_service"].reset_authorization_state()
         st.query_params.clear()
@@ -107,7 +97,7 @@ def render_security_panel(app_context: dict) -> None:
         current_user = app_context["current_user"]
         status = security_service.export_security_status()
         st.caption("Streamlit Cloud secrets hold only the verification layer and OAuth identifiers. Encrypted tokens stay outside TOML.")
-        if current_user and current_user.role == "admin":
+        if current_user and current_user.role in {"admin", "platform_admin"}:
             with st.expander("Unlock Admin Drive Runtime", expanded=not st.session_state.get("admin_runtime_unlocked", False)):
                 verification_key = st.text_input("Verification Key", type="password")
                 if st.button("Validate Runtime Access", use_container_width=True):
@@ -131,20 +121,11 @@ def render_security_panel(app_context: dict) -> None:
 
 
 def render_sidebar_navigation() -> str:
-    sections = [
-        "Dashboard",
-        "Onboarding",
-        "Inventory",
-        "Pricing",
-        "Procurement",
-        "Agreements",
-        "Notifications",
-        "Dispatch",
-        "Analytics",
-        "System Health",
-        "Client Onboarding",
-        "Client",
-    ]
+    current_user = st.session_state.get("user", {})
+    role = current_user.get("role")
+    sections = ["Dashboard", "My Actions", "Notifications", "Products", "Inventory", "Client Orders", "Mandi RFQ", "Ledger / Khata", "Payments", "Dispatch", "Clients"]
+    if role in {"admin", "platform_admin"}:
+        sections.append("System Health")
     with st.sidebar:
         st.markdown("## Navigation")
         return st.radio("Go to", sections, label_visibility="collapsed")
@@ -153,6 +134,7 @@ def render_sidebar_navigation() -> str:
 def main() -> None:
     ensure_session_defaults()
     app_context = build_app_context()
+    st.session_state["runtime_environment"] = app_context["system_config"]["app"].get("runtime_environment", "local")
     handle_oauth_callback(app_context)
     if not st.session_state.get("startup_recovery_ran"):
         st.session_state["startup_recovery"] = app_context["startup_recovery_service"].run_recovery_pass()
