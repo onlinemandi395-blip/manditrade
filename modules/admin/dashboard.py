@@ -10,23 +10,30 @@ def render_admin_dashboard(app_context: dict) -> None:
     products = governance_service.list_products()
     manufacturers = governance_service.list_manufacturers()
     actions = app_context["action_center_service"].get_actions(type("User", (), {"role": "platform_admin"})())
+    pending_products = [item for item in products if item.get("status") == "PENDING_APPROVAL"]
+    active_products = [item for item in products if item.get("status") == "ACTIVE"]
 
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     col1.metric("Manufacturers", len(manufacturers))
     col2.metric("Products", len(products))
     col3.metric("Pending Actions", sum(int(item.get("count", 0)) for item in actions))
+    col4.metric("Approved Products", len(active_products))
 
     st.markdown("### Pending Product Approval")
-    pending = [item for item in products if item.get("status") == "PENDING_APPROVAL"]
-    st.dataframe(pending, use_container_width=True)
-    if pending:
-        selected = st.selectbox("Approve Product", [item["product_id"] for item in pending])
+    st.dataframe(pending_products, use_container_width=True)
+    if pending_products:
+        selected = st.selectbox("Approve Product", [item["product_id"] for item in pending_products])
         mandi_price = st.number_input("Mandi Price", min_value=0.0, step=1.0)
         mrp = st.number_input("MRP", min_value=0.0, step=1.0)
         if st.button("Approve Selected Product", use_container_width=True):
             app_context["product_catalog_service"].approve_product(product_id=selected, approved_by="PLATFORM_ADMIN", mandi_price=mandi_price, mrp=mrp)
             st.success("Product approved.")
             st.rerun()
+    else:
+        st.info("No products are pending approval.")
+
+    st.markdown("### All Products")
+    st.dataframe(products, use_container_width=True)
 
     st.markdown("### Manufacturer Registry")
     with st.form("create_manufacturer_onboarding"):
