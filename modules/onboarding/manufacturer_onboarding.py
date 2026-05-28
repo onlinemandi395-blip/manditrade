@@ -15,6 +15,7 @@ BUSINESS_TYPES = [
     "Other",
 ]
 DRIVE_STATUSES = ["NOT_CONNECTED", "PENDING", "CONNECTED"]
+SUBSCRIPTION_PLANS = ["Basic", "Premium", "Premium+"]
 PENDING_CREATE_CODE_KEY = "_pending_manufacturer_create_code"
 
 
@@ -43,6 +44,17 @@ def _categories_text(manufacturer: dict) -> str:
 
 def _option_index(options: list[str], value: str) -> int:
     return options.index(value) if value in options else 0
+
+
+def _subscription_plan_index(value: str) -> int:
+    normalized = (value or "").strip().lower()
+    mapping = {
+        "basic": "Basic",
+        "premium": "Premium",
+        "premium+": "Premium+",
+    }
+    display_value = mapping.get(normalized, value)
+    return _option_index(SUBSCRIPTION_PLANS, display_value)
 
 
 def _render_profile_form(*, prefix: str, defaults: dict, submit_label: str) -> tuple[bool, dict]:
@@ -196,7 +208,7 @@ def render_manufacturer_onboarding(app_context: dict) -> None:
     with st.form("manufacturer_onboarding_create_code"):
         code_col, plan_col = st.columns(2)
         manufacturer_code = code_col.text_input("Manufacturer Code", placeholder="MANU101")
-        subscription_plan = plan_col.text_input("Subscription Plan", value="basic")
+        subscription_plan = plan_col.selectbox("Subscription Plan", SUBSCRIPTION_PLANS, index=0)
         create_code_submit = st.form_submit_button("Open Manufacturer Create Form")
 
     if create_code_submit and manufacturer_code.strip():
@@ -259,7 +271,7 @@ def render_manufacturer_onboarding(app_context: dict) -> None:
         updated_email = col2.text_input("Update Owner Email", value=selected.get("owner_email", ""))
         updated_city = col1.text_input("Update City", value=_address_of(selected).get("city", ""))
         updated_status = col2.selectbox("Update Status", ["ACTIVE", "INACTIVE", "BLOCKED"], index=_option_index(["ACTIVE", "INACTIVE", "BLOCKED"], selected.get("status", "ACTIVE")))
-        updated_plan = st.text_input("Update Subscription Plan", value=selected.get("subscription_plan", "basic"))
+        updated_plan = st.selectbox("Subscription Plan", SUBSCRIPTION_PLANS, index=_subscription_plan_index(selected.get("subscription_plan", "basic")))
         save_submit = st.form_submit_button("Save Changes")
 
     if save_submit:

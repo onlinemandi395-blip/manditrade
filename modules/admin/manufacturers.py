@@ -6,6 +6,19 @@ from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
 from components.ui_shell import render_metric_card, render_page_header
 
+SUBSCRIPTION_PLANS = ["Basic", "Premium", "Premium+"]
+
+
+def _subscription_plan_index(value: str) -> int:
+    normalized = (value or "").strip().lower()
+    mapping = {
+        "basic": "Basic",
+        "premium": "Premium",
+        "premium+": "Premium+",
+    }
+    display_value = mapping.get(normalized, value)
+    return SUBSCRIPTION_PLANS.index(display_value) if display_value in SUBSCRIPTION_PLANS else 0
+
 
 def render_manufacturers_dashboard(app_context: dict) -> None:
     governance_service = app_context["governance_service"]
@@ -33,7 +46,7 @@ def render_manufacturers_dashboard(app_context: dict) -> None:
     selected = next(item for item in manufacturers if item["manufacturer_code"] == selected_code)
     col1, col2 = st.columns(2)
     updated_status = col1.selectbox("Lifecycle Status", ["ACTIVE", "INACTIVE", "BLOCKED"], index=["ACTIVE", "INACTIVE", "BLOCKED"].index(selected.get("status", "ACTIVE")) if selected.get("status", "ACTIVE") in {"ACTIVE", "INACTIVE", "BLOCKED"} else 0)
-    updated_plan = col2.text_input("Subscription Plan", value=selected.get("subscription_plan", "basic"))
+    updated_plan = col2.selectbox("Subscription Plan", SUBSCRIPTION_PLANS, index=_subscription_plan_index(selected.get("subscription_plan", "basic")))
     if st.button("Save Manufacturer Status", use_container_width=True):
         onboarding_service.update_manufacturer(
             selected_code,
