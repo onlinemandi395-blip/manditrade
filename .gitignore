@@ -69,13 +69,3 @@ desktop.ini
 .idea/
 *.swp
 *.swo
-
-# ------------------------------
-# Frontend build artifacts
-# ------------------------------
-frontend/node_modules/
-frontend/dist/
-frontend/*.tsbuildinfo
-frontend/*.js
-frontend/*.d.ts
-streamlit_component/manpur_hero/frontend/dist/
