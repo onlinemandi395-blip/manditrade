@@ -51,7 +51,7 @@ def render_auth_panel(app_context: dict) -> None:
                 st.rerun()
             return
 
-        st.info("Use the central login/signup panel on the homepage to prepare Google sign-in and role context.")
+        st.info("Use the central login page on the homepage to continue with Google.")
         st.caption(f"Build: {BUILD_COMMIT}")
 
 
