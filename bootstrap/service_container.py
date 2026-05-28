@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 import streamlit as st
 
 from services.action_center_service import ActionCenterService
+from services.access_portal_service import AccessPortalService
 from services.audit_service import AuditService
 from services.auth_service import AuthService
 from services.bootstrap_service import BootstrapService
@@ -154,6 +155,16 @@ def build_app_context() -> dict:
         ledger_service=ledger_service,
         gmail_service=gmail_service,
     )
+    access_portal_service = AccessPortalService(
+        governance_root=GOVERNANCE_DIR,
+        safe_drive_write_service=safe_drive_write_service,
+        governance_service=governance_service,
+        client_service=client_service,
+        worker_service=worker_service,
+        drive_service=drive_service,
+        security_service=security_service,
+        json_service=drive_service.json_service,
+    )
     order_state_service = OrderStateService(audit_service=audit_service)
     delivery_service = DeliveryService(gmail_service=gmail_service, audit_service=audit_service, id_allocator_service=id_allocator_service)
     procurement_transaction_service = ProcurementTransactionService(
@@ -289,6 +300,7 @@ def build_app_context() -> dict:
         "notification_center_service": notification_center_service,
         "job_service": job_service,
         "worker_service": worker_service,
+        "access_portal_service": access_portal_service,
         "action_center_service": action_center_service,
         "order_query_service": OrderQueryService(drive_service=drive_service, json_service=drive_service.json_service),
         "inventory_query_service": InventoryQueryService(drive_service=drive_service, json_service=drive_service.json_service),

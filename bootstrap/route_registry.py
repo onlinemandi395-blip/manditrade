@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from modules.access.dashboard import render_access_portal, render_pending_user_dashboard
 from modules.actions.dashboard import render_actions_dashboard
 from modules.admin.dashboard import render_admin_dashboard
 from modules.client.dashboard import render_client_dashboard
@@ -24,8 +25,7 @@ from modules.workers.dashboard import render_workers_dashboard
 def render_dashboard(app_context: dict) -> None:
     user = app_context["current_user"]
     if not user:
-        st.subheader("Platform Overview")
-        st.write("Sign in to access role-based dashboards and manufacturer workspaces.")
+        render_access_portal(app_context)
         return
     if user.role in {"admin", "platform_admin"}:
         render_admin_dashboard(app_context)
@@ -33,6 +33,8 @@ def render_dashboard(app_context: dict) -> None:
         render_manufacturer_dashboard(app_context)
     elif user.role == "worker":
         render_workers_dashboard(app_context)
+    elif user.role == "pending_user":
+        render_pending_user_dashboard(app_context)
     else:
         render_client_dashboard(app_context)
 

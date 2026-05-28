@@ -51,11 +51,7 @@ def render_auth_panel(app_context: dict) -> None:
                 st.rerun()
             return
 
-        auth_url = app_context["oauth_callback_service"].build_authorization_url()
-        if auth_url and app_context["google_runtime_enabled"]:
-            st.link_button("Continue with Google", auth_url, use_container_width=True)
-        else:
-            st.info("Google OAuth staging is not ready yet. Demo mode is active for local setup.")
+        st.info("Use the central login/signup panel on the homepage to prepare Google sign-in and role context.")
         st.caption(f"Build: {BUILD_COMMIT}")
 
 
@@ -74,21 +70,29 @@ def handle_oauth_callback(app_context: dict) -> None:
         credentials = app_context["auth_service"].refresh_credentials(token_payload)
         profile = app_context["auth_service"].fetch_google_profile(credentials)
         email = profile.get("email", "")
-        admin_email = app_context["security_service"].get_admin_email()
-        role = "platform_admin" if admin_email and email.lower() == admin_email.lower() else "manufacturer"
+        resolved_identity = app_context["access_portal_service"].resolve_identity(
+            email=email,
+            display_name=profile.get("name", email),
+            preferred_role=st.session_state.get("requested_role"),
+            manufacturer_code=st.session_state.get("manufacturer_context"),
+        )
         app_context["oauth_callback_service"].initialize_session(
             user_payload={
                 "email": email,
                 "name": profile.get("name", email),
-                "role": role,
+                "role": resolved_identity["role"],
                 "subject_id": profile.get("id"),
                 "granted_scopes": list(token_payload.get("scopes", [])),
                 "profile": profile,
             },
             credentials_payload=token_payload,
-            manufacturer_code=st.session_state.get("manufacturer_context"),
+            manufacturer_code=resolved_identity.get("manufacturer_code"),
             session_source="google_oauth",
         )
+        st.session_state["requested_role"] = None
+        st.session_state["client_onboarding_token"] = None
+        if resolved_identity.get("manufacturer_code"):
+            st.session_state["manufacturer_context"] = resolved_identity["manufacturer_code"]
         app_context["oauth_callback_service"].reset_authorization_state()
         st.query_params.clear()
         set_flash("OAuth session initialized.")
@@ -101,6 +105,8 @@ def handle_oauth_callback(app_context: dict) -> None:
 
 
 def render_security_panel(app_context: dict) -> None:
+    if not app_context["current_user"]:
+        return
     with st.sidebar:
         st.markdown("## Runtime Security")
         security_service = app_context["security_service"]
@@ -178,6 +184,8 @@ def render_sidebar_navigation(app_context: dict) -> str:
             sections.append("Workers")
     elif role == "worker":
         sections = ["Dashboard", "My Actions", "Notifications", "Jobs in Mandi", "Workers"]
+    elif role == "pending_user":
+        sections = ["Dashboard"]
     else:
         sections = ["Dashboard"]
     with st.sidebar:
