@@ -37,6 +37,6 @@ def render_admin_dashboard(app_context: dict) -> None:
         "Registry Focus",
         render_mobile_record_card({"Manufacturers": len(manufacturers), "Actions": sum(int(item.get("count", 0)) for item in actions)}),
     )
-    render_section_intro("Governance Overview", "Dashboard is now summary-only. Use Product Approvals for proposals, Manufacturers for registry controls, and Onboarding for onboarding packets.")
+    render_section_intro("Governance Overview", "Dashboard is now summary-only. Use Product Approvals for proposals and Manufacturers for registry controls plus onboarding packets.")
     st.dataframe(pending_products[:10], use_container_width=True)
-    st.info("Manufacturer onboarding forms were removed from the dashboard. Open the separate Onboarding navigation page to create or manage onboarding packets.")
+    st.info("Manufacturer onboarding forms were removed from the dashboard. Open the Manufacturers page to create or manage onboarding packets.")
