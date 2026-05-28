@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import streamlit as st
 
 
 def render_html(html: str, *, height: int | None = None) -> None:
-    st.markdown(html, unsafe_allow_html=True)
+    compact_html = re.sub(r">\s+<", "><", html.strip())
+    st.markdown(compact_html, unsafe_allow_html=True)
 
 
 def inject_css(css_path: Path) -> None:
