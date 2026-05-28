@@ -2,19 +2,30 @@ from __future__ import annotations
 
 import streamlit as st
 
+from components.responsive_layout import render_section_intro
+from components.three_d_cards import render_metric_grid
+from components.ui_shell import render_metric_card, render_page_header
+
 
 def render_manufacturer_onboarding(app_context: dict) -> None:
     current_user = app_context["current_user"]
     if not current_user or current_user.role not in {"admin", "platform_admin"}:
-        st.subheader("Manufacturer Onboarding")
+        render_page_header("Manufacturer Onboarding", "Platform-admin only onboarding for new manufacturers and their first-time secrets.", ["Admin Only"])
         st.info("Only platform admin can access manufacturer onboarding.")
         return
 
     onboarding_service = app_context["manufacturer_onboarding_service"]
     governance_service = app_context["governance_service"]
+    manufacturers = governance_service.list_manufacturers()
 
-    st.subheader("Manufacturer Onboarding")
-    st.caption("Create, update, and share first-time onboarding packets for manufacturers.")
+    render_page_header("Manufacturer Onboarding", "Create, update, and share manufacturer onboarding packets with first-time setup secrets.", ["Platform Admin", "Onboarding"])
+    render_metric_grid(
+        [
+            render_metric_card("Manufacturers", str(len(manufacturers)), "SUCCESS"),
+            render_metric_card("Pending Approval", str(len([item for item in manufacturers if item.get("status") != "approved"])), "PENDING"),
+        ]
+    )
+    render_section_intro("First-Time Setup", "Admin controls the manufacturer registry and shares the onboarding packet after Google identity verification.")
 
     with st.form("manufacturer_onboarding_create"):
         col1, col2 = st.columns(2)
@@ -38,7 +49,6 @@ def render_manufacturer_onboarding(app_context: dict) -> None:
         st.code(created["manufacturer_onboarding_steps"], language="text")
         st.rerun()
 
-    manufacturers = governance_service.list_manufacturers()
     st.markdown("### Registered Manufacturers")
     st.dataframe(manufacturers, use_container_width=True)
 

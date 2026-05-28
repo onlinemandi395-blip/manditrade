@@ -7,6 +7,7 @@ from modules.admin.dashboard import render_admin_dashboard
 from modules.client.dashboard import render_client_dashboard
 from modules.clients.dashboard import render_clients_dashboard
 from modules.inventory.management import render_inventory_management
+from modules.jobs.dashboard import render_jobs_dashboard
 from modules.ledger.dashboard import render_ledger_dashboard
 from modules.manufacturer.dashboard import render_manufacturer_dashboard
 from modules.notifications.dashboard import render_notifications_dashboard
@@ -17,6 +18,7 @@ from modules.payments.dashboard import render_payments_dashboard
 from modules.products.dashboard import render_products_dashboard
 from modules.rfq.dashboard import render_rfq_dashboard
 from modules.system.health_dashboard import render_health_dashboard
+from modules.workers.dashboard import render_workers_dashboard
 
 
 def render_dashboard(app_context: dict) -> None:
@@ -29,6 +31,8 @@ def render_dashboard(app_context: dict) -> None:
         render_admin_dashboard(app_context)
     elif user.role in {"manufacturer", "admin_as_manufacturer"}:
         render_manufacturer_dashboard(app_context)
+    elif user.role == "worker":
+        render_workers_dashboard(app_context)
     else:
         render_client_dashboard(app_context)
 
@@ -56,6 +60,10 @@ def render_route(section: str, app_context: dict) -> None:
         render_dispatch_management(app_context)
     elif section == "Clients":
         render_clients_dashboard(app_context)
+    elif section == "Jobs in Mandi":
+        render_jobs_dashboard(app_context)
+    elif section == "Workers":
+        render_workers_dashboard(app_context)
     elif section == "Manufacturer Onboarding":
         render_manufacturer_onboarding(app_context)
     elif section == "System Health":

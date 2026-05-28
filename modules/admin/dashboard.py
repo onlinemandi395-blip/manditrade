@@ -2,9 +2,13 @@ from __future__ import annotations
 
 import streamlit as st
 
+from components.responsive_layout import render_section_intro
+from components.three_d_cards import render_metric_grid
+from components.ui_shell import render_metric_card, render_page_header
+
 
 def render_admin_dashboard(app_context: dict) -> None:
-    st.subheader("Platform Admin Dashboard")
+    render_page_header("Platform Admin Dashboard", "Govern product approvals, manufacturer onboarding, and platform health without entering the old ERP agreement model.", ["Platform Admin", "Governance"])
     governance_service = app_context["governance_service"]
     manufacturer_onboarding_service = app_context["manufacturer_onboarding_service"]
     products = governance_service.list_products()
@@ -13,13 +17,16 @@ def render_admin_dashboard(app_context: dict) -> None:
     pending_products = [item for item in products if item.get("status") == "PENDING_APPROVAL"]
     active_products = [item for item in products if item.get("status") == "ACTIVE"]
 
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Manufacturers", len(manufacturers))
-    col2.metric("Products", len(products))
-    col3.metric("Pending Actions", sum(int(item.get("count", 0)) for item in actions))
-    col4.metric("Approved Products", len(active_products))
+    render_metric_grid(
+        [
+            render_metric_card("Manufacturers", str(len(manufacturers)), "SUCCESS"),
+            render_metric_card("Products", str(len(products)), "OPEN"),
+            render_metric_card("Pending Actions", str(sum(int(item.get("count", 0)) for item in actions)), "HIGH_PRIORITY"),
+            render_metric_card("Approved Products", str(len(active_products)), "CONFIRMED"),
+        ]
+    )
 
-    st.markdown("### Pending Product Approval")
+    render_section_intro("Pending Product Approval", "Approve product proposals, set mandi price and MRP, then keep them visible in the all-products catalog.")
     st.dataframe(pending_products, use_container_width=True)
     if pending_products:
         selected = st.selectbox("Approve Product", [item["product_id"] for item in pending_products])
@@ -35,7 +42,7 @@ def render_admin_dashboard(app_context: dict) -> None:
     st.markdown("### All Products")
     st.dataframe(products, use_container_width=True)
 
-    st.markdown("### Manufacturer Registry")
+    render_section_intro("Manufacturer Registry", "Onboard new manufacturers, issue onboarding secrets, and share admin-approved steps.")
     with st.form("create_manufacturer_onboarding"):
         col1, col2 = st.columns(2)
         manufacturer_code = col1.text_input("Manufacturer Code", placeholder="MANU101")

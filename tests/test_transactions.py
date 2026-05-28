@@ -29,8 +29,11 @@ def test_id_allocator_generates_unique_ids_across_new_domains(tmp_path):
         allocator.allocate("confirmation"),
         allocator.allocate("ledger_entry"),
         allocator.allocate("notification"),
+        allocator.allocate("job"),
+        allocator.allocate("worker"),
+        allocator.allocate("application"),
     }
-    assert len(seen) == 8
+    assert len(seen) == 11
 
 
 def test_event_dispatcher_persists_standardized_event_model(tmp_path):

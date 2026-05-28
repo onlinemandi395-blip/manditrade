@@ -22,6 +22,9 @@ class IdAllocatorService:
         "confirmation": "TC",
         "ledger_entry": "LEDENT",
         "notification": "NOTIF",
+        "job": "JOB",
+        "worker": "WRK",
+        "application": "APP",
     }
 
     def __init__(self, counters_path: Path, file_lock_service: FileLockService) -> None:

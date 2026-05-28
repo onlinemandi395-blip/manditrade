@@ -5,7 +5,7 @@ from typing import Any
 
 
 class ActionCenterService:
-    def __init__(self, governance_service, gmail_service, notification_center_service, ledger_service, order_query_service, procurement_query_service, dual_inventory_service) -> None:
+    def __init__(self, governance_service, gmail_service, notification_center_service, ledger_service, order_query_service, procurement_query_service, dual_inventory_service, job_service=None, worker_service=None) -> None:
         self.governance_service = governance_service
         self.gmail_service = gmail_service
         self.notification_center_service = notification_center_service
@@ -13,6 +13,8 @@ class ActionCenterService:
         self.order_query_service = order_query_service
         self.procurement_query_service = procurement_query_service
         self.dual_inventory_service = dual_inventory_service
+        self.job_service = job_service
+        self.worker_service = worker_service
 
     def get_actions(self, user) -> list[dict[str, Any]]:
         if not user:
@@ -22,6 +24,8 @@ class ActionCenterService:
             return self._admin_actions()
         if role in {"manufacturer", "admin_as_manufacturer"}:
             return self._manufacturer_actions(user.manufacturer_code or "")
+        if role == "worker":
+            return self._worker_actions(user.email)
         return self._client_actions(user.manufacturer_code or "", user.email)
 
     def _admin_actions(self) -> list[dict[str, Any]]:
@@ -49,6 +53,10 @@ class ActionCenterService:
             actions.append({"type": "RESPOND_RFQ", "count": len([item for item in rfqs if item.get("status") == "OPEN"])})
         if any(item.get("status") == "BUYER_CONFIRMED" for item in rfqs):
             actions.append({"type": "DISPATCH_PENDING", "count": len([item for item in rfqs if item.get("status") == "BUYER_CONFIRMED"])})
+        if self.job_service:
+            pending_applications = len([item for item in self.job_service.list_applications(manufacturer_id=manufacturer_code) if item.get("status") == "APPLIED"])
+            if pending_applications:
+                actions.append({"type": "REVIEW_WORKER_APPLICATION", "count": pending_applications})
         overdue = 0
         for ledger in ledgers:
             for entry in ledger.get("entries", []):
@@ -68,4 +76,24 @@ class ActionCenterService:
             actions.append({"type": "ACCEPT_COUNTER_PROPOSAL", "count": len([item for item in orders if item.get("status") == "COUNTER_PROPOSED"])})
         if any(item.get("status") == "DELIVERED" for item in orders):
             actions.append({"type": "CONFIRM_DELIVERY", "count": len([item for item in orders if item.get("status") == "DELIVERED"])})
+        if self.worker_service and self.job_service:
+            worker = self.worker_service.get_worker_by_email(client_email)
+            if worker and worker.get("available"):
+                actions.append({"type": "RESPOND_TO_JOB", "count": len(self.job_service.list_open_jobs())})
+        return actions
+
+    def _worker_actions(self, email: str) -> list[dict[str, Any]]:
+        actions = []
+        if not self.worker_service or not self.job_service:
+            return actions
+        worker = self.worker_service.get_worker_by_email(email)
+        if not worker:
+            return actions
+        applications = self.job_service.list_applications(worker_id=worker["worker_id"])
+        open_jobs = self.job_service.list_open_jobs() if worker.get("available") else []
+        if open_jobs:
+            actions.append({"type": "RESPOND_TO_JOB", "count": len(open_jobs)})
+        confirmable = len([item for item in applications if item.get("status") == "ACCEPTED"])
+        if confirmable:
+            actions.append({"type": "CONFIRM_ATTENDANCE", "count": confirmable})
         return actions

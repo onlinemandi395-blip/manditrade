@@ -24,6 +24,7 @@ from services.gmail_service import GmailService
 from services.google_runtime_diagnostic_service import GoogleRuntimeDiagnosticService
 from services.governance_service import GovernanceService
 from services.id_allocator_service import IdAllocatorService
+from services.job_service import JobService
 from services.ledger_reminder_service import LedgerReminderService
 from services.ledger_service import LedgerService
 from services.logging_service import LoggingService
@@ -45,6 +46,7 @@ from services.security_service import SecurityService
 from services.startup_recovery_service import StartupRecoveryService
 from services.token_rotation_service import TokenRotationService
 from services.trade_confirmation_service import TradeConfirmationService
+from services.worker_service import WorkerService
 from utils.config_loader import load_config
 from utils.paths import APP_RUNTIME_DIR, BASE_DIR, GOVERNANCE_DIR, MANUFACTURERS_DIR, RUNTIME_BACKUPS_DIR, RUNTIME_DEAD_LETTER_DIR, RUNTIME_LOGS_DIR, RUNTIME_METRICS_DIR, RUNTIME_RECOVERY_DIR, RUNTIME_TOKENS_DIR, RUNTIME_VERSION_HISTORY_DIR
 
@@ -137,6 +139,21 @@ def build_app_context() -> dict:
     trade_confirmation_service = TradeConfirmationService(safe_drive_write_service=safe_drive_write_service, json_service=drive_service.json_service, id_allocator_service=id_allocator_service, domain_paths_service=domain_paths_service)
     ledger_service = LedgerService(safe_drive_write_service=safe_drive_write_service, json_service=drive_service.json_service, id_allocator_service=id_allocator_service, domain_paths_service=domain_paths_service)
     notification_center_service = NotificationCenterService(safe_drive_write_service=safe_drive_write_service, json_service=drive_service.json_service, id_allocator_service=id_allocator_service, domain_paths_service=domain_paths_service)
+    worker_service = WorkerService(
+        governance_root=GOVERNANCE_DIR,
+        safe_drive_write_service=safe_drive_write_service,
+        json_service=drive_service.json_service,
+        id_allocator_service=id_allocator_service,
+    )
+    job_service = JobService(
+        governance_root=GOVERNANCE_DIR,
+        safe_drive_write_service=safe_drive_write_service,
+        json_service=drive_service.json_service,
+        id_allocator_service=id_allocator_service,
+        notification_center_service=notification_center_service,
+        ledger_service=ledger_service,
+        gmail_service=gmail_service,
+    )
     order_state_service = OrderStateService(audit_service=audit_service)
     delivery_service = DeliveryService(gmail_service=gmail_service, audit_service=audit_service, id_allocator_service=id_allocator_service)
     procurement_transaction_service = ProcurementTransactionService(
@@ -184,6 +201,8 @@ def build_app_context() -> dict:
         order_query_service=OrderQueryService(drive_service=drive_service, json_service=drive_service.json_service),
         procurement_query_service=ProcurementQueryService(drive_service=drive_service, json_service=drive_service.json_service),
         dual_inventory_service=dual_inventory_service,
+        job_service=job_service,
+        worker_service=worker_service,
     )
 
     startup_checks = config_service.validate_streamlit_secrets(security_service.load_streamlit_secrets())
@@ -268,6 +287,8 @@ def build_app_context() -> dict:
         "ledger_service": ledger_service,
         "ledger_reminder_service": ledger_reminder_service,
         "notification_center_service": notification_center_service,
+        "job_service": job_service,
+        "worker_service": worker_service,
         "action_center_service": action_center_service,
         "order_query_service": OrderQueryService(drive_service=drive_service, json_service=drive_service.json_service),
         "inventory_query_service": InventoryQueryService(drive_service=drive_service, json_service=drive_service.json_service),

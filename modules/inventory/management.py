@@ -2,19 +2,37 @@ from __future__ import annotations
 
 import streamlit as st
 
-from services.json_service import JsonService
+from components.responsive_layout import render_section_intro
+from components.three_d_cards import render_metric_grid
+from components.ui_shell import render_metric_card, render_page_header
 
 
 def render_inventory_management(app_context: dict) -> None:
     user = app_context["current_user"]
-    st.subheader("Inventory")
+    render_page_header("Inventory", "Run self stock and mandi stock separately, with explicit transfer controls between both buckets.", ["Dual Inventory", "Self -> Mandi", "Mandi -> Self"])
 
-    if not user or user.role not in {"manufacturer", "admin_as_manufacturer"} or not user.manufacturer_code:
+    if not user or user.role not in {"manufacturer", "admin_as_manufacturer", "platform_admin"} or not user.manufacturer_code:
         st.info("Inventory management is available for signed-in manufacturers.")
         return
 
     dual_inventory_service = app_context["dual_inventory_service"]
     inventory = dual_inventory_service.list_inventory(user.manufacturer_code)
+    render_metric_grid(
+        [
+            render_metric_card("Products Tracked", str(len(inventory.get("items", []))), "SUCCESS"),
+            render_metric_card(
+                "Self Available",
+                str(sum(int(item.get("self_inventory", {}).get("available_qty", 0)) for item in inventory.get("items", []))),
+                "OPEN",
+            ),
+            render_metric_card(
+                "Mandi Available",
+                str(sum(int(item.get("mandi_inventory", {}).get("available_qty", 0)) for item in inventory.get("items", []))),
+                "PENDING",
+            ),
+        ]
+    )
+    render_section_intro("Transfer Controls", "Self inventory stays private for client orders until you explicitly push it into mandi inventory.")
 
     with st.form("add_inventory_item"):
         product_code = st.text_input("Product ID")

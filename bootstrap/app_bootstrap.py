@@ -6,11 +6,13 @@ import streamlit as st
 
 from bootstrap.route_registry import render_route
 from bootstrap.service_container import build_app_context
+from components.ui_shell import apply_ui_shell
 from utils.session import clear_runtime_session, ensure_session_defaults, pop_flash, set_flash
 
 
-BUILD_COMMIT = "sidebar-fix-20260527-1903"
+BUILD_COMMIT = "ui-jobs-20260528"
 BUILD_FILE = Path(__file__).resolve()
+CSS_FILE = BUILD_FILE.parent.parent / "assets" / "styles" / "manditrade_3d.css"
 
 
 def render_header(app_context: dict) -> None:
@@ -146,7 +148,9 @@ def render_sidebar_navigation(app_context: dict) -> str:
     current_user = app_context.get("current_user")
     security_service = app_context["security_service"]
     is_admin_identity = security_service.is_admin_identity(current_user)
-    sections = [
+    worker_profile = app_context["worker_service"].get_worker_by_email(current_user.email) if current_user and getattr(current_user, "email", "") else None
+    role = current_user.role if current_user else None
+    manufacturer_sections = [
         "Dashboard",
         "My Actions",
         "Notifications",
@@ -158,10 +162,24 @@ def render_sidebar_navigation(app_context: dict) -> str:
         "Payments",
         "Dispatch",
         "Clients",
+        "Jobs in Mandi",
+        "Workers",
     ]
-    if is_admin_identity:
-        sections.append("Manufacturer Onboarding")
-        sections.append("System Health")
+    if role in {"manufacturer", "admin_as_manufacturer"}:
+        sections = manufacturer_sections
+    elif is_admin_identity and current_user and current_user.manufacturer_code:
+        sections = [*manufacturer_sections, "Manufacturer Onboarding", "System Health"]
+    elif is_admin_identity:
+        sections = ["Dashboard", "My Actions", "Notifications", "Products", "Manufacturer Onboarding", "System Health"]
+    elif role == "client":
+        sections = ["Dashboard", "Notifications", "Client Orders", "Ledger / Khata"]
+        if worker_profile:
+            sections.append("Jobs in Mandi")
+            sections.append("Workers")
+    elif role == "worker":
+        sections = ["Dashboard", "My Actions", "Notifications", "Jobs in Mandi", "Workers"]
+    else:
+        sections = ["Dashboard"]
     with st.sidebar:
         st.markdown("## Navigation")
         if is_admin_identity:
@@ -171,6 +189,7 @@ def render_sidebar_navigation(app_context: dict) -> str:
 
 def main() -> None:
     ensure_session_defaults()
+    apply_ui_shell(CSS_FILE)
     app_context = build_app_context()
     st.session_state["runtime_environment"] = app_context["system_config"]["app"].get("runtime_environment", "local")
     handle_oauth_callback(app_context)
