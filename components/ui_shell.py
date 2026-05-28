@@ -16,6 +16,9 @@ def render_page_header(title: str, subtitle: str, badges: list[str] | None = Non
         f"""
         <section class="mt-hero">
           <div class="mt-hero__glow"></div>
+          <div class="mt-hero__orb mt-hero__orb--warm"></div>
+          <div class="mt-hero__orb mt-hero__orb--cool"></div>
+          <div class="mt-hero__lane"></div>
           <div class="mt-hero__content">
             <p class="mt-kicker">3D Bharat Mandi Control Center</p>
             <h1>{escape(title)}</h1>
@@ -55,6 +58,39 @@ def render_status_badge(status: str) -> str:
 def render_3d_panel(content: str, title: str | None = None) -> None:
     title_html = f"<h3 class='mt-panel__title'>{escape(title)}</h3>" if title else ""
     render_html(f"<section class='mt-panel'>{title_html}<div class='mt-panel__body'>{content}</div></section>")
+
+
+def render_showcase_strip(items: list[tuple[str, str, str]]) -> None:
+    cards = "".join(
+        f"""
+        <article class="mt-mini-stat">
+          <div class="mt-mini-stat__meta">
+            <span>{escape(label)}</span>
+            {render_status_badge(status)}
+          </div>
+          <strong>{escape(value)}</strong>
+        </article>
+        """
+        for label, value, status in items
+    )
+    render_html(f"<section class='mt-showcase-strip'>{cards}</section>")
+
+
+def render_dual_panel(left_title: str, left_content: str, right_title: str, right_content: str) -> None:
+    render_html(
+        f"""
+        <section class="mt-grid mt-grid--panels">
+          <article class="mt-panel">
+            <h3 class="mt-panel__title">{escape(left_title)}</h3>
+            <div class="mt-panel__body">{left_content}</div>
+          </article>
+          <article class="mt-panel">
+            <h3 class="mt-panel__title">{escape(right_title)}</h3>
+            <div class="mt-panel__body">{right_content}</div>
+          </article>
+        </section>
+        """
+    )
 
 
 def render_mobile_record_card(record: dict) -> str:

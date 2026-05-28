@@ -4,7 +4,7 @@ import streamlit as st
 
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
-from components.ui_shell import render_metric_card, render_page_header
+from components.ui_shell import render_metric_card, render_page_header, render_showcase_strip
 
 
 def render_access_portal(app_context: dict) -> None:
@@ -18,6 +18,13 @@ def render_access_portal(app_context: dict) -> None:
             render_metric_card("Single Login", "One entry for all users", "SUCCESS"),
             render_metric_card("Role Routing", "Automatic after sign-in", "OPEN"),
             render_metric_card("Workspace Access", "Based on onboarding and approvals", "PENDING"),
+        ]
+    )
+    render_showcase_strip(
+        [
+            ("Manufacturers", "Inventory + RFQ + Jobs", "SUCCESS"),
+            ("Clients", "Orders + Khata visibility", "OPEN"),
+            ("Workers", "Local mandi jobs", "PENDING"),
         ]
     )
     render_section_intro("Access", "Manufacturers, clients, workers, and platform admins all enter through one abstracted login page. Access is mapped in the background after authentication.")

@@ -4,7 +4,7 @@ import streamlit as st
 
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
-from components.ui_shell import render_3d_panel, render_metric_card, render_mobile_record_card, render_page_header
+from components.ui_shell import render_3d_panel, render_dual_panel, render_metric_card, render_mobile_record_card, render_page_header, render_showcase_strip
 
 
 def render_notifications_dashboard(app_context: dict) -> None:
@@ -18,6 +18,19 @@ def render_notifications_dashboard(app_context: dict) -> None:
             render_metric_card("Gmail Queue", str(len(queue)), "WARNING"),
             render_metric_card("Unread", str(len([item for item in notifications if not item.get("read", False)])), "HIGH_PRIORITY"),
         ]
+    )
+    render_showcase_strip(
+        [
+            ("Unread Alerts", str(len([item for item in notifications if not item.get("read", False)])), "HIGH_PRIORITY"),
+            ("Queue Depth", str(len(queue)), "WARNING"),
+            ("Live Feed", "Dispatch + RFQ + Jobs", "OPEN"),
+        ]
+    )
+    render_dual_panel(
+        "Alert Surface",
+        render_mobile_record_card({"In-App": len(notifications), "Unread": len([item for item in notifications if not item.get("read", False)])}),
+        "Delivery Surface",
+        render_mobile_record_card({"Queue": len(queue), "Mode": "Gmail runtime"}),
     )
     if user and user.manufacturer_code:
         render_section_intro("In-App", "Role-relevant alerts stay visible here until read, resolved, or snoozed.")

@@ -4,7 +4,7 @@ import streamlit as st
 
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
-from components.ui_shell import render_3d_panel, render_metric_card, render_mobile_record_card, render_page_header
+from components.ui_shell import render_3d_panel, render_dual_panel, render_metric_card, render_mobile_record_card, render_page_header, render_showcase_strip
 
 
 def render_jobs_dashboard(app_context: dict) -> None:
@@ -19,7 +19,20 @@ def render_jobs_dashboard(app_context: dict) -> None:
         render_metric_card("Workers", str(len(worker_service.list_workers(include_private=True))), "SUCCESS"),
     ]
     render_metric_grid(cards)
+    render_showcase_strip(
+        [
+            ("Daily Wage", "Fast local staffing", "OPEN"),
+            ("Packaging", "Most active category", "SUCCESS"),
+            ("Shift Help", "Urgent coverage lane", "WARNING"),
+        ]
+    )
     render_section_intro("Jobs Feed", "Manufacturers can post roles. Workers can apply with a simple note.")
+    render_dual_panel(
+        "Hiring Pulse",
+        render_mobile_record_card({"Open Jobs": len(jobs), "Applications": len(job_service.list_applications())}),
+        "Worker Pool",
+        render_mobile_record_card({"Workers": len(worker_service.list_workers(include_private=True)), "Mode": "Local mandi network"}),
+    )
 
     if user and user.role in {"manufacturer", "admin_as_manufacturer", "platform_admin"} and user.manufacturer_code:
         with st.form("create_job_post"):

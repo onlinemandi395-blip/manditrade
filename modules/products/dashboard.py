@@ -4,7 +4,7 @@ import streamlit as st
 
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
-from components.ui_shell import render_metric_card, render_page_header
+from components.ui_shell import render_dual_panel, render_metric_card, render_mobile_record_card, render_page_header, render_showcase_strip
 
 
 def render_products_dashboard(app_context: dict) -> None:
@@ -17,6 +17,19 @@ def render_products_dashboard(app_context: dict) -> None:
             render_metric_card("Pending Approval", str(len([item for item in products if item.get("status") == "PENDING_APPROVAL"])), "PENDING"),
             render_metric_card("Active", str(len([item for item in products if item.get("status") == "ACTIVE"])), "OPEN"),
         ]
+    )
+    render_showcase_strip(
+        [
+            ("Public Catalog", str(len(products)), "SUCCESS"),
+            ("Pending", str(len([item for item in products if item.get('status') == 'PENDING_APPROVAL'])), "PENDING"),
+            ("Visible Active", str(len([item for item in products if item.get('status') == 'ACTIVE'])), "OPEN"),
+        ]
+    )
+    render_dual_panel(
+        "Pricing Governance",
+        render_mobile_record_card({"Mandi Price": "Admin-governed", "MRP": "Public-facing"}),
+        "Onboarding Flow",
+        render_mobile_record_card({"Propose": "Manufacturer/Admin", "Approve": "Platform Admin"}),
     )
     render_section_intro("Catalog Governance", "Manufacturers can propose products and platform admin approves them with mandi price and MRP.")
     st.dataframe(products, use_container_width=True)

@@ -9,3 +9,7 @@ def render_metric_grid(cards: list[str]) -> None:
 
 def render_action_grid(cards: list[str]) -> None:
     render_html(f"<section class='mt-grid mt-grid--actions'>{''.join(cards)}</section>")
+
+
+def render_panel_grid(cards: list[str]) -> None:
+    render_html(f"<section class='mt-grid mt-grid--panels'>{''.join(cards)}</section>")

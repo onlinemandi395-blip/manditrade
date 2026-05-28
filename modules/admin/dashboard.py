@@ -4,7 +4,7 @@ import streamlit as st
 
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
-from components.ui_shell import render_metric_card, render_page_header
+from components.ui_shell import render_dual_panel, render_metric_card, render_mobile_record_card, render_page_header, render_showcase_strip
 
 
 def render_admin_dashboard(app_context: dict) -> None:
@@ -24,6 +24,19 @@ def render_admin_dashboard(app_context: dict) -> None:
             render_metric_card("Pending Actions", str(sum(int(item.get("count", 0)) for item in actions)), "HIGH_PRIORITY"),
             render_metric_card("Approved Products", str(len(active_products)), "CONFIRMED"),
         ]
+    )
+    render_showcase_strip(
+        [
+            ("Product Queue", str(len(pending_products)), "PENDING"),
+            ("Registry Health", str(len(manufacturers)), "SUCCESS"),
+            ("Governance Load", str(sum(int(item.get("count", 0)) for item in actions)), "HIGH_PRIORITY"),
+        ]
+    )
+    render_dual_panel(
+        "Approval Focus",
+        render_mobile_record_card({"Pending Products": len(pending_products), "Active Products": len(active_products)}),
+        "Registry Focus",
+        render_mobile_record_card({"Manufacturers": len(manufacturers), "Actions": sum(int(item.get("count", 0)) for item in actions)}),
     )
 
     render_section_intro("Pending Product Approval", "Approve product proposals, set mandi price and MRP, then keep them visible in the all-products catalog.")
