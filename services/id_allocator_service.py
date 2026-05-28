@@ -16,6 +16,8 @@ class IdAllocatorService:
         "procurement": "REQ",
         "event": "EVT",
         "client": "CLIENT",
+        "manufacturer": "MANU",
+        "comment": "COM",
         "product": "PRD",
         "rfq": "RFQ",
         "response": "RESP",

@@ -10,7 +10,24 @@ from components.ui_shell import render_3d_panel, render_dual_panel, render_metri
 def render_notifications_dashboard(app_context: dict) -> None:
     render_page_header("Notifications", "In-app alerts and Gmail queue tracking for RFQs, payments, dispatch, and jobs.", ["Notification Center", "Gmail Queue"])
     user = app_context["current_user"]
-    notifications = app_context["notification_center_service"].list_notifications(user.manufacturer_code) if user and user.manufacturer_code else []
+    notifications: list[dict] = []
+    if user:
+        notification_service = app_context["notification_center_service"]
+        if user.role == "platform_admin":
+            for manufacturer in app_context["governance_service"].list_manufacturers():
+                notifications.extend(
+                    [
+                        item
+                        for item in notification_service.list_notifications(manufacturer.get("manufacturer_code", ""))
+                        if item.get("user_id") in {user.email.lower(), "PLATFORM_ADMIN"}
+                    ]
+                )
+        elif user.manufacturer_code:
+            notifications = [
+                item
+                for item in notification_service.list_notifications(user.manufacturer_code)
+                if item.get("user_id") in {user.manufacturer_code, user.email.lower(), user.email}
+            ]
     queue = app_context["gmail_service"].read_queue()
     render_metric_grid(
         [
@@ -32,7 +49,7 @@ def render_notifications_dashboard(app_context: dict) -> None:
         "Delivery Surface",
         render_mobile_record_card({"Queue": len(queue), "Mode": "Gmail runtime"}),
     )
-    if user and user.manufacturer_code:
+    if user and (user.manufacturer_code or user.role == "platform_admin"):
         render_section_intro("In-App", "Role-relevant alerts stay visible here until read, resolved, or snoozed.")
         if notifications:
             render_3d_panel("".join(render_mobile_record_card(item) for item in notifications[:5]), "Latest Alerts")

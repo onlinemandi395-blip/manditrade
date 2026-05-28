@@ -128,18 +128,25 @@ def build_app_context() -> dict:
     oauth_callback_service = OAuthCallbackService(auth_service=auth_service, security_service=security_service, state_store_path=APP_RUNTIME_DIR / "oauth_states.json")
     client_service = ClientService(drive_service=drive_service, gmail_service=gmail_service, encryption_service=encryption_service, safe_drive_write_service=safe_drive_write_service, id_allocator_service=id_allocator_service)
     catalog_service = CatalogService(governance_root=GOVERNANCE_DIR)
-    product_catalog_service = ProductCatalogService(governance_service=governance_service, id_allocator_service=id_allocator_service)
     manufacturer_onboarding_service = ManufacturerOnboardingService(
         drive_service=drive_service,
         governance_service=governance_service,
         safe_drive_write_service=safe_drive_write_service,
         json_service=drive_service.json_service,
+        id_allocator_service=id_allocator_service,
     )
     domain_paths_service = DomainPathsService(drive_service=drive_service)
     dual_inventory_service = DualInventoryService(safe_drive_write_service=safe_drive_write_service, json_service=drive_service.json_service, domain_paths_service=domain_paths_service)
     trade_confirmation_service = TradeConfirmationService(safe_drive_write_service=safe_drive_write_service, json_service=drive_service.json_service, id_allocator_service=id_allocator_service, domain_paths_service=domain_paths_service)
     ledger_service = LedgerService(safe_drive_write_service=safe_drive_write_service, json_service=drive_service.json_service, id_allocator_service=id_allocator_service, domain_paths_service=domain_paths_service)
     notification_center_service = NotificationCenterService(safe_drive_write_service=safe_drive_write_service, json_service=drive_service.json_service, id_allocator_service=id_allocator_service, domain_paths_service=domain_paths_service)
+    product_catalog_service = ProductCatalogService(
+        governance_service=governance_service,
+        id_allocator_service=id_allocator_service,
+        notification_center_service=notification_center_service,
+        gmail_service=gmail_service,
+        admin_email=security_service.get_admin_email(),
+    )
     worker_service = WorkerService(
         governance_root=GOVERNANCE_DIR,
         safe_drive_write_service=safe_drive_write_service,

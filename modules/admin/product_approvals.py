@@ -9,6 +9,7 @@ from components.ui_shell import render_metric_card, render_page_header
 
 def render_product_approvals_dashboard(app_context: dict) -> None:
     product_catalog_service = app_context["product_catalog_service"]
+    current_user = app_context["current_user"]
     products = app_context["governance_service"].list_products()
     proposed_products = [item for item in products if item.get("status") == "PROPOSED"]
 
@@ -32,27 +33,82 @@ def render_product_approvals_dashboard(app_context: dict) -> None:
 
     selected_id = st.selectbox("Select Proposed Product", [item["product_id"] for item in proposed_products])
     selected = next(item for item in proposed_products if item["product_id"] == selected_id)
+    st.markdown("### Proposal Snapshot")
+    st.json(
+        {
+            "name": selected.get("name", ""),
+            "description": selected.get("description", ""),
+            "suggested_mandi_price": selected.get("suggested_mandi_price", 0),
+            "suggested_mrp": selected.get("suggested_mrp", 0),
+            "visibility_request": selected.get("visibility_request", "MANDI_NETWORK"),
+            "minimum_order_qty": selected.get("minimum_order_qty", 1),
+            "available_for_public_sale": selected.get("available_for_public_sale", False),
+            "available_for_mandi_network": selected.get("available_for_mandi_network", True),
+            "clarification_status": selected.get("clarification_status", "NONE"),
+        },
+        expanded=False,
+    )
+    st.markdown("### Comment Thread")
+    comments = product_catalog_service.list_product_comments(selected_id, current_user)
+    if comments:
+        st.dataframe(comments, use_container_width=True)
+    else:
+        st.info("No proposal comments yet.")
+
+    with st.form(f"admin_product_comment_{selected_id}"):
+        admin_comment = st.text_area("Comment / Query", height=100)
+        send_comment = st.form_submit_button("Send Comment")
+    if send_comment and admin_comment.strip():
+        product_catalog_service.add_product_comment(selected_id, current_user, admin_comment)
+        st.success("Admin comment added.")
+        st.rerun()
+
+    if st.button("Mark Clarification Resolved", use_container_width=True):
+        product_catalog_service.mark_clarification_resolved(selected_id, current_user)
+        st.success("Clarification marked as resolved.")
+        st.rerun()
+
     col1, col2 = st.columns(2)
-    mandi_price = col1.number_input("Mandi Price", min_value=0.0, step=1.0, value=float(selected.get("mandi_price", 0) or 0))
-    mrp = col2.number_input("MRP", min_value=0.0, step=1.0, value=float(selected.get("mrp", 0) or 0))
+    mandi_price = col1.number_input("Approved Mandi Price", min_value=0.0, step=1.0, value=float(selected.get("suggested_mandi_price", selected.get("mandi_price", 0)) or 0))
+    mrp = col2.number_input("Approved MRP", min_value=0.0, step=1.0, value=float(selected.get("suggested_mrp", selected.get("mrp", 0)) or 0))
     category = col1.text_input("Category", value=selected.get("category", ""))
     unit = col2.text_input("Unit", value=selected.get("unit", "kg"))
-    visible = st.checkbox("Visible after approval", value=bool(selected.get("visible", True)))
+    approved_visibility = st.selectbox(
+        "Approved Visibility",
+        ["PUBLIC", "PRIVATE_CLIENT", "MANDI_NETWORK"],
+        index=["PUBLIC", "PRIVATE_CLIENT", "MANDI_NETWORK"].index(selected.get("visibility_request", "MANDI_NETWORK"))
+        if selected.get("visibility_request", "MANDI_NETWORK") in {"PUBLIC", "PRIVATE_CLIENT", "MANDI_NETWORK"}
+        else 2,
+    )
+    admin_note = st.text_area("Admin Note", value=selected.get("admin_note", ""), height=100)
+    clarification_status = selected.get("clarification_status", "NONE")
+    if clarification_status == "ADMIN_QUERY":
+        st.warning("Approval is blocked until the manufacturer replies or the clarification is marked resolved.")
 
     approve_col, reject_col = st.columns(2)
     if approve_col.button("Approve Product", use_container_width=True):
-        product_catalog_service.approve_product(
+        try:
+            product_catalog_service.approve_product(
+                product_id=selected_id,
+                approved_by="PLATFORM_ADMIN",
+                approved_mandi_price=mandi_price,
+                approved_mrp=mrp,
+                category=category,
+                unit=unit,
+                approved_visibility=approved_visibility,
+                visible=True,
+                admin_note=admin_note,
+            )
+        except ValueError as exc:
+            st.error(str(exc))
+        else:
+            st.success("Product approved and activated.")
+            st.rerun()
+    if reject_col.button("Reject Product", use_container_width=True):
+        product_catalog_service.reject_product(
             product_id=selected_id,
             approved_by="PLATFORM_ADMIN",
-            mandi_price=mandi_price,
-            mrp=mrp,
-            category=category,
-            unit=unit,
-            visible=visible,
+            admin_note=admin_note,
         )
-        st.success("Product approved and activated.")
-        st.rerun()
-    if reject_col.button("Reject Product", use_container_width=True):
-        product_catalog_service.reject_product(product_id=selected_id, approved_by="PLATFORM_ADMIN")
         st.warning("Product marked as rejected.")
         st.rerun()

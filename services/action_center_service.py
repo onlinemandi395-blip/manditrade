@@ -34,12 +34,19 @@ class ActionCenterService:
         failed_gmail = [item for item in self.gmail_service.read_queue() if item.get("status") == "failed"]
         if any(item.get("status") == "PROPOSED" for item in products):
             actions.append({"type": "APPROVE_PRODUCT", "count": len([item for item in products if item.get("status") == "PROPOSED"])})
+        unresolved = len([item for item in products if item.get("status") == "PROPOSED" and item.get("clarification_status") == "ADMIN_QUERY"])
+        reply_pending = len([item for item in products if item.get("status") == "PROPOSED" and item.get("clarification_status") == "MANUFACTURER_REPLIED"])
+        if unresolved:
+            actions.append({"type": "PRODUCT_PROPOSAL_CLARIFICATION_UNRESOLVED", "count": unresolved})
+        if reply_pending:
+            actions.append({"type": "PRODUCT_PROPOSAL_REPLY_PENDING_REVIEW", "count": reply_pending})
         if failed_gmail:
             actions.append({"type": "FAILED_GMAIL_NOTIFICATIONS", "count": len(failed_gmail)})
         return actions
 
     def _manufacturer_actions(self, manufacturer_code: str) -> list[dict[str, Any]]:
         actions = []
+        products = self.governance_service.list_products()
         orders = self.order_query_service.list_orders(manufacturer_code)
         rfqs = self.procurement_query_service.list_procurement_requests(manufacturer_code)
         ledgers = self.ledger_service.list_ledgers(manufacturer_code)
@@ -64,6 +71,17 @@ class ActionCenterService:
         low_stock = sum(1 for item in inventory.get("items", []) if int(item.get("self_inventory", {}).get("available_qty", 0)) <= 10)
         if low_stock:
             actions.append({"type": "LOW_INVENTORY", "count": low_stock})
+        product_reply_needed = len(
+            [
+                item
+                for item in products
+                if item.get("status") == "PROPOSED"
+                and item.get("clarification_status") == "ADMIN_QUERY"
+                and (item.get("created_by_manufacturer_id") == manufacturer_code or item.get("created_by") == manufacturer_code)
+            ]
+        )
+        if product_reply_needed:
+            actions.append({"type": "PRODUCT_PROPOSAL_NEEDS_REPLY", "count": product_reply_needed})
         return actions
 
     def _client_actions(self, manufacturer_code: str, client_email: str) -> list[dict[str, Any]]:
