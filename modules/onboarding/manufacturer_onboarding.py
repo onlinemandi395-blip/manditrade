@@ -15,6 +15,7 @@ BUSINESS_TYPES = [
     "Other",
 ]
 DRIVE_STATUSES = ["NOT_CONNECTED", "PENDING", "CONNECTED"]
+PENDING_CREATE_CODE_KEY = "_pending_manufacturer_create_code"
 
 
 def _address_of(manufacturer: dict) -> dict:
@@ -199,9 +200,9 @@ def render_manufacturer_onboarding(app_context: dict) -> None:
         create_code_submit = st.form_submit_button("Open Manufacturer Create Form")
 
     if create_code_submit and manufacturer_code.strip():
-        st.session_state["manufacturer_onboarding_create_code"] = manufacturer_code.strip().upper()
+        st.session_state[PENDING_CREATE_CODE_KEY] = manufacturer_code.strip().upper()
 
-    pending_create_code = st.session_state.get("manufacturer_onboarding_create_code", "")
+    pending_create_code = st.session_state.get(PENDING_CREATE_CODE_KEY, "")
     if pending_create_code:
         st.markdown(f"### New Manufacturer Profile: `{pending_create_code}`")
         create_submitted, create_payload = _render_profile_form(
@@ -238,7 +239,7 @@ def render_manufacturer_onboarding(app_context: dict) -> None:
                 created_by=current_user.email,
                 subscription_plan=subscription_plan,
             )
-            st.session_state.pop("manufacturer_onboarding_create_code", None)
+            st.session_state.pop(PENDING_CREATE_CODE_KEY, None)
             st.success(f"Manufacturer {created['manufacturer_code']} created.")
             st.code(created["manufacturer_onboarding_steps"], language="text")
             st.rerun()
