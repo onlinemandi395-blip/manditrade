@@ -5,6 +5,8 @@ import streamlit as st
 from modules.access.dashboard import render_access_portal, render_pending_user_dashboard
 from modules.actions.dashboard import render_actions_dashboard
 from modules.admin.dashboard import render_admin_dashboard
+from modules.admin.manufacturers import render_manufacturers_dashboard
+from modules.admin.product_approvals import render_product_approvals_dashboard
 from modules.client.dashboard import render_client_dashboard
 from modules.clients.dashboard import render_clients_dashboard
 from modules.inventory.management import render_inventory_management
@@ -66,7 +68,11 @@ def render_route(section: str, app_context: dict) -> None:
         render_jobs_dashboard(app_context)
     elif section == "Workers":
         render_workers_dashboard(app_context)
-    elif section == "Manufacturer Onboarding":
+    elif section == "Product Approvals":
+        render_product_approvals_dashboard(app_context)
+    elif section == "Manufacturers":
+        render_manufacturers_dashboard(app_context)
+    elif section == "Onboarding":
         render_manufacturer_onboarding(app_context)
     elif section == "System Health":
         render_health_dashboard(app_context)

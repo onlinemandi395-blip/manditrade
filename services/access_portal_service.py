@@ -163,7 +163,7 @@ class AccessPortalService:
             None,
         )
         if manufacturer:
-            return {"role": "manufacturer", "manufacturer_code": manufacturer.get("manufacturer_code"), "status": manufacturer.get("status", "approved")}
+            return {"role": "manufacturer", "manufacturer_code": manufacturer.get("manufacturer_code"), "status": manufacturer.get("status", "ACTIVE")}
 
         request = self.find_latest_request(email_key, preferred_role_key or None)
         if request and request.get("status") == "READY_FOR_GOOGLE_SIGNIN":
@@ -215,10 +215,12 @@ class AccessPortalService:
                 updates: dict[str, Any] = {}
                 if not manufacturer.get("owner_email"):
                     updates["owner_email"] = email
+                if manufacturer.get("status") != "ACTIVE":
+                    updates["status"] = "ACTIVE"
                 if updates:
                     self.governance_service.update_manufacturer(manufacturer_code, updates)
                 self._mark_request_status(request["request_id"], "ACTIVE")
-                return {"role": "manufacturer", "manufacturer_code": manufacturer_code, "status": manufacturer.get("status", "approved")}
+                return {"role": "manufacturer", "manufacturer_code": manufacturer_code, "status": "ACTIVE"}
 
         if role == "client" and manufacturer_code and request.get("invite_token"):
             invite = self.client_service.validate_onboarding(manufacturer_code, request["invite_token"], email)

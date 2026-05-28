@@ -44,7 +44,7 @@ class DriveStub:
         manufacturer_code: str,
         manufacturer_name: str,
         owner_email: str | None = None,
-        status: str = "pending_approval",
+        status: str = "ACTIVE",
         city: str | None = None,
     ):
         paths = self.get_manufacturer_paths(manufacturer_code)

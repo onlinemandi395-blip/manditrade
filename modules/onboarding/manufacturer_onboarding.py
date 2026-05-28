@@ -9,8 +9,27 @@ from components.ui_shell import render_metric_card, render_page_header
 
 def render_manufacturer_onboarding(app_context: dict) -> None:
     current_user = app_context["current_user"]
-    if not current_user or current_user.role not in {"admin", "platform_admin"}:
-        render_page_header("Manufacturer Onboarding", "Platform-admin only onboarding for new manufacturers and their first-time secrets.", ["Admin Only"])
+    if not current_user:
+        render_page_header("Onboarding", "Use Google sign-in first to open the correct onboarding workspace.", ["Access Required"])
+        st.info("Sign in to access onboarding.")
+        return
+    if current_user.role in {"manufacturer", "admin_as_manufacturer"}:
+        manufacturer = app_context["governance_service"].get_manufacturer(current_user.manufacturer_code or "")
+        render_page_header("Onboarding", "Manufacturer onboarding status and workspace readiness are tracked here.", ["Manufacturer", "Onboarding"])
+        render_metric_grid(
+            [
+                render_metric_card("Status", (manufacturer or {}).get("status", "ACTIVE"), "SUCCESS"),
+                render_metric_card("Workspace", current_user.manufacturer_code or "Not mapped", "OPEN"),
+            ]
+        )
+        render_section_intro("Onboarding Status", "Dashboard no longer contains onboarding forms. This route is the single onboarding touchpoint for manufacturer account status.")
+        if manufacturer:
+            st.dataframe([manufacturer], use_container_width=True)
+        else:
+            st.info("No manufacturer registry record is linked to this account yet.")
+        return
+    if current_user.role not in {"admin", "platform_admin"}:
+        render_page_header("Onboarding", "Platform-admin only onboarding for new manufacturers and their first-time secrets.", ["Admin Only"])
         st.info("Only platform admin can access manufacturer onboarding.")
         return
 
@@ -18,14 +37,14 @@ def render_manufacturer_onboarding(app_context: dict) -> None:
     governance_service = app_context["governance_service"]
     manufacturers = governance_service.list_manufacturers()
 
-    render_page_header("Manufacturer Onboarding", "Create, update, and share manufacturer onboarding packets with first-time setup secrets.", ["Platform Admin", "Onboarding"])
+    render_page_header("Onboarding", "Create, update, and share manufacturer onboarding packets with first-time setup secrets.", ["Platform Admin", "Onboarding"])
     render_metric_grid(
         [
             render_metric_card("Manufacturers", str(len(manufacturers)), "SUCCESS"),
-            render_metric_card("Pending Approval", str(len([item for item in manufacturers if item.get("status") != "approved"])), "PENDING"),
+            render_metric_card("Active Manufacturers", str(len([item for item in manufacturers if item.get("status") == "ACTIVE"])), "SUCCESS"),
         ]
     )
-    render_section_intro("First-Time Setup", "Admin controls the manufacturer registry and shares the onboarding packet after Google identity verification.")
+    render_section_intro("First-Time Setup", "Admin controls the onboarding packet and registry entry. Manufacturer onboarding becomes ACTIVE without any approval queue.")
 
     with st.form("manufacturer_onboarding_create"):
         col1, col2 = st.columns(2)
@@ -63,7 +82,7 @@ def render_manufacturer_onboarding(app_context: dict) -> None:
         updated_name = col1.text_input("Update Name", value=selected.get("manufacturer_name", ""))
         updated_email = col2.text_input("Update Owner Email", value=selected.get("owner_email", ""))
         updated_city = col1.text_input("Update City", value=selected.get("city", ""))
-        updated_status = col2.text_input("Update Status", value=selected.get("status", "pending_approval"))
+        updated_status = col2.selectbox("Update Status", ["ACTIVE", "INACTIVE", "BLOCKED"], index=["ACTIVE", "INACTIVE", "BLOCKED"].index(selected.get("status", "ACTIVE")) if selected.get("status", "ACTIVE") in {"ACTIVE", "INACTIVE", "BLOCKED"} else 0)
         updated_plan = st.text_input("Update Subscription Plan", value=selected.get("subscription_plan", "basic"))
         save_submit = st.form_submit_button("Save Changes")
 

@@ -13,9 +13,16 @@ class CatalogService:
 
     @st.cache_data(show_spinner=False)
     def get_active_products(_self, governance_root: str) -> list[dict]:
-        governance_service = GovernanceService(Path(governance_root))
+        governance_service = GovernanceService(Path(governance_root), safe_drive_write_service=None)
         products = governance_service.list_products()
-        return [product for product in products if product.get("mrp", 0) > 0 and product.get("mandi_price", 0) >= 0]
+        return [
+            product
+            for product in products
+            if product.get("status") == "ACTIVE"
+            and product.get("visible", True)
+            and product.get("mrp", 0) > 0
+            and product.get("mandi_price", 0) >= 0
+        ]
 
     def list_active_products(self) -> list[dict]:
         return self.get_active_products(str(self.governance_root))

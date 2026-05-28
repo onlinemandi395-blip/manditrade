@@ -158,25 +158,21 @@ def render_sidebar_navigation(app_context: dict) -> str:
     role = current_user.role if current_user else None
     manufacturer_sections = [
         "Dashboard",
-        "My Actions",
-        "Notifications",
         "Products",
         "Inventory",
         "Client Orders",
         "Mandi RFQ",
         "Ledger / Khata",
-        "Payments",
-        "Dispatch",
-        "Clients",
-        "Jobs in Mandi",
-        "Workers",
+        "My Actions",
+        "Notifications",
+        "Onboarding",
     ]
     if role in {"manufacturer", "admin_as_manufacturer"}:
         sections = manufacturer_sections
     elif is_admin_identity and current_user and current_user.manufacturer_code:
-        sections = [*manufacturer_sections, "Manufacturer Onboarding", "System Health"]
+        sections = [*manufacturer_sections, "Product Approvals", "Manufacturers", "System Health"]
     elif is_admin_identity:
-        sections = ["Dashboard", "My Actions", "Notifications", "Products", "Manufacturer Onboarding", "System Health"]
+        sections = ["Dashboard", "Products", "Product Approvals", "Manufacturers", "Onboarding", "My Actions", "Notifications", "System Health"]
     elif role == "client":
         sections = ["Dashboard", "Notifications", "Client Orders", "Ledger / Khata"]
         if worker_profile:

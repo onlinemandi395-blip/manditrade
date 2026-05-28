@@ -9,19 +9,25 @@ from components.ui_shell import render_dual_panel, render_metric_card, render_mo
 
 def render_products_dashboard(app_context: dict) -> None:
     user = app_context["current_user"]
-    products = app_context["product_catalog_service"].list_products(include_pending=True)
+    viewer_role = user.role if user else None
+    viewer_code = user.manufacturer_code if user else None
+    products = app_context["product_catalog_service"].list_products(
+        include_pending=bool(viewer_role == "platform_admin"),
+        viewer_role=viewer_role,
+        viewer_code=viewer_code,
+    )
     render_page_header("Products", "Govern public mandi catalog, approvals, and pricing without slipping back into ERP complexity.", ["Public Catalog", "Mandi Price", "MRP"])
     render_metric_grid(
         [
             render_metric_card("Catalog Products", str(len(products)), "SUCCESS"),
-            render_metric_card("Pending Approval", str(len([item for item in products if item.get("status") == "PENDING_APPROVAL"])), "PENDING"),
+            render_metric_card("Proposed", str(len([item for item in products if item.get("status") == "PROPOSED"])), "PENDING"),
             render_metric_card("Active", str(len([item for item in products if item.get("status") == "ACTIVE"])), "OPEN"),
         ]
     )
     render_showcase_strip(
         [
             ("Public Catalog", str(len(products)), "SUCCESS"),
-            ("Pending", str(len([item for item in products if item.get('status') == 'PENDING_APPROVAL'])), "PENDING"),
+            ("Proposed", str(len([item for item in products if item.get('status') == 'PROPOSED'])), "PENDING"),
             ("Visible Active", str(len([item for item in products if item.get('status') == 'ACTIVE'])), "OPEN"),
         ]
     )
@@ -43,5 +49,5 @@ def render_products_dashboard(app_context: dict) -> None:
     if submitted and name and category:
         created_by = user.manufacturer_code or "PLATFORM_ADMIN"
         app_context["product_catalog_service"].propose_product(created_by=created_by, name=name, category=category, unit=unit)
-        st.success("Product proposal saved.")
+        st.success("Product proposal saved with PROPOSED status.")
         st.rerun()

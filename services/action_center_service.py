@@ -30,13 +30,10 @@ class ActionCenterService:
 
     def _admin_actions(self) -> list[dict[str, Any]]:
         actions = []
-        manufacturers = self.governance_service.list_manufacturers()
         products = self.governance_service.list_products()
         failed_gmail = [item for item in self.gmail_service.read_queue() if item.get("status") == "failed"]
-        if any(item.get("status") != "approved" for item in manufacturers):
-            actions.append({"type": "APPROVE_MANUFACTURER", "count": len([item for item in manufacturers if item.get("status") != "approved"])})
-        if any(item.get("status") == "PENDING_APPROVAL" for item in products):
-            actions.append({"type": "APPROVE_PRODUCT", "count": len([item for item in products if item.get("status") == "PENDING_APPROVAL"])})
+        if any(item.get("status") == "PROPOSED" for item in products):
+            actions.append({"type": "APPROVE_PRODUCT", "count": len([item for item in products if item.get("status") == "PROPOSED"])})
         if failed_gmail:
             actions.append({"type": "FAILED_GMAIL_NOTIFICATIONS", "count": len(failed_gmail)})
         return actions

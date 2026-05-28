@@ -27,12 +27,12 @@ class ManufacturerOnboardingService:
             f"2. Share your manufacturer code with admin: {code}\n"
             f"3. Share your first-time manufacturer onboarding secret with admin: {secret}\n"
             f"4. Ask admin to map your Google account to this manufacturer workspace.\n"
-            f"5. After admin approval, start with Products, Inventory, Clients, and Mandi RFQ.\n\n"
+            f"5. After account mapping, start with Products, Inventory, Clients, and Mandi RFQ.\n\n"
             f"Admin checklist:\n"
             f"- Verify Google email matches expected owner email.\n"
             f"- Confirm secret matches the onboarding packet.\n"
-            f"- Mark manufacturer status as approved.\n"
-            f"- Share post-approval navigation: Products, Inventory, Client Orders, Mandi RFQ, Ledger / Khata."
+            f"- Ensure manufacturer status stays ACTIVE.\n"
+            f"- Share post-onboarding navigation: Products, Inventory, Client Orders, Mandi RFQ, Ledger / Khata."
         )
 
     def create_manufacturer(self, *, manufacturer_code: str, manufacturer_name: str, owner_email: str, city: str, created_by: str, subscription_plan: str = "basic") -> dict[str, Any]:
@@ -42,7 +42,7 @@ class ManufacturerOnboardingService:
             manufacturer_name=manufacturer_name.strip(),
             owner_email=owner_email.strip(),
             city=city.strip(),
-            status="pending_approval",
+            status="ACTIVE",
         )
         onboarding_secret = self.generate_onboarding_secret()
         manufacturer = {
@@ -50,7 +50,7 @@ class ManufacturerOnboardingService:
             "manufacturer_name": manufacturer_name.strip(),
             "owner_email": owner_email.strip(),
             "city": city.strip(),
-            "status": "pending_approval",
+            "status": "ACTIVE",
             "subscription_plan": subscription_plan,
             "manufacturer_onboarding_secret": onboarding_secret,
             "workspace_root": str(paths.manufacturer_root),
@@ -97,7 +97,7 @@ class ManufacturerOnboardingService:
                 "manufacturer_name": manufacturer.get("manufacturer_name", ""),
                 "owner_email": manufacturer.get("owner_email", ""),
                 "city": manufacturer.get("city", ""),
-                "status": manufacturer.get("status", "pending_approval"),
+                "status": manufacturer.get("status", "ACTIVE"),
                 "subscription_plan": manufacturer.get("subscription_plan", "basic"),
                 "manufacturer_onboarding_secret": manufacturer.get("manufacturer_onboarding_secret", ""),
             }

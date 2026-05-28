@@ -84,7 +84,7 @@ def test_manufacturer_signup_request_validates_onboarding_packet(tmp_path):
             "manufacturer_name": "Shree Agro Traders",
             "owner_email": "",
             "city": "Pune",
-            "status": "pending_approval",
+            "status": "ACTIVE",
             "manufacturer_onboarding_secret": "MANU-SETUP-SECRET",
         }
     )
@@ -107,6 +107,7 @@ def test_manufacturer_signup_request_validates_onboarding_packet(tmp_path):
     assert request["status"] == "READY_FOR_GOOGLE_SIGNIN"
     assert resolved["role"] == "manufacturer"
     assert resolved["manufacturer_code"] == "MANU101"
+    assert resolved["status"] == "ACTIVE"
 
 
 def test_client_signup_request_activates_profile_on_first_google_login(tmp_path):
@@ -118,7 +119,7 @@ def test_client_signup_request_activates_profile_on_first_google_login(tmp_path)
             "manufacturer_name": "Shree Agro Traders",
             "owner_email": "owner@example.com",
             "city": "Pune",
-            "status": "approved",
+            "status": "ACTIVE",
         }
     )
     invite = client_service.create_invite("MANU101", "buyer@example.com", "Kumar Traders")
