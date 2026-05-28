@@ -177,36 +177,40 @@ def render_manufacturers_dashboard(app_context: dict) -> None:
         submit_label="Create Manufacturer",
     )
     if create_submitted:
-        created = onboarding_service.create_manufacturer(
-            manufacturer_code=create_payload["manufacturer_code"],
-            manufacturer_name=create_payload["business_name"],
-            business_name=create_payload["business_name"],
-            owner_name=create_payload["owner_name"],
-            owner_email=create_payload["owner_email"],
-            mobile=create_payload["mobile"],
-            alternate_mobile=create_payload["alternate_mobile"],
-            address_line1=create_payload["address"]["line1"],
-            address_line2=create_payload["address"]["line2"],
-            city=create_payload["address"]["city"],
-            state=create_payload["address"]["state"],
-            pin_code=create_payload["address"]["pin_code"],
-            business_type=create_payload["business_type"],
-            product_categories=create_payload["product_categories"],
-            udyam_id=create_payload["legal"]["udyam_id"],
-            gstin=create_payload["legal"]["gstin"],
-            pan=create_payload["legal"]["pan"],
-            aadhaar=create_payload["legal"]["aadhaar"],
-            bank_account_holder_name=create_payload["banking"]["account_holder_name"],
-            bank_account_number=create_payload["banking"]["account_number"],
-            ifsc_code=create_payload["banking"]["ifsc"],
-            upi_id=create_payload["banking"]["upi_id"],
-            google_drive_connected_status=create_payload["google_drive_connected_status"],
-            business_description=create_payload["business_description"],
-            created_by=current_user.email if current_user else "system",
-            subscription_plan=create_payload["subscription_plan"],
-        )
-        st.success(f"Manufacturer {created['manufacturer_code']} created.")
-        st.rerun()
+        try:
+            created = onboarding_service.create_manufacturer(
+                manufacturer_code=create_payload["manufacturer_code"],
+                manufacturer_name=create_payload["business_name"],
+                business_name=create_payload["business_name"],
+                owner_name=create_payload["owner_name"],
+                owner_email=create_payload["owner_email"],
+                mobile=create_payload["mobile"],
+                alternate_mobile=create_payload["alternate_mobile"],
+                address_line1=create_payload["address"]["line1"],
+                address_line2=create_payload["address"]["line2"],
+                city=create_payload["address"]["city"],
+                state=create_payload["address"]["state"],
+                pin_code=create_payload["address"]["pin_code"],
+                business_type=create_payload["business_type"],
+                product_categories=create_payload["product_categories"],
+                udyam_id=create_payload["legal"]["udyam_id"],
+                gstin=create_payload["legal"]["gstin"],
+                pan=create_payload["legal"]["pan"],
+                aadhaar=create_payload["legal"]["aadhaar"],
+                bank_account_holder_name=create_payload["banking"]["account_holder_name"],
+                bank_account_number=create_payload["banking"]["account_number"],
+                ifsc_code=create_payload["banking"]["ifsc"],
+                upi_id=create_payload["banking"]["upi_id"],
+                google_drive_connected_status=create_payload["google_drive_connected_status"],
+                business_description=create_payload["business_description"],
+                created_by=current_user.email if current_user else "system",
+                subscription_plan=create_payload["subscription_plan"],
+            )
+        except ValueError as exc:
+            st.error(str(exc))
+        else:
+            st.success(f"Manufacturer {created['manufacturer_code']} created.")
+            st.rerun()
 
     st.markdown("### Registered Manufacturers")
     st.dataframe(manufacturers, use_container_width=True)
@@ -224,9 +228,13 @@ def render_manufacturers_dashboard(app_context: dict) -> None:
         submit_label="Save Manufacturer Details",
     )
     if update_submitted:
-        onboarding_service.update_manufacturer(selected_code, update_payload)
-        st.success(f"{selected_code} updated.")
-        st.rerun()
+        try:
+            onboarding_service.update_manufacturer(selected_code, update_payload)
+        except ValueError as exc:
+            st.error(str(exc))
+        else:
+            st.success(f"{selected_code} updated.")
+            st.rerun()
 
     col_a, col_b = st.columns(2)
     if col_a.button("Regenerate Onboarding Secret", use_container_width=True):
