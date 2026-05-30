@@ -60,6 +60,21 @@ class GovernanceService:
         payload.setdefault("schema_version", "1.0")
         self.safe_drive_write_service.replace_document(self.products_path, payload, schema_name="products")
 
+    def delete_product(self, product_id: str) -> bool:
+        self.ensure_files()
+        payload = self.json_service.read_json(self.products_path, {"products": []})
+        original_count = len(payload.get("products", []))
+        payload["products"] = [
+            item
+            for item in payload.get("products", [])
+            if (item.get("product_id") or item.get("product_code")) != product_id
+        ]
+        if len(payload["products"]) == original_count:
+            return False
+        payload.setdefault("schema_version", "1.0")
+        self.safe_drive_write_service.replace_document(self.products_path, payload, schema_name="products")
+        return True
+
     def list_manufacturers(self) -> list[dict[str, Any]]:
         self.ensure_files()
         return self.json_service.read_json(self.manufacturers_path, {"manufacturers": []}).get("manufacturers", [])

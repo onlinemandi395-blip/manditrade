@@ -169,6 +169,57 @@ def test_platform_admin_can_reject_proposed_product(tmp_path):
     assert stored["admin_note"] == "Duplicate commodity request."
 
 
+def test_platform_admin_can_update_approved_product(tmp_path):
+    governance, _onboarding, product_catalog, _notification_center, _gmail_service = _build_stack(tmp_path)
+    product = product_catalog.propose_product(
+        created_by="MANU101",
+        created_by_email="owner@example.com",
+        name="Rice",
+        category="Grain",
+        unit="kg",
+        suggested_mandi_price=40,
+        suggested_mrp=50,
+    )
+    product_catalog.approve_product(
+        product_id=product["product_id"],
+        approved_by="PLATFORM_ADMIN",
+        approved_mandi_price=40,
+        approved_mrp=50,
+        approved_visibility="PUBLIC",
+    )
+    updated = product_catalog.update_product(
+        product_id=product["product_id"],
+        updated_by="PLATFORM_ADMIN",
+        updates={
+            "name": "Steam Rice",
+            "approved_mandi_price": 42,
+            "approved_mrp": 55,
+            "minimum_order_qty": 5,
+            "visible": True,
+            "admin_note": "Adjusted after review.",
+        },
+    )
+    stored = next(item for item in governance.list_products() if item["product_id"] == product["product_id"])
+    assert updated["name"] == "Steam Rice"
+    assert stored["mandi_price"] == 42.0
+    assert stored["mrp"] == 55.0
+    assert stored["minimum_order_qty"] == 5
+    assert stored["admin_note"] == "Adjusted after review."
+
+
+def test_platform_admin_can_delete_product(tmp_path):
+    governance, _onboarding, product_catalog, _notification_center, _gmail_service = _build_stack(tmp_path)
+    product = product_catalog.propose_product(
+        created_by="MANU101",
+        created_by_email="owner@example.com",
+        name="Rice",
+        category="Grain",
+        unit="kg",
+    )
+    assert product_catalog.delete_product(product_id=product["product_id"]) is True
+    assert all(item["product_id"] != product["product_id"] for item in governance.list_products())
+
+
 def test_clients_only_see_active_products(tmp_path):
     _governance, _onboarding, product_catalog, _notification_center, _gmail_service = _build_stack(tmp_path)
     proposed = product_catalog.propose_product(

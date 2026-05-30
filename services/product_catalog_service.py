@@ -171,6 +171,67 @@ class ProductCatalogService:
         self.governance_service.upsert_product(product)
         return product
 
+    def update_product(
+        self,
+        *,
+        product_id: str,
+        updates: dict[str, Any],
+        updated_by: str,
+    ) -> dict[str, Any]:
+        product = self._get_product(product_id)
+        allowed_fields = {
+            "name",
+            "category",
+            "unit",
+            "description",
+            "suggested_mandi_price",
+            "suggested_mrp",
+            "approved_mandi_price",
+            "approved_mrp",
+            "visibility_request",
+            "approved_visibility",
+            "minimum_order_qty",
+            "available_for_public_sale",
+            "available_for_mandi_network",
+            "image_url",
+            "visible",
+            "admin_note",
+            "status",
+        }
+        for key, value in updates.items():
+            if key not in allowed_fields:
+                continue
+            product[key] = value
+        if "approved_mandi_price" in updates and updates.get("approved_mandi_price") is not None:
+            product["mandi_price"] = float(updates["approved_mandi_price"])
+        if "approved_mrp" in updates and updates.get("approved_mrp") is not None:
+            product["mrp"] = float(updates["approved_mrp"])
+        if "minimum_order_qty" in updates:
+            product["minimum_order_qty"] = max(int(updates.get("minimum_order_qty") or 1), 1)
+        if "name" in updates:
+            product["name"] = str(updates["name"]).strip()
+        if "category" in updates:
+            product["category"] = str(updates["category"]).strip()
+        if "unit" in updates:
+            product["unit"] = str(updates["unit"]).strip()
+        if "description" in updates:
+            product["description"] = str(updates["description"]).strip()
+        if "visibility_request" in updates:
+            product["visibility_request"] = str(updates["visibility_request"]).strip().upper()
+        if "approved_visibility" in updates:
+            product["approved_visibility"] = str(updates["approved_visibility"]).strip().upper()
+        if "image_url" in updates:
+            product["image_url"] = str(updates["image_url"]).strip()
+        if "admin_note" in updates:
+            product["admin_note"] = str(updates["admin_note"]).strip()
+        product["updated_at"] = datetime.now(UTC).isoformat()
+        product["approved_by"] = updated_by or product.get("approved_by", "")
+        self.governance_service.upsert_product(product)
+        return product
+
+    def delete_product(self, *, product_id: str) -> bool:
+        return self.governance_service.delete_product(product_id)
+
     def add_product_comment(self, product_id: str, author_user, message: str) -> dict[str, Any]:
         product = self._get_product(product_id)
         self._ensure_comment_access(product, author_user)
