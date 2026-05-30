@@ -8,6 +8,7 @@ from services.client_service import ClientService
 from services.encryption_service import EncryptionService
 from services.file_lock_service import FileLockService
 from services.governance_service import GovernanceService
+from services.public_buyer_service import PublicBuyerService
 from services.safe_drive_write_service import SafeDriveWriteService
 from services.schema_validation_service import SchemaValidationService
 from services.security_service import SecurityService
@@ -52,6 +53,12 @@ def build_access_stack(tmp_path: Path):
         safe_drive_write_service=safe_write,
     )
     worker_service = WorkerService(governance_root, safe_write, json_service, id_allocator_service=type("Allocator", (), {"allocate": lambda self, domain: "WRK-2026-000001"})())
+    public_buyer_service = PublicBuyerService(
+        public_buyers_root=tmp_path / "public_buyers",
+        safe_drive_write_service=safe_write,
+        json_service=json_service,
+        id_allocator_service=type("Allocator", (), {"allocate": lambda self, domain: "PB-2026-000001"})(),
+    )
     auth_service = AuthService(_oauth_config(), enable_mock_auth=False)
     security_service = SecurityService(
         encryption_service=EncryptionService(secret_seed="test-seed"),
@@ -68,15 +75,16 @@ def build_access_stack(tmp_path: Path):
         governance_service=governance_service,
         client_service=client_service,
         worker_service=worker_service,
+        public_buyer_service=public_buyer_service,
         drive_service=drive_service,
         security_service=security_service,
         json_service=json_service,
     )
-    return governance_service, drive_service, client_service, worker_service, access_portal_service
+    return governance_service, drive_service, client_service, worker_service, public_buyer_service, access_portal_service
 
 
 def test_manufacturer_signup_request_validates_onboarding_packet(tmp_path):
-    governance_service, drive_service, _client_service, _worker_service, access_portal_service = build_access_stack(tmp_path)
+    governance_service, drive_service, _client_service, _worker_service, _public_buyer_service, access_portal_service = build_access_stack(tmp_path)
     drive_service.initialize_manufacturer_workspace("MANU101", "Shree Agro Traders", owner_email="", city="Pune")
     governance_service.register_manufacturer(
         {
@@ -111,7 +119,7 @@ def test_manufacturer_signup_request_validates_onboarding_packet(tmp_path):
 
 
 def test_client_signup_request_activates_profile_on_first_google_login(tmp_path):
-    governance_service, drive_service, client_service, _worker_service, access_portal_service = build_access_stack(tmp_path)
+    governance_service, drive_service, client_service, _worker_service, _public_buyer_service, access_portal_service = build_access_stack(tmp_path)
     drive_service.initialize_manufacturer_workspace("MANU101", "Shree Agro Traders", owner_email="owner@example.com", city="Pune")
     governance_service.register_manufacturer(
         {
@@ -146,7 +154,7 @@ def test_client_signup_request_activates_profile_on_first_google_login(tmp_path)
 
 
 def test_worker_signup_request_creates_worker_dashboard_identity(tmp_path):
-    _governance_service, _drive_service, _client_service, worker_service, access_portal_service = build_access_stack(tmp_path)
+    _governance_service, _drive_service, _client_service, worker_service, _public_buyer_service, access_portal_service = build_access_stack(tmp_path)
 
     request = access_portal_service.submit_signup_request(
         requested_role="worker",
@@ -169,3 +177,24 @@ def test_worker_signup_request_creates_worker_dashboard_identity(tmp_path):
     assert resolved["role"] == "worker"
     assert worker is not None
     assert worker["skills"] == ["Loading", "Packaging"]
+
+
+def test_public_buyer_signup_creates_public_marketplace_identity(tmp_path):
+    _governance_service, _drive_service, _client_service, _worker_service, public_buyer_service, access_portal_service = build_access_stack(tmp_path)
+
+    request = access_portal_service.submit_signup_request(
+        requested_role="public_buyer",
+        email="shopper@example.com",
+        full_name="Public Shopper",
+    )
+    resolved = access_portal_service.resolve_identity(
+        email="shopper@example.com",
+        display_name="Public Shopper",
+        preferred_role="public_buyer",
+    )
+    buyer = public_buyer_service.get_by_email("shopper@example.com")
+
+    assert request["status"] == "READY_FOR_GOOGLE_SIGNIN"
+    assert resolved["role"] == "public_buyer"
+    assert buyer is not None
+    assert buyer["status"] == "ACTIVE"

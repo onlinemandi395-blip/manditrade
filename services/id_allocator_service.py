@@ -27,6 +27,10 @@ class IdAllocatorService:
         "job": "JOB",
         "worker": "WRK",
         "application": "APP",
+        "public_buyer": "PB",
+        "cart": "CART",
+        "public_order": "PUBORD",
+        "public_payment": "PUBPAY",
     }
 
     def __init__(self, counters_path: Path, file_lock_service: FileLockService) -> None:

@@ -48,7 +48,7 @@ def render_auth_panel(app_context: dict) -> None:
                 st.rerun()
             return
 
-        st.info("Use the central login page on the homepage to continue with Google.")
+        st.info("Use the central login page on the homepage to continue with Google, or browse the public marketplace from the sidebar.")
 
 
 def handle_oauth_callback(app_context: dict) -> None:
@@ -108,6 +108,8 @@ def resolve_navigation_sections(app_context: dict) -> list[str]:
     role = current_user.role if current_user else None
     manufacturer_sections = [
         "Dashboard",
+        "Marketplace Preview",
+        "Public Orders",
         "My Profile",
         "Products",
         "Inventory",
@@ -122,7 +124,9 @@ def resolve_navigation_sections(app_context: dict) -> list[str]:
     if is_admin_identity and current_user and current_user.manufacturer_code:
         return [*manufacturer_sections, "Product Approvals", "Manufacturers", "System Health"]
     if is_admin_identity:
-        return ["Dashboard", "My Profile", "Products", "Product Approvals", "Manufacturers", "My Actions", "Notifications", "System Health"]
+        return ["Dashboard", "Marketplace", "Public Orders", "My Profile", "Products", "Product Approvals", "Manufacturers", "My Actions", "Notifications", "System Health"]
+    if role == "public_buyer":
+        return ["Marketplace", "My Orders", "My Actions", "Notifications", "My Profile"]
     if role == "client":
         sections = ["Dashboard", "My Profile", "Notifications", "Client Orders", "Ledger / Khata"]
         if worker_profile:
@@ -133,7 +137,7 @@ def resolve_navigation_sections(app_context: dict) -> list[str]:
         return ["Dashboard", "My Profile", "My Actions", "Notifications", "Jobs in Mandi", "Workers"]
     if role == "pending_user":
         return ["Dashboard"]
-    return ["Dashboard"]
+    return ["Dashboard", "Marketplace"]
 
 
 def render_sidebar_navigation(app_context: dict) -> str:

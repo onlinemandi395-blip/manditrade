@@ -337,6 +337,75 @@ def _render_worker_profile(app_context: dict) -> None:
         st.rerun()
 
 
+def _render_public_buyer_profile_form(current_user, profile: dict) -> tuple[bool, dict]:
+    address = _address_value(profile.get("address", {}))
+    with st.form("public_buyer_profile_form"):
+        col1, col2 = st.columns(2)
+        full_name = col1.text_input("Full Name", value=profile.get("full_name", getattr(current_user, "name", "") or ""))
+        email_value = col2.text_input("Email", value=current_user.email, disabled=True)
+        mobile = col1.text_input("Mobile Number", value=profile.get("mobile", ""))
+        alternate_mobile = col2.text_input("Alternate Mobile Number", value=profile.get("alternate_mobile", ""))
+        st.markdown("#### Delivery Address")
+        line1 = st.text_input("Address Line 1", value=address["line1"])
+        line2 = st.text_input("Address Line 2", value=address["line2"])
+        city_col, state_col, pin_col = st.columns(3)
+        city = city_col.text_input("City", value=address["city"])
+        state = state_col.text_input("State", value=address["state"])
+        pin_code = pin_col.text_input("PIN Code", value=address["pin_code"])
+        landmark = st.text_input("Landmark", value=address["landmark"])
+        delivery_instructions = st.text_area("Delivery Instructions", value=profile.get("delivery_instructions", ""), height=110)
+        submitted = st.form_submit_button("Save Public Buyer Profile")
+    return submitted, {
+        "email": email_value.strip().lower(),
+        "full_name": full_name.strip(),
+        "mobile": mobile.strip(),
+        "alternate_mobile": alternate_mobile.strip(),
+        "address": {
+            "line1": line1.strip(),
+            "line2": line2.strip(),
+            "city": city.strip(),
+            "state": state.strip(),
+            "pin_code": pin_code.strip(),
+            "landmark": landmark.strip(),
+        },
+        "delivery_instructions": delivery_instructions.strip(),
+    }
+
+
+def _render_public_buyer_profile(app_context: dict) -> None:
+    current_user = app_context["current_user"]
+    service = app_context["public_buyer_service"]
+    profile = service.get_by_email(current_user.email)
+    render_page_header("My Profile", "Maintain public-buyer delivery details so instant-pay marketplace orders reach the correct address smoothly.", ["Public Buyer", "Delivery Profile"])
+    if not profile:
+        st.info("No public buyer profile is linked to this account yet.")
+        return
+    render_metric_grid(
+        [
+            render_metric_card("Role", "Public Buyer", "SUCCESS"),
+            render_metric_card("Status", profile.get("status", "ACTIVE"), "OPEN"),
+            render_metric_card("Delivery City", _address_value(profile.get("address", {})).get("city", "Not set"), "PENDING"),
+        ]
+    )
+    render_section_intro("Public Delivery Profile", "This profile is used only for public marketplace shopping. It does not unlock ledger, RFQ, or private-client flows.")
+    render_3d_panel(
+        render_mobile_record_card(
+            {
+                "Name": profile.get("full_name", ""),
+                "Email": profile.get("email", ""),
+                "City": _address_value(profile.get("address", {})).get("city", ""),
+                "Mobile": profile.get("mobile", ""),
+            }
+        ),
+        "Current Public Buyer Profile",
+    )
+    submitted, payload = _render_public_buyer_profile_form(current_user, profile)
+    if submitted:
+        service.upsert_profile(profile["public_buyer_id"], payload)
+        st.success("Public buyer profile saved.")
+        st.rerun()
+
+
 def render_my_profile_dashboard(app_context: dict) -> None:
     current_user = app_context["current_user"]
     if not current_user:
@@ -354,6 +423,9 @@ def render_my_profile_dashboard(app_context: dict) -> None:
         return
     if current_user.role == "worker":
         _render_worker_profile(app_context)
+        return
+    if current_user.role == "public_buyer":
+        _render_public_buyer_profile(app_context)
         return
     render_page_header("My Profile", "This account type does not have a dedicated profile form yet.", ["Profile"])
     st.info("No editable profile is available for this role right now.")

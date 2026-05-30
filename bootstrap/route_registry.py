@@ -13,6 +13,7 @@ from modules.inventory.management import render_inventory_management
 from modules.jobs.dashboard import render_jobs_dashboard
 from modules.ledger.dashboard import render_ledger_dashboard
 from modules.manufacturer.dashboard import render_manufacturer_dashboard
+from modules.marketplace.dashboard import render_marketplace_dashboard
 from modules.notifications.dashboard import render_notifications_dashboard
 from modules.onboarding.manufacturer_onboarding import render_manufacturer_onboarding
 from modules.orders.dashboard import render_orders_dashboard
@@ -20,6 +21,7 @@ from modules.orders.dispatch import render_dispatch_management
 from modules.payments.dashboard import render_payments_dashboard
 from modules.profile.dashboard import render_my_profile_dashboard
 from modules.products.dashboard import render_products_dashboard
+from modules.public_orders.dashboard import render_public_orders_dashboard
 from modules.rfq.dashboard import render_rfq_dashboard
 from modules.system.health_dashboard import render_health_dashboard
 from modules.workers.dashboard import render_workers_dashboard
@@ -36,6 +38,8 @@ def render_dashboard(app_context: dict) -> None:
         render_manufacturer_dashboard(app_context)
     elif user.role == "worker":
         render_workers_dashboard(app_context)
+    elif user.role == "public_buyer":
+        render_marketplace_dashboard(app_context)
     elif user.role == "pending_user":
         render_pending_user_dashboard(app_context)
     else:
@@ -53,6 +57,12 @@ def render_route(section: str, app_context: dict) -> None:
         render_my_profile_dashboard(app_context)
     elif section == "Products":
         render_products_dashboard(app_context)
+    elif section in {"Marketplace", "Marketplace Preview"}:
+        render_marketplace_dashboard(app_context)
+    elif section == "Public Orders":
+        render_public_orders_dashboard(app_context, buyer_mode=False)
+    elif section == "My Orders":
+        render_public_orders_dashboard(app_context, buyer_mode=True)
     elif section == "Inventory":
         render_inventory_management(app_context)
     elif section == "Client Orders":

@@ -96,6 +96,7 @@ def render_products_dashboard(app_context: dict) -> None:
                     minimum_order_qty = col1.number_input("Minimum Order Quantity", min_value=1, step=1, value=int(selected.get("minimum_order_qty", 1) or 1))
                     available_for_public_sale = col1.checkbox("Available For Public Sale?", value=bool(selected.get("available_for_public_sale", False)))
                     available_for_mandi_network = col2.checkbox("Available For Mandi Network?", value=bool(selected.get("available_for_mandi_network", True)))
+                    public_seller_manufacturer_id = col2.text_input("Public Seller Manufacturer ID", value=selected.get("public_seller_manufacturer_id", selected.get("created_by_manufacturer_id", "")))
                     visible = col1.checkbox("Visible to Active Catalog?", value=bool(selected.get("visible", True)))
                     image_url = st.text_input("Product Image URL", value=selected.get("image_url", ""))
                     admin_note = st.text_area("Admin Note", value=selected.get("admin_note", ""), height=100)
@@ -116,6 +117,7 @@ def render_products_dashboard(app_context: dict) -> None:
                             "minimum_order_qty": minimum_order_qty,
                             "available_for_public_sale": available_for_public_sale,
                             "available_for_mandi_network": available_for_mandi_network,
+                            "public_seller_manufacturer_id": public_seller_manufacturer_id,
                             "visible": visible,
                             "image_url": image_url,
                             "admin_note": admin_note,

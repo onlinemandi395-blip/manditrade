@@ -97,6 +97,11 @@ def render_product_approvals_dashboard(app_context: dict) -> None:
         if selected.get("visibility_request", "MANDI_NETWORK") in {"PUBLIC", "PRIVATE_CLIENT", "MANDI_NETWORK"}
         else 2,
     )
+    public_seller_manufacturer_id = st.text_input(
+        "Public Seller Manufacturer ID",
+        value=selected.get("public_seller_manufacturer_id", selected.get("created_by_manufacturer_id", "")),
+        help="Used only for PUBLIC marketplace fulfilment.",
+    )
     admin_note = st.text_area("Admin Note", value=selected.get("admin_note", ""), height=100)
     clarification_status = selected.get("clarification_status", "NONE")
     if clarification_status == "ADMIN_QUERY":
@@ -116,6 +121,12 @@ def render_product_approvals_dashboard(app_context: dict) -> None:
                 visible=True,
                 admin_note=admin_note,
             )
+            if public_seller_manufacturer_id.strip():
+                product_catalog_service.update_product(
+                    product_id=selected_id,
+                    updated_by="PLATFORM_ADMIN",
+                    updates={"public_seller_manufacturer_id": public_seller_manufacturer_id.strip()},
+                )
         except ValueError as exc:
             st.error(str(exc))
         else:

@@ -23,7 +23,11 @@ def render_notifications_dashboard(app_context: dict) -> None:
     notifications: list[dict] = []
     if user:
         notification_service = app_context["notification_center_service"]
-        if user.role == "platform_admin":
+        if user.role == "public_buyer":
+            buyer = app_context["public_buyer_service"].get_by_email(user.email)
+            if buyer:
+                notifications = notification_service.list_public_notifications(buyer["public_buyer_id"])
+        elif user.role == "platform_admin":
             for manufacturer in app_context["governance_service"].list_manufacturers():
                 notifications.extend(
                     [
@@ -60,7 +64,7 @@ def render_notifications_dashboard(app_context: dict) -> None:
     )
     alerts_tab, delivery_tab = st.tabs(["In-App Alerts", "Runtime Delivery"])
     with alerts_tab:
-        if user and (user.manufacturer_code or user.role == "platform_admin"):
+        if user and (user.manufacturer_code or user.role in {"platform_admin", "public_buyer"}):
             render_section_intro("In-App", "Role-relevant alerts stay visible here until read, resolved, or snoozed.")
             preview_cards = "".join(
                 f"""

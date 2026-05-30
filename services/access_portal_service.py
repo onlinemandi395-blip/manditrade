@@ -15,6 +15,7 @@ class AccessPortalService:
         governance_service,
         client_service,
         worker_service,
+        public_buyer_service,
         drive_service,
         security_service,
         json_service,
@@ -24,6 +25,7 @@ class AccessPortalService:
         self.governance_service = governance_service
         self.client_service = client_service
         self.worker_service = worker_service
+        self.public_buyer_service = public_buyer_service
         self.drive_service = drive_service
         self.security_service = security_service
         self.json_service = json_service
@@ -101,6 +103,10 @@ class AccessPortalService:
             validated = True
             status = "READY_FOR_GOOGLE_SIGNIN"
             validation_message = "Worker profile request is ready. Continue with Google sign-in."
+        elif role_key == "public_buyer":
+            validated = True
+            status = "READY_FOR_GOOGLE_SIGNIN"
+            validation_message = "Public marketplace buyer registration is ready. Continue with Google sign-in."
 
         record = {
             "request_id": f"ACCESS-{uuid4().hex[:10].upper()}",
@@ -177,6 +183,10 @@ class AccessPortalService:
         if worker:
             return {"role": "worker", "manufacturer_code": None, "status": worker.get("status", "ACTIVE")}
 
+        public_buyer = self.public_buyer_service.get_by_email(email_key)
+        if public_buyer:
+            return {"role": "public_buyer", "manufacturer_code": None, "status": public_buyer.get("status", "ACTIVE")}
+
         if request:
             return {
                 "role": "pending_user",
@@ -197,6 +207,10 @@ class AccessPortalService:
                 public_profile_opt_in=False,
             )
             return {"role": "worker", "manufacturer_code": None, "status": "SELF_REGISTERED"}
+
+        if preferred_role_key == "public_buyer":
+            buyer = self.public_buyer_service.register_or_get(email=email_key, full_name=display_name or email_key)
+            return {"role": "public_buyer", "manufacturer_code": None, "status": buyer.get("status", "ACTIVE")}
 
         return {
             "role": "pending_user",
@@ -253,6 +267,11 @@ class AccessPortalService:
             )
             self._mark_request_status(request["request_id"], "ACTIVE")
             return {"role": "worker", "manufacturer_code": None, "status": "ACTIVE"}
+
+        if role == "public_buyer":
+            buyer = self.public_buyer_service.register_or_get(email=email, full_name=request.get("full_name") or display_name or email)
+            self._mark_request_status(request["request_id"], "ACTIVE")
+            return {"role": "public_buyer", "manufacturer_code": None, "status": buyer.get("status", "ACTIVE")}
 
         return {"role": "pending_user", "manufacturer_code": manufacturer_code or None, "status": request.get("status", "PENDING_ADMIN_REVIEW")}
 

@@ -5,7 +5,7 @@ from typing import Any
 
 
 class ActionCenterService:
-    def __init__(self, governance_service, gmail_service, notification_center_service, ledger_service, order_query_service, procurement_query_service, dual_inventory_service, job_service=None, worker_service=None) -> None:
+    def __init__(self, governance_service, gmail_service, notification_center_service, ledger_service, order_query_service, procurement_query_service, dual_inventory_service, job_service=None, worker_service=None, public_order_service=None) -> None:
         self.governance_service = governance_service
         self.gmail_service = gmail_service
         self.notification_center_service = notification_center_service
@@ -15,6 +15,7 @@ class ActionCenterService:
         self.dual_inventory_service = dual_inventory_service
         self.job_service = job_service
         self.worker_service = worker_service
+        self.public_order_service = public_order_service
 
     def get_actions(self, user) -> list[dict[str, Any]]:
         if not user:
@@ -24,6 +25,8 @@ class ActionCenterService:
             return self._admin_actions()
         if role in {"manufacturer", "admin_as_manufacturer"}:
             return self._manufacturer_actions(user.manufacturer_code or "")
+        if role == "public_buyer":
+            return self._public_buyer_actions(user.email)
         if role == "worker":
             return self._worker_actions(user.email)
         return self._client_actions(user.manufacturer_code or "", user.email)
@@ -39,6 +42,13 @@ class ActionCenterService:
             actions.append({"type": "PRODUCT_PROPOSAL_CLARIFICATION_UNRESOLVED", "count": unresolved})
         if reply_pending:
             actions.append({"type": "PRODUCT_PROPOSAL_REPLY_PENDING_REVIEW", "count": reply_pending})
+        if self.public_order_service:
+            public_orders = self.public_order_service.list_all_orders()
+            failed_payments = len([item for item in public_orders if item.get("payment_status") == "FAILED"])
+            if failed_payments:
+                actions.append({"type": "REVIEW_FAILED_PUBLIC_PAYMENT", "count": failed_payments})
+            if public_orders:
+                actions.append({"type": "MONITOR_PUBLIC_ORDERS", "count": len(public_orders)})
         return actions
 
     def _manufacturer_actions(self, manufacturer_code: str) -> list[dict[str, Any]]:
@@ -79,6 +89,17 @@ class ActionCenterService:
         )
         if product_reply_needed:
             actions.append({"type": "PRODUCT_PROPOSAL_NEEDS_REPLY", "count": product_reply_needed})
+        if self.public_order_service:
+            public_orders = self.public_order_service.list_orders_for_seller(manufacturer_code)
+            payment_submitted = len([item for item in public_orders if item.get("payment_status") == "SUBMITTED"])
+            paid = len([item for item in public_orders if item.get("status") == "PAID"])
+            confirmed = len([item for item in public_orders if item.get("status") == "CONFIRMED"])
+            if payment_submitted:
+                actions.append({"type": "VERIFY_PUBLIC_PAYMENT", "count": payment_submitted})
+            if paid:
+                actions.append({"type": "CONFIRM_PUBLIC_ORDER", "count": paid})
+            if confirmed:
+                actions.append({"type": "DISPATCH_PUBLIC_ORDER", "count": confirmed})
         return actions
 
     def _client_actions(self, manufacturer_code: str, client_email: str) -> list[dict[str, Any]]:
@@ -108,4 +129,23 @@ class ActionCenterService:
         confirmable = len([item for item in applications if item.get("status") == "ACCEPTED"])
         if confirmable:
             actions.append({"type": "CONFIRM_ATTENDANCE", "count": confirmable})
+        return actions
+
+    def _public_buyer_actions(self, email: str) -> list[dict[str, Any]]:
+        actions = []
+        if not self.public_order_service:
+            return actions
+        buyer = getattr(self.public_order_service.public_buyer_service, "get_by_email")(email)
+        if not buyer:
+            return actions
+        orders = self.public_order_service.list_orders_for_buyer(buyer["public_buyer_id"])
+        payment_pending = len([item for item in orders if item.get("status") == "PAYMENT_PENDING" and not item.get("payment_reference")])
+        payment_reference_needed = len([item for item in orders if item.get("status") == "PAYMENT_PENDING" and item.get("payment_status") == "PENDING"])
+        delivered = len([item for item in orders if item.get("status") == "DISPATCHED"])
+        if payment_pending:
+            actions.append({"type": "COMPLETE_PUBLIC_PAYMENT", "count": payment_pending})
+        if payment_reference_needed:
+            actions.append({"type": "UPLOAD_PAYMENT_REFERENCE", "count": payment_reference_needed})
+        if delivered:
+            actions.append({"type": "CONFIRM_PUBLIC_DELIVERY", "count": delivered})
         return actions

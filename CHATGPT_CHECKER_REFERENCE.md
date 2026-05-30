@@ -1,264 +1,282 @@
 # MandiTrade Checker Reference
 
-Generated from the current repository state on 2026-05-30 after the CSS-only futuristic UI upgrade pass.
+Generated from the current repository state on 2026-05-30 after the public marketplace + instant-pay flow pass.
 
 ## Current High-Signal Updates
 
-- Existing Streamlit 3D shell was upgraded instead of replaced.
-- UI remains CSS-only for animated 3D illusion layers.
-- No backend business logic, auth flow, RBAC rules, Drive runtime, Gmail runtime, or transaction services were rewritten in this pass.
-- Login page now has a stronger split premium surface:
-  - brand-story glass panel
-  - Google sign-in glass panel
-  - animated mandi-grid / node illusion background
-- Shared page hero bands are now richer and role-aware through the shell helper layer.
-- Major workflow pages now inherit a more consistent futuristic glass system:
-  - profile
-  - products
-  - product approvals
-  - inventory
-  - orders
-  - RFQ
-  - ledger
-  - actions
-  - notifications
-  - system health
+- Public marketplace flow is now active alongside the existing private-client proposal flow.
+- Business split is now explicit:
+  - `PUBLIC_BUYER` = instant-pay marketplace
+  - `CLIENT` = proposal + manufacturer confirmation + khata
+  - `MANUFACTURER / ADMIN_AS_MANUFACTURER` = private workspace + seller fulfilment
+  - `PLATFORM_ADMIN` = governance + public-order monitoring
+- Public buyers can browse only `ACTIVE` + `PUBLIC` + `available_for_public_sale = true` products.
+- Public checkout uses manual upfront payment only:
+  - order created
+  - UTR / payment reference submitted
+  - seller/admin verifies payment
+  - self inventory reserved
+  - seller confirms
+  - seller dispatches
+  - buyer confirms delivery
+- Private client order flow remains proposal-based and unchanged in business logic.
 
-## UI Files Changed
+## Public Marketplace Status
 
-- [assets/styles/manditrade_3d.css](C:/2026/manditrade/manditrade/assets/styles/manditrade_3d.css)
-- [components/ui_shell.py](C:/2026/manditrade/manditrade/components/ui_shell.py)
-- [utils/ui_shell.py](C:/2026/manditrade/manditrade/utils/ui_shell.py)
-- [modules/access/dashboard.py](C:/2026/manditrade/manditrade/modules/access/dashboard.py)
-- [modules/actions/dashboard.py](C:/2026/manditrade/manditrade/modules/actions/dashboard.py)
-- [modules/admin/product_approvals.py](C:/2026/manditrade/manditrade/modules/admin/product_approvals.py)
-- [modules/inventory/management.py](C:/2026/manditrade/manditrade/modules/inventory/management.py)
-- [modules/ledger/dashboard.py](C:/2026/manditrade/manditrade/modules/ledger/dashboard.py)
-- [modules/notifications/dashboard.py](C:/2026/manditrade/manditrade/modules/notifications/dashboard.py)
-- [modules/products/dashboard.py](C:/2026/manditrade/manditrade/modules/products/dashboard.py)
-- [modules/rfq/dashboard.py](C:/2026/manditrade/manditrade/modules/rfq/dashboard.py)
-- [modules/system/health_dashboard.py](C:/2026/manditrade/manditrade/modules/system/health_dashboard.py)
+### New Services
 
-## 3D CSS System Status
+- [services/public_buyer_service.py](C:/2026/manditrade/manditrade/services/public_buyer_service.py)
+- [services/public_cart_service.py](C:/2026/manditrade/manditrade/services/public_cart_service.py)
+- [services/public_order_service.py](C:/2026/manditrade/manditrade/services/public_order_service.py)
 
-The active CSS shell now includes:
+### New Pages
 
-- animated gradient-mesh background
-- subtle particle-dot field
-- isometric floor/grid illusion
-- floating translucent card/crate planes
-- flowing line/triangle illusion layers
-- glass haze and blur treatment
-- sidebar glass navigation with active-state pills
-- connected glass tabs with strong active state
-- normalized button treatment
-- normalized sidebar navigation width, height, alignment, and spacing
-- focus-visible styling
-- reduced-motion fallback
+- [modules/marketplace/dashboard.py](C:/2026/manditrade/manditrade/modules/marketplace/dashboard.py)
+- [modules/public_orders/dashboard.py](C:/2026/manditrade/manditrade/modules/public_orders/dashboard.py)
 
-### Primary Reusable Visual Classes
+### Route / Navigation Wiring
 
-- `.mt-glass-card`
-- `.mt-hero-panel`
-- `.mt-kpi-card`
-- `.mt-action-card`
-- `.mt-danger-card`
-- `.mt-success-card`
-- `.mt-market-card`
-- `.mt-ledger-card`
-- `.mt-rfq-card`
-- `.mt-notification-card`
-- `.mt-product-card`
-- `.mt-surface-note`
-- `.mt-sidebar-nav-item`
+- [bootstrap/app_bootstrap.py](C:/2026/manditrade/manditrade/bootstrap/app_bootstrap.py)
+- [bootstrap/route_registry.py](C:/2026/manditrade/manditrade/bootstrap/route_registry.py)
 
-## Sidebar Navigation Normalization Status
+### Marketplace Rules
 
-Sidebar navigation is now normalized in the CSS shell.
+Public marketplace shows only products where:
 
-### Updated Behavior
+- `status = ACTIVE`
+- `approved_visibility = PUBLIC`
+- `available_for_public_sale = true`
+- `visible = true`
 
-- all sidebar navigation items use equal width
-- all sidebar navigation items use equal minimum height
-- active items no longer grow larger than inactive items
-- padding, border radius, and vertical spacing are locked consistently
-- hover uses `translateY(-2px)` only and does not shift the layout horizontally
-- icon/dot area now uses a fixed-width alignment slot
+Public buyers can see:
 
-### Styling Notes
+- product name
+- description
+- category
+- unit
+- approved MRP / MRP
+- minimum order quantity
 
-- active state still uses brighter border, glow, and elevated glass shadow
-- active state does not alter width, height, or padding
-- sidebar spacing and inner padding were cleaned up for a more centered vertical stack
-- responsive behavior remains width-safe because the items stay at `width: 100%`
+Public buyers do not see:
 
-### CSS Selectors Used
+- `mandi_price`
+- `suggested_mandi_price`
+- `approved_mandi_price`
+- proposal comments
+- admin note
+- inventory buckets
+- RFQ data
+- ledger data
+- internal seller notes
 
-- `[data-testid="stSidebar"]`
-- sidebar `stRadio` label selectors
-- reusable `.mt-sidebar-nav-item` class for the same footprint rules
+## Public Instant-Pay Order Status
 
-## Login Page Status
+### Public Cart
 
-Login page is now premium and Google-only.
+Active in [services/public_cart_service.py](C:/2026/manditrade/manditrade/services/public_cart_service.py)
 
-### Active Structure
+Current rules:
 
-- left-side brand story panel
-- right-side sign-in panel
-- no mock login
-- no role selector
-- no onboarding token prompt
-- same `Continue with Google` action remains active
+- cart totals are calculated from MRP only
+- cart is seller-bound
+- multi-seller checkout is blocked in the current MVP
+- cart status stays `OPEN`
 
-### Files
+### Public Order
 
-- [modules/access/dashboard.py](C:/2026/manditrade/manditrade/modules/access/dashboard.py)
-- [components/ui_shell.py](C:/2026/manditrade/manditrade/components/ui_shell.py)
-- [assets/styles/manditrade_3d.css](C:/2026/manditrade/manditrade/assets/styles/manditrade_3d.css)
+Active in [services/public_order_service.py](C:/2026/manditrade/manditrade/services/public_order_service.py)
 
-## Dashboard Hero Status
+Implemented statuses in the active flow:
 
-Shared hero rendering was upgraded in [components/ui_shell.py](C:/2026/manditrade/manditrade/components/ui_shell.py).
+- `PAYMENT_PENDING`
+- `PAID`
+- `CONFIRMED`
+- `DISPATCHED`
+- `DELIVERED`
 
-### Current Hero Features
+Supporting fields include:
 
-- richer glow/orb/lane composition
-- flowing overlay accent
-- optional role chip
-- optional metric strip in the hero band
-- consistent futuristic kicker copy
-- glass panel depth without JS
+- `payment_mode = UPI_MANUAL`
+- `payment_status`
+- `payment_reference`
+- `payment_screenshot_placeholder`
+- `assigned_seller_manufacturer_id`
+- `inventory_reserved`
 
-### Pages Using The Hero System
+### Payment Flow
 
-- login / pending access
-- platform admin dashboard
-- manufacturer dashboard
-- client dashboard
-- profile pages
-- products
-- product approvals
-- inventory
-- orders
-- RFQ
-- ledger
-- actions
-- notifications
-- system health
+Current public payment behavior:
 
-## Role Pages Styled
+- full upfront payment required
+- buyer submits UTR / payment reference
+- optional screenshot placeholder field exists
+- seller/admin verifies payment
+- no public ledger entry is created by default
+- Gmail uses the existing runtime trigger model, not a queue UI
 
-### Platform Admin
+## Private Client Proposal Flow Preserved
 
-- `Dashboard`
-- `My Profile`
-- `Products`
-- `Product Approvals`
-- `Manufacturers`
+Private client flow is still active and unchanged in its core business model:
+
+- client places multi-product proposal
+- payment proposal is allowed
+- manufacturer confirms / counters
+- ledger / khata can be created
+
+Relevant services remain:
+
+- [services/order_transaction_service.py](C:/2026/manditrade/manditrade/services/order_transaction_service.py)
+- [services/ledger_service.py](C:/2026/manditrade/manditrade/services/ledger_service.py)
+
+## RBAC / Privacy Guarantees
+
+### Public Buyer
+
+Navigation:
+
+- `Marketplace`
+- `My Orders`
 - `My Actions`
 - `Notifications`
-- `System Health`
-
-### Manufacturer / Admin-as-Manufacturer
-
-- `Dashboard`
 - `My Profile`
-- `Products`
+
+Public buyer does not get navigation access to:
+
 - `Inventory`
 - `Client Orders`
 - `Mandi RFQ`
 - `Ledger / Khata`
-- `My Actions`
-- `Notifications`
+- `Product Approvals`
+- `Manufacturers`
+- `System Health`
 
-### Client
+### Manufacturer / Admin-as-Manufacturer
 
-- `Dashboard`
-- `My Profile`
-- `Notifications`
-- `Client Orders`
-- `Ledger / Khata`
+New public-facing additions:
 
-### Worker
+- `Marketplace Preview`
+- `Public Orders`
 
-- `Dashboard`
-- `My Profile`
-- `My Actions`
-- `Notifications`
-- `Jobs in Mandi`
-- `Workers`
+Private manufacturer workspace remains intact.
 
-## Product / Approval UI Status
+### Platform Admin
 
-- Products page now has premium product-preview cards in addition to the registry table.
-- Product approvals page now has a stronger approval-deck feel before the actual admin approval controls.
-- Proposal comment thread and approval logic remain unchanged functionally in this pass.
+New public-facing additions:
 
-## Actions / Notifications / RFQ / Ledger UI Status
+- `Marketplace`
+- `Public Orders`
 
-### My Actions
+Admin still retains:
 
-- command-center note surface added
-- high-priority mood strengthened by card styling
-- full-width actions retained
+- `Products`
+- `Product Approvals`
+- `Manufacturers`
+- `System Health`
 
-### Notifications
+## Inventory Rule Status
 
-- notification preview cards added
-- unread vs resolved visual states added
-- source/priority chips added
-- runtime-delivery tab still documents immediate-send model
+Public order fulfilment uses seller `self_inventory`, not `mandi_inventory`.
 
-### RFQ
+Implemented behavior:
 
-- negotiation-board framing added
-- request lane and response lane now visually separated in overview
+- payment verification reserves seller self inventory
+- delivery finalizes reserved self inventory
+- mandi inventory is not auto-consumed for public orders
 
-### Ledger / Khata
+Relevant file:
 
-- remains intentionally calmer than other pages
-- readability-first surface note added
-- high-contrast KPI cards retained
-- minimal-motion posture preserved
+- [services/dual_inventory_service.py](C:/2026/manditrade/manditrade/services/dual_inventory_service.py)
 
-## Existing Business Features Still Active
+## Notification / Gmail Status
 
-These remain active and were not functionally altered by this UI pass:
+### In-App Notifications Added For Public Flow
 
-- role-based `My Profile`
-- manufacturer registry CRUD
-- product proposal + approval
-- approved product admin CRUD
-- proposal comment thread
-- runtime Gmail trigger without queue UI
-- tabbed activity pages
-- sidebar debug cleanup
+- `PUBLIC_ORDER_CREATED`
+- `PUBLIC_PAYMENT_SUBMITTED`
+- `PUBLIC_PAYMENT_VERIFIED`
+- `PUBLIC_ORDER_CONFIRMED`
+- `PUBLIC_ORDER_DISPATCHED`
+- `PUBLIC_ORDER_DELIVERED`
 
-## Accessibility / Performance Notes
+### Public Buyer Notifications
 
-### Accessibility
+Public buyer notifications now use extended notification-center support:
 
-- visible focus ring styling added
-- forms and tables remain Streamlit-native widgets
-- no WebGL / heavy JS added
-- reduced-motion mode disables animations/transitions
-- ledger surfaces intentionally kept calmer for readability
+- [services/notification_center_service.py](C:/2026/manditrade/manditrade/services/notification_center_service.py)
 
-### Performance
+### Gmail Runtime
 
-- CSS-only animation approach
-- no external CDN dependency
-- no Three.js/WebGL in this pass
-- animations are slow ambient loops, not fast interactive motion
+Still runtime-triggered only.
+
+No queue UI was reintroduced.
+
+## My Actions Status
+
+Public marketplace actions are now included in [services/action_center_service.py](C:/2026/manditrade/manditrade/services/action_center_service.py).
+
+### Public Buyer
+
+- `COMPLETE_PUBLIC_PAYMENT`
+- `UPLOAD_PAYMENT_REFERENCE`
+- `CONFIRM_PUBLIC_DELIVERY`
+
+### Seller / Manufacturer
+
+- `VERIFY_PUBLIC_PAYMENT`
+- `CONFIRM_PUBLIC_ORDER`
+- `DISPATCH_PUBLIC_ORDER`
+
+### Platform Admin
+
+- `MONITOR_PUBLIC_ORDERS`
+- `REVIEW_FAILED_PUBLIC_PAYMENT`
+
+## My Profile Status
+
+Public buyer profile support is now active in:
+
+- [modules/profile/dashboard.py](C:/2026/manditrade/manditrade/modules/profile/dashboard.py)
+
+Supported fields:
+
+- full name
+- mobile
+- alternate mobile
+- delivery address
+- landmark
+- delivery instructions
+
+## Product Governance Updates Relevant To Marketplace
+
+Public fulfilment now depends on:
+
+- `approved_visibility`
+- `available_for_public_sale`
+- `public_seller_manufacturer_id`
+
+Admin product approval/update surfaces were extended so public-seller assignment can be managed in:
+
+- [modules/admin/product_approvals.py](C:/2026/manditrade/manditrade/modules/admin/product_approvals.py)
+- [modules/products/dashboard.py](C:/2026/manditrade/manditrade/modules/products/dashboard.py)
+
+## UI / Shell Status
+
+The futuristic CSS-only shell remains active and was reused for the new public pages.
+
+Relevant files:
+
+- [assets/styles/manditrade_3d.css](C:/2026/manditrade/manditrade/assets/styles/manditrade_3d.css)
+- [components/ui_shell.py](C:/2026/manditrade/manditrade/components/ui_shell.py)
+- [utils/ui_shell.py](C:/2026/manditrade/manditrade/utils/ui_shell.py)
 
 ## Current Tests / Validation
 
 ### `python -m pytest tests/ -q`
 
 ```text
-sssss...........................................................         [100%]
-59 passed, 5 skipped in 10.63s
+sssss................................................................... [ 94%]
+....                                                                     [100%]
+71 passed, 5 skipped in 15.50s
 ```
 
 ### `python -m compileall app.py modules services utils components schemas bootstrap scripts`
@@ -273,22 +291,43 @@ passed
 app import ok
 ```
 
+## Files Most Relevant To This Pass
+
+- [bootstrap/app_bootstrap.py](C:/2026/manditrade/manditrade/bootstrap/app_bootstrap.py)
+- [bootstrap/route_registry.py](C:/2026/manditrade/manditrade/bootstrap/route_registry.py)
+- [bootstrap/service_container.py](C:/2026/manditrade/manditrade/bootstrap/service_container.py)
+- [services/access_portal_service.py](C:/2026/manditrade/manditrade/services/access_portal_service.py)
+- [services/action_center_service.py](C:/2026/manditrade/manditrade/services/action_center_service.py)
+- [services/auth_service.py](C:/2026/manditrade/manditrade/services/auth_service.py)
+- [services/notification_center_service.py](C:/2026/manditrade/manditrade/services/notification_center_service.py)
+- [services/product_catalog_service.py](C:/2026/manditrade/manditrade/services/product_catalog_service.py)
+- [services/public_buyer_service.py](C:/2026/manditrade/manditrade/services/public_buyer_service.py)
+- [services/public_cart_service.py](C:/2026/manditrade/manditrade/services/public_cart_service.py)
+- [services/public_order_service.py](C:/2026/manditrade/manditrade/services/public_order_service.py)
+- [modules/marketplace/dashboard.py](C:/2026/manditrade/manditrade/modules/marketplace/dashboard.py)
+- [modules/public_orders/dashboard.py](C:/2026/manditrade/manditrade/modules/public_orders/dashboard.py)
+- [modules/notifications/dashboard.py](C:/2026/manditrade/manditrade/modules/notifications/dashboard.py)
+- [modules/profile/dashboard.py](C:/2026/manditrade/manditrade/modules/profile/dashboard.py)
+- [tests/test_public_marketplace.py](C:/2026/manditrade/manditrade/tests/test_public_marketplace.py)
+- [tests/test_access_portal.py](C:/2026/manditrade/manditrade/tests/test_access_portal.py)
+
 ## Remaining Blockers
 
-1. `admin_as_manufacturer` session-switch UX is still partial even though the role shape exists.
-2. Orders / ledger / notification privacy still deserves a broader RBAC leak audit outside the latest UI work.
-3. Shared-zone vs private-zone storage separation for inventory and orders is still incomplete.
-4. RFQ response pricing validation remains a separate unresolved business-logic task.
-5. Agreement-era legacy files still remain in the repository even though the active path no longer depends on them.
+1. Public buyer registration is currently Google-sign-in-first for actual checkout; open anonymous checkout was not added in this pass.
+2. Multi-seller public carts are blocked rather than split into seller-wise orders.
+3. Public payment verification is manual UTR verification only; no Razorpay / automated gateway integration exists.
+4. `admin_as_manufacturer` role UX is still not a polished active switch flow, even though seller/public-order support accepts the role shape.
+5. Legacy agreement-era files still remain in the repository even though public/private/marketplace flows do not rely on them.
 
 ## Acceptance Snapshot
 
-- futuristic CSS-only 3D shell: `DONE`
-- premium Google login page: `DONE`
-- consistent hero-band system: `DONE`
-- glass styling on major role pages: `DONE`
-- form readability preserved: `DONE`
-- table readability preserved: `DONE`
-- mock login absent: `DONE`
+- public buyers can browse public active products: `DONE`
+- public buyer cart exists: `DONE`
+- public orders require upfront payment: `DONE`
+- payment reference flow exists: `DONE`
+- seller/admin payment verification exists: `DONE`
+- seller confirm/dispatch flow exists: `DONE`
+- public buyers cannot access RFQ / ledger / inventory nav: `DONE`
+- private client proposal flow preserved: `DONE`
 - tests passing: `DONE`
 - app imports cleanly: `DONE`

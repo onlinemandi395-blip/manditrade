@@ -28,7 +28,7 @@ def render_access_portal(app_context: dict) -> None:
         [
             ("Manufacturers", "Inventory + RFQ + Jobs", "SUCCESS"),
             ("Clients", "Orders + Khata visibility", "OPEN"),
-            ("Workers", "Local mandi jobs", "PENDING"),
+            ("Public Buyers", "Instant pay shopping", "SUCCESS"),
         ]
     )
     render_section_intro("Access", "Manufacturers, clients, workers, and platform admins all enter through one abstracted login page. Access is mapped in the background after authentication.")

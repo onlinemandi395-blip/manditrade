@@ -25,7 +25,7 @@ class ProductCatalogService:
         active_visible_products = [
             present(item)
             for item in products
-            if item.get("status") == "ACTIVE" and item.get("visible", True)
+            if self._is_visible_to_viewer(item, viewer_role=viewer_role) and item.get("visible", True)
         ]
         if viewer_role == "platform_admin":
             return [dict(item) for item in products] if include_pending else active_visible_products
@@ -42,6 +42,10 @@ class ProductCatalogService:
                     )
                 )
             ]
+        if viewer_role == "client":
+            return active_visible_products
+        if viewer_role == "public_buyer":
+            return active_visible_products
         return active_visible_products
 
     def propose_product(
@@ -86,6 +90,7 @@ class ProductCatalogService:
             "created_by": created_by,
             "created_by_manufacturer_id": created_by,
             "created_by_email": created_by_email.strip().lower(),
+            "public_seller_manufacturer_id": created_by,
             "approved_by": "",
             "admin_note": "",
             "created_at": created_at,
@@ -148,6 +153,10 @@ class ProductCatalogService:
                 "visible": bool(visible),
                 "admin_note": admin_note.strip(),
                 "clarification_status": product.get("clarification_status") or "NONE",
+                "public_seller_manufacturer_id": product.get("public_seller_manufacturer_id")
+                or product.get("created_by_manufacturer_id")
+                or product.get("created_by")
+                or "",
             }
         )
         self.governance_service.upsert_product(product)
@@ -194,6 +203,7 @@ class ProductCatalogService:
             "available_for_public_sale",
             "available_for_mandi_network",
             "image_url",
+            "public_seller_manufacturer_id",
             "visible",
             "admin_note",
             "status",
@@ -222,6 +232,8 @@ class ProductCatalogService:
             product["approved_visibility"] = str(updates["approved_visibility"]).strip().upper()
         if "image_url" in updates:
             product["image_url"] = str(updates["image_url"]).strip()
+        if "public_seller_manufacturer_id" in updates:
+            product["public_seller_manufacturer_id"] = str(updates["public_seller_manufacturer_id"]).strip()
         if "admin_note" in updates:
             product["admin_note"] = str(updates["admin_note"]).strip()
         product["updated_at"] = datetime.now(UTC).isoformat()
@@ -390,4 +402,28 @@ class ProductCatalogService:
             result.pop("comments", None)
             result.pop("clarification_status", None)
             result.pop("admin_note", None)
+        if viewer_role in {"public_buyer", "client", None}:
+            for key in {
+                "mandi_price",
+                "suggested_mandi_price",
+                "approved_mandi_price",
+                "created_by",
+                "created_by_manufacturer_id",
+                "created_by_email",
+                "public_seller_manufacturer_id",
+                "visible",
+            }:
+                result.pop(key, None)
+        if viewer_role not in {"platform_admin", "manufacturer", "admin_as_manufacturer"}:
+            result.pop("admin_note", None)
         return result
+
+    def _is_visible_to_viewer(self, item: dict[str, Any], *, viewer_role: str | None) -> bool:
+        if item.get("status") != "ACTIVE":
+            return False
+        visibility = (item.get("approved_visibility") or item.get("visibility_request") or "PUBLIC").strip().upper()
+        if viewer_role == "client":
+            return visibility in {"PUBLIC", "PRIVATE_CLIENT"}
+        if viewer_role == "public_buyer" or not viewer_role:
+            return visibility == "PUBLIC" and bool(item.get("available_for_public_sale", False))
+        return True

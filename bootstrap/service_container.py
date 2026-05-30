@@ -36,6 +36,9 @@ from services.order_state_service import OrderStateService
 from services.order_transaction_service import OrderTransactionService
 from services.procurement_transaction_service import ProcurementTransactionService
 from services.product_catalog_service import ProductCatalogService
+from services.public_buyer_service import PublicBuyerService
+from services.public_cart_service import PublicCartService
+from services.public_order_service import PublicOrderService
 from services.query.inventory_query_service import InventoryQueryService
 from services.query.order_query_service import OrderQueryService
 from services.query.procurement_query_service import ProcurementQueryService
@@ -60,6 +63,15 @@ def build_app_context() -> dict:
     feature_flags = load_config("feature_flags.json")
     subscription_plans = load_config("subscription_plans.json")
     system_config.setdefault("ledger_reminders", {"enabled": True, "upcoming_days_before": 3, "final_reminder_after_days": 15, "max_reminders_per_due": 4})
+    system_config.setdefault(
+        "public_payment",
+        {
+            "mode": "UPI_MANUAL",
+            "upi_id": "",
+            "payee_name": "",
+            "instructions": "Pay full amount upfront and enter UTR.",
+        },
+    )
 
     bootstrap_service = BootstrapService(BASE_DIR)
     bootstrap_service.ensure_runtime_structure()
@@ -141,13 +153,50 @@ def build_app_context() -> dict:
     dual_inventory_service = DualInventoryService(safe_drive_write_service=safe_drive_write_service, json_service=drive_service.json_service, domain_paths_service=domain_paths_service)
     trade_confirmation_service = TradeConfirmationService(safe_drive_write_service=safe_drive_write_service, json_service=drive_service.json_service, id_allocator_service=id_allocator_service, domain_paths_service=domain_paths_service)
     ledger_service = LedgerService(safe_drive_write_service=safe_drive_write_service, json_service=drive_service.json_service, id_allocator_service=id_allocator_service, domain_paths_service=domain_paths_service)
-    notification_center_service = NotificationCenterService(safe_drive_write_service=safe_drive_write_service, json_service=drive_service.json_service, id_allocator_service=id_allocator_service, domain_paths_service=domain_paths_service)
+    public_buyers_root = BASE_DIR / "data" / "public_buyers"
+    public_orders_root = BASE_DIR / "data" / "public_orders"
+    public_payments_root = BASE_DIR / "data" / "public_payments"
+    notification_center_service = NotificationCenterService(
+        safe_drive_write_service=safe_drive_write_service,
+        json_service=drive_service.json_service,
+        id_allocator_service=id_allocator_service,
+        domain_paths_service=domain_paths_service,
+        public_buyers_root=public_buyers_root,
+    )
     product_catalog_service = ProductCatalogService(
         governance_service=governance_service,
         id_allocator_service=id_allocator_service,
         notification_center_service=notification_center_service,
         gmail_service=gmail_service,
         admin_email=security_service.get_admin_email(),
+    )
+    public_buyer_service = PublicBuyerService(
+        public_buyers_root=public_buyers_root,
+        safe_drive_write_service=safe_drive_write_service,
+        json_service=drive_service.json_service,
+        id_allocator_service=id_allocator_service,
+    )
+    public_cart_service = PublicCartService(
+        public_buyer_service=public_buyer_service,
+        product_catalog_service=product_catalog_service,
+        safe_drive_write_service=safe_drive_write_service,
+        json_service=drive_service.json_service,
+        id_allocator_service=id_allocator_service,
+    )
+    public_order_service = PublicOrderService(
+        public_orders_root=public_orders_root,
+        public_payments_root=public_payments_root,
+        public_buyer_service=public_buyer_service,
+        public_cart_service=public_cart_service,
+        product_catalog_service=product_catalog_service,
+        dual_inventory_service=dual_inventory_service,
+        notification_center_service=notification_center_service,
+        gmail_service=gmail_service,
+        governance_service=governance_service,
+        safe_drive_write_service=safe_drive_write_service,
+        json_service=drive_service.json_service,
+        id_allocator_service=id_allocator_service,
+        config=system_config.get("public_payment", {}),
     )
     worker_service = WorkerService(
         governance_root=GOVERNANCE_DIR,
@@ -170,6 +219,7 @@ def build_app_context() -> dict:
         governance_service=governance_service,
         client_service=client_service,
         worker_service=worker_service,
+        public_buyer_service=public_buyer_service,
         drive_service=drive_service,
         security_service=security_service,
         json_service=drive_service.json_service,
@@ -223,6 +273,7 @@ def build_app_context() -> dict:
         dual_inventory_service=dual_inventory_service,
         job_service=job_service,
         worker_service=worker_service,
+        public_order_service=public_order_service,
     )
 
     startup_checks = config_service.validate_streamlit_secrets(security_service.load_streamlit_secrets())
@@ -309,6 +360,9 @@ def build_app_context() -> dict:
         "notification_center_service": notification_center_service,
         "job_service": job_service,
         "worker_service": worker_service,
+        "public_buyer_service": public_buyer_service,
+        "public_cart_service": public_cart_service,
+        "public_order_service": public_order_service,
         "access_portal_service": access_portal_service,
         "action_center_service": action_center_service,
         "order_query_service": OrderQueryService(drive_service=drive_service, json_service=drive_service.json_service),
