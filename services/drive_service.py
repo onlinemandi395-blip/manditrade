@@ -94,6 +94,7 @@ class DriveService:
             "subscription.json": {"manufacturer_code": manufacturer_code, "plan_code": "basic", "status": "active"},
         }
         private_files: dict[str, Any] = {
+            "inventory.json": {"manufacturer_code": manufacturer_code, "items": []},
             "clients.json": {"manufacturer_code": manufacturer_code, "clients": []},
             "ledgers.json": {"manufacturer_code": manufacturer_code, "ledgers": []},
             "notifications.json": {"manufacturer_code": manufacturer_code, "notifications": []},
@@ -136,7 +137,7 @@ class DriveService:
             self.safe_drive_write_service.replace_document(paths.shared_zone / file_name, document, schema_name=schema_name)
         for file_name, payload in private_files.items():
             document = {"schema_version": "1.0", **payload}
-            schema_name = "clients" if file_name == "clients.json" else None
+            schema_name = "clients" if file_name == "clients.json" else "inventory" if file_name == "inventory.json" else None
             self.safe_drive_write_service.replace_document(paths.private_zone / file_name, document, schema_name=schema_name)
 
         report_path = paths.private_zone / "business_reports.csv"

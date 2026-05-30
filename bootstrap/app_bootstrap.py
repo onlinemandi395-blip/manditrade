@@ -134,8 +134,9 @@ def resolve_navigation_sections(app_context: dict) -> list[str]:
         "Inventory",
         "Clients",
         "Client Orders",
-        "Mandi RFQ",
-        "Ledger / Khata",
+        "Ledger",
+        "RFQ",
+        "Marketplace",
         "My Actions",
         "Notifications",
     ]
@@ -144,11 +145,11 @@ def resolve_navigation_sections(app_context: dict) -> list[str]:
     if is_admin_identity and current_user and current_user.manufacturer_code:
         return [*manufacturer_sections, "Product Approvals", "Manufacturers", "System Health"]
     if is_admin_identity:
-        return ["Dashboard", "Marketplace", "Public Orders", "My Profile", "Products", "Product Approvals", "Manufacturers", "My Actions", "Notifications", "System Health"]
+        return ["Dashboard", "My Profile", "Products", "Product Approvals", "Manufacturers", "Marketplace", "Public Orders", "RFQ", "Inventory Summary", "Commission Summary", "Payments", "My Actions", "Notifications", "System Health"]
     if role == "public_buyer":
         return ["Marketplace", "My Orders", "My Actions", "Notifications", "My Profile"]
     if role == "client":
-        sections = ["Dashboard", "My Profile", "Notifications", "Client Orders", "Ledger / Khata"]
+        sections = ["Dashboard", "Products", "My Orders", "Ledger", "My Actions", "Notifications", "Profile"]
         if worker_profile:
             sections.append("Jobs in Mandi")
             sections.append("Workers")

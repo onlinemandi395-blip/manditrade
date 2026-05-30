@@ -3,15 +3,16 @@ from pathlib import Path
 from typing import Any
 
 class OrderQueryService:
-    def __init__(self, drive_service, json_service) -> None:
+    def __init__(self, drive_service, json_service, domain_paths_service=None) -> None:
         self.drive_service = drive_service
         self.json_service = json_service
+        self.domain_paths = domain_paths_service
 
     def _list_order_files(self, manufacturer_code: str) -> list[Path]:
-        orders_root = self.drive_service.get_manufacturer_paths(manufacturer_code).shared_zone / "orders"
+        orders_root = self.drive_service.get_manufacturer_paths(manufacturer_code).private_zone / "client_orders"
         if not orders_root.exists():
             return []
-        return sorted(orders_root.glob("*/*.json"))
+        return sorted(orders_root.glob("*.json"))
 
     def list_orders(self, manufacturer_code: str) -> list[dict[str, Any]]:
         return [self.json_service.read_json(path, {}) for path in self._list_order_files(manufacturer_code)]
@@ -40,3 +41,18 @@ class OrderQueryService:
             if order.get("order_id") == order_id:
                 return order
         return None
+
+    def summarize_orders(self, manufacturer_code: str) -> dict[str, Any]:
+        orders = self.list_orders(manufacturer_code)
+        status_counts: dict[str, int] = {}
+        total_value = 0.0
+        for order in orders:
+            status = str(order.get("status") or "UNKNOWN").strip().upper()
+            status_counts[status] = status_counts.get(status, 0) + 1
+            total_value += float(order.get("grand_total", order.get("total_amount", 0)) or 0)
+        return {
+            "manufacturer_code": manufacturer_code,
+            "total_orders": len(orders),
+            "status_counts": status_counts,
+            "total_value": round(total_value, 2),
+        }

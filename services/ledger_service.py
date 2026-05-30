@@ -98,3 +98,25 @@ class LedgerService:
 
         self.safe_drive_write_service.mutate_json(path, mutator)
         return updated or {}
+
+    def summarize_ledgers(self, manufacturer_code: str) -> dict[str, Any]:
+        ledgers = self.list_ledgers(manufacturer_code)
+        total_entries = 0
+        pending_entries = 0
+        total_amount = 0.0
+        total_balance_due = 0.0
+        for ledger in ledgers:
+            for entry in ledger.get("entries", []):
+                total_entries += 1
+                total_amount += float(entry.get("amount", 0) or 0)
+                total_balance_due += float(entry.get("balance_due", 0) or 0)
+                if str(entry.get("status") or "").upper() == "PENDING":
+                    pending_entries += 1
+        return {
+            "manufacturer_code": manufacturer_code,
+            "ledger_groups": len(ledgers),
+            "total_entries": total_entries,
+            "pending_entries": pending_entries,
+            "total_amount": round(total_amount, 2),
+            "total_balance_due": round(total_balance_due, 2),
+        }

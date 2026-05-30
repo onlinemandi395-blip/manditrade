@@ -65,4 +65,15 @@ def render_rfq_dashboard(app_context: dict) -> None:
     with requests_tab:
         st.dataframe(requests, use_container_width=True)
     with responses_tab:
+        invalid_responses = [
+            response
+            for response in responses
+            if any(
+                float(item.get("offered_unit_price", item.get("unit_price", 0)) or 0) <= 0
+                or int(item.get("qty", 0) or 0) <= 0
+                for item in response.get("available_items", [])
+            )
+        ]
+        if invalid_responses:
+            st.error("One or more RFQ responses are missing valid offered pricing. Buyer acceptance stays blocked until supplier pricing is corrected.")
         st.dataframe(responses, use_container_width=True)

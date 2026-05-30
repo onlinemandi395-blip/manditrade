@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
+from bootstrap.route_registry import render_route
 from bootstrap.app_bootstrap import resolve_navigation_sections
 from services.client_service import ClientService
 from services.encryption_service import EncryptionService
@@ -128,7 +129,11 @@ def test_navigation_sections_include_my_profile_for_signed_in_roles():
     assert "My Profile" in admin_sections
     assert "My Profile" in manufacturer_sections
     assert "Clients" in manufacturer_sections
-    assert "My Profile" in client_sections
+    assert "Inventory Summary" in admin_sections
+    assert "Commission Summary" in admin_sections
+    assert "Marketplace" in manufacturer_sections
+    assert "Profile" in client_sections
+    assert "My Orders" in client_sections
 
 
 def test_master_data_contains_shared_categories_and_states():
@@ -139,3 +144,20 @@ def test_master_data_contains_shared_categories_and_states():
     assert "Other" in categories
     assert "Maharashtra" in states
     assert "Delhi" in states
+
+
+def test_superadmin_summary_routes_use_dedicated_modules(monkeypatch):
+    hits: list[str] = []
+    app_context = {
+        "current_user": SimpleNamespace(role="platform_admin", email="admin@example.com", manufacturer_code=None),
+        "security_service": SimpleNamespace(is_admin_identity=lambda _user: True),
+    }
+    monkeypatch.setattr("bootstrap.route_registry.render_rfq_summary_dashboard", lambda _ctx: hits.append("rfq"))
+    monkeypatch.setattr("bootstrap.route_registry.render_inventory_summary_dashboard", lambda _ctx: hits.append("inventory"))
+    monkeypatch.setattr("bootstrap.route_registry.render_commission_summary_dashboard", lambda _ctx: hits.append("commission"))
+
+    render_route("RFQ", app_context)
+    render_route("Inventory Summary", app_context)
+    render_route("Commission Summary", app_context)
+
+    assert hits == ["rfq", "inventory", "commission"]

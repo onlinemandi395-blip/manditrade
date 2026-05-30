@@ -98,23 +98,55 @@ class OrderTransactionService:
         except Exception as exc:  # noqa: BLE001
             self.logging_service.log_error("notification_failures", "Side effect failed after order commit", {"notification_type": notification_type, "error": str(exc)})
 
+    def _shared_order_projection(self, order: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "schema_version": order.get("schema_version", "2.0"),
+            "order_id": order["order_id"],
+            "manufacturer_id": order.get("manufacturer_id", ""),
+            "primary_manufacturer_id": order.get("primary_manufacturer_id", ""),
+            "status": order.get("status", ""),
+            "created_at": order.get("created_at", ""),
+            "created_at_runtime": order.get("created_at_runtime", ""),
+            "rfq_id": order.get("rfq_id", ""),
+            "trade_confirmation_id": order.get("trade_confirmation_id", ""),
+            "item_count": len(order.get("items", [])),
+            "total_amount": round(
+                sum(float(item.get("qty", 0)) * float(item.get("client_price", item.get("mrp", 0)) or 0) for item in order.get("items", [])),
+                2,
+            ),
+            "items": [
+                {
+                    "product_id": item.get("product_id", ""),
+                    "product_name": item.get("product_name", ""),
+                    "qty": item.get("qty", 0),
+                    "unit": item.get("unit", ""),
+                    "channel": item.get("channel", "PRIVATE_CLIENT"),
+                }
+                for item in order.get("items", [])
+            ],
+        }
+
+    def _projection_path_for_order(self, manufacturer_code: str, order: dict[str, Any]) -> Path:
+        created_at = str(order.get("created_at") or datetime.now(UTC).date().isoformat())
+        year_month = created_at[:7]
+        return self.domain_paths.shared_client_order_projection_path(manufacturer_code, year_month, order["order_id"])
+
     def _save_order(self, manufacturer_code: str, order: dict[str, Any], order_path: Path) -> None:
         order.setdefault("schema_version", "2.0")
-        self.safe_drive_write_service.replace_document(order_path, order, schema_name="order")
+        self.safe_drive_write_service.replace_document(order_path, self._shared_order_projection(order))
         self.safe_drive_write_service.replace_document(self.domain_paths.client_order_path(manufacturer_code, order["order_id"]), order, schema_name="order")
 
     def _find_order_path(self, manufacturer_code: str, order_id: str) -> Path:
-        orders_root = self.drive_service.get_manufacturer_paths(manufacturer_code).shared_zone / "orders"
-        for path in sorted(orders_root.glob("*/*.json")):
-            if path.stem == order_id:
-                return path
+        private_path = self.domain_paths.client_order_path(manufacturer_code, order_id)
+        if private_path.exists():
+            return private_path
         raise FileNotFoundError(f"Order not found: {order_id}")
 
     def create_order(self, manufacturer_code: str, client_profile: dict[str, Any], items: list[dict[str, Any]], payment_proposal: dict[str, Any]) -> dict[str, Any]:
         now = datetime.now(UTC)
         transaction_id = self.id_allocator_service.allocate("transaction")
         order_id = self.id_allocator_service.allocate("order")
-        order_path = self.domain_paths.orders_month_dir(manufacturer_code, now.strftime("%Y-%m")) / f"{order_id}.json"
+        order_path = self.domain_paths.shared_client_order_projection_path(manufacturer_code, now.strftime("%Y-%m"), order_id)
         context = OrderTransactionContext(transaction_id=transaction_id, state="RUNNING", order_id=order_id)
         self._write_journal(context)
         normalized_items = []
@@ -157,7 +189,7 @@ class OrderTransactionService:
             "commission_breakdown": commission_rows,
         }
         try:
-            self._register_target(context, self.domain_paths.inventory_path(manufacturer_code))
+            self._register_target(context, self.domain_paths.private_self_inventory_path(manufacturer_code))
             self._register_target(context, order_path)
             self._register_target(context, self.domain_paths.client_order_path(manufacturer_code, order_id))
             inventory = self.dual_inventory_service.list_inventory(manufacturer_code)
@@ -209,8 +241,9 @@ class OrderTransactionService:
         context = OrderTransactionContext(transaction_id=transaction_id, state="RUNNING", order_id=order_id)
         self._write_journal(context)
         try:
-            self._register_target(context, order_path)
             self._register_target(context, self.domain_paths.client_order_path(current_user.manufacturer_code, order_id))
+            projection_path = self._projection_path_for_order(current_user.manufacturer_code, self.drive_service.json_service.read_json(order_path, {}))
+            self._register_target(context, projection_path)
             self._register_target(context, self.domain_paths.confirmations_path(current_user.manufacturer_code))
             order = self.drive_service.json_service.read_json(order_path, {})
             order = self.order_state_service.transition(order, "CONFIRMED", current_user.email, reason="Manufacturer confirmed order")
@@ -222,7 +255,7 @@ class OrderTransactionService:
                 accepted_terms_snapshot={"payment_proposal": order.get("payment_proposal", {}), "items": order.get("items", [])},
             )
             order["trade_confirmation_id"] = confirmation["confirmation_id"]
-            self._save_order(current_user.manufacturer_code, order, order_path)
+            self._save_order(current_user.manufacturer_code, order, projection_path)
             ledger_amount = sum(float(item.get("qty", 0)) * float(item.get("client_price", item.get("mrp", 0))) for item in order.get("items", []))
             proposal = order.get("payment_proposal", {})
             upfront = round(ledger_amount * float(proposal.get("upfront_percentage", 0)) / 100, 2)
@@ -260,15 +293,16 @@ class OrderTransactionService:
         context = OrderTransactionContext(transaction_id=transaction_id, state="RUNNING", order_id=order_id)
         self._write_journal(context)
         try:
-            self._register_target(context, order_path)
             self._register_target(context, self.domain_paths.client_order_path(current_user.manufacturer_code, order_id))
+            projection_path = self._projection_path_for_order(current_user.manufacturer_code, self.drive_service.json_service.read_json(order_path, {}))
+            self._register_target(context, projection_path)
             order = self.drive_service.json_service.read_json(order_path, {})
             if order.get("status") != "CONFIRMED":
                 raise ValueError("Order must be CONFIRMED before dispatch.")
             dispatch = self.delivery_service.build_dispatch_record(order_id, vehicle_number, driver_name, transporter_name)
             order["dispatch"] = dispatch
             order = self.order_state_service.transition(order, "DISPATCHED", current_user.email, reason="Shipment dispatched")
-            self._save_order(current_user.manufacturer_code, order, order_path)
+            self._save_order(current_user.manufacturer_code, order, projection_path)
             context.state = "COMMITTED"
             self._write_journal(context)
         except Exception as exc:  # noqa: BLE001
@@ -285,16 +319,17 @@ class OrderTransactionService:
         context = OrderTransactionContext(transaction_id=transaction_id, state="RUNNING", order_id=order_id)
         self._write_journal(context)
         try:
-            self._register_target(context, order_path)
             self._register_target(context, self.domain_paths.client_order_path(current_user.manufacturer_code, order_id))
-            self._register_target(context, self.domain_paths.inventory_path(current_user.manufacturer_code))
+            projection_path = self._projection_path_for_order(current_user.manufacturer_code, self.drive_service.json_service.read_json(order_path, {}))
+            self._register_target(context, projection_path)
+            self._register_target(context, self.domain_paths.private_self_inventory_path(current_user.manufacturer_code))
             order = self.drive_service.json_service.read_json(order_path, {})
             if order.get("status") != "DISPATCHED":
                 raise ValueError("Order must be DISPATCHED before delivery confirmation.")
             order = self.delivery_service.confirm_delivery(order, current_user.email, comments=comments, proof_path=None)
             order = self.order_state_service.transition(order, "DELIVERED", current_user.email, reason="Delivery confirmed")
             self.dual_inventory_service.finalize_reserved(current_user.manufacturer_code, order.get("items", []), bucket="self_inventory")
-            self._save_order(current_user.manufacturer_code, order, order_path)
+            self._save_order(current_user.manufacturer_code, order, projection_path)
             context.state = "COMMITTED"
             self._write_journal(context)
         except Exception as exc:  # noqa: BLE001
@@ -314,14 +349,15 @@ class OrderTransactionService:
         context = OrderTransactionContext(transaction_id=transaction_id, state="RUNNING", order_id=order_id)
         self._write_journal(context)
         try:
-            self._register_target(context, order_path)
             self._register_target(context, self.domain_paths.client_order_path(current_user.manufacturer_code, order_id))
-            self._register_target(context, self.domain_paths.inventory_path(current_user.manufacturer_code))
+            projection_path = self._projection_path_for_order(current_user.manufacturer_code, self.drive_service.json_service.read_json(order_path, {}))
+            self._register_target(context, projection_path)
+            self._register_target(context, self.domain_paths.private_self_inventory_path(current_user.manufacturer_code))
             order = self.drive_service.json_service.read_json(order_path, {})
             if order.get("status") in {"MANUFACTURER_ACCEPTED", "READY_TO_CONFIRM", "CONFIRMED"}:
                 self.dual_inventory_service.release_reserved(current_user.manufacturer_code, order.get("items", []), bucket="self_inventory")
             order = self.order_state_service.transition(order, "CANCELLED", current_user.email, reason=reason or "Order cancelled")
-            self._save_order(current_user.manufacturer_code, order, order_path)
+            self._save_order(current_user.manufacturer_code, order, projection_path)
             context.state = "COMMITTED"
             self._write_journal(context)
         except Exception as exc:  # noqa: BLE001
@@ -338,11 +374,12 @@ class OrderTransactionService:
         context = OrderTransactionContext(transaction_id=transaction_id, state="RUNNING", order_id=order_id)
         self._write_journal(context)
         try:
-            self._register_target(context, order_path)
             self._register_target(context, self.domain_paths.client_order_path(current_user.manufacturer_code, order_id))
+            projection_path = self._projection_path_for_order(current_user.manufacturer_code, self.drive_service.json_service.read_json(order_path, {}))
+            self._register_target(context, projection_path)
             order = self.drive_service.json_service.read_json(order_path, {})
             order = self.order_state_service.transition(order, next_status, current_user.email, reason=reason)
-            self._save_order(current_user.manufacturer_code, order, order_path)
+            self._save_order(current_user.manufacturer_code, order, projection_path)
             context.state = "COMMITTED"
             self._write_journal(context)
         except Exception as exc:  # noqa: BLE001

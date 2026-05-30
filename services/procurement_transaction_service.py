@@ -50,6 +50,25 @@ class ProcurementTransactionService:
         self.notification_center_service = notification_center_service
         self.domain_paths = domain_paths_service
 
+    def _validate_available_items(self, available_items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        normalized: list[dict[str, Any]] = []
+        for item in available_items:
+            qty = int(item.get("qty", 0) or 0)
+            unit_price = float(item.get("offered_unit_price", item.get("unit_price", 0)) or 0)
+            if qty <= 0:
+                raise ValueError("RFQ response quantity must be greater than zero.")
+            if unit_price <= 0:
+                raise ValueError("RFQ response offered unit price is required and must be greater than zero.")
+            normalized.append(
+                {
+                    **item,
+                    "qty": qty,
+                    "offered_unit_price": round(unit_price, 2),
+                    "total_price": round(qty * unit_price, 2),
+                }
+            )
+        return normalized
+
     def _journal_path(self, transaction_id: str) -> Path:
         return self.transactions_root / f"{transaction_id}.json"
 
@@ -105,16 +124,17 @@ class ProcurementTransactionService:
         context = ProcurementContext(transaction_id=transaction_id, state="RUNNING")
         self._write_journal(context)
         rfq_path = self.domain_paths.rfq_path(rfq_owner_code)
-        inventory_path = self.domain_paths.inventory_path(current_user.manufacturer_code)
+        inventory_path = self.domain_paths.private_self_inventory_path(current_user.manufacturer_code)
         try:
+            normalized_items = self._validate_available_items(available_items)
             self._register_target(context, rfq_path)
             self._register_target(context, inventory_path)
-            self.dual_inventory_service.reserve_mandi_inventory(current_user.manufacturer_code, [{"product_id": item["product_id"], "qty": item["qty"]} for item in available_items])
+            self.dual_inventory_service.reserve_mandi_inventory(current_user.manufacturer_code, [{"product_id": item["product_id"], "qty": item["qty"]} for item in normalized_items])
             response = {
                 "response_id": self.id_allocator_service.allocate("response"),
                 "supplier_manufacturer_id": current_user.manufacturer_code,
                 "rfq_id": rfq_id,
-                "available_items": available_items,
+                "available_items": normalized_items,
                 "supplier_terms": supplier_terms,
                 "status": "SUBMITTED",
                 "created_at": datetime.now(UTC).isoformat(),
@@ -165,6 +185,9 @@ class ProcurementTransactionService:
             response = next((item for item in payload.get("responses", []) if item.get("response_id") == response_id), None)
             if rfq is None or response is None:
                 raise ValueError("RFQ response not found.")
+            total_amount = round(sum(float(item.get("total_price", 0) or 0) for item in response.get("available_items", [])), 2)
+            if total_amount <= 0:
+                raise ValueError("Buyer cannot accept an RFQ response without valid priced items.")
             rfq["status"] = "BUYER_CONFIRMED"
             response["status"] = "BUYER_CONFIRMED"
             self.safe_drive_write_service.replace_document(rfq_path, payload)
@@ -177,15 +200,12 @@ class ProcurementTransactionService:
             )
             rfq["trade_confirmation_id"] = confirmation["confirmation_id"]
             self.safe_drive_write_service.replace_document(rfq_path, payload)
-            amount = 0.0
-            for item in response.get("available_items", []):
-                amount += float(item.get("qty", 0)) * float(item.get("unit_price", item.get("price", 0) or 0))
             self.ledger_service.create_entry(
                 buyer_user.manufacturer_code,
                 party_a=buyer_user.manufacturer_code,
                 party_b=response["supplier_manufacturer_id"],
                 entry_type="MANDI_SUPPLY",
-                amount=amount,
+                amount=total_amount,
                 paid_amount=0,
                 ledger_days=int(response.get("supplier_terms", {}).get("ledger_days", 0)),
                 note=response.get("supplier_terms", {}).get("freestyle_note", ""),

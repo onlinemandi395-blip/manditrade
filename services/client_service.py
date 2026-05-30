@@ -231,3 +231,23 @@ class ClientService:
         if not profiles_dir.exists():
             return []
         return [self.json_service.read_json(path, {}) for path in sorted(profiles_dir.glob("*.json"))]
+
+    def summarize_clients(self, manufacturer_code: str) -> dict[str, Any]:
+        clients = self.list_clients(manufacturer_code)
+        status_counts: dict[str, int] = {}
+        invite_counts: dict[str, int] = {}
+        for client in clients:
+            status = str(client.get("status") or "UNKNOWN").strip().upper()
+            invite_status = str(client.get("invite_status") or "UNKNOWN").strip().upper()
+            status_counts[status] = status_counts.get(status, 0) + 1
+            invite_counts[invite_status] = invite_counts.get(invite_status, 0) + 1
+        return {
+            "manufacturer_code": manufacturer_code,
+            "total_clients": len(clients),
+            "active_clients": status_counts.get("ACTIVE", 0),
+            "invited_clients": status_counts.get("INVITED", 0),
+            "inactive_clients": status_counts.get("INACTIVE", 0),
+            "blocked_clients": status_counts.get("BLOCKED", 0),
+            "status_counts": status_counts,
+            "invite_status_counts": invite_counts,
+        }

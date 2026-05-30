@@ -4,9 +4,12 @@ import streamlit as st
 
 from modules.access.dashboard import render_access_portal, render_pending_user_dashboard
 from modules.actions.dashboard import render_actions_dashboard
+from modules.admin.commission_summary import render_commission_summary_dashboard
 from modules.admin.dashboard import render_admin_dashboard
+from modules.admin.inventory_summary import render_inventory_summary_dashboard
 from modules.admin.manufacturers import render_manufacturers_dashboard
 from modules.admin.product_approvals import render_product_approvals_dashboard
+from modules.admin.rfq_summary import render_rfq_summary_dashboard
 from modules.client.dashboard import render_client_dashboard
 from modules.clients.dashboard import render_clients_dashboard
 from modules.inventory.management import render_inventory_management
@@ -53,7 +56,7 @@ def render_route(section: str, app_context: dict) -> None:
         render_actions_dashboard(app_context)
     elif section == "Notifications":
         render_notifications_dashboard(app_context)
-    elif section == "My Profile":
+    elif section in {"My Profile", "Profile"}:
         render_my_profile_dashboard(app_context)
     elif section == "Products":
         render_products_dashboard(app_context)
@@ -62,17 +65,30 @@ def render_route(section: str, app_context: dict) -> None:
     elif section == "Public Orders":
         render_public_orders_dashboard(app_context, buyer_mode=False)
     elif section == "My Orders":
-        render_public_orders_dashboard(app_context, buyer_mode=True)
-    elif section == "Inventory":
-        render_inventory_management(app_context)
+        current_user = app_context.get("current_user")
+        if current_user and current_user.role == "public_buyer":
+            render_public_orders_dashboard(app_context, buyer_mode=True)
+        else:
+            render_orders_dashboard(app_context)
+    elif section in {"Inventory", "Inventory Summary"}:
+        if section == "Inventory Summary":
+            render_inventory_summary_dashboard(app_context)
+        else:
+            render_inventory_management(app_context)
     elif section == "Client Orders":
         render_orders_dashboard(app_context)
-    elif section == "Mandi RFQ":
-        render_rfq_dashboard(app_context)
-    elif section == "Ledger / Khata":
+    elif section in {"Mandi RFQ", "RFQ"}:
+        if app_context["security_service"].is_admin_identity(app_context.get("current_user")) and not getattr(app_context.get("current_user"), "manufacturer_code", None):
+            render_rfq_summary_dashboard(app_context)
+        else:
+            render_rfq_dashboard(app_context)
+    elif section in {"Ledger / Khata", "Ledger"}:
         render_ledger_dashboard(app_context)
-    elif section == "Payments":
-        render_payments_dashboard(app_context)
+    elif section in {"Payments", "Commission Summary"}:
+        if section == "Commission Summary":
+            render_commission_summary_dashboard(app_context)
+        else:
+            render_payments_dashboard(app_context)
     elif section == "Dispatch":
         render_dispatch_management(app_context)
     elif section == "Clients":

@@ -76,6 +76,16 @@ def test_dual_inventory_reserve_from_self_inventory(tmp_path):
     assert inventory["items"][0]["self_inventory"]["reserved_qty"] == 20
 
 
+def test_inventory_projection_excludes_private_self_inventory(tmp_path):
+    runtime = build_runtime(tmp_path)
+    seed_inventory(runtime, "MANU101", self_qty=100, mandi_qty=25)
+    private_inventory = runtime["json_service"].read_json(runtime["domain_paths"].private_self_inventory_path("MANU101"), {})
+    shared_projection = runtime["json_service"].read_json(runtime["domain_paths"].shared_mandi_inventory_projection_path("MANU101"), {})
+    assert "self_inventory" in private_inventory["items"][0]
+    assert "self_inventory" not in shared_projection["items"][0]
+    assert "mandi_inventory" in shared_projection["items"][0]
+
+
 def test_mandi_inventory_reserve_for_rfq_response(tmp_path):
     runtime = build_runtime(tmp_path)
     seed_inventory(runtime, "MANU202", self_qty=20, mandi_qty=70)
@@ -86,7 +96,7 @@ def test_mandi_inventory_reserve_for_rfq_response(tmp_path):
         current_user("MANU202", "supplier@example.com"),
         "MANU101",
         rfq["rfq_id"],
-        [{"product_id": "PRD-2026-000001", "qty": 40, "unit": "kg"}],
+        [{"product_id": "PRD-2026-000001", "qty": 40, "unit": "kg", "offered_unit_price": 42}],
         {"upfront_percentage": 50, "ledger_days": 7, "freestyle_note": "Can dispatch today"},
     )
     inventory = runtime["json_service"].read_json(runtime["domain_paths"].inventory_path("MANU202"), {})
@@ -153,8 +163,46 @@ def test_rfq_response_with_freestyle_terms(tmp_path):
     seed_rfq_doc(runtime, "MANU101")
     procurement = build_procurement_service(runtime)
     rfq = procurement.create_rfq_from_shortage(manufacturer_code="MANU101", items=[{"product_id": "PRD-2026-000001", "required_qty": 20, "unit": "kg"}], trade_terms={"payment_modes": ["online"], "upfront_percentage": 40, "ledger_days": 15, "freestyle_description": "urgent"})
-    response = procurement.respond_to_rfq(current_user("MANU202", "supplier@example.com"), "MANU101", rfq["rfq_id"], [{"product_id": "PRD-2026-000001", "qty": 20, "unit": "kg"}], {"upfront_percentage": 50, "ledger_days": 7, "freestyle_note": "Dispatch today"})
+    response = procurement.respond_to_rfq(current_user("MANU202", "supplier@example.com"), "MANU101", rfq["rfq_id"], [{"product_id": "PRD-2026-000001", "qty": 20, "unit": "kg", "offered_unit_price": 42}], {"upfront_percentage": 50, "ledger_days": 7, "freestyle_note": "Dispatch today"})
     assert response["supplier_terms"]["freestyle_note"] == "Dispatch today"
+
+
+def test_rfq_response_without_price_is_rejected(tmp_path):
+    runtime = build_runtime(tmp_path)
+    seed_inventory(runtime, "MANU202", self_qty=10, mandi_qty=100)
+    seed_rfq_doc(runtime, "MANU101")
+    procurement = build_procurement_service(runtime)
+    rfq = procurement.create_rfq_from_shortage(manufacturer_code="MANU101", items=[{"product_id": "PRD-2026-000001", "required_qty": 20, "unit": "kg"}], trade_terms={"payment_modes": ["online"], "upfront_percentage": 40, "ledger_days": 15, "freestyle_description": "urgent"})
+    try:
+        procurement.respond_to_rfq(current_user("MANU202", "supplier@example.com"), "MANU101", rfq["rfq_id"], [{"product_id": "PRD-2026-000001", "qty": 20, "unit": "kg"}], {"upfront_percentage": 50, "ledger_days": 7, "freestyle_note": "Dispatch today"})
+        assert False, "Expected ValueError for missing offered price"
+    except ValueError as exc:
+        assert "offered unit price" in str(exc)
+
+
+def test_rfq_response_with_zero_price_is_rejected(tmp_path):
+    runtime = build_runtime(tmp_path)
+    seed_inventory(runtime, "MANU202", self_qty=10, mandi_qty=100)
+    seed_rfq_doc(runtime, "MANU101")
+    procurement = build_procurement_service(runtime)
+    rfq = procurement.create_rfq_from_shortage(manufacturer_code="MANU101", items=[{"product_id": "PRD-2026-000001", "required_qty": 20, "unit": "kg"}], trade_terms={"payment_modes": ["online"], "upfront_percentage": 40, "ledger_days": 15, "freestyle_description": "urgent"})
+    try:
+        procurement.respond_to_rfq(current_user("MANU202", "supplier@example.com"), "MANU101", rfq["rfq_id"], [{"product_id": "PRD-2026-000001", "qty": 20, "unit": "kg", "offered_unit_price": 0}], {"upfront_percentage": 50, "ledger_days": 7, "freestyle_note": "Dispatch today"})
+        assert False, "Expected ValueError for zero offered price"
+    except ValueError as exc:
+        assert "offered unit price" in str(exc)
+
+
+def test_rfq_acceptance_uses_total_price_for_ledger_amount(tmp_path):
+    runtime = build_runtime(tmp_path)
+    seed_inventory(runtime, "MANU202", self_qty=10, mandi_qty=100)
+    seed_rfq_doc(runtime, "MANU101")
+    procurement = build_procurement_service(runtime)
+    rfq = procurement.create_rfq_from_shortage(manufacturer_code="MANU101", items=[{"product_id": "PRD-2026-000001", "required_qty": 20, "unit": "kg"}], trade_terms={"payment_modes": ["online"], "upfront_percentage": 40, "ledger_days": 15, "freestyle_description": "urgent"})
+    response = procurement.respond_to_rfq(current_user("MANU202", "supplier@example.com"), "MANU101", rfq["rfq_id"], [{"product_id": "PRD-2026-000001", "qty": 20, "unit": "kg", "offered_unit_price": 42}], {"upfront_percentage": 50, "ledger_days": 7, "freestyle_note": "Dispatch today"})
+    procurement.accept_rfq_response(current_user("MANU101", "buyer@example.com"), rfq["rfq_id"], response["response_id"])
+    ledgers = procurement.ledger_service.list_ledgers("MANU101")
+    assert ledgers[0]["entries"][0]["amount"] == 840.0
 
 
 def test_ledger_entry_creation_on_order_confirmation(tmp_path):
