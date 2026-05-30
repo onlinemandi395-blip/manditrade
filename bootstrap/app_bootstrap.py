@@ -100,34 +100,6 @@ def handle_oauth_callback(app_context: dict) -> None:
         st.error(f"OAuth callback failed: {exc}")
 
 
-def render_security_panel(app_context: dict) -> None:
-    if not app_context["current_user"]:
-        return
-    security_service = app_context["security_service"]
-    current_user = app_context["current_user"]
-    if not security_service.is_admin_identity(current_user):
-        return
-    with st.sidebar:
-        st.markdown("## Runtime Security")
-        vault_ready = security_service.admin_vault_matches_user(current_user)
-        expander_title = "Admin Runtime Vault" if vault_ready else "Unlock Admin Drive Runtime"
-        with st.expander(expander_title, expanded=not st.session_state.get("admin_runtime_unlocked", False)):
-            if vault_ready:
-                st.success("Vault-backed admin runtime unlock is available for this account.")
-                verification_key = ""
-                button_label = "Unlock From Vault"
-            else:
-                verification_key = st.text_input("Verification Key", type="password")
-                button_label = "Verify And Unlock"
-            if st.button(button_label, use_container_width=True):
-                try:
-                    runtime_state = security_service.unlock_admin_runtime(current_user, verification_key)
-                    set_flash(f"Admin runtime unlocked for {runtime_state['principal']}.")
-                    st.rerun()
-                except Exception as exc:  # noqa: BLE001
-                    st.error(str(exc))
-
-
 def resolve_navigation_sections(app_context: dict) -> list[str]:
     current_user = app_context.get("current_user")
     security_service = app_context["security_service"]
@@ -195,7 +167,6 @@ def main() -> None:
         st.warning("Session expired. Please sign in again.")
         app_context = build_app_context()
     render_auth_panel(app_context)
-    render_security_panel(app_context)
     section = render_sidebar_navigation(app_context)
     render_header(app_context)
     render_route(section, app_context)
