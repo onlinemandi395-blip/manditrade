@@ -5,9 +5,6 @@ import streamlit as st
 
 def render_health_dashboard(app_context: dict) -> None:
     st.subheader("System Health")
-    gmail_queue = app_context["gmail_service"].read_queue()
-    failed_notifications = [item for item in gmail_queue if item.get("status") == "failed"]
-    retrying_notifications = [item for item in gmail_queue if item.get("status") == "retry"]
     lock_files = list((app_context["runtime_paths"]["base"] / "locks").glob("*.json"))
     transactions_dir = app_context["runtime_paths"]["base"] / "transactions"
     order_transactions_dir = app_context["runtime_paths"]["base"] / "order_transactions"
@@ -21,7 +18,7 @@ def render_health_dashboard(app_context: dict) -> None:
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Drive Mode", app_context["drive_service"].describe_runtime_mode())
     col2.metric("OAuth Session", "Active" if app_context["current_user"] else "Idle")
-    col3.metric("Queue Retries", len(retrying_notifications))
+    col3.metric("Gmail Trigger", "Runtime")
     col4.metric("Active Locks", len(lock_files))
     st.markdown("### Cloud Deployment Readiness")
     deployment_snapshot = {
@@ -76,10 +73,8 @@ def render_health_dashboard(app_context: dict) -> None:
     st.markdown("### Pilot Status")
     st.json(app_context.get("latest_pilot_status", {}))
 
-    st.markdown("### Queue Health")
-    st.dataframe(gmail_queue, use_container_width=True)
-    st.markdown("### Failed Notifications")
-    st.dataframe(failed_notifications, use_container_width=True)
+    st.markdown("### Gmail Runtime Delivery")
+    st.info("User-facing Gmail queues are disabled. Notification emails are triggered immediately from the active runtime session.")
     st.markdown("### Dead Letter Queue")
     st.dataframe(app_context["dead_letter_service"].list_entries(limit=50), use_container_width=True)
     st.markdown("### Runtime Metrics")

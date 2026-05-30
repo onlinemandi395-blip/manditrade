@@ -78,9 +78,8 @@ def test_real_google_drive_lock_acquisition_release(tmp_path):
 
 
 @pytest.mark.skipif(not RUN_INTEGRATION_TESTS, reason="Integration tests are environment-gated.")
-def test_real_gmail_queue_send_and_retry():
-    _require_env("MANDITRADE_ADMIN_EMAIL")
-    service = GmailService("admin@example.com", use_gmail_api=False, queue_path=Path(os.getenv("MANDITRADE_INTEGRATION_ROOT", ".")) / "gmail_queue.json", safe_drive_write_service=SafeDriveWriteService(
+def test_real_gmail_runtime_mode_has_no_user_queue():
+    service = GmailService("admin@example.com", use_gmail_api=False, queue_path=None, safe_drive_write_service=SafeDriveWriteService(
         json_service=JsonService(),
         file_lock_service=FileLockService(),
         schema_validation_service=SchemaValidationService(),
@@ -88,8 +87,7 @@ def test_real_gmail_queue_send_and_retry():
         logging_service=LoggingStub(),
         version_history_root=Path(os.getenv("MANDITRADE_INTEGRATION_ROOT", ".")) / "version_history",
     ))
-    service.enqueue_message(os.getenv("MANDITRADE_ADMIN_EMAIL"), "Integration Test", "body", "integration_test")
-    assert service.read_queue()
+    assert service.read_queue() == []
 
 
 @pytest.mark.skipif(not RUN_INTEGRATION_TESTS, reason="Integration tests are environment-gated.")

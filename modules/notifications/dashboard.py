@@ -8,7 +8,7 @@ from components.ui_shell import render_3d_panel, render_dual_panel, render_metri
 
 
 def render_notifications_dashboard(app_context: dict) -> None:
-    render_page_header("Notifications", "In-app alerts and Gmail queue tracking for RFQs, payments, dispatch, and jobs.", ["Notification Center", "Gmail Queue"])
+    render_page_header("Notifications", "In-app alerts and runtime Gmail triggers for RFQs, payments, dispatch, and jobs.", ["Notification Center", "Runtime Gmail"])
     user = app_context["current_user"]
     notifications: list[dict] = []
     if user:
@@ -28,18 +28,17 @@ def render_notifications_dashboard(app_context: dict) -> None:
                 for item in notification_service.list_notifications(user.manufacturer_code)
                 if item.get("user_id") in {user.manufacturer_code, user.email.lower(), user.email}
             ]
-    queue = app_context["gmail_service"].read_queue()
     render_metric_grid(
         [
             render_metric_card("In-App Alerts", str(len(notifications)), "PENDING"),
-            render_metric_card("Gmail Queue", str(len(queue)), "WARNING"),
+            render_metric_card("Gmail Mode", app_context["gmail_service"].describe_mode().upper(), "OPEN"),
             render_metric_card("Unread", str(len([item for item in notifications if not item.get("read", False)])), "HIGH_PRIORITY"),
         ]
     )
     render_showcase_strip(
         [
             ("Unread Alerts", str(len([item for item in notifications if not item.get("read", False)])), "HIGH_PRIORITY"),
-            ("Queue Depth", str(len(queue)), "WARNING"),
+            ("Trigger Style", "Runtime", "SUCCESS"),
             ("Live Feed", "Dispatch + RFQ + Jobs", "OPEN"),
         ]
     )
@@ -47,15 +46,12 @@ def render_notifications_dashboard(app_context: dict) -> None:
         "Alert Surface",
         render_mobile_record_card({"In-App": len(notifications), "Unread": len([item for item in notifications if not item.get("read", False)])}),
         "Delivery Surface",
-        render_mobile_record_card({"Queue": len(queue), "Mode": "Gmail runtime"}),
+        render_mobile_record_card({"Mode": app_context["gmail_service"].describe_mode().upper(), "Trigger": "Immediate runtime send"}),
     )
     if user and (user.manufacturer_code or user.role == "platform_admin"):
         render_section_intro("In-App", "Role-relevant alerts stay visible here until read, resolved, or snoozed.")
         if notifications:
             render_3d_panel("".join(render_mobile_record_card(item) for item in notifications[:5]), "Latest Alerts")
         st.dataframe(notifications, use_container_width=True)
-    render_section_intro("Gmail Queue", "Ledger reminders and job emails move through the same delivery queue.")
-    st.dataframe(queue, use_container_width=True)
-    if st.button("Process Queue", use_container_width=True):
-        processed = app_context["gmail_service"].process_queue()
-        st.success(f"Processed {processed} queued messages.")
+    render_section_intro("Runtime Delivery", "Gmail notifications fire immediately from the active runtime session when actions trigger them. There is no user-facing queue.")
+    st.info("Notification emails are triggered live during the action itself. Review System Health for runtime failures if a send does not complete.")

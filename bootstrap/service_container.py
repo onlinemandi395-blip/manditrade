@@ -102,7 +102,7 @@ def build_app_context() -> dict:
     gmail_service = GmailService(
         sender_email=system_config["notifications"]["admin_sender_email"],
         use_gmail_api=system_config["notifications"]["use_gmail_api"],
-        queue_path=APP_RUNTIME_DIR / "queue" / "gmail_queue.json",
+        queue_path=None,
         safe_drive_write_service=None,
         dead_letter_service=dead_letter_service,
         logging_service=logging_service,

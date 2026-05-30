@@ -249,29 +249,50 @@ def test_incomplete_order_transaction_recovery_restores_backup(tmp_path):
     assert restored["status"] == "CONFIRMED"
 
 
-def test_gmail_queue_creates_retry_record(tmp_path):
-    class NoopLockService:
-        def acquire(self, *_args, **_kwargs):
-            return tmp_path / "noop.lock"
+def test_gmail_runtime_failure_does_not_create_queue_record(monkeypatch, tmp_path):
+    class SecurityStub:
+        def decrypt_refresh_token(self, _path):
+            return "refresh-token"
 
-        def release(self, *_args, **_kwargs):
-            return None
+        def build_runtime_credentials_payload(self, refresh_token):
+            return {"refresh_token": refresh_token}
 
-    queue_path = tmp_path / "queue" / "gmail_queue.json"
-    service = GmailService("admin@example.com", use_gmail_api=True, queue_path=queue_path, safe_drive_write_service=SafeDriveWriteService(
-        json_service=JsonServiceStub(),
-        file_lock_service=NoopLockService(),
-        schema_validation_service=SchemaValidationService(),
-        backups_root=tmp_path / "backups",
+    class AuthStub:
+        def refresh_credentials(self, payload):
+            return {"credentials": payload["refresh_token"]}
+
+    failures: list[dict] = []
+    service = GmailService(
+        "admin@example.com",
+        use_gmail_api=True,
+        queue_path=tmp_path / "queue" / "gmail_queue.json",
+        safe_drive_write_service=SafeDriveWriteService(
+            json_service=JsonServiceStub(),
+            file_lock_service=FileLockService(),
+            schema_validation_service=SchemaValidationService(),
+            backups_root=tmp_path / "backups",
+            logging_service=LoggingStub(),
+            version_history_root=tmp_path / "version_history",
+        ),
+        dead_letter_service=SimpleNamespace(record=lambda category, payload, error, **kwargs: failures.append({"category": category, "payload": payload, "error": error, "meta": kwargs})),
         logging_service=LoggingStub(),
-        version_history_root=tmp_path / "version_history",
-    ))
-    service.enqueue_message("buyer@example.com", "Subject", "Body", "ledger_reminder")
+        notification_mode="live",
+        auth_service=AuthStub(),
+        security_service=SecurityStub(),
+    )
     service.send_message = lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("smtp down"))  # type: ignore[method-assign]
-    processed = service.process_queue()
-    queue = JsonServiceStub().read_json(queue_path, {"messages": []})
-    assert processed == 0
-    assert queue["messages"][0]["status"] == "retry"
+    monkeypatch.setitem(
+        sys.modules,
+        "streamlit",
+        SimpleNamespace(session_state={"auth_tokens": {"token_file": str(tmp_path / "runtime" / "token.enc")}}),
+    )
+
+    service.enqueue_message("buyer@example.com", "Subject", "Body", "ledger_reminder")
+
+    assert service.read_queue() == []
+    assert service.process_queue() == 0
+    assert failures[0]["category"] == "gmail_runtime_send_failed"
+    assert failures[0]["payload"]["status"] == "failed"
 
 
 def test_gmail_runtime_notification_sends_immediately(monkeypatch, tmp_path):
@@ -294,11 +315,10 @@ def test_gmail_runtime_notification_sends_immediately(monkeypatch, tmp_path):
             return {"credentials": payload["refresh_token"]}
 
     sent: list[dict] = []
-    queue_path = tmp_path / "queue" / "gmail_queue.json"
     service = GmailService(
         "admin@example.com",
         use_gmail_api=True,
-        queue_path=queue_path,
+        queue_path=tmp_path / "queue" / "gmail_queue.json",
         safe_drive_write_service=SafeDriveWriteService(
             json_service=JsonServiceStub(),
             file_lock_service=NoopLockService(),
@@ -338,4 +358,4 @@ def test_gmail_runtime_notification_sends_immediately(monkeypatch, tmp_path):
             "force_live": False,
         }
     ]
-    assert not queue_path.exists()
+    assert service.read_queue() == []
