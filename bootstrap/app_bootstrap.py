@@ -150,7 +150,7 @@ def render_security_panel(app_context: dict) -> None:
         st.caption(f"Source: {BUILD_FILE.parent.parent.name}/{BUILD_FILE.name}")
 
 
-def render_sidebar_navigation(app_context: dict) -> str:
+def resolve_navigation_sections(app_context: dict) -> list[str]:
     current_user = app_context.get("current_user")
     security_service = app_context["security_service"]
     is_admin_identity = security_service.is_admin_identity(current_user)
@@ -158,6 +158,7 @@ def render_sidebar_navigation(app_context: dict) -> str:
     role = current_user.role if current_user else None
     manufacturer_sections = [
         "Dashboard",
+        "My Profile",
         "Products",
         "Inventory",
         "Client Orders",
@@ -167,22 +168,29 @@ def render_sidebar_navigation(app_context: dict) -> str:
         "Notifications",
     ]
     if role in {"manufacturer", "admin_as_manufacturer"}:
-        sections = manufacturer_sections
-    elif is_admin_identity and current_user and current_user.manufacturer_code:
-        sections = [*manufacturer_sections, "Product Approvals", "Manufacturers", "System Health"]
-    elif is_admin_identity:
-        sections = ["Dashboard", "Products", "Product Approvals", "Manufacturers", "My Actions", "Notifications", "System Health"]
-    elif role == "client":
-        sections = ["Dashboard", "Notifications", "Client Orders", "Ledger / Khata"]
+        return manufacturer_sections
+    if is_admin_identity and current_user and current_user.manufacturer_code:
+        return [*manufacturer_sections, "Product Approvals", "Manufacturers", "System Health"]
+    if is_admin_identity:
+        return ["Dashboard", "My Profile", "Products", "Product Approvals", "Manufacturers", "My Actions", "Notifications", "System Health"]
+    if role == "client":
+        sections = ["Dashboard", "My Profile", "Notifications", "Client Orders", "Ledger / Khata"]
         if worker_profile:
             sections.append("Jobs in Mandi")
             sections.append("Workers")
-    elif role == "worker":
-        sections = ["Dashboard", "My Actions", "Notifications", "Jobs in Mandi", "Workers"]
-    elif role == "pending_user":
-        sections = ["Dashboard"]
-    else:
-        sections = ["Dashboard"]
+        return sections
+    if role == "worker":
+        return ["Dashboard", "My Profile", "My Actions", "Notifications", "Jobs in Mandi", "Workers"]
+    if role == "pending_user":
+        return ["Dashboard"]
+    return ["Dashboard"]
+
+
+def render_sidebar_navigation(app_context: dict) -> str:
+    current_user = app_context.get("current_user")
+    security_service = app_context["security_service"]
+    is_admin_identity = security_service.is_admin_identity(current_user)
+    sections = resolve_navigation_sections(app_context)
     with st.sidebar:
         st.markdown("## Navigation")
         if is_admin_identity:

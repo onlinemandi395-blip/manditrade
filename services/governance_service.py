@@ -21,6 +21,10 @@ class GovernanceService:
     def manufacturers_path(self) -> Path:
         return self.governance_root / "manufacturers.json"
 
+    @property
+    def admin_profiles_path(self) -> Path:
+        return self.governance_root / "admin_profiles.json"
+
     def ensure_files(self) -> None:
         if not self.products_path.exists():
             self.safe_drive_write_service.replace_document(
@@ -33,6 +37,11 @@ class GovernanceService:
                 self.manufacturers_path,
                 {"schema_version": "1.0", "manufacturers": []},
                 schema_name="manufacturers",
+            )
+        if not self.admin_profiles_path.exists():
+            self.safe_drive_write_service.replace_document(
+                self.admin_profiles_path,
+                {"schema_version": "1.0", "profiles": []},
             )
 
     def list_products(self) -> list[dict[str, Any]]:
@@ -137,3 +146,52 @@ class GovernanceService:
                     item["subscription_plan"] = subscription_plan
         payload.setdefault("schema_version", "1.0")
         self.safe_drive_write_service.replace_document(self.manufacturers_path, payload, schema_name="manufacturers")
+
+    def list_admin_profiles(self) -> list[dict[str, Any]]:
+        self.ensure_files()
+        return self.json_service.read_json(self.admin_profiles_path, {"profiles": []}).get("profiles", [])
+
+    def get_admin_profile(self, email: str) -> dict[str, Any] | None:
+        self.ensure_files()
+        email_key = email.strip().lower()
+        profiles = self.json_service.read_json(self.admin_profiles_path, {"profiles": []}).get("profiles", [])
+        return next((item for item in profiles if item.get("email", "").strip().lower() == email_key), None)
+
+    def upsert_admin_profile(self, profile: dict[str, Any]) -> dict[str, Any]:
+        self.ensure_files()
+        now = datetime.now(UTC).isoformat()
+        email_key = str(profile.get("email") or "").strip().lower()
+        if not email_key:
+            raise ValueError("Admin profile email is required.")
+        payload = self.json_service.read_json(self.admin_profiles_path, {"profiles": []})
+        existing = next((item for item in payload.get("profiles", []) if item.get("email", "").strip().lower() == email_key), None)
+        normalized = {
+            "schema_version": "1.0",
+            "email": email_key,
+            "full_name": str(profile.get("full_name") or (existing or {}).get("full_name") or "").strip(),
+            "mobile": str(profile.get("mobile") or (existing or {}).get("mobile") or "").strip(),
+            "alternate_mobile": str(profile.get("alternate_mobile") or (existing or {}).get("alternate_mobile") or "").strip(),
+            "designation": str(profile.get("designation") or (existing or {}).get("designation") or "").strip(),
+            "office_name": str(profile.get("office_name") or (existing or {}).get("office_name") or "").strip(),
+            "address": {
+                "line1": str(((profile.get("address") or {}).get("line1")) or ((existing or {}).get("address", {}) or {}).get("line1") or "").strip(),
+                "line2": str(((profile.get("address") or {}).get("line2")) or ((existing or {}).get("address", {}) or {}).get("line2") or "").strip(),
+                "city": str(((profile.get("address") or {}).get("city")) or ((existing or {}).get("address", {}) or {}).get("city") or "").strip(),
+                "state": str(((profile.get("address") or {}).get("state")) or ((existing or {}).get("address", {}) or {}).get("state") or "").strip(),
+                "pin_code": str(((profile.get("address") or {}).get("pin_code")) or ((existing or {}).get("address", {}) or {}).get("pin_code") or "").strip(),
+            },
+            "support_email": str(profile.get("support_email") or (existing or {}).get("support_email") or "").strip(),
+            "notification_email": str(profile.get("notification_email") or (existing or {}).get("notification_email") or "").strip(),
+            "credential_reference": str(profile.get("credential_reference") or (existing or {}).get("credential_reference") or "").strip(),
+            "credential_notes": str(profile.get("credential_notes") or (existing or {}).get("credential_notes") or "").strip(),
+            "profile_notes": str(profile.get("profile_notes") or (existing or {}).get("profile_notes") or "").strip(),
+            "created_at": (existing or {}).get("created_at") or profile.get("created_at") or now,
+            "updated_at": now,
+        }
+        if existing:
+            existing.update(normalized)
+        else:
+            payload.setdefault("profiles", []).append(normalized)
+        payload.setdefault("schema_version", "1.0")
+        self.safe_drive_write_service.replace_document(self.admin_profiles_path, payload)
+        return normalized

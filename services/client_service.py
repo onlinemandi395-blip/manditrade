@@ -97,9 +97,10 @@ class ClientService:
         self.safe_drive_write_service.update_record(
             paths["clients_json"],
             "clients",
-            matcher=lambda client: client["client_id"] == profile["client_id"],
+            matcher=lambda client: client.get("client_id") == profile["client_id"] or client.get("email", "").strip().lower() == profile.get("email", "").strip().lower(),
             updater=lambda client: {
                 **client,
+                "client_id": profile["client_id"],
                 "status": "ACTIVE",
                 "business_name": profile["business_name"],
                 "owner_name": profile["owner_name"],
@@ -107,6 +108,47 @@ class ClientService:
             schema_name="clients",
         )
         return profile
+
+    def get_client_profile_by_email(self, manufacturer_code: str, email: str) -> dict[str, Any] | None:
+        email_key = email.strip().lower()
+        return next(
+            (
+                item
+                for item in self.list_client_profiles(manufacturer_code)
+                if item.get("email", "").strip().lower() == email_key
+            ),
+            None,
+        )
+
+    def upsert_client_profile(self, manufacturer_code: str, email: str, updates: dict[str, Any]) -> dict[str, Any]:
+        existing = self.get_client_profile_by_email(manufacturer_code, email)
+        invite = next(
+            (
+                item
+                for item in self.list_clients(manufacturer_code)
+                if item.get("email", "").strip().lower() == email.strip().lower()
+            ),
+            None,
+        )
+        if existing is None and invite is None:
+            raise ValueError("No active client invitation or profile found for this account.")
+        base_profile = dict(existing or {})
+        if not base_profile:
+            base_profile = {
+                "client_id": invite.get("client_id", ""),
+                "manufacturer_id": manufacturer_code,
+                "business_name": invite.get("business_name", ""),
+                "owner_name": "",
+                "email": email.strip().lower(),
+                "status": "ACTIVE",
+            }
+        merged = self._deep_merge(base_profile, updates)
+        merged["client_id"] = merged.get("client_id") or invite.get("client_id", "")
+        merged["manufacturer_id"] = manufacturer_code
+        merged["email"] = email.strip().lower()
+        if not merged.get("client_id"):
+            raise ValueError("Client profile is missing a client_id.")
+        return self.complete_profile(manufacturer_code, merged)
 
     def list_clients(self, manufacturer_code: str) -> list[dict[str, Any]]:
         paths = self._private_paths(manufacturer_code)
@@ -118,3 +160,12 @@ class ClientService:
         if not profiles_dir.exists():
             return []
         return [self.json_service.read_json(path, {}) for path in sorted(profiles_dir.glob("*.json"))]
+
+    def _deep_merge(self, current: dict[str, Any], updates: dict[str, Any]) -> dict[str, Any]:
+        merged = dict(current)
+        for key, value in updates.items():
+            if isinstance(value, dict) and isinstance(merged.get(key), dict):
+                merged[key] = self._deep_merge(merged[key], value)
+            else:
+                merged[key] = value
+        return merged

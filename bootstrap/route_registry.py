@@ -18,6 +18,7 @@ from modules.onboarding.manufacturer_onboarding import render_manufacturer_onboa
 from modules.orders.dashboard import render_orders_dashboard
 from modules.orders.dispatch import render_dispatch_management
 from modules.payments.dashboard import render_payments_dashboard
+from modules.profile.dashboard import render_my_profile_dashboard
 from modules.products.dashboard import render_products_dashboard
 from modules.rfq.dashboard import render_rfq_dashboard
 from modules.system.health_dashboard import render_health_dashboard
@@ -48,6 +49,8 @@ def render_route(section: str, app_context: dict) -> None:
         render_actions_dashboard(app_context)
     elif section == "Notifications":
         render_notifications_dashboard(app_context)
+    elif section == "My Profile":
+        render_my_profile_dashboard(app_context)
     elif section == "Products":
         render_products_dashboard(app_context)
     elif section == "Inventory":
