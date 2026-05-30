@@ -108,6 +108,8 @@ def build_app_context() -> dict:
         logging_service=logging_service,
         runtime_metrics_service=runtime_metrics_service,
         notification_mode=system_config["notifications"].get("notification_mode", "mock"),
+        auth_service=auth_service,
+        security_service=security_service,
     )
     token_rotation_service = TokenRotationService(auth_service=auth_service)
     cache_service = CacheService()

@@ -10,7 +10,13 @@ class LoggingService:
     def __init__(self, logs_dir: Path) -> None:
         self.logs_dir = logs_dir
 
+    def log_info(self, category: str, message: str, details: dict[str, Any] | None = None) -> None:
+        self._write_entry(category, message, details)
+
     def log_error(self, category: str, message: str, details: dict[str, Any] | None = None) -> None:
+        self._write_entry(category, message, details)
+
+    def _write_entry(self, category: str, message: str, details: dict[str, Any] | None = None) -> None:
         self.logs_dir.mkdir(parents=True, exist_ok=True)
         target = self.logs_dir / f"{category}.log"
         entry = {

@@ -12,7 +12,19 @@ from services.json_service import JsonService
 
 
 class GmailService:
-    def __init__(self, sender_email: str, use_gmail_api: bool = False, queue_path: Path | None = None, safe_drive_write_service=None, dead_letter_service=None, logging_service=None, runtime_metrics_service=None, notification_mode: str | None = None) -> None:
+    def __init__(
+        self,
+        sender_email: str,
+        use_gmail_api: bool = False,
+        queue_path: Path | None = None,
+        safe_drive_write_service=None,
+        dead_letter_service=None,
+        logging_service=None,
+        runtime_metrics_service=None,
+        notification_mode: str | None = None,
+        auth_service=None,
+        security_service=None,
+    ) -> None:
         self.sender_email = sender_email
         self.use_gmail_api = use_gmail_api
         self.notification_mode = notification_mode or ("live" if use_gmail_api else "mock")
@@ -21,6 +33,8 @@ class GmailService:
         self.dead_letter_service = dead_letter_service
         self.logging_service = logging_service
         self.runtime_metrics_service = runtime_metrics_service
+        self.auth_service = auth_service
+        self.security_service = security_service
         self.json_service = JsonService()
 
     def describe_mode(self) -> str:
@@ -54,24 +68,50 @@ class GmailService:
             if self.runtime_metrics_service:
                 self.runtime_metrics_service.increment("gmail_suppressed", extra={"notification_type": notification_type})
             return
+        message = {
+            "notification_type": notification_type,
+            "to_email": to_email,
+            "subject": subject,
+            "body": body,
+            "status": "queued",
+            "retry_count": 0,
+            "queued_at": datetime.now(UTC).isoformat(),
+        }
+        if self.notification_mode == "live" and self.use_gmail_api:
+            try:
+                credentials = self._resolve_runtime_credentials()
+                if credentials is not None:
+                    response = self.send_message(credentials, to_email, subject, body)
+                    if self.runtime_metrics_service:
+                        self.runtime_metrics_service.increment("gmail_sent", extra={"notification_type": notification_type, "delivery_mode": "runtime"})
+                    if self.logging_service:
+                        self.logging_service.log_info("notification_runtime", "Gmail notification sent immediately", {"to_email": to_email, "notification_type": notification_type, "gmail_id": response.get("id", "")})
+                    return
+            except Exception as exc:  # noqa: BLE001
+                message["status"] = "retry" if self.queue_path else "failed"
+                message["retry_count"] = 1
+                message["last_error"] = str(exc)
+                message["immediate_attempted_at"] = datetime.now(UTC).isoformat()
+                if self.logging_service:
+                    self.logging_service.log_error("notification_failures", "Immediate Gmail send failed; falling back to queue", {"message": dict(message), "error": str(exc)})
+                if self.runtime_metrics_service:
+                    self.runtime_metrics_service.increment("gmail_runtime_send_failed", extra={"notification_type": notification_type})
+                if not self.queue_path:
+                    if self.dead_letter_service:
+                        self.dead_letter_service.record(
+                            "gmail_runtime_send_failed",
+                            dict(message),
+                            str(exc),
+                            correlation_id=to_email,
+                        )
+                    return
         if not self.queue_path:
             return
-        if not self.queue_path.exists():
-            self.safe_drive_write_service.replace_document(
-                self.queue_path,
-                {"schema_version": "1.0", "messages": []},
-                schema_name="notifications_queue",
-            )
-        self.safe_drive_write_service.append_record(self.queue_path, "messages",
-            {
-                "notification_type": notification_type,
-                "to_email": to_email,
-                "subject": subject,
-                "body": body,
-                "status": "queued",
-                "retry_count": 0,
-                "queued_at": datetime.now(UTC).isoformat(),
-            },
+        self._ensure_queue_document()
+        self.safe_drive_write_service.append_record(
+            self.queue_path,
+            "messages",
+            message,
             schema_name="notifications_queue",
         )
         if self.runtime_metrics_service:
@@ -133,3 +173,28 @@ class GmailService:
         queue.setdefault("schema_version", "1.0")
         self.safe_drive_write_service.replace_document(self.queue_path, queue, schema_name="notifications_queue")
         return processed
+
+    def _ensure_queue_document(self) -> None:
+        if not self.queue_path or self.queue_path.exists():
+            return
+        self.safe_drive_write_service.replace_document(
+            self.queue_path,
+            {"schema_version": "1.0", "messages": []},
+            schema_name="notifications_queue",
+        )
+
+    def _resolve_runtime_credentials(self) -> Any | None:
+        if not self.auth_service or not self.security_service:
+            return None
+        try:
+            import streamlit as st
+
+            auth_tokens = st.session_state.get("auth_tokens") or {}
+            token_file = auth_tokens.get("token_file")
+            if token_file:
+                refresh_token = self.security_service.decrypt_refresh_token(Path(token_file))
+                payload = self.security_service.build_runtime_credentials_payload(refresh_token=refresh_token)
+                return self.auth_service.refresh_credentials(payload)
+        except Exception:
+            return None
+        return None

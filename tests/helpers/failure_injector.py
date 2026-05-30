@@ -9,6 +9,10 @@ from services.safe_drive_write_service import SafeDriveWriteService
 class LoggingStub:
     def __init__(self) -> None:
         self.errors: list[dict] = []
+        self.infos: list[dict] = []
+
+    def log_info(self, category, message, details=None):
+        self.infos.append({"category": category, "message": message, "details": details or {}})
 
     def log_error(self, category, message, details=None):
         self.errors.append({"category": category, "message": message, "details": details or {}})

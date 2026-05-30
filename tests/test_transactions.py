@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from datetime import date, timedelta
 from types import SimpleNamespace
 
@@ -271,3 +272,70 @@ def test_gmail_queue_creates_retry_record(tmp_path):
     queue = JsonServiceStub().read_json(queue_path, {"messages": []})
     assert processed == 0
     assert queue["messages"][0]["status"] == "retry"
+
+
+def test_gmail_runtime_notification_sends_immediately(monkeypatch, tmp_path):
+    class NoopLockService:
+        def acquire(self, *_args, **_kwargs):
+            return tmp_path / "noop.lock"
+
+        def release(self, *_args, **_kwargs):
+            return None
+
+    class SecurityStub:
+        def decrypt_refresh_token(self, _path):
+            return "refresh-token"
+
+        def build_runtime_credentials_payload(self, refresh_token):
+            return {"refresh_token": refresh_token}
+
+    class AuthStub:
+        def refresh_credentials(self, payload):
+            return {"credentials": payload["refresh_token"]}
+
+    sent: list[dict] = []
+    queue_path = tmp_path / "queue" / "gmail_queue.json"
+    service = GmailService(
+        "admin@example.com",
+        use_gmail_api=True,
+        queue_path=queue_path,
+        safe_drive_write_service=SafeDriveWriteService(
+            json_service=JsonServiceStub(),
+            file_lock_service=NoopLockService(),
+            schema_validation_service=SchemaValidationService(),
+            backups_root=tmp_path / "backups",
+            logging_service=LoggingStub(),
+            version_history_root=tmp_path / "version_history",
+        ),
+        logging_service=LoggingStub(),
+        notification_mode="live",
+        auth_service=AuthStub(),
+        security_service=SecurityStub(),
+    )
+    service.send_message = lambda credentials, to_email, subject, body, force_live=False: sent.append(  # type: ignore[method-assign]
+        {
+            "credentials": credentials,
+            "to_email": to_email,
+            "subject": subject,
+            "body": body,
+            "force_live": force_live,
+        }
+    ) or {"id": "gmail-runtime-1"}
+    monkeypatch.setitem(
+        sys.modules,
+        "streamlit",
+        SimpleNamespace(session_state={"auth_tokens": {"token_file": str(tmp_path / "runtime" / "token.enc")}}),
+    )
+
+    service.enqueue_message("buyer@example.com", "Subject", "Body", "ledger_reminder")
+
+    assert sent == [
+        {
+            "credentials": {"credentials": "refresh-token"},
+            "to_email": "buyer@example.com",
+            "subject": "Subject",
+            "body": "Body",
+            "force_live": False,
+        }
+    ]
+    assert not queue_path.exists()
