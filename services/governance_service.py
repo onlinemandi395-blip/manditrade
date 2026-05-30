@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+import re
 
 from services.json_service import JsonService
 
@@ -92,10 +93,15 @@ class GovernanceService:
         self.ensure_files()
         payload = self.json_service.read_json(self.manufacturers_path, {"manufacturers": []})
         manufacturers = payload.get("manufacturers", [])
+        manufacturer_code = str(manufacturer.get("manufacturer_code") or "").strip().upper()
+        if not manufacturer_code:
+            raise ValueError("Manufacturer code is required.")
         existing = next(
-            (item for item in manufacturers if item["manufacturer_code"] == manufacturer["manufacturer_code"]),
+            (item for item in manufacturers if item["manufacturer_code"] == manufacturer_code),
             None,
         )
+        if existing and existing.get("manufacturer_id") != manufacturer.get("manufacturer_id"):
+            raise ValueError(f"Manufacturer code already exists: {manufacturer_code}")
         if existing:
             existing.update(manufacturer)
         else:
@@ -146,6 +152,17 @@ class GovernanceService:
                     item["subscription_plan"] = subscription_plan
         payload.setdefault("schema_version", "1.0")
         self.safe_drive_write_service.replace_document(self.manufacturers_path, payload, schema_name="manufacturers")
+
+    def generate_next_manufacturer_code(self) -> str:
+        self.ensure_files()
+        manufacturers = self.list_manufacturers()
+        highest_suffix = 0
+        for item in manufacturers:
+            code = str(item.get("manufacturer_code") or "").strip().upper()
+            match = re.fullmatch(r"MANU(\d+)", code)
+            if match:
+                highest_suffix = max(highest_suffix, int(match.group(1)))
+        return f"MANU{highest_suffix + 1:03d}"
 
     def list_admin_profiles(self) -> list[dict[str, Any]]:
         self.ensure_files()

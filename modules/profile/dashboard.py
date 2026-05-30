@@ -7,6 +7,7 @@ from components.three_d_cards import render_metric_grid
 from components.ui_shell import render_3d_panel, render_metric_card, render_mobile_record_card, render_page_header
 from modules.onboarding.manufacturer_onboarding import _address_of as manufacturer_address_of
 from modules.onboarding.manufacturer_onboarding import _render_profile_form as render_manufacturer_profile_form
+from services.master_data_service import MasterDataService
 
 WORK_TYPES = [
     "Full-time",
@@ -19,6 +20,7 @@ WORK_TYPES = [
     "Driver/helper",
     "Emergency labour",
 ]
+MASTER_DATA = MasterDataService()
 
 
 def _address_value(address: dict | None) -> dict:
@@ -54,6 +56,7 @@ def _admin_profile_defaults(current_user, stored: dict | None) -> dict:
 def _render_admin_profile_form(current_user, stored: dict | None) -> tuple[bool, dict]:
     defaults = _admin_profile_defaults(current_user, stored)
     address = defaults["address"]
+    states = MASTER_DATA.get_indian_states_and_union_territories()
     with st.form("admin_profile_form"):
         col1, col2 = st.columns(2)
         full_name = col1.text_input("Full Name", value=defaults["full_name"])
@@ -68,7 +71,7 @@ def _render_admin_profile_form(current_user, stored: dict | None) -> tuple[bool,
         line2 = st.text_input("Address Line 2", value=address["line2"])
         city_col, state_col, pin_col = st.columns(3)
         city = city_col.text_input("City", value=address["city"])
-        state = state_col.text_input("State", value=address["state"])
+        state = state_col.selectbox("State", states, index=states.index(address["state"]) if address["state"] in states else 0)
         pin_code = pin_col.text_input("PIN Code", value=address["pin_code"])
 
         st.markdown("#### Operations")
@@ -104,6 +107,7 @@ def _render_admin_profile_form(current_user, stored: dict | None) -> tuple[bool,
 def _render_client_profile_form(current_user, profile: dict) -> tuple[bool, dict]:
     address = _address_value(profile.get("address", {}))
     delivery_contact = profile.get("delivery_contact", {}) or {}
+    states = MASTER_DATA.get_indian_states_and_union_territories()
     with st.form("client_profile_form"):
         col1, col2 = st.columns(2)
         business_name = col1.text_input("Business Name", value=profile.get("business_name", ""))
@@ -118,7 +122,7 @@ def _render_client_profile_form(current_user, profile: dict) -> tuple[bool, dict
         line2 = st.text_input("Address Line 2", value=address["line2"])
         city_col, state_col, pin_col = st.columns(3)
         city = city_col.text_input("City", value=address["city"])
-        state = state_col.text_input("State", value=address["state"])
+        state = state_col.selectbox("State", states, index=states.index(address["state"]) if address["state"] in states else 0)
         pin_code = pin_col.text_input("PIN Code", value=address["pin_code"])
         landmark = st.text_input("Landmark", value=address["landmark"])
 
@@ -339,6 +343,7 @@ def _render_worker_profile(app_context: dict) -> None:
 
 def _render_public_buyer_profile_form(current_user, profile: dict) -> tuple[bool, dict]:
     address = _address_value(profile.get("address", {}))
+    states = MASTER_DATA.get_indian_states_and_union_territories()
     with st.form("public_buyer_profile_form"):
         col1, col2 = st.columns(2)
         full_name = col1.text_input("Full Name", value=profile.get("full_name", getattr(current_user, "name", "") or ""))
@@ -350,7 +355,7 @@ def _render_public_buyer_profile_form(current_user, profile: dict) -> tuple[bool
         line2 = st.text_input("Address Line 2", value=address["line2"])
         city_col, state_col, pin_col = st.columns(3)
         city = city_col.text_input("City", value=address["city"])
-        state = state_col.text_input("State", value=address["state"])
+        state = state_col.selectbox("State", states, index=states.index(address["state"]) if address["state"] in states else 0)
         pin_code = pin_col.text_input("PIN Code", value=address["pin_code"])
         landmark = st.text_input("Landmark", value=address["landmark"])
         delivery_instructions = st.text_area("Delivery Instructions", value=profile.get("delivery_instructions", ""), height=110)

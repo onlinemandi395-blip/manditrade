@@ -32,7 +32,6 @@ def _build_service(tmp_path):
 def test_admin_can_create_manufacturer_onboarding_packet(tmp_path):
     service, governance, drive = _build_service(tmp_path)
     manufacturer = service.create_manufacturer(
-        manufacturer_code="manu101",
         manufacturer_name="Shree Agro Traders",
         owner_name="Ramesh Kumar",
         owner_email="owner@example.com",
@@ -42,9 +41,8 @@ def test_admin_can_create_manufacturer_onboarding_packet(tmp_path):
         pin_code="302001",
         created_by="admin@example.com",
     )
-    stored = governance.get_manufacturer("MANU101")
-    config = drive.json_service.read_json(drive.get_manufacturer_paths("MANU101").private_zone / "manufacturer_config.json", {})
-    assert manufacturer["manufacturer_code"] == "MANU101"
+    stored = governance.get_manufacturer("MANU001")
+    config = drive.json_service.read_json(drive.get_manufacturer_paths("MANU001").private_zone / "manufacturer_config.json", {})
     assert manufacturer["status"] == "ACTIVE"
     assert manufacturer["banking"]["ifsc"] == ""
     assert "manufacturer_onboarding_secret" in stored
@@ -52,6 +50,7 @@ def test_admin_can_create_manufacturer_onboarding_packet(tmp_path):
     assert config["manufacturer_onboarding_secret"] == stored["manufacturer_onboarding_secret"]
     assert config["business_name"] == "Shree Agro Traders"
     assert config["status"] == "ACTIVE"
+    assert manufacturer["manufacturer_code"] == "MANU001"
 
 
 def test_admin_can_regenerate_secret_and_update_packet(tmp_path):
@@ -70,6 +69,69 @@ def test_admin_can_regenerate_secret_and_update_packet(tmp_path):
     refreshed = service.regenerate_secret("MANU101")
     assert refreshed["manufacturer_onboarding_secret"] != created["manufacturer_onboarding_secret"]
     assert refreshed["manufacturer_onboarding_secret"] in refreshed["manufacturer_onboarding_steps"]
+
+
+def test_manufacturer_code_generation_increments_and_skips_legacy_codes(tmp_path):
+    service, governance, _drive = _build_service(tmp_path)
+    first = service.create_manufacturer(
+        manufacturer_name="Alpha Traders",
+        owner_name="A One",
+        owner_email="alpha@example.com",
+        mobile="9876543210",
+        city="Jaipur",
+        state="Rajasthan",
+        pin_code="302001",
+        created_by="admin@example.com",
+    )
+    governance.register_manufacturer(
+        {
+            "manufacturer_id": "MANU-2026-999999",
+            "manufacturer_code": "MANU-2026-000001",
+            "business_name": "Legacy Co",
+            "manufacturer_name": "Legacy Co",
+            "owner_name": "Legacy Owner",
+            "owner_email": "legacy@example.com",
+        }
+    )
+    second = service.create_manufacturer(
+        manufacturer_name="Beta Traders",
+        owner_name="B One",
+        owner_email="beta@example.com",
+        mobile="9876543211",
+        city="Jaipur",
+        state="Rajasthan",
+        pin_code="302001",
+        created_by="admin@example.com",
+    )
+    assert first["manufacturer_code"] == "MANU001"
+    assert second["manufacturer_code"] == "MANU002"
+
+
+def test_duplicate_manufacturer_code_is_blocked(tmp_path):
+    service, _governance, _drive = _build_service(tmp_path)
+    service.create_manufacturer(
+        manufacturer_code="MANU050",
+        manufacturer_name="Original",
+        owner_name="Owner One",
+        owner_email="one@example.com",
+        mobile="9876543210",
+        city="Jaipur",
+        state="Rajasthan",
+        pin_code="302001",
+        created_by="admin@example.com",
+    )
+    with pytest.raises(ValueError, match="Manufacturer code already exists"):
+        service.create_manufacturer(
+            manufacturer_code="MANU050",
+            manufacturer_name="Duplicate",
+            owner_name="Owner Two",
+            owner_email="two@example.com",
+            mobile="9876543211",
+            city="Jaipur",
+            state="Rajasthan",
+            pin_code="302001",
+            created_by="admin@example.com",
+        )
 
 
 @pytest.mark.parametrize(

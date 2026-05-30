@@ -5,6 +5,7 @@ import streamlit as st
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
 from components.ui_shell import render_metric_card, render_mobile_record_card, render_page_header
+from services.master_data_service import MasterDataService
 
 BUSINESS_TYPES = [
     "Manufacturer",
@@ -17,6 +18,7 @@ BUSINESS_TYPES = [
 DRIVE_STATUSES = ["NOT_CONNECTED", "PENDING", "CONNECTED"]
 SUBSCRIPTION_PLANS = ["Basic", "Premium", "Premium+"]
 PENDING_CREATE_CODE_KEY = "_pending_manufacturer_create_code"
+MASTER_DATA = MasterDataService()
 
 
 def _address_of(manufacturer: dict) -> dict:
@@ -57,12 +59,19 @@ def _subscription_plan_index(value: str) -> int:
     return _option_index(SUBSCRIPTION_PLANS, display_value)
 
 
+def _safe_multiselect_defaults(options: list[str], values: list[str]) -> list[str]:
+    allowed = set(options)
+    return [item for item in values if item in allowed]
+
+
 def _render_profile_form(*, prefix: str, defaults: dict, submit_label: str) -> tuple[bool, dict]:
     address = _address_of(defaults)
     legal = _legal_of(defaults)
     banking = _banking_of(defaults)
     drive_status = (defaults.get("google_drive_connected_status") or "NOT_CONNECTED").upper()
     business_type = defaults.get("business_type") or BUSINESS_TYPES[0]
+    states = MASTER_DATA.get_indian_states_and_union_territories()
+    categories = MASTER_DATA.get_product_categories()
 
     with st.form(f"{prefix}_manufacturer_profile_form"):
         col1, col2 = st.columns(2)
@@ -78,10 +87,14 @@ def _render_profile_form(*, prefix: str, defaults: dict, submit_label: str) -> t
         address_line2 = st.text_input("Address Line 2", value=address.get("line2", ""))
         city_col, state_col, pin_col = st.columns(3)
         city = city_col.text_input("City", value=address.get("city", ""))
-        state = state_col.text_input("State", value=address.get("state", ""))
+        state = state_col.selectbox("State", states, index=_option_index(states, address.get("state", "")))
         pin_code = pin_col.text_input("PIN Code", value=address.get("pin_code", ""))
 
-        product_categories = st.text_input("Product Categories", value=_categories_text(defaults), help="Comma-separated categories.")
+        product_categories = st.multiselect(
+            "Product Categories",
+            categories,
+            default=_safe_multiselect_defaults(categories, defaults.get("product_categories", []) or []),
+        )
 
         st.markdown("#### Legal Details")
         legal_col1, legal_col2 = st.columns(2)
@@ -125,7 +138,7 @@ def _render_profile_form(*, prefix: str, defaults: dict, submit_label: str) -> t
         "state": state.strip(),
         "pin_code": pin_code.strip(),
         "business_type": business_type_value.strip(),
-        "product_categories": [item.strip() for item in product_categories.split(",") if item.strip()],
+        "product_categories": product_categories,
         "legal": {
             "udyam_id": udyam_id.strip(),
             "gstin": gstin.strip(),
@@ -205,14 +218,15 @@ def render_manufacturer_onboarding(app_context: dict) -> None:
     )
     render_section_intro("First-Time Setup", "Onboarding does not require approval. New manufacturer profiles are saved directly as ACTIVE once the form is complete.")
 
+    next_code = onboarding_service.generate_next_manufacturer_code()
     with st.form("manufacturer_onboarding_create_code"):
         code_col, plan_col = st.columns(2)
-        manufacturer_code = code_col.text_input("Manufacturer Code", placeholder="MANU101")
+        code_col.text_input("Manufacturer Code", value=next_code, disabled=True)
         subscription_plan = plan_col.selectbox("Subscription Plan", SUBSCRIPTION_PLANS, index=0)
         create_code_submit = st.form_submit_button("Open Manufacturer Create Form")
 
-    if create_code_submit and manufacturer_code.strip():
-        st.session_state[PENDING_CREATE_CODE_KEY] = manufacturer_code.strip().upper()
+    if create_code_submit:
+        st.session_state[PENDING_CREATE_CODE_KEY] = next_code
 
     pending_create_code = st.session_state.get(PENDING_CREATE_CODE_KEY, "")
     if pending_create_code:

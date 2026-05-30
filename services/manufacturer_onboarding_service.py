@@ -18,6 +18,9 @@ class ManufacturerOnboardingService:
     def generate_onboarding_secret(self) -> str:
         return f"MANU-SETUP-{secrets.token_urlsafe(18)}"
 
+    def generate_next_manufacturer_code(self) -> str:
+        return self.governance_service.generate_next_manufacturer_code()
+
     def build_onboarding_steps(self, manufacturer: dict[str, Any]) -> str:
         code = manufacturer["manufacturer_code"]
         secret = manufacturer.get("manufacturer_onboarding_secret", "")
@@ -39,7 +42,7 @@ class ManufacturerOnboardingService:
     def create_manufacturer(
         self,
         *,
-        manufacturer_code: str,
+        manufacturer_code: str = "",
         manufacturer_name: str = "",
         business_name: str = "",
         owner_name: str = "",
@@ -66,7 +69,7 @@ class ManufacturerOnboardingService:
         created_by: str,
         subscription_plan: str = "basic",
     ) -> dict[str, Any]:
-        normalized_code = manufacturer_code.strip().upper()
+        normalized_code = manufacturer_code.strip().upper() if manufacturer_code.strip() else self.generate_next_manufacturer_code()
         normalized_business_name = (business_name or manufacturer_name).strip()
         paths = self.drive_service.initialize_manufacturer_workspace(
             manufacturer_code=normalized_code,

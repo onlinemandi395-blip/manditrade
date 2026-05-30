@@ -140,7 +140,14 @@ def build_app_context() -> dict:
     governance_service = GovernanceService(governance_root=GOVERNANCE_DIR, safe_drive_write_service=safe_drive_write_service)
     governance_service.ensure_files()
     oauth_callback_service = OAuthCallbackService(auth_service=auth_service, security_service=security_service, state_store_path=APP_RUNTIME_DIR / "oauth_states.json")
-    client_service = ClientService(drive_service=drive_service, gmail_service=gmail_service, encryption_service=encryption_service, safe_drive_write_service=safe_drive_write_service, id_allocator_service=id_allocator_service)
+    client_service = ClientService(
+        drive_service=drive_service,
+        gmail_service=gmail_service,
+        encryption_service=encryption_service,
+        safe_drive_write_service=safe_drive_write_service,
+        id_allocator_service=id_allocator_service,
+        logging_service=logging_service,
+    )
     catalog_service = CatalogService(governance_root=GOVERNANCE_DIR)
     manufacturer_onboarding_service = ManufacturerOnboardingService(
         drive_service=drive_service,

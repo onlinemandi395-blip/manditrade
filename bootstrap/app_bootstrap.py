@@ -108,11 +108,10 @@ def resolve_navigation_sections(app_context: dict) -> list[str]:
     role = current_user.role if current_user else None
     manufacturer_sections = [
         "Dashboard",
-        "Marketplace Preview",
-        "Public Orders",
         "My Profile",
         "Products",
         "Inventory",
+        "Clients",
         "Client Orders",
         "Mandi RFQ",
         "Ledger / Khata",

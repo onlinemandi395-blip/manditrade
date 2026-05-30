@@ -8,6 +8,7 @@ from services.client_service import ClientService
 from services.encryption_service import EncryptionService
 from services.file_lock_service import FileLockService
 from services.governance_service import GovernanceService
+from services.master_data_service import MasterDataService
 from services.safe_drive_write_service import SafeDriveWriteService
 from services.schema_validation_service import SchemaValidationService
 from tests.helpers.fake_storage import DriveStub, JsonServiceStub
@@ -126,4 +127,15 @@ def test_navigation_sections_include_my_profile_for_signed_in_roles():
 
     assert "My Profile" in admin_sections
     assert "My Profile" in manufacturer_sections
+    assert "Clients" in manufacturer_sections
     assert "My Profile" in client_sections
+
+
+def test_master_data_contains_shared_categories_and_states():
+    service = MasterDataService()
+    categories = service.get_product_categories()
+    states = service.get_indian_states_and_union_territories()
+    assert "Grocery / Kirana" in categories
+    assert "Other" in categories
+    assert "Maharashtra" in states
+    assert "Delhi" in states

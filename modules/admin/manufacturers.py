@@ -5,6 +5,7 @@ import streamlit as st
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
 from components.ui_shell import render_metric_card, render_page_header
+from services.master_data_service import MasterDataService
 
 BUSINESS_TYPES = [
     "Manufacturer",
@@ -16,6 +17,7 @@ BUSINESS_TYPES = [
 ]
 DRIVE_STATUSES = ["NOT_CONNECTED", "PENDING", "CONNECTED"]
 SUBSCRIPTION_PLANS = ["Basic", "Premium", "Premium+"]
+MASTER_DATA = MasterDataService()
 
 
 def _address_of(manufacturer: dict) -> dict:
@@ -55,6 +57,11 @@ def _subscription_plan_index(value: str) -> int:
     return _option_index(SUBSCRIPTION_PLANS, mapping.get(normalized, value))
 
 
+def _safe_multiselect_defaults(options: list[str], values: list[str]) -> list[str]:
+    allowed = set(options)
+    return [item for item in values if item in allowed]
+
+
 def _render_manufacturer_details_form(*, prefix: str, defaults: dict, include_status: bool, submit_label: str) -> tuple[bool, dict]:
     address = _address_of(defaults)
     legal = _legal_of(defaults)
@@ -63,10 +70,12 @@ def _render_manufacturer_details_form(*, prefix: str, defaults: dict, include_st
     business_type = defaults.get("business_type") or BUSINESS_TYPES[0]
     status = defaults.get("status", "ACTIVE")
     subscription_plan = defaults.get("subscription_plan", "basic")
+    states = MASTER_DATA.get_indian_states_and_union_territories()
+    categories = MASTER_DATA.get_product_categories()
 
     with st.form(f"{prefix}_manufacturer_crud_form"):
         code_col, plan_col = st.columns(2)
-        manufacturer_code = code_col.text_input("Manufacturer Code", value=defaults.get("manufacturer_code", ""), disabled=bool(defaults.get("manufacturer_code")))
+        manufacturer_code = code_col.text_input("Manufacturer Code", value=defaults.get("manufacturer_code", ""), disabled=True)
         selected_plan = plan_col.selectbox("Subscription Plan", SUBSCRIPTION_PLANS, index=_subscription_plan_index(subscription_plan))
 
         col1, col2 = st.columns(2)
@@ -82,10 +91,14 @@ def _render_manufacturer_details_form(*, prefix: str, defaults: dict, include_st
         address_line2 = st.text_input("Address Line 2", value=address.get("line2", ""))
         city_col, state_col, pin_col = st.columns(3)
         city = city_col.text_input("City", value=address.get("city", ""))
-        state = state_col.text_input("State", value=address.get("state", ""))
+        state = state_col.selectbox("State", states, index=_option_index(states, address.get("state", "")))
         pin_code = pin_col.text_input("PIN Code", value=address.get("pin_code", ""))
 
-        product_categories = st.text_input("Product Categories", value=_categories_text(defaults), help="Comma-separated categories.")
+        product_categories = st.multiselect(
+            "Product Categories",
+            categories,
+            default=_safe_multiselect_defaults(categories, defaults.get("product_categories", []) or []),
+        )
 
         st.markdown("#### Legal Details")
         legal_col1, legal_col2 = st.columns(2)
@@ -128,7 +141,7 @@ def _render_manufacturer_details_form(*, prefix: str, defaults: dict, include_st
         "state": state.strip(),
         "pin_code": pin_code.strip(),
         "business_type": business_type_value.strip(),
-        "product_categories": [item.strip() for item in product_categories.split(",") if item.strip()],
+        "product_categories": product_categories,
         "legal": {
             "udyam_id": udyam_id.strip(),
             "gstin": gstin.strip(),
@@ -174,9 +187,10 @@ def render_manufacturers_dashboard(app_context: dict) -> None:
         st.dataframe(manufacturers, use_container_width=True)
     with create_tab:
         st.markdown("### Create Manufacturer")
+        generated_code = onboarding_service.generate_next_manufacturer_code()
         create_submitted, create_payload = _render_manufacturer_details_form(
             prefix="admin_create_manufacturer",
-            defaults={},
+            defaults={"manufacturer_code": generated_code},
             include_status=False,
             submit_label="Create Manufacturer",
         )
