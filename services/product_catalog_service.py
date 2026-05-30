@@ -5,47 +5,34 @@ from typing import Any
 
 
 class ProductCatalogService:
-    def __init__(self, governance_service, id_allocator_service, notification_center_service=None, gmail_service=None, admin_email: str | None = None) -> None:
+    def __init__(self, governance_service, id_allocator_service, notification_center_service=None, gmail_service=None, admin_email: str | None = None, pricing_service=None) -> None:
         self.governance_service = governance_service
         self.id_allocator_service = id_allocator_service
         self.notification_center_service = notification_center_service
         self.gmail_service = gmail_service
         self.admin_email = (admin_email or "").strip().lower()
+        self.pricing_service = pricing_service
 
-    def list_products(
-        self,
-        *,
-        include_pending: bool = True,
-        viewer_role: str | None = None,
-        viewer_code: str | None = None,
-    ) -> list[dict[str, Any]]:
+    def list_products(self, *, include_pending: bool = True, viewer_role: str | None = None, viewer_code: str | None = None) -> list[dict[str, Any]]:
         products = self.governance_service.list_products()
+
         def present(item: dict[str, Any]) -> dict[str, Any]:
-            return self._sanitize_for_viewer(item, viewer_role=viewer_role, viewer_code=viewer_code)
+            return self._sanitize_for_viewer(self._normalize_product_shape(item), viewer_role=viewer_role, viewer_code=viewer_code)
+
         active_visible_products = [
             present(item)
             for item in products
             if self._is_visible_to_viewer(item, viewer_role=viewer_role) and item.get("visible", True)
         ]
         if viewer_role == "platform_admin":
-            return [dict(item) for item in products] if include_pending else active_visible_products
+            return [present(item) for item in products] if include_pending else active_visible_products
         if viewer_role in {"manufacturer", "admin_as_manufacturer"}:
             return [
                 present(item)
                 for item in products
                 if (item.get("status") == "ACTIVE" and item.get("visible", True))
-                or (
-                    viewer_code
-                    and (
-                        item.get("created_by_manufacturer_id") == viewer_code
-                        or item.get("created_by") == viewer_code
-                    )
-                )
+                or (viewer_code and (item.get("created_by_manufacturer_id") == viewer_code or item.get("created_by") == viewer_code))
             ]
-        if viewer_role == "client":
-            return active_visible_products
-        if viewer_role == "public_buyer":
-            return active_visible_products
         return active_visible_products
 
     def propose_product(
@@ -57,7 +44,9 @@ class ProductCatalogService:
         unit: str,
         description: str = "",
         suggested_mandi_price: float = 0,
-        suggested_mrp: float = 0,
+        suggested_client_price: float = 0,
+        suggested_marketplace_price: float = 0,
+        suggested_mrp: float | None = None,
         visibility_request: str = "MANDI_NETWORK",
         minimum_order_qty: int = 1,
         available_for_public_sale: bool = False,
@@ -66,6 +55,8 @@ class ProductCatalogService:
         created_by_email: str = "",
     ) -> dict[str, Any]:
         created_at = datetime.now(UTC).isoformat()
+        client_price = float(suggested_client_price if suggested_client_price is not None else suggested_mrp or 0)
+        marketplace_price = float(suggested_marketplace_price if suggested_marketplace_price is not None else client_price)
         product = {
             "product_id": self.id_allocator_service.allocate("product"),
             "name": name.strip(),
@@ -73,8 +64,12 @@ class ProductCatalogService:
             "unit": unit.strip(),
             "description": description.strip(),
             "suggested_mandi_price": float(suggested_mandi_price or 0),
-            "suggested_mrp": float(suggested_mrp or 0),
+            "suggested_client_price": client_price,
+            "suggested_marketplace_price": marketplace_price,
+            "suggested_mrp": client_price,
             "approved_mandi_price": None,
+            "approved_client_price": None,
+            "approved_marketplace_price": None,
             "approved_mrp": None,
             "visibility_request": visibility_request.strip().upper() or "MANDI_NETWORK",
             "approved_visibility": None,
@@ -82,8 +77,10 @@ class ProductCatalogService:
             "available_for_public_sale": bool(available_for_public_sale),
             "available_for_mandi_network": bool(available_for_mandi_network),
             "image_url": image_url.strip(),
-            "mandi_price": 0,
-            "mrp": 0,
+            "mandi_price": 0.0,
+            "client_price": 0.0,
+            "marketplace_price": 0.0,
+            "mrp": 0.0,
             "status": "PROPOSED",
             "comments": [],
             "clarification_status": "NONE",
@@ -107,42 +104,44 @@ class ProductCatalogService:
         product_id: str,
         approved_by: str,
         approved_mandi_price: float | None = None,
+        approved_client_price: float | None = None,
+        approved_marketplace_price: float | None = None,
         approved_mrp: float | None = None,
-        mandi_price: float | None = None,
-        mrp: float | None = None,
         category: str | None = None,
         unit: str | None = None,
         approved_visibility: str | None = None,
         visible: bool = True,
         admin_note: str = "",
     ) -> dict[str, Any]:
-        products = self.governance_service.list_products()
-        product = next((item for item in products if item.get("product_id") == product_id), None)
-        if product is None:
-            raise ValueError(f"Product not found: {product_id}")
+        product = self._get_product(product_id)
         if product.get("clarification_status") == "ADMIN_QUERY":
             raise ValueError("Product cannot be approved while admin clarification is unresolved.")
-        final_mandi_price = float(
-            approved_mandi_price
-            if approved_mandi_price is not None
-            else mandi_price
-            if mandi_price is not None
-            else product.get("suggested_mandi_price", 0)
-        )
-        final_mrp = float(
-            approved_mrp
+        final_mandi_price = float(approved_mandi_price if approved_mandi_price is not None else product.get("suggested_mandi_price", 0) or 0)
+        final_client_price = float(
+            approved_client_price
+            if approved_client_price is not None
+            else approved_mrp
             if approved_mrp is not None
-            else mrp
-            if mrp is not None
-            else product.get("suggested_mrp", 0)
+            else product.get("suggested_client_price", product.get("suggested_mrp", 0))
+            or 0
+        )
+        final_marketplace_price = float(
+            approved_marketplace_price
+            if approved_marketplace_price is not None
+            else product.get("suggested_marketplace_price", final_client_price)
+            or final_client_price
         )
         final_visibility = (approved_visibility or product.get("visibility_request") or "PUBLIC").strip().upper()
         product.update(
             {
                 "mandi_price": final_mandi_price,
-                "mrp": final_mrp,
+                "client_price": final_client_price,
+                "marketplace_price": final_marketplace_price,
+                "mrp": final_client_price,
                 "approved_mandi_price": final_mandi_price,
-                "approved_mrp": final_mrp,
+                "approved_client_price": final_client_price,
+                "approved_marketplace_price": final_marketplace_price,
+                "approved_mrp": final_client_price,
                 "status": "ACTIVE",
                 "approved_by": approved_by,
                 "approved_at": datetime.now(UTC).isoformat(),
@@ -152,21 +151,14 @@ class ProductCatalogService:
                 "approved_visibility": final_visibility,
                 "visible": bool(visible),
                 "admin_note": admin_note.strip(),
-                "clarification_status": product.get("clarification_status") or "NONE",
-                "public_seller_manufacturer_id": product.get("public_seller_manufacturer_id")
-                or product.get("created_by_manufacturer_id")
-                or product.get("created_by")
-                or "",
+                "public_seller_manufacturer_id": product.get("public_seller_manufacturer_id") or product.get("created_by_manufacturer_id") or product.get("created_by") or "",
             }
         )
         self.governance_service.upsert_product(product)
         return product
 
     def reject_product(self, *, product_id: str, approved_by: str, admin_note: str = "") -> dict[str, Any]:
-        products = self.governance_service.list_products()
-        product = next((item for item in products if item.get("product_id") == product_id), None)
-        if product is None:
-            raise ValueError(f"Product not found: {product_id}")
+        product = self._get_product(product_id)
         product.update(
             {
                 "status": "REJECTED",
@@ -180,62 +172,31 @@ class ProductCatalogService:
         self.governance_service.upsert_product(product)
         return product
 
-    def update_product(
-        self,
-        *,
-        product_id: str,
-        updates: dict[str, Any],
-        updated_by: str,
-    ) -> dict[str, Any]:
+    def update_product(self, *, product_id: str, updates: dict[str, Any], updated_by: str) -> dict[str, Any]:
         product = self._get_product(product_id)
         allowed_fields = {
-            "name",
-            "category",
-            "unit",
-            "description",
-            "suggested_mandi_price",
-            "suggested_mrp",
-            "approved_mandi_price",
-            "approved_mrp",
-            "visibility_request",
-            "approved_visibility",
-            "minimum_order_qty",
-            "available_for_public_sale",
-            "available_for_mandi_network",
-            "image_url",
-            "public_seller_manufacturer_id",
-            "visible",
-            "admin_note",
-            "status",
+            "name", "category", "unit", "description",
+            "suggested_mandi_price", "suggested_client_price", "suggested_marketplace_price", "suggested_mrp",
+            "approved_mandi_price", "approved_client_price", "approved_marketplace_price", "approved_mrp",
+            "visibility_request", "approved_visibility", "minimum_order_qty", "available_for_public_sale",
+            "available_for_mandi_network", "image_url", "public_seller_manufacturer_id", "visible", "admin_note", "status",
         }
         for key, value in updates.items():
-            if key not in allowed_fields:
-                continue
-            product[key] = value
-        if "approved_mandi_price" in updates and updates.get("approved_mandi_price") is not None:
+            if key in allowed_fields:
+                product[key] = value
+        if updates.get("approved_mandi_price") is not None:
             product["mandi_price"] = float(updates["approved_mandi_price"])
-        if "approved_mrp" in updates and updates.get("approved_mrp") is not None:
+        if updates.get("approved_client_price") is not None:
+            product["client_price"] = float(updates["approved_client_price"])
+            product["mrp"] = float(updates["approved_client_price"])
+            product["approved_mrp"] = float(updates["approved_client_price"])
+        elif updates.get("approved_mrp") is not None:
+            product["client_price"] = float(updates["approved_mrp"])
             product["mrp"] = float(updates["approved_mrp"])
-        if "minimum_order_qty" in updates:
-            product["minimum_order_qty"] = max(int(updates.get("minimum_order_qty") or 1), 1)
-        if "name" in updates:
-            product["name"] = str(updates["name"]).strip()
-        if "category" in updates:
-            product["category"] = str(updates["category"]).strip()
-        if "unit" in updates:
-            product["unit"] = str(updates["unit"]).strip()
-        if "description" in updates:
-            product["description"] = str(updates["description"]).strip()
-        if "visibility_request" in updates:
-            product["visibility_request"] = str(updates["visibility_request"]).strip().upper()
-        if "approved_visibility" in updates:
-            product["approved_visibility"] = str(updates["approved_visibility"]).strip().upper()
-        if "image_url" in updates:
-            product["image_url"] = str(updates["image_url"]).strip()
-        if "public_seller_manufacturer_id" in updates:
-            product["public_seller_manufacturer_id"] = str(updates["public_seller_manufacturer_id"]).strip()
-        if "admin_note" in updates:
-            product["admin_note"] = str(updates["admin_note"]).strip()
+            product["approved_client_price"] = float(updates["approved_mrp"])
+            product["approved_mrp"] = float(updates["approved_mrp"])
+        if updates.get("approved_marketplace_price") is not None:
+            product["marketplace_price"] = float(updates["approved_marketplace_price"])
         product["updated_at"] = datetime.now(UTC).isoformat()
         product["approved_by"] = updated_by or product.get("approved_by", "")
         self.governance_service.upsert_product(product)
@@ -262,11 +223,8 @@ class ProductCatalogService:
             "visibility": "INVOLVED_PARTIES",
             "read_by": [author_user_id],
         }
-        comments = list(product.get("comments", []) or [])
-        comments.append(comment)
-        product["comments"] = comments
-        next_status = "ADMIN_QUERY" if author_role == "PLATFORM_ADMIN" else "MANUFACTURER_REPLIED"
-        product["clarification_status"] = next_status
+        product.setdefault("comments", []).append(comment)
+        product["clarification_status"] = "ADMIN_QUERY" if author_role == "PLATFORM_ADMIN" else "MANUFACTURER_REPLIED"
         product["updated_at"] = datetime.now(UTC).isoformat()
         self.governance_service.upsert_product(product)
         self._notify_comment_event(product, author_user, comment)
@@ -299,17 +257,8 @@ class ProductCatalogService:
         self.governance_service.upsert_product(product)
         return product
 
-    def set_clarification_status(self, product_id: str, status: str) -> dict[str, Any]:
-        if status not in {"NONE", "ADMIN_QUERY", "MANUFACTURER_REPLIED", "RESOLVED"}:
-            raise ValueError(f"Unsupported clarification status: {status}")
-        product = self._get_product(product_id)
-        product["clarification_status"] = status
-        product["updated_at"] = datetime.now(UTC).isoformat()
-        self.governance_service.upsert_product(product)
-        return product
-
     def get_product(self, product_id: str) -> dict[str, Any]:
-        return self._get_product(product_id)
+        return self._normalize_product_shape(self._get_product(product_id))
 
     def _get_product(self, product_id: str) -> dict[str, Any]:
         products = self.governance_service.list_products()
@@ -320,13 +269,36 @@ class ProductCatalogService:
         product.setdefault("clarification_status", "NONE")
         return product
 
+    def _normalize_product_shape(self, product: dict[str, Any]) -> dict[str, Any]:
+        item = dict(product)
+        client_price = float(
+            item.get("approved_client_price")
+            if item.get("approved_client_price") is not None
+            else item.get("client_price")
+            if item.get("client_price") is not None
+            else item.get("approved_mrp")
+            if item.get("approved_mrp") is not None
+            else item.get("mrp", 0)
+            or 0
+        )
+        marketplace_price = float(
+            item.get("approved_marketplace_price")
+            if item.get("approved_marketplace_price") is not None
+            else item.get("marketplace_price")
+            if item.get("marketplace_price") is not None
+            else client_price
+        )
+        item["client_price"] = client_price
+        item["marketplace_price"] = marketplace_price
+        item["mrp"] = client_price
+        item["suggested_client_price"] = float(item.get("suggested_client_price", item.get("suggested_mrp", client_price)) or 0)
+        item["suggested_marketplace_price"] = float(item.get("suggested_marketplace_price", item["suggested_client_price"]) or 0)
+        item["approved_client_price"] = float(item.get("approved_client_price", item.get("approved_mrp", client_price)) or 0) if item.get("status") == "ACTIVE" else item.get("approved_client_price")
+        item["approved_marketplace_price"] = float(item.get("approved_marketplace_price", marketplace_price) or 0) if item.get("status") == "ACTIVE" else item.get("approved_marketplace_price")
+        return item
+
     def _normalized_role(self, role: str) -> str:
-        mapping = {
-            "platform_admin": "PLATFORM_ADMIN",
-            "admin": "PLATFORM_ADMIN",
-            "manufacturer": "MANUFACTURER",
-            "admin_as_manufacturer": "ADMIN_AS_MANUFACTURER",
-        }
+        mapping = {"platform_admin": "PLATFORM_ADMIN", "admin": "PLATFORM_ADMIN", "manufacturer": "MANUFACTURER", "admin_as_manufacturer": "ADMIN_AS_MANUFACTURER"}
         normalized = mapping.get((role or "").strip().lower())
         if not normalized:
             raise PermissionError("User cannot comment on product proposals.")
@@ -355,65 +327,50 @@ class ProductCatalogService:
             creator_email = (product.get("created_by_email") or "").strip().lower()
             if manufacturer_code:
                 self.notification_center_service.create_notification(
-                    manufacturer_code,
-                    user_id=manufacturer_code,
-                    notification_type="PRODUCT_PROPOSAL_COMMENTED",
-                    priority="HIGH",
-                    title="Product proposal needs clarification",
-                    message=f"Platform admin commented on {product_name}.",
-                    source_type="PRODUCT_PROPOSAL",
-                    source_id=product["product_id"],
+                    manufacturer_code, user_id=manufacturer_code, notification_type="PRODUCT_PROPOSAL_COMMENTED",
+                    priority="HIGH", title="Product proposal needs clarification",
+                    message=f"Platform admin commented on {product_name}.", source_type="PRODUCT_PROPOSAL", source_id=product["product_id"],
                 )
             if self.gmail_service and creator_email:
-                self.gmail_service.enqueue_message(
-                    creator_email,
-                    f"Clarification needed for {product_name}",
-                    f"Platform admin commented on your product proposal: {comment['message']}",
-                    "product_proposal_commented",
-                )
+                self.gmail_service.enqueue_message(creator_email, f"Clarification needed for {product_name}", f"Platform admin commented on your product proposal: {comment['message']}", "product_proposal_commented")
             return
-
         if manufacturer_code:
             self.notification_center_service.create_notification(
-                manufacturer_code,
-                user_id=self.admin_email or "PLATFORM_ADMIN",
-                notification_type="PRODUCT_PROPOSAL_REPLIED",
-                priority="HIGH",
-                title="Manufacturer replied to product proposal",
-                message=f"Manufacturer replied on {product_name}.",
-                source_type="PRODUCT_PROPOSAL",
-                source_id=product["product_id"],
+                manufacturer_code, user_id=self.admin_email or "PLATFORM_ADMIN", notification_type="PRODUCT_PROPOSAL_REPLIED",
+                priority="HIGH", title="Manufacturer replied to product proposal", message=f"Manufacturer replied on {product_name}.",
+                source_type="PRODUCT_PROPOSAL", source_id=product["product_id"],
             )
         if self.gmail_service and self.admin_email:
-            self.gmail_service.enqueue_message(
-                self.admin_email,
-                f"Manufacturer replied on {product_name}",
-                f"The manufacturer replied on product proposal {product_name}: {comment['message']}",
-                "product_proposal_replied",
-            )
+            self.gmail_service.enqueue_message(self.admin_email, f"Manufacturer replied on {product_name}", f"The manufacturer replied on product proposal {product_name}: {comment['message']}", "product_proposal_replied")
 
     def _sanitize_for_viewer(self, product: dict[str, Any], *, viewer_role: str | None, viewer_code: str | None) -> dict[str, Any]:
         result = dict(product)
         creator_code = product.get("created_by_manufacturer_id") or product.get("created_by") or ""
-        can_view_comments = viewer_role == "platform_admin" or (
-            viewer_role in {"manufacturer", "admin_as_manufacturer"} and viewer_code == creator_code
-        )
+        can_view_comments = viewer_role == "platform_admin" or (viewer_role in {"manufacturer", "admin_as_manufacturer"} and viewer_code == creator_code)
         if not can_view_comments:
             result.pop("comments", None)
             result.pop("clarification_status", None)
             result.pop("admin_note", None)
-        if viewer_role in {"public_buyer", "client", None}:
+        if viewer_role == "client":
             for key in {
-                "mandi_price",
-                "suggested_mandi_price",
-                "approved_mandi_price",
-                "created_by",
-                "created_by_manufacturer_id",
-                "created_by_email",
-                "public_seller_manufacturer_id",
-                "visible",
+                "mandi_price", "marketplace_price", "suggested_mandi_price", "suggested_marketplace_price",
+                "approved_mandi_price", "approved_marketplace_price", "approved_client_price",
+                "created_by", "created_by_manufacturer_id", "created_by_email", "public_seller_manufacturer_id", "visible",
             }:
                 result.pop(key, None)
+            result["your_price"] = result.get("client_price", 0)
+        elif viewer_role == "public_buyer" or not viewer_role:
+            for key in {
+                "mandi_price", "client_price", "suggested_mandi_price", "suggested_client_price", "approved_mandi_price",
+                "approved_client_price", "created_by", "created_by_manufacturer_id", "created_by_email", "public_seller_manufacturer_id", "visible",
+            }:
+                result.pop(key, None)
+            result["price"] = result.get("marketplace_price", 0)
+        elif viewer_role in {"manufacturer", "admin_as_manufacturer", "platform_admin"} and self.pricing_service:
+            commission = self.pricing_service.calculate_commission(result, self.pricing_service.CHANNEL_PRIVATE_CLIENT, result.get("subscription_plan"))
+            result["estimated_profit"] = commission.get("gross_profit", 0)
+            result["admin_commission"] = commission.get("admin_net_commission", 0)
+            result["manufacturer_share"] = commission.get("manufacturer_profit_share", 0)
         if viewer_role not in {"platform_admin", "manufacturer", "admin_as_manufacturer"}:
             result.pop("admin_note", None)
         return result

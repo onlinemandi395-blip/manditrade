@@ -59,7 +59,7 @@ def render_marketplace_dashboard(app_context: dict) -> None:
           <h3>{escape(str(item.get('name', 'Product')))}</h3>
           <p>{escape(str(item.get('description', '') or 'Public marketplace catalog product.'))}</p>
           <div class="mt-chip-row">
-            <span class="mt-price-chip">MRP: {escape(str(item.get('approved_mrp', item.get('mrp', 0))))}</span>
+            <span class="mt-price-chip">Price: {escape(str(item.get('approved_marketplace_price', item.get('marketplace_price', item.get('price', 0)))))}</span>
             <span class="mt-chip">{escape(str(item.get('category', 'General')))}</span>
             <span class="mt-chip">MOQ: {escape(str(item.get('minimum_order_qty', 1)))}</span>
           </div>

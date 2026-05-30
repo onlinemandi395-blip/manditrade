@@ -17,10 +17,23 @@ class OrderQueryService:
         return [self.json_service.read_json(path, {}) for path in self._list_order_files(manufacturer_code)]
 
     def list_orders_for_client(self, manufacturer_code: str, client_email: str) -> list[dict[str, Any]]:
-        return [
-            order for order in self.list_orders(manufacturer_code) 
-            if order.get("client_email", "").lower() == client_email.lower()
-        ]
+        rows = []
+        for order in self.list_orders(manufacturer_code):
+            if order.get("client_email", "").lower() != client_email.lower():
+                continue
+            sanitized = dict(order)
+            sanitized.pop("commission_breakdown", None)
+            sanitized_items = []
+            for item in sanitized.get("items", []):
+                clean = dict(item)
+                clean.pop("mandi_price", None)
+                clean.pop("marketplace_price", None)
+                clean.pop("sale_price", None)
+                clean["your_price"] = clean.get("client_price", clean.get("mrp", 0))
+                sanitized_items.append(clean)
+            sanitized["items"] = sanitized_items
+            rows.append(sanitized)
+        return rows
 
     def get_order(self, manufacturer_code: str, order_id: str) -> dict[str, Any] | None:
         for order in self.list_orders(manufacturer_code):

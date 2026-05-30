@@ -21,6 +21,7 @@ class PublicOrderService:
         safe_drive_write_service,
         json_service,
         id_allocator_service,
+        pricing_service=None,
         config: dict[str, Any] | None = None,
     ) -> None:
         self.public_orders_root = public_orders_root
@@ -35,6 +36,7 @@ class PublicOrderService:
         self.safe_drive_write_service = safe_drive_write_service
         self.json_service = json_service
         self.id_allocator_service = id_allocator_service
+        self.pricing_service = pricing_service
         self.config = config or {}
 
     def list_orders_for_buyer(self, public_buyer_id: str) -> list[dict[str, Any]]:
@@ -77,6 +79,17 @@ class PublicOrderService:
             "status": "PAYMENT_PENDING",
             "assigned_seller_manufacturer_id": seller_id,
             "inventory_reserved": False,
+            "commission_breakdown": [
+                self.pricing_service.calculate_commission(
+                    {
+                        "mandi_price": float(item.get("mandi_price", 0) or 0),
+                        "marketplace_price": float(item.get("marketplace_price", item.get("mrp", 0)) or 0),
+                    },
+                    self.pricing_service.CHANNEL_PUBLIC_MARKETPLACE,
+                    (self.governance_service.get_manufacturer(seller_id) or {}).get("subscription_plan", "basic"),
+                )
+                for item in items
+            ] if self.pricing_service else [],
             "created_at": datetime.now(UTC).isoformat(),
             "updated_at": datetime.now(UTC).isoformat(),
         }

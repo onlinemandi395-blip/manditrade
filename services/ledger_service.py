@@ -26,6 +26,7 @@ class LedgerService:
         paid_amount: float,
         ledger_days: int,
         note: str,
+        metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         path = self.domain_paths.ledger_path(manufacturer_code)
         if not path.exists():
@@ -42,6 +43,7 @@ class LedgerService:
             "status": "PAID" if float(amount) <= float(paid_amount) else "PENDING",
             "created_at": datetime.now(UTC).isoformat(),
             "reminders_sent": [],
+            "metadata": metadata or {},
         }
 
         def mutator(payload: dict[str, Any]) -> dict[str, Any]:
@@ -56,6 +58,24 @@ class LedgerService:
 
         self.safe_drive_write_service.mutate_json(path, mutator)
         return entry
+
+    def list_ledgers_for_role(self, manufacturer_code: str, role: str) -> list[dict[str, Any]]:
+        ledgers = self.list_ledgers(manufacturer_code)
+        if role != "client":
+            return ledgers
+        sanitized: list[dict[str, Any]] = []
+        for ledger in ledgers:
+            sanitized_entries = []
+            for entry in ledger.get("entries", []):
+                clean = dict(entry)
+                metadata = dict(clean.get("metadata", {}) or {})
+                metadata.pop("commission_breakdown", None)
+                metadata.pop("gross_profit", None)
+                metadata.pop("mandi_price", None)
+                clean["metadata"] = metadata
+                sanitized_entries.append(clean)
+            sanitized.append({**ledger, "entries": sanitized_entries})
+        return sanitized
 
     def add_payment(self, manufacturer_code: str, ledger_id: str, entry_id: str, amount: float, note: str = "") -> dict[str, Any]:
         path = self.domain_paths.ledger_path(manufacturer_code)

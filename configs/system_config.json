@@ -36,5 +36,14 @@
   "governance": {
     "admin_profit_share_ratio": 0.5,
     "currency_symbol": "Rs"
+  },
+  "commission": {
+    "admin_profit_share_percent": 50,
+    "manufacturer_profit_share_percent": 50,
+    "platform_fee_on_admin_commission": {
+      "basic": 10,
+      "premium": 5,
+      "premium_plus": 1
+    }
   }
 }

@@ -20,7 +20,7 @@ class CatalogService:
             for product in products
             if product.get("status") == "ACTIVE"
             and product.get("visible", True)
-            and product.get("mrp", 0) > 0
+            and (product.get("client_price", product.get("mrp", 0)) or 0) > 0
             and product.get("mandi_price", 0) >= 0
         ]
 

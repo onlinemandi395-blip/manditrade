@@ -21,7 +21,7 @@ def render_ledger_dashboard(app_context: dict) -> None:
     if not user or not user.manufacturer_code:
         st.info("Manufacturer-linked session required.")
         return
-    ledgers = app_context["ledger_service"].list_ledgers(user.manufacturer_code)
+    ledgers = app_context["ledger_service"].list_ledgers_for_role(user.manufacturer_code, user.role)
     pending_entries = sum(1 for ledger in ledgers for entry in ledger.get("entries", []) if entry.get("status") == "PENDING")
     overdue_entries = sum(1 for ledger in ledgers for entry in ledger.get("entries", []) if entry.get("status") == "OVERDUE")
     render_metric_grid(

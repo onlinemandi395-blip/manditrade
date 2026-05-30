@@ -40,6 +40,7 @@ from services.product_catalog_service import ProductCatalogService
 from services.public_buyer_service import PublicBuyerService
 from services.public_cart_service import PublicCartService
 from services.public_order_service import PublicOrderService
+from services.pricing_service import PricingService
 from services.query.inventory_query_service import InventoryQueryService
 from services.query.order_query_service import OrderQueryService
 from services.query.procurement_query_service import ProcurementQueryService
@@ -71,6 +72,14 @@ def build_app_context() -> dict:
             "upi_id": "",
             "payee_name": "",
             "instructions": "Pay full amount upfront and enter UTR.",
+        },
+    )
+    system_config.setdefault(
+        "commission",
+        {
+            "admin_profit_share_percent": 50,
+            "manufacturer_profit_share_percent": 50,
+            "platform_fee_on_admin_commission": {"basic": 10, "premium": 5, "premium_plus": 1},
         },
     )
 
@@ -179,12 +188,14 @@ def build_app_context() -> dict:
         domain_paths_service=domain_paths_service,
         public_buyers_root=public_buyers_root,
     )
+    pricing_service = PricingService(system_config.get("commission", {}))
     product_catalog_service = ProductCatalogService(
         governance_service=governance_service,
         id_allocator_service=id_allocator_service,
         notification_center_service=notification_center_service,
         gmail_service=gmail_service,
         admin_email=security_service.get_admin_email(),
+        pricing_service=pricing_service,
     )
     public_buyer_service = PublicBuyerService(
         public_buyers_root=public_buyers_root,
@@ -212,6 +223,7 @@ def build_app_context() -> dict:
         safe_drive_write_service=safe_drive_write_service,
         json_service=drive_service.json_service,
         id_allocator_service=id_allocator_service,
+        pricing_service=pricing_service,
         config=system_config.get("public_payment", {}),
     )
     worker_service = WorkerService(
@@ -275,6 +287,7 @@ def build_app_context() -> dict:
         ledger_service=ledger_service,
         notification_center_service=notification_center_service,
         domain_paths_service=domain_paths_service,
+        pricing_service=pricing_service,
         procurement_transaction_service=procurement_transaction_service,
     )
     startup_recovery_service = StartupRecoveryService(procurement_transaction_service=procurement_transaction_service, order_transaction_service=order_transaction_service, file_lock_service=file_lock_service, recovery_root=RUNTIME_RECOVERY_DIR, runtime_metrics_service=runtime_metrics_service)
@@ -380,6 +393,7 @@ def build_app_context() -> dict:
         "public_buyer_service": public_buyer_service,
         "public_cart_service": public_cart_service,
         "public_order_service": public_order_service,
+        "pricing_service": pricing_service,
         "access_portal_service": access_portal_service,
         "action_center_service": action_center_service,
         "order_query_service": OrderQueryService(drive_service=drive_service, json_service=drive_service.json_service),

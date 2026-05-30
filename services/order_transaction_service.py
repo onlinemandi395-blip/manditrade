@@ -37,6 +37,7 @@ class OrderTransactionService:
         ledger_service,
         notification_center_service,
         domain_paths_service,
+        pricing_service=None,
         procurement_transaction_service=None,
     ) -> None:
         self.drive_service = drive_service
@@ -55,6 +56,7 @@ class OrderTransactionService:
         self.ledger_service = ledger_service
         self.notification_center_service = notification_center_service
         self.domain_paths = domain_paths_service
+        self.pricing_service = pricing_service
         self.procurement_transaction_service = procurement_transaction_service
 
     def _journal_path(self, transaction_id: str) -> Path:
@@ -115,6 +117,29 @@ class OrderTransactionService:
         order_path = self.domain_paths.orders_month_dir(manufacturer_code, now.strftime("%Y-%m")) / f"{order_id}.json"
         context = OrderTransactionContext(transaction_id=transaction_id, state="RUNNING", order_id=order_id)
         self._write_journal(context)
+        normalized_items = []
+        commission_rows = []
+        for item in items:
+            client_price = float(item.get("client_price", item.get("mrp", 0)) or 0)
+            mandi_price = float(item.get("mandi_price", 0) or 0)
+            if self.pricing_service:
+                commission_rows.append(
+                    self.pricing_service.calculate_commission(
+                        {"mandi_price": mandi_price, "client_price": client_price},
+                        self.pricing_service.CHANNEL_PRIVATE_CLIENT,
+                        client_profile.get("subscription_plan", "basic"),
+                    )
+                )
+            normalized_items.append(
+                {
+                    **item,
+                    "client_price": client_price,
+                    "sale_price": client_price,
+                    "mrp": client_price,
+                    "mandi_price": mandi_price,
+                    "channel": "PRIVATE_CLIENT",
+                }
+            )
         order = {
             "schema_version": "2.0",
             "order_id": order_id,
@@ -122,13 +147,14 @@ class OrderTransactionService:
             "client_email": client_profile["email"],
             "manufacturer_id": manufacturer_code,
             "primary_manufacturer_id": manufacturer_code,
-            "items": items,
+            "items": normalized_items,
             "payment_proposal": payment_proposal,
             "status": "PROPOSED",
             "created_at": now.date().isoformat(),
             "created_at_runtime": now.isoformat(),
             "status_history": [],
             "transaction_id": transaction_id,
+            "commission_breakdown": commission_rows,
         }
         try:
             self._register_target(context, self.domain_paths.inventory_path(manufacturer_code))
@@ -197,7 +223,7 @@ class OrderTransactionService:
             )
             order["trade_confirmation_id"] = confirmation["confirmation_id"]
             self._save_order(current_user.manufacturer_code, order, order_path)
-            ledger_amount = sum(float(item.get("qty", 0)) * float(item.get("mrp", 0)) for item in order.get("items", []))
+            ledger_amount = sum(float(item.get("qty", 0)) * float(item.get("client_price", item.get("mrp", 0))) for item in order.get("items", []))
             proposal = order.get("payment_proposal", {})
             upfront = round(ledger_amount * float(proposal.get("upfront_percentage", 0)) / 100, 2)
             self.ledger_service.create_entry(
@@ -209,6 +235,13 @@ class OrderTransactionService:
                 paid_amount=upfront,
                 ledger_days=int(proposal.get("ledger_days", 0)),
                 note=proposal.get("freestyle_note", ""),
+                metadata={
+                    "channel": "PRIVATE_CLIENT",
+                    "mandi_price": sum(float(item.get("qty", 0)) * float(item.get("mandi_price", 0)) for item in order.get("items", [])),
+                    "sale_price": ledger_amount,
+                    "gross_profit": sum(float(item.get("qty", 0)) * (float(item.get("client_price", item.get("mrp", 0))) - float(item.get("mandi_price", 0))) for item in order.get("items", [])),
+                    "commission_breakdown": order.get("commission_breakdown", {}),
+                },
             )
             context.state = "COMMITTED"
             self._write_journal(context)

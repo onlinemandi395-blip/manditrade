@@ -51,10 +51,14 @@ class PublicCartService:
                 raise ValueError("Multi-seller public checkout is blocked in the current marketplace flow.")
             payload["assigned_seller_manufacturer_id"] = seller_id
             item = next((entry for entry in payload["items"] if entry.get("product_id") == product_id), None)
-            mrp = float(product.get("approved_mrp") or product.get("mrp") or 0)
+            marketplace_price = float(product.get("approved_marketplace_price") or product.get("marketplace_price") or product.get("approved_client_price") or product.get("client_price") or product.get("approved_mrp") or product.get("mrp") or 0)
+            mandi_price = float(product.get("approved_mandi_price") or product.get("mandi_price") or 0)
             if item:
                 item["qty"] = requested_qty
-                item["mrp"] = mrp
+                item["marketplace_price"] = marketplace_price
+                item["price"] = marketplace_price
+                item["mrp"] = marketplace_price
+                item["mandi_price"] = mandi_price
                 item["unit"] = product.get("unit", "unit")
             else:
                 payload["items"].append(
@@ -63,7 +67,10 @@ class PublicCartService:
                         "product_name": product.get("name", product_id),
                         "qty": requested_qty,
                         "unit": product.get("unit", "unit"),
-                        "mrp": mrp,
+                        "marketplace_price": marketplace_price,
+                        "price": marketplace_price,
+                        "mrp": marketplace_price,
+                        "mandi_price": mandi_price,
                         "public_seller_manufacturer_id": seller_id,
                     }
                 )
@@ -94,7 +101,7 @@ class PublicCartService:
         )
 
     def _recompute(self, payload: dict[str, Any]) -> None:
-        subtotal = sum(float(item.get("mrp", 0)) * int(item.get("qty", 0)) for item in payload.get("items", []))
+        subtotal = sum(float(item.get("marketplace_price", item.get("mrp", 0))) * int(item.get("qty", 0)) for item in payload.get("items", []))
         payload["subtotal"] = subtotal
         payload["payment_required"] = subtotal
         payload["status"] = "OPEN"
