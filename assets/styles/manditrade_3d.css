@@ -127,6 +127,8 @@ body,
   background: transparent;
   position: relative;
   overflow: hidden;
+  padding-left: 10px;
+  padding-right: 10px;
 }
 
 [data-testid="stSidebar"] > div:first-child::before {
@@ -159,27 +161,59 @@ body,
   pointer-events: none;
 }
 
-[data-testid="stSidebar"] .stRadio > div[role="radiogroup"] {
-  gap: 10px;
+[data-testid="stSidebar"] .block-container {
+  padding-top: 1.1rem;
+  padding-bottom: 1.4rem;
 }
 
+[data-testid="stSidebar"] h2,
+[data-testid="stSidebar"] h3 {
+  margin-bottom: 0.85rem;
+}
+
+[data-testid="stSidebar"] .stCaptionContainer,
+[data-testid="stSidebar"] p {
+  color: #c8d6e3;
+}
+
+[data-testid="stSidebar"] .stRadio > div[role="radiogroup"] {
+  gap: 10px;
+  width: 100%;
+  align-items: stretch;
+}
+
+.mt-sidebar-nav-item,
 [data-testid="stSidebar"] .stRadio > div[role="radiogroup"] label {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  min-height: 56px;
+  padding: 0 18px;
+  margin: 0 0 12px 0;
+  box-sizing: border-box;
   border-radius: var(--radius-md);
   border: 1px solid rgba(255,255,255,0.08);
   background:
     linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015)),
     rgba(9, 18, 32, 0.58);
   box-shadow: 0 14px 34px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255,255,255,0.05);
-  padding: 10px 12px;
-  transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+  backdrop-filter: blur(14px);
+  transition:
+    transform 0.25s ease,
+    border-color 0.25s ease,
+    background 0.25s ease,
+    box-shadow 0.25s ease;
 }
 
-[data-testid="stSidebar"] .stRadio > div[role="radiogroup"] label:hover {
-  transform: translateX(4px);
+[data-testid="stSidebar"] .stRadio > div[role="radiogroup"] label:hover,
+.mt-sidebar-nav-item:hover {
+  transform: translateY(-2px);
   border-color: rgba(56, 189, 248, 0.28);
   background:
     linear-gradient(135deg, rgba(56,193,114,0.14), rgba(245,158,11,0.12)),
     rgba(9, 18, 32, 0.68);
+  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.26), inset 0 1px 0 rgba(255,255,255,0.06);
 }
 
 [data-testid="stSidebar"] .stRadio > div[role="radiogroup"] label:has(input:checked) {
@@ -187,7 +221,7 @@ body,
   background:
     linear-gradient(135deg, rgba(56,193,114,0.18), rgba(245,158,11,0.18)),
     rgba(8, 18, 31, 0.82);
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.26), 0 0 0 1px rgba(56,189,248,0.08), inset 0 1px 0 rgba(255,255,255,0.08);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.26), 0 0 0 1px rgba(56,189,248,0.08), 0 0 18px rgba(56,193,114,0.12), inset 0 1px 0 rgba(255,255,255,0.08);
 }
 
 [data-testid="stSidebar"] .stRadio > div[role="radiogroup"] label p,
@@ -195,10 +229,42 @@ h1, h2, h3, h4, h5, h6, p, li, label, span, div {
   color: inherit;
 }
 
+[data-testid="stSidebar"] .stRadio > div[role="radiogroup"] label > div:first-child {
+  min-width: 24px;
+  width: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 12px;
+}
+
+[data-testid="stSidebar"] .stRadio > div[role="radiogroup"] label > div:first-child > div {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(203, 213, 225, 0.42);
+  box-shadow: 0 0 0 5px rgba(255,255,255,0.03);
+}
+
+[data-testid="stSidebar"] .stRadio > div[role="radiogroup"] label:has(input:checked) > div:first-child > div {
+  background: var(--accent-green);
+  box-shadow: 0 0 0 5px rgba(56,193,114,0.10), 0 0 14px rgba(56,193,114,0.28);
+}
+
+[data-testid="stSidebar"] .stRadio > div[role="radiogroup"] label > div:last-child {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
 [data-testid="stSidebar"] .stRadio > div[role="radiogroup"] label p {
   color: #e6eef7;
   font-weight: 600;
   letter-spacing: 0.01em;
+  line-height: 1.2;
+  margin: 0;
+  width: 100%;
 }
 
 .stButton,

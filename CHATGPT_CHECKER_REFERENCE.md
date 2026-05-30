@@ -52,6 +52,7 @@ The active CSS shell now includes:
 - sidebar glass navigation with active-state pills
 - connected glass tabs with strong active state
 - normalized button treatment
+- normalized sidebar navigation width, height, alignment, and spacing
 - focus-visible styling
 - reduced-motion fallback
 
@@ -69,6 +70,33 @@ The active CSS shell now includes:
 - `.mt-notification-card`
 - `.mt-product-card`
 - `.mt-surface-note`
+- `.mt-sidebar-nav-item`
+
+## Sidebar Navigation Normalization Status
+
+Sidebar navigation is now normalized in the CSS shell.
+
+### Updated Behavior
+
+- all sidebar navigation items use equal width
+- all sidebar navigation items use equal minimum height
+- active items no longer grow larger than inactive items
+- padding, border radius, and vertical spacing are locked consistently
+- hover uses `translateY(-2px)` only and does not shift the layout horizontally
+- icon/dot area now uses a fixed-width alignment slot
+
+### Styling Notes
+
+- active state still uses brighter border, glow, and elevated glass shadow
+- active state does not alter width, height, or padding
+- sidebar spacing and inner padding were cleaned up for a more centered vertical stack
+- responsive behavior remains width-safe because the items stay at `width: 100%`
+
+### CSS Selectors Used
+
+- `[data-testid="stSidebar"]`
+- sidebar `stRadio` label selectors
+- reusable `.mt-sidebar-nav-item` class for the same footprint rules
 
 ## Login Page Status
 
@@ -230,7 +258,7 @@ These remain active and were not functionally altered by this UI pass:
 
 ```text
 sssss...........................................................         [100%]
-59 passed, 5 skipped in 9.58s
+59 passed, 5 skipped in 10.63s
 ```
 
 ### `python -m compileall app.py modules services utils components schemas bootstrap scripts`
