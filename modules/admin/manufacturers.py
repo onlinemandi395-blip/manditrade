@@ -15,7 +15,6 @@ BUSINESS_TYPES = [
     "Distributor",
     "Other",
 ]
-DRIVE_STATUSES = ["NOT_CONNECTED", "PENDING", "CONNECTED"]
 SUBSCRIPTION_PLANS = ["Basic", "Premium", "Premium+"]
 MASTER_DATA = MasterDataService()
 
@@ -66,7 +65,6 @@ def _render_manufacturer_details_form(*, prefix: str, defaults: dict, include_st
     address = _address_of(defaults)
     legal = _legal_of(defaults)
     banking = _banking_of(defaults)
-    drive_status = (defaults.get("google_drive_connected_status") or "NOT_CONNECTED").upper()
     business_type = defaults.get("business_type") or BUSINESS_TYPES[0]
     status = defaults.get("status", "ACTIVE")
     subscription_plan = defaults.get("subscription_plan", "basic")
@@ -114,11 +112,10 @@ def _render_manufacturer_details_form(*, prefix: str, defaults: dict, include_st
         ifsc_code = bank_col1.text_input("IFSC Code", value=banking.get("ifsc", ""))
         upi_id = bank_col2.text_input("UPI ID", value=banking.get("upi_id", ""))
 
-        status_col, drive_col = st.columns(2)
+        status_col, _spacer = st.columns(2)
         selected_status = "ACTIVE"
         if include_status:
             selected_status = status_col.selectbox("Lifecycle Status", ["ACTIVE", "INACTIVE", "BLOCKED"], index=_option_index(["ACTIVE", "INACTIVE", "BLOCKED"], status))
-        google_drive_connected_status = drive_col.selectbox("Google Drive Connected Status", DRIVE_STATUSES, index=_option_index(DRIVE_STATUSES, drive_status))
         business_description = st.text_area("Business Description", value=defaults.get("business_description", ""), height=120)
         submitted = st.form_submit_button(submit_label)
 
@@ -154,7 +151,6 @@ def _render_manufacturer_details_form(*, prefix: str, defaults: dict, include_st
             "ifsc": ifsc_code.strip(),
             "upi_id": upi_id.strip(),
         },
-        "google_drive_connected_status": google_drive_connected_status.strip(),
         "business_description": business_description.strip(),
         "subscription_plan": selected_plan.strip(),
         "status": selected_status.strip(),
@@ -219,7 +215,6 @@ def render_manufacturers_dashboard(app_context: dict) -> None:
                     bank_account_number=create_payload["banking"]["account_number"],
                     ifsc_code=create_payload["banking"]["ifsc"],
                     upi_id=create_payload["banking"]["upi_id"],
-                    google_drive_connected_status=create_payload["google_drive_connected_status"],
                     business_description=create_payload["business_description"],
                     created_by=current_user.email if current_user else "system",
                     subscription_plan=create_payload["subscription_plan"],

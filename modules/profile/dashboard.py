@@ -4,7 +4,8 @@ import streamlit as st
 
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
-from components.ui_shell import render_3d_panel, render_metric_card, render_mobile_record_card, render_page_header
+from components.html_renderer import render_html
+from components.ui_shell import render_3d_panel, render_metric_card, render_mobile_record_card, render_page_header, render_same_tab_link_button
 from modules.onboarding.manufacturer_onboarding import _address_of as manufacturer_address_of
 from modules.onboarding.manufacturer_onboarding import _render_profile_form as render_manufacturer_profile_form
 from services.master_data_service import MasterDataService
@@ -269,6 +270,41 @@ def _render_manufacturer_profile(app_context: dict) -> None:
     if submitted:
         app_context["manufacturer_onboarding_service"].update_manufacturer(current_user.manufacturer_code or "", payload)
         st.success("Manufacturer profile saved.")
+        st.rerun()
+    connected_accounts = app_context["connected_accounts_service"].get_status(current_user.manufacturer_code or "")
+    drive_status = connected_accounts.get("drive", {}) or {}
+    gmail_status = connected_accounts.get("gmail", {}) or {}
+    render_section_intro("Connected Accounts", "Google access stays consent-based. No client_id, client_secret, or API key entry is exposed to manufacturers.")
+    render_3d_panel(
+        render_mobile_record_card(
+            {
+                "Drive connected": "yes" if drive_status.get("connected") else "no",
+                "Drive email": drive_status.get("connected_email") or "Not connected",
+                "Last validation": drive_status.get("last_validated_at") or "Not validated",
+                "Gmail mode": "own" if gmail_status.get("connected") else "platform",
+            }
+        ),
+        "Connected Accounts",
+    )
+    drive_connect_url = app_context["connected_accounts_service"].build_connect_url(current_user.manufacturer_code or "", "drive")
+    gmail_connect_url = app_context["connected_accounts_service"].build_connect_url(current_user.manufacturer_code or "", "gmail")
+    drive_label = "Reconnect Google Drive" if drive_status.get("connected") else "Connect Google Drive"
+    gmail_label = "Reconnect Gmail" if gmail_status.get("connected") else "Connect Gmail"
+    link_html = ""
+    if drive_connect_url:
+        link_html += render_same_tab_link_button(drive_label, drive_connect_url)
+    if gmail_connect_url:
+        link_html += render_same_tab_link_button(gmail_label, gmail_connect_url)
+    if link_html:
+        render_html(link_html)
+    col_a, col_b = st.columns(2)
+    if drive_status.get("connected") and col_a.button("Disconnect Google Drive", use_container_width=True):
+        app_context["connected_accounts_service"].disconnect(current_user.manufacturer_code or "", "drive")
+        st.success("Google Drive disconnected.")
+        st.rerun()
+    if gmail_status.get("connected") and col_b.button("Disconnect Gmail", use_container_width=True):
+        app_context["connected_accounts_service"].disconnect(current_user.manufacturer_code or "", "gmail")
+        st.success("Gmail connection removed. Platform sender fallback remains available.")
         st.rerun()
 
 

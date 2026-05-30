@@ -1,70 +1,83 @@
 # MandiTrade Checker Reference
 
-Generated from the current repository state on 2026-05-30 after the admin onboarding UX and client onboarding CRUD pass.
+Generated from the current repository state on 2026-05-30 after the consent-based Google runtime and same-tab authentication pass.
 
-## Manufacturer Code Generation Status
+## Consent-Based Manufacturer Drive/Gmail Model
 
-- Auto-generation is active through [services/governance_service.py](C:/2026/manditrade/manditrade/services/governance_service.py) and [services/manufacturer_onboarding_service.py](C:/2026/manditrade/manditrade/services/manufacturer_onboarding_service.py).
-- Current pattern is `MANU001`, `MANU002`, `MANU003`.
-- The generator scans existing manufacturers, finds the highest `MANU###` suffix, and allocates the next code.
-- Legacy codes such as `MANU-2026-000001` are preserved and do not break the next generated `MANU###` value.
-- Duplicate manufacturer codes are blocked at governance registration time.
-- Admin create flows no longer rely on manual editable code entry.
+- Platform OAuth remains centralized under the platform Google OAuth app.
+- Login identity for all users continues through the same platform OAuth client.
+- Manufacturer connected-account consent now routes through [services/connected_accounts_service.py](C:/2026/manditrade/manditrade/services/connected_accounts_service.py).
+- Manufacturer Drive connect uses OAuth consent with `drive.file`.
+- Manufacturer Gmail connect is available as consent-based plumbing, while platform-sender fallback remains the default operational mode when no manufacturer Gmail token is connected.
+- Clients and public buyers continue to use Google identity login only and do not receive Drive/Gmail consent prompts.
 
-## Category Dropdown Status
+## Manual API Key Removal Status
 
-- Shared product categories are centralized in [services/master_data_service.py](C:/2026/manditrade/manditrade/services/master_data_service.py).
-- Manufacturer admin create/edit and manufacturer self-profile now use dropdown multiselects instead of free text.
-- The same centralized category source is ready for reuse anywhere else product-category selection is needed.
+- No manufacturer-facing profile/onboarding/admin UI asks for `client_id`, `client_secret`, or API keys.
+- Manufacturer connection handling is consent-based only.
+- Manufacturer profile now explicitly explains that raw credentials are not exposed.
 
-## Indian State Dropdown Status
+## Same-Tab Google Sign-In Status
 
-- Shared Indian states and union territories are centralized in [services/master_data_service.py](C:/2026/manditrade/manditrade/services/master_data_service.py).
-- State selection is now dropdown-based in:
-  - [modules/admin/manufacturers.py](C:/2026/manditrade/manditrade/modules/admin/manufacturers.py)
-  - [modules/onboarding/manufacturer_onboarding.py](C:/2026/manditrade/manditrade/modules/onboarding/manufacturer_onboarding.py)
-  - [modules/profile/dashboard.py](C:/2026/manditrade/manditrade/modules/profile/dashboard.py)
-- City remains a separate text input.
+- Same-tab Google login links are now rendered from:
+  - [modules/access/dashboard.py](C:/2026/manditrade/manditrade/modules/access/dashboard.py)
+  - [modules/marketplace/dashboard.py](C:/2026/manditrade/manditrade/modules/marketplace/dashboard.py)
+- These flows now use HTML anchors with `target="_self"` via [components/ui_shell.py](C:/2026/manditrade/manditrade/components/ui_shell.py).
+- `st.link_button(...)` is no longer used for the Google login entry points covered in this pass.
 
-## Client Onboarding Navigation Status
+## Connected Accounts UI Status
 
-- Manufacturer navigation now includes `Clients` in [bootstrap/app_bootstrap.py](C:/2026/manditrade/manditrade/bootstrap/app_bootstrap.py).
-- Client onboarding is no longer buried in dashboard-only flow for manufacturer management.
-- Route wiring remains in [bootstrap/route_registry.py](C:/2026/manditrade/manditrade/bootstrap/route_registry.py).
+- Manufacturer and admin-as-manufacturer Connected Accounts UI is now shown inside [modules/profile/dashboard.py](C:/2026/manditrade/manditrade/modules/profile/dashboard.py).
+- Current Connected Accounts section shows:
+  - Drive connected: yes/no
+  - Drive email
+  - Last validation
+  - Gmail mode: own/platform
+  - same-tab `Connect Google Drive`
+  - same-tab `Connect Gmail`
+  - disconnect controls
+- Clients, public buyers, and workers do not get Connected Accounts controls because their profile routes do not render this section.
 
-## Client CRUD Status
+## Scope Separation Status
 
-- Private manufacturer client CRUD is now centered in [services/client_service.py](C:/2026/manditrade/manditrade/services/client_service.py).
-- Manufacturer `Clients` page in [modules/clients/dashboard.py](C:/2026/manditrade/manditrade/modules/clients/dashboard.py) now supports:
-  - create client
-  - view clients
-  - edit client
-  - deactivate client
-  - send Gmail invite
-- Client records now include address, delivery contact, delivery instructions, credit limit, ledger flag, status, and invite status.
-- Cross-manufacturer privacy is enforced by manufacturer-scoped storage and update/look-up rules.
+- OAuth flow separation now lives in [services/oauth_callback_service.py](C:/2026/manditrade/manditrade/services/oauth_callback_service.py).
+- Separate flow types are tracked for:
+  - `login_oauth`
+  - `manufacturer_drive_connect`
+  - `manufacturer_gmail_connect`
+  - `admin_token_provision`
+- Login scopes are restricted to:
+  - `openid`
+  - `userinfo.email`
+  - `userinfo.profile`
+- Manufacturer Drive connect scopes are restricted to:
+  - `https://www.googleapis.com/auth/drive.file`
+- Manufacturer Gmail connect scopes are restricted to:
+  - `https://www.googleapis.com/auth/gmail.send`
 
-## Gmail Invite Status
+## Private Token Metadata Status
 
-- Invite sending uses the existing Gmail runtime path through [services/client_service.py](C:/2026/manditrade/manditrade/services/client_service.py).
-- Successful sends mark `invite_status = SENT`.
-- Failures are logged when a logging service is present and mark `invite_status = FAILED`.
-- No Gmail queue UI was added back.
+- Connected-account metadata is stored under manufacturer private zone in `connected_accounts.json`.
+- Encrypted refresh tokens are stored under manufacturer private-zone `tokens/`.
+- Shared/public zones do not receive connected-account metadata or token files.
 
-## Client Sign-In Mapping Status
+## Diagnostics Status
 
-- Client invite validation and first sign-in activation continue through [services/access_portal_service.py](C:/2026/manditrade/manditrade/services/access_portal_service.py).
-- On successful sign-in, the invited client is mapped to the correct manufacturer workspace and activated.
-- Invite/profile activation now moves the client state from `INVITED` to `ACTIVE` and `invite_status` to `ACCEPTED`.
+- Manufacturer profile shows Drive/Gmail connection summary.
+- Admin System Health now shows Connected Accounts summary counts through [modules/system/health_dashboard.py](C:/2026/manditrade/manditrade/modules/system/health_dashboard.py):
+  - connected manufacturers count
+  - disconnected manufacturers count
+  - failed token validations
+- Detailed token values are not exposed in the UI.
 
 ## Tests Result
 
 ### `python -m pytest tests/ -q`
 
 ```text
-sssss................................................................... [ 87%]
-..........                                                               [100%]
-77 passed, 5 skipped in 15.64s
+sssss................................................................... [ 79%]
+...................                                                      [100%]
+86 passed, 5 skipped in 15.77s
 ```
 
 ### `python -m compileall app.py modules services utils components schemas bootstrap scripts`
@@ -79,8 +92,6 @@ passed
 app import ok
 ```
 
-## Remaining Blockers
+## Remaining Blocker
 
-- Product proposal and approval screens were not updated in this pass to consume the new shared category dropdown data.
-- Worker-specific dedicated state dropdown UI was not introduced because the current worker profile uses city/area only.
-- Public buyer state dropdown support is updated inside the shared profile page, but there is no separate public-buyer onboarding screen in this repository.
+- Manufacturer Gmail consent plumbing and status UI are in place, but outbound message sending still defaults to the platform sender runtime unless the downstream Gmail send path is explicitly switched to manufacturer-owned credentials in a later pass.

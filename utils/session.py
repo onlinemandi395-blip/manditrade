@@ -16,6 +16,8 @@ def ensure_session_defaults() -> None:
         "oauth_authorization_url": None,
         "oauth_state_token": None,
         "oauth_code_verifier": None,
+        "oauth_flow_type": None,
+        "oauth_flow_context": None,
         "manufacturer_context": None,
         "requested_role": None,
         "client_onboarding_token": None,

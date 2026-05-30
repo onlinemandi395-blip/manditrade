@@ -28,7 +28,7 @@ class AuthService:
         self.enable_mock_auth = enable_mock_auth
         os.environ.setdefault("OAUTHLIB_RELAX_TOKEN_SCOPE", "1")
 
-    def build_flow(self) -> Flow:
+    def build_flow(self, scopes: list[str] | None = None) -> Flow:
         config = {
             "web": {
                 "client_id": self.oauth_config["client_id"],
@@ -41,14 +41,14 @@ class AuthService:
         }
         return Flow.from_client_config(
             config,
-            scopes=self.oauth_config["scopes"],
+            scopes=scopes or self.oauth_config["scopes"],
             redirect_uri=self.oauth_config["redirect_uri"],
         )
 
-    def build_authorization_url(self) -> str | None:
+    def build_authorization_url(self, scopes: list[str] | None = None) -> str | None:
         if not self.oauth_config["client_id"] or not self.oauth_config["client_secret"]:
             return None
-        flow = self.build_flow()
+        flow = self.build_flow(scopes=scopes)
         authorization_url, _ = flow.authorization_url(
             access_type="offline",
             include_granted_scopes="true",
@@ -114,8 +114,8 @@ class AuthService:
             return None
         return AuthUser(**payload)
 
-    def refresh_credentials(self, credentials_payload: dict[str, Any]) -> Credentials:
-        credentials = Credentials.from_authorized_user_info(credentials_payload, self.oauth_config["scopes"])
+    def refresh_credentials(self, credentials_payload: dict[str, Any], scopes: list[str] | None = None) -> Credentials:
+        credentials = Credentials.from_authorized_user_info(credentials_payload, scopes or self.oauth_config["scopes"])
         if credentials.expired and credentials.refresh_token:
             credentials.refresh(Request())
         return credentials

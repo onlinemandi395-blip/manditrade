@@ -56,6 +56,9 @@ def render_health_dashboard(app_context: dict) -> None:
         "pilot_status_report": str(app_context["runtime_paths"]["integration_reports"] / "latest_pilot_status.json"),
         "go_no_go": "NO-GO" if app_context.get("startup_checks") else "READY FOR CLOUD VALIDATION",
     }
+    connected_accounts_summary = app_context["connected_accounts_service"].summarize_connections(
+        [item.get("manufacturer_code", "") for item in app_context["governance_service"].list_manufacturers() if item.get("manufacturer_code")]
+    )
     overview_tab, diagnostics_tab, recovery_tab, events_tab = st.tabs(["Overview", "Diagnostics", "Recovery", "Events"])
     with overview_tab:
         st.json(deployment_snapshot)
@@ -70,12 +73,14 @@ def render_health_dashboard(app_context: dict) -> None:
         )
         st.markdown("### Pilot Status")
         st.json(app_context.get("latest_pilot_status", {}))
+        st.markdown("### Connected Accounts Summary")
+        st.json(connected_accounts_summary)
         st.markdown("### Gmail Runtime Delivery")
         st.info("User-facing Gmail queues are disabled. Notification emails are triggered immediately from the active runtime session.")
 
     current_user = app_context["current_user"]
     with diagnostics_tab:
-        if current_user and current_user.role == "admin":
+        if current_user and current_user.role in {"admin", "platform_admin"}:
             oauth_status = app_context["google_runtime_diagnostic_service"].oauth_status(current_user)
             with st.expander("OAuth Status", expanded=False):
                 st.json(oauth_status)

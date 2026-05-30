@@ -13,6 +13,22 @@ from services.security_service import SecurityService
 
 
 class OAuthCallbackService:
+    LOGIN = "login_oauth"
+    MANUFACTURER_DRIVE = "manufacturer_drive_connect"
+    MANUFACTURER_GMAIL = "manufacturer_gmail_connect"
+    ADMIN_TOKEN = "admin_token_provision"
+
+    FLOW_SCOPES = {
+        LOGIN: [
+            "openid",
+            "https://www.googleapis.com/auth/userinfo.email",
+            "https://www.googleapis.com/auth/userinfo.profile",
+        ],
+        MANUFACTURER_DRIVE: ["https://www.googleapis.com/auth/drive.file"],
+        MANUFACTURER_GMAIL: ["https://www.googleapis.com/auth/gmail.send"],
+        ADMIN_TOKEN: None,
+    }
+
     def __init__(self, auth_service: AuthService, security_service: SecurityService, state_store_path: Path | None = None) -> None:
         self.auth_service = auth_service
         self.security_service = security_service
@@ -32,17 +48,25 @@ class OAuthCallbackService:
         self.state_store_path.parent.mkdir(parents=True, exist_ok=True)
         self.state_store_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
-    def _store_pending_state(self, token: str, code_verifier: str | None = None) -> None:
+    def issue_state_token(self) -> str:
+        return secrets.token_urlsafe(24)
+
+    def _store_pending_state(self, token: str, *, flow_type: str, code_verifier: str | None = None, role_context: str = "", manufacturer_id: str = "", scopes: list[str] | None = None) -> None:
         payload = self._read_state_store()
         states = payload.setdefault("states", [])
         cutoff = datetime.now(UTC) - timedelta(minutes=15)
         states[:] = [
-            item for item in states
+            item
+            for item in states
             if item.get("token") and datetime.fromisoformat(item.get("created_at", datetime.now(UTC).isoformat())) >= cutoff
         ]
         states.append(
             {
                 "token": token,
+                "flow_type": flow_type,
+                "role_context": role_context,
+                "manufacturer_id": manufacturer_id,
+                "scopes": list(scopes or []),
                 "code_verifier": code_verifier or "",
                 "created_at": datetime.now(UTC).isoformat(),
             }
@@ -65,33 +89,12 @@ class OAuthCallbackService:
                 return item
         return None
 
-    def _list_recent_pending_states(self) -> list[dict[str, Any]]:
+    def _consume_pending_state(self, token: str) -> dict[str, Any] | None:
         payload = self._read_state_store()
         states = payload.setdefault("states", [])
         cutoff = datetime.now(UTC) - timedelta(minutes=15)
-        recent: list[dict[str, Any]] = []
-        for item in states:
-            created_at_raw = item.get("created_at", datetime.now(UTC).isoformat())
-            try:
-                created_at = datetime.fromisoformat(created_at_raw)
-            except ValueError:
-                continue
-            if created_at >= cutoff and item.get("token"):
-                recent.append(item)
-        recent.sort(key=lambda item: item.get("created_at", ""), reverse=True)
-        return recent
-
-    def _has_recent_pending_state(self, token: str | None) -> bool:
-        if not token:
-            return False
-        return self._lookup_pending_state(token) is not None
-
-    def _consume_pending_state(self, token: str) -> bool:
-        payload = self._read_state_store()
-        states = payload.setdefault("states", [])
-        matched = False
+        matched: dict[str, Any] | None = None
         remaining = []
-        cutoff = datetime.now(UTC) - timedelta(minutes=15)
         for item in states:
             created_at_raw = item.get("created_at", datetime.now(UTC).isoformat())
             try:
@@ -100,87 +103,100 @@ class OAuthCallbackService:
                 created_at = datetime.now(UTC)
             if created_at < cutoff:
                 continue
-            if item.get("token") == token and not matched:
-                matched = True
+            if item.get("token") == token and matched is None:
+                matched = item
                 continue
             remaining.append(item)
         payload["states"] = remaining
         self._write_state_store(payload)
         return matched
 
-    def issue_state_token(self) -> str:
-        token = secrets.token_urlsafe(24)
-        st.session_state["oauth_state_token"] = token
-        return token
-
-    def build_authorization_url(self) -> str | None:
-        existing_url = st.session_state.get("oauth_authorization_url")
-        existing_state = st.session_state.get("oauth_state_token")
-        existing_verifier = st.session_state.get("oauth_code_verifier")
-        if existing_url and existing_state and existing_verifier and self._has_recent_pending_state(existing_state):
-            return existing_url
-        if existing_url and existing_state and existing_verifier:
-            self.reset_authorization_state()
-        flow = self.auth_service.build_flow() if self.auth_service.oauth_config["client_id"] and self.auth_service.oauth_config["client_secret"] else None
+    def build_authorization_url(
+        self,
+        *,
+        flow_type: str = LOGIN,
+        role_context: str = "",
+        manufacturer_id: str = "",
+        scopes: list[str] | None = None,
+    ) -> str | None:
+        selected_scopes = list(scopes or self.FLOW_SCOPES.get(flow_type) or self.auth_service.oauth_config["scopes"])
+        flow = self.auth_service.build_flow(scopes=selected_scopes) if self.auth_service.oauth_config["client_id"] and self.auth_service.oauth_config["client_secret"] else None
         if flow is None:
             return None
-        requested_state = self.issue_state_token()
+        state_token = self.issue_state_token()
         authorization_url, issued_state = flow.authorization_url(
             access_type="offline",
             include_granted_scopes="true",
             prompt="consent",
-            state=requested_state,
+            state=state_token,
             code_challenge_method="S256",
         )
-        final_state = issued_state or requested_state
+        final_state = issued_state or state_token
+        st.session_state["oauth_authorization_url"] = authorization_url
         st.session_state["oauth_state_token"] = final_state
         st.session_state["oauth_code_verifier"] = getattr(flow, "code_verifier", None)
-        st.session_state["oauth_authorization_url"] = authorization_url
-        self._store_pending_state(final_state, getattr(flow, "code_verifier", None))
+        st.session_state["oauth_flow_type"] = flow_type
+        st.session_state["oauth_flow_context"] = {
+            "flow_type": flow_type,
+            "role_context": role_context,
+            "manufacturer_id": manufacturer_id,
+            "scopes": selected_scopes,
+        }
+        self._store_pending_state(
+            final_state,
+            flow_type=flow_type,
+            code_verifier=getattr(flow, "code_verifier", None),
+            role_context=role_context,
+            manufacturer_id=manufacturer_id,
+            scopes=selected_scopes,
+        )
         return authorization_url
 
-    def validate_state(self, returned_state: str | None) -> str:
-        expected = st.session_state.get("oauth_state_token")
+    def validate_state(self, returned_state: str | None) -> dict[str, Any]:
         if not returned_state:
             raise PermissionError("OAuth callback state validation failed.")
-        if expected and expected == returned_state:
-            return returned_state
-        if self._lookup_pending_state(returned_state):
+        pending = self._lookup_pending_state(returned_state)
+        if pending:
             st.session_state["oauth_state_token"] = returned_state
-            return returned_state
-        recent_states = self._list_recent_pending_states()
-        recent_tokens = [item.get("token", "") for item in recent_states[:3]]
-        raise PermissionError(
-            "OAuth callback state validation failed. Please restart sign-in and use a fresh Google authorization link."
-            + (f" Recent pending states: {recent_tokens}" if recent_tokens else "")
-        )
+            st.session_state["oauth_flow_type"] = pending.get("flow_type")
+            st.session_state["oauth_flow_context"] = {
+                "flow_type": pending.get("flow_type", ""),
+                "role_context": pending.get("role_context", ""),
+                "manufacturer_id": pending.get("manufacturer_id", ""),
+                "scopes": list(pending.get("scopes", []) or []),
+            }
+            return pending
+        raise PermissionError("OAuth callback state validation failed. Please restart the Google flow.")
 
     def exchange_code(self, code: str, returned_state: str | None) -> dict[str, Any]:
-        effective_state = self.validate_state(returned_state)
-        flow = self.auth_service.build_flow()
-        pending_state = self._lookup_pending_state(effective_state)
-        code_verifier = st.session_state.get("oauth_code_verifier") or (pending_state or {}).get("code_verifier")
+        pending_state = self.validate_state(returned_state)
+        selected_scopes = list(pending_state.get("scopes") or self.auth_service.oauth_config["scopes"])
+        flow = self.auth_service.build_flow(scopes=selected_scopes)
+        code_verifier = st.session_state.get("oauth_code_verifier") or pending_state.get("code_verifier")
         if code_verifier:
             flow.code_verifier = code_verifier
-        redirect_uri = self.auth_service.oauth_config["redirect_uri"]
         flow.fetch_token(code=code)
-        self._consume_pending_state(effective_state)
+        consumed = self._consume_pending_state(str(returned_state)) or pending_state
         credentials = flow.credentials
-        payload = {
+        return {
             "token": credentials.token,
             "refresh_token": credentials.refresh_token,
             "token_uri": credentials.token_uri,
             "client_id": credentials.client_id,
             "client_secret": credentials.client_secret,
-            "scopes": list(credentials.scopes or []),
-            "redirect_uri": redirect_uri,
+            "scopes": list(credentials.scopes or selected_scopes),
+            "redirect_uri": self.auth_service.oauth_config["redirect_uri"],
+            "flow_type": consumed.get("flow_type", self.LOGIN),
+            "role_context": consumed.get("role_context", ""),
+            "manufacturer_id": consumed.get("manufacturer_id", ""),
         }
-        return payload
 
     def reset_authorization_state(self) -> None:
         st.session_state["oauth_authorization_url"] = None
         st.session_state["oauth_state_token"] = None
         st.session_state["oauth_code_verifier"] = None
+        st.session_state["oauth_flow_type"] = None
+        st.session_state["oauth_flow_context"] = None
 
     def store_runtime_token(self, principal_key: str, refresh_token: str) -> str:
         target = self.security_service.runtime_tokens_dir / f"{principal_key}.enc"
@@ -207,6 +223,7 @@ class OAuthCallbackService:
                 "client_id_present": bool(credentials_payload.get("client_id")),
                 "refresh_token_present": bool(credentials_payload.get("refresh_token")),
                 "redirect_uri": credentials_payload.get("redirect_uri", ""),
+                "flow_type": credentials_payload.get("flow_type", self.LOGIN),
             }
             user = self.auth_service.create_authenticated_user(
                 profile=user_payload.get("profile", {}),

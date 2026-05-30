@@ -15,7 +15,6 @@ BUSINESS_TYPES = [
     "Distributor",
     "Other",
 ]
-DRIVE_STATUSES = ["NOT_CONNECTED", "PENDING", "CONNECTED"]
 SUBSCRIPTION_PLANS = ["Basic", "Premium", "Premium+"]
 PENDING_CREATE_CODE_KEY = "_pending_manufacturer_create_code"
 MASTER_DATA = MasterDataService()
@@ -68,7 +67,6 @@ def _render_profile_form(*, prefix: str, defaults: dict, submit_label: str) -> t
     address = _address_of(defaults)
     legal = _legal_of(defaults)
     banking = _banking_of(defaults)
-    drive_status = (defaults.get("google_drive_connected_status") or "NOT_CONNECTED").upper()
     business_type = defaults.get("business_type") or BUSINESS_TYPES[0]
     states = MASTER_DATA.get_indian_states_and_union_territories()
     categories = MASTER_DATA.get_product_categories()
@@ -110,12 +108,6 @@ def _render_profile_form(*, prefix: str, defaults: dict, submit_label: str) -> t
         ifsc_code = bank_col1.text_input("IFSC Code", value=banking.get("ifsc", ""))
         upi_id = bank_col2.text_input("UPI ID", value=banking.get("upi_id", ""))
 
-        drive_col, _spacer = st.columns(2)
-        google_drive_connected_status = drive_col.selectbox(
-            "Google Drive Connected Status",
-            DRIVE_STATUSES,
-            index=_option_index(DRIVE_STATUSES, drive_status),
-        )
         business_description = st.text_area("Business Description", value=defaults.get("business_description", ""), height=120)
         st.caption("Optional uploads like GST certificate, PAN image, Aadhaar image, shop photo, and cancelled cheque are not implemented yet.")
         submitted = st.form_submit_button(submit_label)
@@ -151,7 +143,6 @@ def _render_profile_form(*, prefix: str, defaults: dict, submit_label: str) -> t
             "ifsc": ifsc_code.strip(),
             "upi_id": upi_id.strip(),
         },
-        "google_drive_connected_status": google_drive_connected_status.strip(),
         "business_description": business_description.strip(),
     }
     return submitted, payload
@@ -260,7 +251,6 @@ def render_manufacturer_onboarding(app_context: dict) -> None:
                 bank_account_number=create_payload["banking"]["account_number"],
                 ifsc_code=create_payload["banking"]["ifsc"],
                 upi_id=create_payload["banking"]["upi_id"],
-                google_drive_connected_status=create_payload["google_drive_connected_status"],
                 business_description=create_payload["business_description"],
                 created_by=current_user.email,
                 subscription_plan=subscription_plan,

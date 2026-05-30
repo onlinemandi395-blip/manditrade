@@ -136,3 +136,10 @@ def render_mobile_record_card(record: dict) -> str:
         for key, value in record.items()
     )
     return f"<article class='mt-record-card'>{rows}</article>"
+
+
+def render_same_tab_link_button(label: str, href: str, *, class_name: str = "mt-inline-link-button") -> str:
+    return (
+        f"<a class='{escape(class_name)}' href='{escape(href)}' target='_self' rel='noopener noreferrer'>"
+        f"{escape(label)}</a>"
+    )

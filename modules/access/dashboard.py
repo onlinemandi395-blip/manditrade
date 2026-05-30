@@ -5,7 +5,7 @@ import streamlit as st
 from components.html_renderer import render_html
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
-from components.ui_shell import render_metric_card, render_page_header, render_showcase_strip
+from components.ui_shell import render_metric_card, render_page_header, render_same_tab_link_button, render_showcase_strip
 
 
 def render_access_portal(app_context: dict) -> None:
@@ -57,7 +57,7 @@ def render_access_portal(app_context: dict) -> None:
               <p class="mt-kicker">Google Sign-In</p>
               <h3>One secure login for every role</h3>
               <p>
-                Continue with Google to open the correct workspace automatically. No role picker, mock login,
+                Continue with Google to open the correct workspace automatically. No role picker
                 or token entry is shown here.
               </p>
             </div>
@@ -66,11 +66,11 @@ def render_access_portal(app_context: dict) -> None:
         """
     )
 
-    auth_url = app_context["oauth_callback_service"].build_authorization_url()
+    auth_url = app_context["oauth_callback_service"].build_authorization_url(flow_type=app_context["oauth_callback_service"].LOGIN)
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         if auth_url and app_context["google_runtime_enabled"]:
-            st.link_button("Continue with Google", auth_url, use_container_width=True)
+            render_html(render_same_tab_link_button("Continue with Google", auth_url))
         else:
             st.info("Google OAuth is not available yet in this runtime.")
         st.caption("No role selection, signup form, or onboarding token is shown on this page.")

@@ -63,7 +63,28 @@ def handle_oauth_callback(app_context: dict) -> None:
         return
     try:
         token_payload = app_context["oauth_callback_service"].exchange_code(str(code), str(state) if state else None)
-        credentials = app_context["auth_service"].refresh_credentials(token_payload)
+        flow_type = token_payload.get("flow_type", app_context["oauth_callback_service"].LOGIN)
+        if flow_type in {
+            app_context["oauth_callback_service"].MANUFACTURER_DRIVE,
+            app_context["oauth_callback_service"].MANUFACTURER_GMAIL,
+        }:
+            provider = "drive" if flow_type == app_context["oauth_callback_service"].MANUFACTURER_DRIVE else "gmail"
+            credentials = app_context["auth_service"].refresh_credentials(token_payload, scopes=token_payload.get("scopes"))
+            profile = app_context["auth_service"].fetch_google_profile(credentials)
+            manufacturer_id = token_payload.get("manufacturer_id", "")
+            app_context["connected_accounts_service"].validate_connected_email(manufacturer_id, profile.get("email", ""))
+            app_context["connected_accounts_service"].complete_connection(
+                manufacturer_code=manufacturer_id,
+                provider=provider,
+                credentials_payload=token_payload,
+                connected_email=profile.get("email", ""),
+            )
+            app_context["oauth_callback_service"].reset_authorization_state()
+            st.query_params.clear()
+            set_flash(f"Google {provider.title()} connected for {manufacturer_id}.")
+            st.rerun()
+            return
+        credentials = app_context["auth_service"].refresh_credentials(token_payload, scopes=token_payload.get("scopes"))
         profile = app_context["auth_service"].fetch_google_profile(credentials)
         email = profile.get("email", "")
         resolved_identity = app_context["access_portal_service"].resolve_identity(

@@ -25,6 +25,7 @@ def _oauth_config() -> dict:
             "scopes": [
                 "openid",
                 "https://www.googleapis.com/auth/userinfo.email",
+                "https://www.googleapis.com/auth/userinfo.profile",
             ],
         }
     }
@@ -203,3 +204,20 @@ def test_admin_vault_is_initialized_once_and_allows_future_unlocks(tmp_path, mon
 
     second = security_service.unlock_admin_runtime(user, "")
     assert second["vault_enabled"] is True
+
+
+def test_oauth_state_tracks_flow_specific_context(tmp_path):
+    st.session_state.clear()
+    auth_service = AuthService(_oauth_config(), enable_mock_auth=False)
+    security_service = _build_security_service(tmp_path, auth_service)
+    callback_service = OAuthCallbackService(auth_service, security_service, state_store_path=tmp_path / "oauth_states.json")
+
+    callback_service.build_authorization_url(
+        flow_type=callback_service.MANUFACTURER_DRIVE,
+        role_context="manufacturer",
+        manufacturer_id="MANU101",
+    )
+
+    assert st.session_state["oauth_flow_type"] == callback_service.MANUFACTURER_DRIVE
+    assert st.session_state["oauth_flow_context"]["manufacturer_id"] == "MANU101"
+    assert st.session_state["oauth_flow_context"]["scopes"] == ["https://www.googleapis.com/auth/drive.file"]

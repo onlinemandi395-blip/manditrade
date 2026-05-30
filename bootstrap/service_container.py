@@ -13,6 +13,7 @@ from services.cache_service import CacheService
 from services.catalog_service import CatalogService
 from services.client_service import ClientService
 from services.config_service import ConfigService
+from services.connected_accounts_service import ConnectedAccountsService
 from services.delivery_service import DeliveryService
 from services.dead_letter_service import DeadLetterService
 from services.domain_paths_service import DomainPathsService
@@ -147,6 +148,14 @@ def build_app_context() -> dict:
         safe_drive_write_service=safe_drive_write_service,
         id_allocator_service=id_allocator_service,
         logging_service=logging_service,
+    )
+    connected_accounts_service = ConnectedAccountsService(
+        drive_service=drive_service,
+        security_service=security_service,
+        auth_service=auth_service,
+        oauth_callback_service=oauth_callback_service,
+        json_service=drive_service.json_service,
+        safe_drive_write_service=safe_drive_write_service,
     )
     catalog_service = CatalogService(governance_root=GOVERNANCE_DIR)
     manufacturer_onboarding_service = ManufacturerOnboardingService(
@@ -357,6 +366,7 @@ def build_app_context() -> dict:
         "bootstrap_service": bootstrap_service,
         "startup_recovery_service": startup_recovery_service,
         "client_service": client_service,
+        "connected_accounts_service": connected_accounts_service,
         "catalog_service": catalog_service,
         "product_catalog_service": product_catalog_service,
         "manufacturer_onboarding_service": manufacturer_onboarding_service,
