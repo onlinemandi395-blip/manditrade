@@ -15,7 +15,12 @@ def render_clients_dashboard(app_context: dict) -> None:
         return
     clients = app_context["client_service"].list_clients(user.manufacturer_code)
     render_metric_grid([render_metric_card("Clients", str(len(clients)), "SUCCESS")])
-    render_section_intro("Client Network", "This view remains private to each manufacturer and stays outside the shared mandi layer.")
-    if clients:
-        render_3d_panel("".join(render_mobile_record_card(item) for item in clients[:4]), "Recent Clients")
-    st.dataframe(clients, use_container_width=True)
+    overview_tab, registry_tab = st.tabs(["Overview", "Client Registry"])
+    with overview_tab:
+        render_section_intro("Client Network", "This view remains private to each manufacturer and stays outside the shared mandi layer.")
+        if clients:
+            render_3d_panel("".join(render_mobile_record_card(item) for item in clients[:4]), "Recent Clients")
+        else:
+            st.info("No private clients are linked yet.")
+    with registry_tab:
+        st.dataframe(clients, use_container_width=True)

@@ -21,7 +21,12 @@ def render_orders_dashboard(app_context: dict) -> None:
             render_metric_card("Procurement Required", str(len([item for item in orders if item.get("status") == "PROCUREMENT_REQUIRED"])), "HIGH_PRIORITY"),
         ]
     )
-    render_section_intro("Orders Queue", "Use this queue to separate client-ready orders from those that need mandi procurement.")
-    if orders:
-        render_3d_panel("".join(render_mobile_record_card(item) for item in orders[:4]), "Recent Orders")
-    st.dataframe(orders, use_container_width=True)
+    overview_tab, orders_tab = st.tabs(["Overview", "Orders Registry"])
+    with overview_tab:
+        render_section_intro("Orders Queue", "Use this queue to separate client-ready orders from those that need mandi procurement.")
+        if orders:
+            render_3d_panel("".join(render_mobile_record_card(item) for item in orders[:4]), "Recent Orders")
+        else:
+            st.info("No client orders are available yet.")
+    with orders_tab:
+        st.dataframe(orders, use_container_width=True)

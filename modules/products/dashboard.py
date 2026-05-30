@@ -38,99 +38,103 @@ def render_products_dashboard(app_context: dict) -> None:
         "Onboarding Flow",
         render_mobile_record_card({"Propose": "Manufacturer/Admin", "Approve": "Platform Admin"}),
     )
-    render_section_intro("Catalog Governance", "Manufacturers can propose products and platform admin approves them with mandi price and MRP.")
-    st.dataframe(products, use_container_width=True)
+    overview_tab, activity_tab, thread_tab = st.tabs(["Overview", "Activity", "Proposal Threads"])
+    with overview_tab:
+        render_section_intro("Catalog Governance", "Manufacturers can propose products and platform admin approves them with mandi price and MRP.")
+        st.dataframe(products, use_container_width=True)
     if not user:
         return
     if user.role == "platform_admin":
-        st.markdown("### Manage Approved Products")
-        approved_products = [item for item in products if item.get("status") == "ACTIVE"]
-        if not approved_products:
-            st.info("No approved products are available for admin updates yet.")
-            return
-        selected_id = st.selectbox("Select Approved Product", [item["product_id"] for item in approved_products])
-        selected = next(item for item in approved_products if item["product_id"] == selected_id)
-        with st.form("admin_update_product"):
-            col1, col2 = st.columns(2)
-            updated_name = col1.text_input("Product Name", value=selected.get("name", ""))
-            updated_category = col2.text_input("Category", value=selected.get("category", ""))
-            updated_unit = col1.text_input("Unit", value=selected.get("unit", "kg"))
-            updated_description = st.text_area("Description", value=selected.get("description", ""), height=100)
-            approved_mandi_price = col1.number_input("Approved Mandi Price", min_value=0.0, step=1.0, value=float(selected.get("approved_mandi_price", selected.get("mandi_price", 0)) or 0))
-            approved_mrp = col2.number_input("Approved MRP", min_value=0.0, step=1.0, value=float(selected.get("approved_mrp", selected.get("mrp", 0)) or 0))
-            visibility_request = col1.selectbox("Visibility Request", ["PUBLIC", "PRIVATE_CLIENT", "MANDI_NETWORK"], index=["PUBLIC", "PRIVATE_CLIENT", "MANDI_NETWORK"].index(selected.get("visibility_request", "MANDI_NETWORK")) if selected.get("visibility_request", "MANDI_NETWORK") in {"PUBLIC", "PRIVATE_CLIENT", "MANDI_NETWORK"} else 2)
-            approved_visibility = col2.selectbox("Approved Visibility", ["PUBLIC", "PRIVATE_CLIENT", "MANDI_NETWORK"], index=["PUBLIC", "PRIVATE_CLIENT", "MANDI_NETWORK"].index(selected.get("approved_visibility", "PUBLIC")) if selected.get("approved_visibility", "PUBLIC") in {"PUBLIC", "PRIVATE_CLIENT", "MANDI_NETWORK"} else 0)
-            minimum_order_qty = col1.number_input("Minimum Order Quantity", min_value=1, step=1, value=int(selected.get("minimum_order_qty", 1) or 1))
-            available_for_public_sale = col1.checkbox("Available For Public Sale?", value=bool(selected.get("available_for_public_sale", False)))
-            available_for_mandi_network = col2.checkbox("Available For Mandi Network?", value=bool(selected.get("available_for_mandi_network", True)))
-            visible = col1.checkbox("Visible to Active Catalog?", value=bool(selected.get("visible", True)))
-            image_url = st.text_input("Product Image URL", value=selected.get("image_url", ""))
-            admin_note = st.text_area("Admin Note", value=selected.get("admin_note", ""), height=100)
-            update_submit = st.form_submit_button("Save Product Updates")
-        if update_submit:
-            product_catalog_service.update_product(
-                product_id=selected_id,
-                updated_by="PLATFORM_ADMIN",
-                updates={
-                    "name": updated_name,
-                    "category": updated_category,
-                    "unit": updated_unit,
-                    "description": updated_description,
-                    "approved_mandi_price": approved_mandi_price,
-                    "approved_mrp": approved_mrp,
-                    "visibility_request": visibility_request,
-                    "approved_visibility": approved_visibility,
-                    "minimum_order_qty": minimum_order_qty,
-                    "available_for_public_sale": available_for_public_sale,
-                    "available_for_mandi_network": available_for_mandi_network,
-                    "visible": visible,
-                    "image_url": image_url,
-                    "admin_note": admin_note,
-                },
-            )
-            st.success("Approved product updated.")
-            st.rerun()
-        if st.button("Delete Selected Product", use_container_width=True):
-            product_catalog_service.delete_product(product_id=selected_id)
-            st.warning(f"{selected_id} deleted from catalog.")
-            st.rerun()
+        with activity_tab:
+            st.markdown("### Manage Approved Products")
+            approved_products = [item for item in products if item.get("status") == "ACTIVE"]
+            if not approved_products:
+                st.info("No approved products are available for admin updates yet.")
+            else:
+                selected_id = st.selectbox("Select Approved Product", [item["product_id"] for item in approved_products])
+                selected = next(item for item in approved_products if item["product_id"] == selected_id)
+                with st.form("admin_update_product"):
+                    col1, col2 = st.columns(2)
+                    updated_name = col1.text_input("Product Name", value=selected.get("name", ""))
+                    updated_category = col2.text_input("Category", value=selected.get("category", ""))
+                    updated_unit = col1.text_input("Unit", value=selected.get("unit", "kg"))
+                    updated_description = st.text_area("Description", value=selected.get("description", ""), height=100)
+                    approved_mandi_price = col1.number_input("Approved Mandi Price", min_value=0.0, step=1.0, value=float(selected.get("approved_mandi_price", selected.get("mandi_price", 0)) or 0))
+                    approved_mrp = col2.number_input("Approved MRP", min_value=0.0, step=1.0, value=float(selected.get("approved_mrp", selected.get("mrp", 0)) or 0))
+                    visibility_request = col1.selectbox("Visibility Request", ["PUBLIC", "PRIVATE_CLIENT", "MANDI_NETWORK"], index=["PUBLIC", "PRIVATE_CLIENT", "MANDI_NETWORK"].index(selected.get("visibility_request", "MANDI_NETWORK")) if selected.get("visibility_request", "MANDI_NETWORK") in {"PUBLIC", "PRIVATE_CLIENT", "MANDI_NETWORK"} else 2)
+                    approved_visibility = col2.selectbox("Approved Visibility", ["PUBLIC", "PRIVATE_CLIENT", "MANDI_NETWORK"], index=["PUBLIC", "PRIVATE_CLIENT", "MANDI_NETWORK"].index(selected.get("approved_visibility", "PUBLIC")) if selected.get("approved_visibility", "PUBLIC") in {"PUBLIC", "PRIVATE_CLIENT", "MANDI_NETWORK"} else 0)
+                    minimum_order_qty = col1.number_input("Minimum Order Quantity", min_value=1, step=1, value=int(selected.get("minimum_order_qty", 1) or 1))
+                    available_for_public_sale = col1.checkbox("Available For Public Sale?", value=bool(selected.get("available_for_public_sale", False)))
+                    available_for_mandi_network = col2.checkbox("Available For Mandi Network?", value=bool(selected.get("available_for_mandi_network", True)))
+                    visible = col1.checkbox("Visible to Active Catalog?", value=bool(selected.get("visible", True)))
+                    image_url = st.text_input("Product Image URL", value=selected.get("image_url", ""))
+                    admin_note = st.text_area("Admin Note", value=selected.get("admin_note", ""), height=100)
+                    update_submit = st.form_submit_button("Save Product Updates")
+                if update_submit:
+                    product_catalog_service.update_product(
+                        product_id=selected_id,
+                        updated_by="PLATFORM_ADMIN",
+                        updates={
+                            "name": updated_name,
+                            "category": updated_category,
+                            "unit": updated_unit,
+                            "description": updated_description,
+                            "approved_mandi_price": approved_mandi_price,
+                            "approved_mrp": approved_mrp,
+                            "visibility_request": visibility_request,
+                            "approved_visibility": approved_visibility,
+                            "minimum_order_qty": minimum_order_qty,
+                            "available_for_public_sale": available_for_public_sale,
+                            "available_for_mandi_network": available_for_mandi_network,
+                            "visible": visible,
+                            "image_url": image_url,
+                            "admin_note": admin_note,
+                        },
+                    )
+                    st.success("Approved product updated.")
+                    st.rerun()
+                if st.button("Delete Selected Product", use_container_width=True):
+                    product_catalog_service.delete_product(product_id=selected_id)
+                    st.warning(f"{selected_id} deleted from catalog.")
+                    st.rerun()
         return
     if user.role not in {"manufacturer", "admin_as_manufacturer"}:
         return
 
-    with st.form("propose_product"):
-        col1, col2 = st.columns(2)
-        name = col1.text_input("Product Name")
-        category = col2.text_input("Category")
-        unit = col1.text_input("Unit", value="kg")
-        description = st.text_area("Description", height=100)
-        suggested_mandi_price = col1.number_input("Suggested Mandi Price", min_value=0.0, step=1.0)
-        suggested_mrp = col2.number_input("Suggested MRP", min_value=0.0, step=1.0)
-        visibility_request = col1.selectbox("Product Visibility Request", ["PUBLIC", "PRIVATE_CLIENT", "MANDI_NETWORK"], index=2)
-        minimum_order_qty = col2.number_input("Minimum Order Quantity", min_value=1, step=1, value=1)
-        available_for_public_sale = col1.checkbox("Available For Public Sale?")
-        available_for_mandi_network = col2.checkbox("Available For Mandi Network?", value=True)
-        image_url = st.text_input("Product Image URL", placeholder="Optional image URL")
-        submitted = st.form_submit_button("Propose Product")
-    if submitted and name and category and unit:
-        created_by = user.manufacturer_code or ""
-        app_context["product_catalog_service"].propose_product(
-            created_by=created_by,
-            created_by_email=user.email,
-            name=name,
-            category=category,
-            unit=unit,
-            description=description,
-            suggested_mandi_price=suggested_mandi_price,
-            suggested_mrp=suggested_mrp,
-            visibility_request=visibility_request,
-            minimum_order_qty=minimum_order_qty,
-            available_for_public_sale=available_for_public_sale,
-            available_for_mandi_network=available_for_mandi_network,
-            image_url=image_url,
-        )
-        st.success("Product proposal saved with PROPOSED status.")
-        st.rerun()
+    with activity_tab:
+        with st.form("propose_product"):
+            col1, col2 = st.columns(2)
+            name = col1.text_input("Product Name")
+            category = col2.text_input("Category")
+            unit = col1.text_input("Unit", value="kg")
+            description = st.text_area("Description", height=100)
+            suggested_mandi_price = col1.number_input("Suggested Mandi Price", min_value=0.0, step=1.0)
+            suggested_mrp = col2.number_input("Suggested MRP", min_value=0.0, step=1.0)
+            visibility_request = col1.selectbox("Product Visibility Request", ["PUBLIC", "PRIVATE_CLIENT", "MANDI_NETWORK"], index=2)
+            minimum_order_qty = col2.number_input("Minimum Order Quantity", min_value=1, step=1, value=1)
+            available_for_public_sale = col1.checkbox("Available For Public Sale?")
+            available_for_mandi_network = col2.checkbox("Available For Mandi Network?", value=True)
+            image_url = st.text_input("Product Image URL", placeholder="Optional image URL")
+            submitted = st.form_submit_button("Propose Product")
+        if submitted and name and category and unit:
+            created_by = user.manufacturer_code or ""
+            app_context["product_catalog_service"].propose_product(
+                created_by=created_by,
+                created_by_email=user.email,
+                name=name,
+                category=category,
+                unit=unit,
+                description=description,
+                suggested_mandi_price=suggested_mandi_price,
+                suggested_mrp=suggested_mrp,
+                visibility_request=visibility_request,
+                minimum_order_qty=minimum_order_qty,
+                available_for_public_sale=available_for_public_sale,
+                available_for_mandi_network=available_for_mandi_network,
+                image_url=image_url,
+            )
+            st.success("Product proposal saved with PROPOSED status.")
+            st.rerun()
 
     own_proposals = [
         item
@@ -138,33 +142,35 @@ def render_products_dashboard(app_context: dict) -> None:
         if item.get("status") == "PROPOSED"
         and (item.get("created_by_manufacturer_id") == viewer_code or item.get("created_by") == viewer_code)
     ]
-    if not own_proposals:
-        return
+    with thread_tab:
+        if not own_proposals:
+            st.info("No proposed products need your follow-up right now.")
+            return
 
-    st.markdown("### My Proposed Products")
-    for proposal in own_proposals:
-        label = f"{proposal.get('name', proposal.get('product_id'))} ({proposal.get('clarification_status', 'NONE')})"
-        with st.expander(label):
-            st.json(
-                {
-                    "status": proposal.get("status", "PROPOSED"),
-                    "clarification_status": proposal.get("clarification_status", "NONE"),
-                    "suggested_mandi_price": proposal.get("suggested_mandi_price", 0),
-                    "suggested_mrp": proposal.get("suggested_mrp", 0),
-                    "visibility_request": proposal.get("visibility_request", "MANDI_NETWORK"),
-                    "minimum_order_qty": proposal.get("minimum_order_qty", 1),
-                },
-                expanded=False,
-            )
-            comments = product_catalog_service.list_product_comments(proposal["product_id"], user)
-            if comments:
-                st.dataframe(comments, use_container_width=True)
-            else:
-                st.info("No admin comments on this proposal yet.")
-            with st.form(f"manufacturer_reply_{proposal['product_id']}"):
-                reply = st.text_area("Reply to Platform Admin", height=100)
-                reply_submit = st.form_submit_button("Send Reply")
-            if reply_submit and reply.strip():
-                product_catalog_service.add_product_comment(proposal["product_id"], user, reply)
-                st.success("Reply added to proposal thread.")
-                st.rerun()
+        st.markdown("### My Proposed Products")
+        for proposal in own_proposals:
+            label = f"{proposal.get('name', proposal.get('product_id'))} ({proposal.get('clarification_status', 'NONE')})"
+            with st.expander(label):
+                st.json(
+                    {
+                        "status": proposal.get("status", "PROPOSED"),
+                        "clarification_status": proposal.get("clarification_status", "NONE"),
+                        "suggested_mandi_price": proposal.get("suggested_mandi_price", 0),
+                        "suggested_mrp": proposal.get("suggested_mrp", 0),
+                        "visibility_request": proposal.get("visibility_request", "MANDI_NETWORK"),
+                        "minimum_order_qty": proposal.get("minimum_order_qty", 1),
+                    },
+                    expanded=False,
+                )
+                comments = product_catalog_service.list_product_comments(proposal["product_id"], user)
+                if comments:
+                    st.dataframe(comments, use_container_width=True)
+                else:
+                    st.info("No admin comments on this proposal yet.")
+                with st.form(f"manufacturer_reply_{proposal['product_id']}"):
+                    reply = st.text_area("Reply to Platform Admin", height=100)
+                    reply_submit = st.form_submit_button("Send Reply")
+                if reply_submit and reply.strip():
+                    product_catalog_service.add_product_comment(proposal["product_id"], user, reply)
+                    st.success("Reply added to proposal thread.")
+                    st.rerun()

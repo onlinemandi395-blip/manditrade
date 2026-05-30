@@ -48,10 +48,15 @@ def render_notifications_dashboard(app_context: dict) -> None:
         "Delivery Surface",
         render_mobile_record_card({"Mode": app_context["gmail_service"].describe_mode().upper(), "Trigger": "Immediate runtime send"}),
     )
-    if user and (user.manufacturer_code or user.role == "platform_admin"):
-        render_section_intro("In-App", "Role-relevant alerts stay visible here until read, resolved, or snoozed.")
-        if notifications:
-            render_3d_panel("".join(render_mobile_record_card(item) for item in notifications[:5]), "Latest Alerts")
-        st.dataframe(notifications, use_container_width=True)
-    render_section_intro("Runtime Delivery", "Gmail notifications fire immediately from the active runtime session when actions trigger them. There is no user-facing queue.")
-    st.info("Notification emails are triggered live during the action itself. Review System Health for runtime failures if a send does not complete.")
+    alerts_tab, delivery_tab = st.tabs(["In-App Alerts", "Runtime Delivery"])
+    with alerts_tab:
+        if user and (user.manufacturer_code or user.role == "platform_admin"):
+            render_section_intro("In-App", "Role-relevant alerts stay visible here until read, resolved, or snoozed.")
+            if notifications:
+                render_3d_panel("".join(render_mobile_record_card(item) for item in notifications[:5]), "Latest Alerts")
+            st.dataframe(notifications, use_container_width=True)
+        else:
+            st.info("No role-specific alerts are available for this session.")
+    with delivery_tab:
+        render_section_intro("Runtime Delivery", "Gmail notifications fire immediately from the active runtime session when actions trigger them. There is no user-facing queue.")
+        st.info("Notification emails are triggered live during the action itself. Review System Health for runtime failures if a send does not complete.")

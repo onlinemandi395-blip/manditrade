@@ -23,9 +23,14 @@ def render_rfq_dashboard(app_context: dict) -> None:
             render_metric_card("Buyer Confirmed", str(len([item for item in requests if item.get("status") == "BUYER_CONFIRMED"])), "WARNING"),
         ]
     )
-    render_section_intro("Open RFQs", "Use mandi network only for shortages while keeping self inventory reserved for your own clients.")
-    if requests:
-        render_3d_panel("".join(render_mobile_record_card(item) for item in requests[:4]), "RFQ Feed")
-    st.dataframe(requests, use_container_width=True)
-    st.markdown("### Responses")
-    st.dataframe(responses, use_container_width=True)
+    overview_tab, requests_tab, responses_tab = st.tabs(["Overview", "RFQ Requests", "Responses"])
+    with overview_tab:
+        render_section_intro("Open RFQs", "Use mandi network only for shortages while keeping self inventory reserved for your own clients.")
+        if requests:
+            render_3d_panel("".join(render_mobile_record_card(item) for item in requests[:4]), "RFQ Feed")
+        else:
+            st.info("No RFQ requests are active right now.")
+    with requests_tab:
+        st.dataframe(requests, use_container_width=True)
+    with responses_tab:
+        st.dataframe(responses, use_container_width=True)
