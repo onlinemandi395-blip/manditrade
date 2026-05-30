@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from components.html_renderer import render_html
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
 from components.ui_shell import render_metric_card, render_page_header, render_showcase_strip
@@ -12,6 +13,9 @@ def render_access_portal(app_context: dict) -> None:
         "Login to MandiTrade",
         "Sign in once with Google. MandiTrade will automatically load the right RBAC dashboard for your account.",
         ["Google Sign-In Only", "RBAC Auto Routing", "Secure Access"],
+        role="Universal Entry",
+        metrics=[("Workspace Mode", "Role-aware"), ("Delivery Surface", "Google-only access")],
+        kicker="Digital Manpur Access Layer",
     )
     render_metric_grid(
         [
@@ -28,6 +32,39 @@ def render_access_portal(app_context: dict) -> None:
         ]
     )
     render_section_intro("Access", "Manufacturers, clients, workers, and platform admins all enter through one abstracted login page. Access is mapped in the background after authentication.")
+    render_html(
+        """
+        <section class="mt-login-layout">
+          <article class="mt-login-story">
+            <div class="mt-login-story__grid"></div>
+            <div class="mt-login-story__content">
+              <p class="mt-kicker">Digital Manpur</p>
+              <h3>Federated wholesale commerce with mandi lanes, khata clarity, and live operational control.</h3>
+              <p>
+                This workspace is built for Bharat market operations: product governance, RFQ sourcing,
+                inventory control, jobs, payments, and role-aware dashboards without forcing users through a generic storefront.
+              </p>
+              <div class="mt-login-story__nodes">
+                <span class="mt-login-story__node">Mandi Network</span>
+                <span class="mt-login-story__node">Khata Visibility</span>
+                <span class="mt-login-story__node">Manufacturer Control</span>
+                <span class="mt-login-story__node">Client Routing</span>
+              </div>
+            </div>
+          </article>
+          <article class="mt-login-card">
+            <div class="mt-login-card__content">
+              <p class="mt-kicker">Google Sign-In</p>
+              <h3>One secure login for every role</h3>
+              <p>
+                Continue with Google to open the correct workspace automatically. No role picker, mock login,
+                or token entry is shown here.
+              </p>
+            </div>
+          </article>
+        </section>
+        """
+    )
 
     auth_url = app_context["oauth_callback_service"].build_authorization_url()
     col1, col2, col3 = st.columns([1, 2, 1])

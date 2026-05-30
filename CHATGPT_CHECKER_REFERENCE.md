@@ -1,224 +1,236 @@
 # MandiTrade Checker Reference
 
-Generated from the current repository state on 2026-05-28 after the manufacturer-form, product-proposal, and proposal-comment-thread cleanup pass.
+Generated from the current repository state on 2026-05-30 after the CSS-only futuristic UI upgrade pass.
 
-## Manufacturer Form Status
+## Current High-Signal Updates
 
-- Full manufacturer onboarding/profile form lives only on the dedicated `Onboarding` route in [modules/onboarding/manufacturer_onboarding.py](C:/2026/manditrade/manditrade/modules/onboarding/manufacturer_onboarding.py).
-- Manufacturer and admin dashboards do not render the full onboarding form.
-- Submit/update flow uses [services/manufacturer_onboarding_service.py](C:/2026/manditrade/manditrade/services/manufacturer_onboarding_service.py).
-- Manufacturer onboarding does not create any approval-pending state.
-- Submitted and updated manufacturer records remain `ACTIVE`.
+- Existing Streamlit 3D shell was upgraded instead of replaced.
+- UI remains CSS-only for animated 3D illusion layers.
+- No backend business logic, auth flow, RBAC rules, Drive runtime, Gmail runtime, or transaction services were rewritten in this pass.
+- Login page now has a stronger split premium surface:
+  - brand-story glass panel
+  - Google sign-in glass panel
+  - animated mandi-grid / node illusion background
+- Shared page hero bands are now richer and role-aware through the shell helper layer.
+- Major workflow pages now inherit a more consistent futuristic glass system:
+  - profile
+  - products
+  - product approvals
+  - inventory
+  - orders
+  - RFQ
+  - ledger
+  - actions
+  - notifications
+  - system health
 
-### Current Manufacturer Fields
+## UI Files Changed
 
-- `manufacturer_id`
-- `manufacturer_code`
-- `business_name`
-- `manufacturer_name`
-- `owner_name`
-- `owner_email`
-- `mobile`
-- `alternate_mobile`
-- `address.line1`
-- `address.line2`
-- `address.city`
-- `address.state`
-- `address.pin_code`
-- `business_type`
-- `product_categories`
-- `legal.udyam_id`
-- `legal.gstin`
-- `legal.pan`
-- `legal.aadhaar`
-- `banking.account_holder_name`
-- `banking.account_number`
-- `banking.ifsc`
-- `banking.upi_id`
-- `google_drive_connected_status`
-- `business_description`
-- `status`
-- `created_at`
-- `updated_at`
-- `created_by`
-- `workspace.root`
-- `workspace.shared_zone`
-- `workspace.private_zone`
-
-### Manufacturer Validation Rules
-
-- `business_name`, `owner_name`, `owner_email`, `mobile`, `city`, `state`, and `pin_code` are required.
-- mobile must be 10 digits
-- PIN must be 6 digits
-- GSTIN must be 15 chars if provided
-- PAN must be 10 chars if provided
-- Aadhaar must be 12 digits if provided
-- IFSC must be 11 chars if provided
-
-## Product Proposal Form Status
-
-- Manufacturer proposal form is active on the `Products` route in [modules/products/dashboard.py](C:/2026/manditrade/manditrade/modules/products/dashboard.py).
-- Platform admin uses a dedicated approval queue in [modules/admin/product_approvals.py](C:/2026/manditrade/manditrade/modules/admin/product_approvals.py).
-- Proposal and comment-thread flow uses [services/product_catalog_service.py](C:/2026/manditrade/manditrade/services/product_catalog_service.py).
-
-### Current Product Proposal Fields
-
-- `name`
-- `category`
-- `unit`
-- `description`
-- `suggested_mandi_price`
-- `suggested_mrp`
-- `visibility_request`
-- `minimum_order_qty`
-- `available_for_public_sale`
-- `available_for_mandi_network`
-- `image_url`
-- `comments`
-- `clarification_status`
-
-### Current Product Proposal Model
-
-```json
-{
-  "product_id": "PRD-2026-000001",
-  "name": "Rice",
-  "category": "Grain",
-  "unit": "kg",
-  "description": "Premium rice bags",
-  "suggested_mandi_price": 40.0,
-  "suggested_mrp": 50.0,
-  "approved_mandi_price": null,
-  "approved_mrp": null,
-  "visibility_request": "MANDI_NETWORK",
-  "approved_visibility": null,
-  "minimum_order_qty": 10,
-  "available_for_public_sale": false,
-  "available_for_mandi_network": true,
-  "image_url": "https://example.com/rice.png",
-  "status": "PROPOSED",
-  "comments": [],
-  "clarification_status": "NONE",
-  "created_by": "MANU101",
-  "created_by_manufacturer_id": "MANU101",
-  "created_by_email": "owner@example.com",
-  "approved_by": "",
-  "admin_note": "",
-  "created_at": "",
-  "updated_at": "",
-  "approved_at": "",
-  "visible": false
-}
-```
-
-## Product Proposal Comment Thread Status
-
-- Proposal comments are active and persisted inside the product proposal object.
-- Only `PLATFORM_ADMIN`, `MANUFACTURER`, and `ADMIN_AS_MANUFACTURER` roles can comment.
-- Only platform admin and the proposing manufacturer can read/write proposal comments.
-- Clients, public users, and unrelated manufacturers cannot see or comment on proposal threads.
-- Comments are append-only. No edit path exists after submit.
-
-### Comment Model
-
-```json
-{
-  "comment_id": "COM-2026-000001",
-  "author_user_id": "admin@example.com",
-  "author_role": "PLATFORM_ADMIN",
-  "author_email": "admin@example.com",
-  "message": "Please clarify unit: kg or bag?",
-  "created_at": "",
-  "visibility": "INVOLVED_PARTIES",
-  "read_by": ["admin@example.com"]
-}
-```
-
-### Clarification Status Rules
-
-- admin comment -> `ADMIN_QUERY`
-- manufacturer reply -> `MANUFACTURER_REPLIED`
-- admin resolve -> `RESOLVED`
-- new proposal default -> `NONE`
-- approval is blocked while status is `ADMIN_QUERY`
-- rejection remains allowed
-
-## Admin Product Approval Status
-
-- Queue shows only products where `status == PROPOSED`.
-- Admin sees:
-  - proposal summary
-  - suggested pricing
-  - visibility request
-  - comment thread
-  - comment box
-  - resolve button
-  - approve/reject controls
-- Approve path captures approved price, approved visibility, and admin note.
-- Reject path captures rejection note in `admin_note`.
-
-## Notification Integration
-
-- Admin comment creates manufacturer in-app notification:
-  - `PRODUCT_PROPOSAL_COMMENTED`
-- Manufacturer reply creates platform-admin in-app notification:
-  - `PRODUCT_PROPOSAL_REPLIED`
-- Gmail is queued through existing queue only:
-  - `product_proposal_commented`
-  - `product_proposal_replied`
-- No direct Gmail send is done inside product service.
-
-## My Actions Integration
-
-Platform admin actions now include:
-
-- `APPROVE_PRODUCT`
-- `PRODUCT_PROPOSAL_CLARIFICATION_UNRESOLVED`
-- `PRODUCT_PROPOSAL_REPLY_PENDING_REVIEW`
-
-Manufacturer actions now include:
-
-- `PRODUCT_PROPOSAL_NEEDS_REPLY`
-
-## RBAC / Privacy Rules
-
-- Platform admin sees all product proposals and all proposal threads.
-- Manufacturer sees:
-  - active visible products
-  - own proposed products
-  - own proposal comments only
-- Clients/public users see only active visible products.
-- Comment arrays and clarification state are stripped from non-involved viewer product listings.
-
-## Duplicate Dashboard Form Removal Status
-
-- Full manufacturer onboarding form is not rendered inside admin or manufacturer dashboard modules.
-- Dedicated onboarding route is the only full manufacturer form surface.
-- Admin dashboard remains summary-only.
-
-## Files Changed In This Pass
-
-- [services/id_allocator_service.py](C:/2026/manditrade/manditrade/services/id_allocator_service.py)
-- [services/manufacturer_onboarding_service.py](C:/2026/manditrade/manditrade/services/manufacturer_onboarding_service.py)
-- [services/drive_service.py](C:/2026/manditrade/manditrade/services/drive_service.py)
-- [services/product_catalog_service.py](C:/2026/manditrade/manditrade/services/product_catalog_service.py)
-- [services/action_center_service.py](C:/2026/manditrade/manditrade/services/action_center_service.py)
-- [bootstrap/service_container.py](C:/2026/manditrade/manditrade/bootstrap/service_container.py)
-- [modules/onboarding/manufacturer_onboarding.py](C:/2026/manditrade/manditrade/modules/onboarding/manufacturer_onboarding.py)
-- [modules/products/dashboard.py](C:/2026/manditrade/manditrade/modules/products/dashboard.py)
+- [assets/styles/manditrade_3d.css](C:/2026/manditrade/manditrade/assets/styles/manditrade_3d.css)
+- [components/ui_shell.py](C:/2026/manditrade/manditrade/components/ui_shell.py)
+- [utils/ui_shell.py](C:/2026/manditrade/manditrade/utils/ui_shell.py)
+- [modules/access/dashboard.py](C:/2026/manditrade/manditrade/modules/access/dashboard.py)
+- [modules/actions/dashboard.py](C:/2026/manditrade/manditrade/modules/actions/dashboard.py)
 - [modules/admin/product_approvals.py](C:/2026/manditrade/manditrade/modules/admin/product_approvals.py)
+- [modules/inventory/management.py](C:/2026/manditrade/manditrade/modules/inventory/management.py)
+- [modules/ledger/dashboard.py](C:/2026/manditrade/manditrade/modules/ledger/dashboard.py)
 - [modules/notifications/dashboard.py](C:/2026/manditrade/manditrade/modules/notifications/dashboard.py)
-- [tests/helpers/fake_storage.py](C:/2026/manditrade/manditrade/tests/helpers/fake_storage.py)
-- [tests/test_business_cleanup.py](C:/2026/manditrade/manditrade/tests/test_business_cleanup.py)
-- [tests/test_manufacturer_onboarding.py](C:/2026/manditrade/manditrade/tests/test_manufacturer_onboarding.py)
+- [modules/products/dashboard.py](C:/2026/manditrade/manditrade/modules/products/dashboard.py)
+- [modules/rfq/dashboard.py](C:/2026/manditrade/manditrade/modules/rfq/dashboard.py)
+- [modules/system/health_dashboard.py](C:/2026/manditrade/manditrade/modules/system/health_dashboard.py)
 
-## Test Results
+## 3D CSS System Status
+
+The active CSS shell now includes:
+
+- animated gradient-mesh background
+- subtle particle-dot field
+- isometric floor/grid illusion
+- floating translucent card/crate planes
+- flowing line/triangle illusion layers
+- glass haze and blur treatment
+- sidebar glass navigation with active-state pills
+- connected glass tabs with strong active state
+- normalized button treatment
+- focus-visible styling
+- reduced-motion fallback
+
+### Primary Reusable Visual Classes
+
+- `.mt-glass-card`
+- `.mt-hero-panel`
+- `.mt-kpi-card`
+- `.mt-action-card`
+- `.mt-danger-card`
+- `.mt-success-card`
+- `.mt-market-card`
+- `.mt-ledger-card`
+- `.mt-rfq-card`
+- `.mt-notification-card`
+- `.mt-product-card`
+- `.mt-surface-note`
+
+## Login Page Status
+
+Login page is now premium and Google-only.
+
+### Active Structure
+
+- left-side brand story panel
+- right-side sign-in panel
+- no mock login
+- no role selector
+- no onboarding token prompt
+- same `Continue with Google` action remains active
+
+### Files
+
+- [modules/access/dashboard.py](C:/2026/manditrade/manditrade/modules/access/dashboard.py)
+- [components/ui_shell.py](C:/2026/manditrade/manditrade/components/ui_shell.py)
+- [assets/styles/manditrade_3d.css](C:/2026/manditrade/manditrade/assets/styles/manditrade_3d.css)
+
+## Dashboard Hero Status
+
+Shared hero rendering was upgraded in [components/ui_shell.py](C:/2026/manditrade/manditrade/components/ui_shell.py).
+
+### Current Hero Features
+
+- richer glow/orb/lane composition
+- flowing overlay accent
+- optional role chip
+- optional metric strip in the hero band
+- consistent futuristic kicker copy
+- glass panel depth without JS
+
+### Pages Using The Hero System
+
+- login / pending access
+- platform admin dashboard
+- manufacturer dashboard
+- client dashboard
+- profile pages
+- products
+- product approvals
+- inventory
+- orders
+- RFQ
+- ledger
+- actions
+- notifications
+- system health
+
+## Role Pages Styled
+
+### Platform Admin
+
+- `Dashboard`
+- `My Profile`
+- `Products`
+- `Product Approvals`
+- `Manufacturers`
+- `My Actions`
+- `Notifications`
+- `System Health`
+
+### Manufacturer / Admin-as-Manufacturer
+
+- `Dashboard`
+- `My Profile`
+- `Products`
+- `Inventory`
+- `Client Orders`
+- `Mandi RFQ`
+- `Ledger / Khata`
+- `My Actions`
+- `Notifications`
+
+### Client
+
+- `Dashboard`
+- `My Profile`
+- `Notifications`
+- `Client Orders`
+- `Ledger / Khata`
+
+### Worker
+
+- `Dashboard`
+- `My Profile`
+- `My Actions`
+- `Notifications`
+- `Jobs in Mandi`
+- `Workers`
+
+## Product / Approval UI Status
+
+- Products page now has premium product-preview cards in addition to the registry table.
+- Product approvals page now has a stronger approval-deck feel before the actual admin approval controls.
+- Proposal comment thread and approval logic remain unchanged functionally in this pass.
+
+## Actions / Notifications / RFQ / Ledger UI Status
+
+### My Actions
+
+- command-center note surface added
+- high-priority mood strengthened by card styling
+- full-width actions retained
+
+### Notifications
+
+- notification preview cards added
+- unread vs resolved visual states added
+- source/priority chips added
+- runtime-delivery tab still documents immediate-send model
+
+### RFQ
+
+- negotiation-board framing added
+- request lane and response lane now visually separated in overview
+
+### Ledger / Khata
+
+- remains intentionally calmer than other pages
+- readability-first surface note added
+- high-contrast KPI cards retained
+- minimal-motion posture preserved
+
+## Existing Business Features Still Active
+
+These remain active and were not functionally altered by this UI pass:
+
+- role-based `My Profile`
+- manufacturer registry CRUD
+- product proposal + approval
+- approved product admin CRUD
+- proposal comment thread
+- runtime Gmail trigger without queue UI
+- tabbed activity pages
+- sidebar debug cleanup
+
+## Accessibility / Performance Notes
+
+### Accessibility
+
+- visible focus ring styling added
+- forms and tables remain Streamlit-native widgets
+- no WebGL / heavy JS added
+- reduced-motion mode disables animations/transitions
+- ledger surfaces intentionally kept calmer for readability
+
+### Performance
+
+- CSS-only animation approach
+- no external CDN dependency
+- no Three.js/WebGL in this pass
+- animations are slow ambient loops, not fast interactive motion
+
+## Current Tests / Validation
 
 ### `python -m pytest tests/ -q`
 
 ```text
-sssss.....................................................               [100%]
-53 passed, 5 skipped in 8.94s
+sssss...........................................................         [100%]
+59 passed, 5 skipped in 9.58s
 ```
 
 ### `python -m compileall app.py modules services utils components schemas bootstrap scripts`
@@ -233,24 +245,22 @@ passed
 app import ok
 ```
 
-## Remaining Blocker
+## Remaining Blockers
 
-Main remaining blockers after this pass:
+1. `admin_as_manufacturer` session-switch UX is still partial even though the role shape exists.
+2. Orders / ledger / notification privacy still deserves a broader RBAC leak audit outside the latest UI work.
+3. Shared-zone vs private-zone storage separation for inventory and orders is still incomplete.
+4. RFQ response pricing validation remains a separate unresolved business-logic task.
+5. Agreement-era legacy files still remain in the repository even though the active path no longer depends on them.
 
-1. `admin_as_manufacturer` role shape exists but active session-switch flow is still partial.
-2. Broader client/private filtering outside product catalog still needs a dedicated audit on orders, ledger, and some notification surfaces.
-3. Shared-zone vs private-zone storage separation for inventory/orders remains incomplete.
-4. RFQ response pricing validation still needs a separate fix pass.
-5. Agreement-era legacy files still exist in the repository even though they are not on the active workflow path.
+## Acceptance Snapshot
 
-## Current Acceptance Check
-
-- product proposal supports comment thread: `DONE`
-- platform admin and proposing manufacturer can chat over proposal: `DONE`
-- comments are hidden from clients/public/unrelated manufacturers: `DONE`
-- notifications are generated for comment/reply: `DONE`
-- My Actions reflects pending replies/reviews: `DONE`
-- approval queue displays comments: `DONE`
-- manufacturer proposal page displays comments/reply option: `DONE`
-- tests pass: `DONE`
+- futuristic CSS-only 3D shell: `DONE`
+- premium Google login page: `DONE`
+- consistent hero-band system: `DONE`
+- glass styling on major role pages: `DONE`
+- form readability preserved: `DONE`
+- table readability preserved: `DONE`
+- mock login absent: `DONE`
+- tests passing: `DONE`
 - app imports cleanly: `DONE`

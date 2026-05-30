@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from components.html_renderer import render_html
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
 from components.ui_shell import render_metric_card, render_page_header
@@ -9,7 +10,14 @@ from components.ui_shell import render_metric_card, render_page_header
 
 def render_inventory_management(app_context: dict) -> None:
     user = app_context["current_user"]
-    render_page_header("Inventory", "Run self stock and mandi stock separately, with explicit transfer controls between both buckets.", ["Dual Inventory", "Self -> Mandi", "Mandi -> Self"])
+    render_page_header(
+        "Inventory",
+        "Run self stock and mandi stock separately, with explicit transfer controls between both buckets.",
+        ["Dual Inventory", "Self -> Mandi", "Mandi -> Self"],
+        role=user.role.replace("_", " ").title() if user else "Inventory View",
+        metrics=[("Split Model", "Self + mandi"), ("Control Mode", "Explicit transfers")],
+        kicker="Digital Manpur Stock Plane",
+    )
 
     if not user or user.role not in {"manufacturer", "admin_as_manufacturer", "platform_admin"} or not user.manufacturer_code:
         st.info("Inventory management is available for signed-in manufacturers.")
@@ -35,6 +43,14 @@ def render_inventory_management(app_context: dict) -> None:
     overview_tab, add_tab, transfer_tab = st.tabs(["Overview", "Add / Update Item", "Transfer Controls"])
     with overview_tab:
         render_section_intro("Transfer Controls", "Self inventory stays private for client orders until you explicitly push it into mandi inventory.")
+        render_html(
+            """
+            <div class="mt-surface-note">
+              This inventory surface separates private manufacturer stock from mandi-shareable stock. The shell is more futuristic,
+              but the operational rule stays strict: nothing moves between buckets unless you do it explicitly.
+            </div>
+            """
+        )
         st.dataframe(inventory.get("items", []), use_container_width=True)
     with add_tab:
         with st.form("add_inventory_item"):

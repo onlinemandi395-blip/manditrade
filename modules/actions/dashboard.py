@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from components.html_renderer import render_html
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_action_grid, render_metric_grid
 from components.ui_shell import render_action_card, render_dual_panel, render_metric_card, render_page_header, render_showcase_strip
@@ -9,7 +10,14 @@ from components.ui_shell import render_action_card, render_dual_panel, render_me
 
 def render_actions_dashboard(app_context: dict) -> None:
     user = app_context["current_user"]
-    render_page_header("My Actions", "A single action inbox for approvals, RFQs, dispatch, payments, and worker follow-ups.", ["Action Center", "Role Aware"])
+    render_page_header(
+        "My Actions",
+        "A single action inbox for approvals, RFQs, dispatch, payments, and worker follow-ups.",
+        ["Action Center", "Role Aware"],
+        role=user.role.replace("_", " ").title() if user else "Access Required",
+        metrics=[("Priority View", "Operational first"), ("Signal Type", "Actionable queues")],
+        kicker="Digital Manpur Command Surface",
+    )
     if not user:
         st.info("Sign in to see pending actions.")
         return
@@ -31,6 +39,14 @@ def render_actions_dashboard(app_context: dict) -> None:
         ]
     )
     render_section_intro("Role Inbox", "Use this panel to clear high-signal work first instead of scanning every module manually.")
+    render_html(
+        """
+        <div class="mt-surface-note mt-command-glow">
+          High-priority queues glow first by design here: overdue payments, unresolved proposals, RFQ replies,
+          and dispatch bottlenecks should be cleared before lower-signal housekeeping.
+        </div>
+        """
+    )
     render_action_grid(
         [
             render_action_card(item["type"].replace("_", " ").title(), f"{item.get('count', 0)} pending items waiting for review or completion.", "Open module")

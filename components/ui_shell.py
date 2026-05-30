@@ -10,20 +10,43 @@ def apply_ui_shell(css_path: Path) -> None:
     inject_css(css_path)
 
 
-def render_page_header(title: str, subtitle: str, badges: list[str] | None = None) -> None:
+def render_page_header(
+    title: str,
+    subtitle: str,
+    badges: list[str] | None = None,
+    *,
+    role: str | None = None,
+    metrics: list[tuple[str, str]] | None = None,
+    kicker: str = "3D Bharat Mandi Control Center",
+) -> None:
     badge_html = "".join(f"<span class='mt-badge mt-badge-info'>{escape(badge)}</span>" for badge in (badges or []))
+    metric_html = ""
+    if metrics:
+        metric_html = "<div class='mt-hero__metrics'>" + "".join(
+            f"""
+            <div class="mt-hero__metric">
+              <span class="mt-hero__metric-label">{escape(label)}</span>
+              <span class="mt-hero__metric-value">{escape(value)}</span>
+            </div>
+            """
+            for label, value in metrics
+        ) + "</div>"
+    if role:
+        badge_html = f"{badge_html}<span class='mt-badge mt-badge-open'>{escape(role)}</span>"
     render_html(
         f"""
-        <section class="mt-hero">
+        <section class="mt-hero mt-hero-panel">
           <div class="mt-hero__glow"></div>
           <div class="mt-hero__orb mt-hero__orb--warm"></div>
           <div class="mt-hero__orb mt-hero__orb--cool"></div>
           <div class="mt-hero__lane"></div>
+          <div class="mt-hero__flow"></div>
           <div class="mt-hero__content">
-            <p class="mt-kicker">3D Bharat Mandi Control Center</p>
+            <p class="mt-kicker">{escape(kicker)}</p>
             <h1>{escape(title)}</h1>
             <p>{escape(subtitle)}</p>
             <div class="mt-badge-row">{badge_html}</div>
+            {metric_html}
           </div>
         </section>
         """
@@ -31,8 +54,15 @@ def render_page_header(title: str, subtitle: str, badges: list[str] | None = Non
 
 
 def render_metric_card(label: str, value: str, status: str = "SUCCESS") -> str:
+    tone_class = "mt-success-card"
+    if status in {"PENDING", "WARNING"}:
+        tone_class = "mt-market-card"
+    elif status in {"OVERDUE", "ERROR", "HIGH_PRIORITY"}:
+        tone_class = "mt-danger-card"
+    elif status in {"OPEN", "DISPATCHED", "DELIVERED"}:
+        tone_class = "mt-rfq-card"
     return f"""
-    <article class="mt-card mt-card--metric">
+    <article class="mt-card mt-card--metric mt-kpi-card {tone_class}">
       <div class="mt-card__label">{escape(label)}</div>
       <div class="mt-card__value">{escape(value)}</div>
       {render_status_badge(status)}
@@ -42,7 +72,7 @@ def render_metric_card(label: str, value: str, status: str = "SUCCESS") -> str:
 
 def render_action_card(title: str, description: str, button: str) -> str:
     return f"""
-    <article class="mt-card mt-card--action">
+    <article class="mt-card mt-card--action mt-action-card">
       <h3>{escape(title)}</h3>
       <p>{escape(description)}</p>
       <div class="mt-button-chip">{escape(button)}</div>
@@ -55,9 +85,16 @@ def render_status_badge(status: str) -> str:
     return f"<span class='{css_class}'>{escape(status)}</span>"
 
 
-def render_3d_panel(content: str, title: str | None = None) -> None:
+def render_3d_panel(content: str, title: str | None = None, *, tone: str | None = None) -> None:
     title_html = f"<h3 class='mt-panel__title'>{escape(title)}</h3>" if title else ""
-    render_html(f"<section class='mt-panel'>{title_html}<div class='mt-panel__body'>{content}</div></section>")
+    tone_class = f" mt-panel--{escape(tone)}" if tone else ""
+    render_html(f"<section class='mt-panel mt-glass-card{tone_class}'>{title_html}<div class='mt-panel__body'>{content}</div></section>")
+
+
+def render_glass_section(title: str | None, content: str, *, class_name: str = "") -> None:
+    title_html = f"<h3 class='mt-panel__title'>{escape(title)}</h3>" if title else ""
+    css_class = f"mt-panel mt-glass-card {class_name}".strip()
+    render_html(f"<section class='{css_class}'>{title_html}<div class='mt-panel__body'>{content}</div></section>")
 
 
 def render_showcase_strip(items: list[tuple[str, str, str]]) -> None:
@@ -80,11 +117,11 @@ def render_dual_panel(left_title: str, left_content: str, right_title: str, righ
     render_html(
         f"""
         <section class="mt-grid mt-grid--panels">
-          <article class="mt-panel">
+          <article class="mt-panel mt-glass-card">
             <h3 class="mt-panel__title">{escape(left_title)}</h3>
             <div class="mt-panel__body">{left_content}</div>
           </article>
-          <article class="mt-panel">
+          <article class="mt-panel mt-glass-card">
             <h3 class="mt-panel__title">{escape(right_title)}</h3>
             <div class="mt-panel__body">{right_content}</div>
           </article>

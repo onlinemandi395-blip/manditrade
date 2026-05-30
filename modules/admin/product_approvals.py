@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import streamlit as st
 
+from components.html_renderer import render_html
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
-from components.ui_shell import render_metric_card, render_page_header
+from components.ui_shell import render_metric_card, render_mobile_record_card, render_page_header
 
 
 def render_product_approvals_dashboard(app_context: dict) -> None:
@@ -17,6 +18,9 @@ def render_product_approvals_dashboard(app_context: dict) -> None:
         "Product Approvals",
         "Review manufacturer product proposals and activate only the approved catalog records.",
         ["Platform Admin", "Approval Queue"],
+        role="Platform Admin",
+        metrics=[("Queue Type", "Proposal review"), ("Clarifications", "In-thread")],
+        kicker="Digital Manpur Approval Deck",
     )
     render_metric_grid(
         [
@@ -26,6 +30,19 @@ def render_product_approvals_dashboard(app_context: dict) -> None:
         ]
     )
     render_section_intro("Approval Queue", "Platform admin captures final mandi price, MRP, and product metadata before activation.")
+    if proposed_products:
+        preview = "".join(
+            render_mobile_record_card(
+                {
+                    "Product": item.get("name", item.get("product_id", "")),
+                    "Suggested Mandi": item.get("suggested_mandi_price", 0),
+                    "Visibility": item.get("visibility_request", "MANDI_NETWORK"),
+                    "Clarification": item.get("clarification_status", "NONE"),
+                }
+            )
+            for item in proposed_products[:3]
+        )
+        render_html(f"<section class='mt-card-stack'>{preview}</section>")
     st.dataframe(proposed_products, use_container_width=True)
     if not proposed_products:
         st.success("No proposed products are waiting for review.")

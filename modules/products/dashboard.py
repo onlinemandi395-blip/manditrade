@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from html import escape
+
 import streamlit as st
 
+from components.html_renderer import render_html
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
 from components.ui_shell import render_dual_panel, render_metric_card, render_mobile_record_card, render_page_header, render_showcase_strip
@@ -17,7 +20,14 @@ def render_products_dashboard(app_context: dict) -> None:
         viewer_role=viewer_role,
         viewer_code=viewer_code,
     )
-    render_page_header("Products", "Govern public mandi catalog, approvals, and pricing without slipping back into ERP complexity.", ["Public Catalog", "Mandi Price", "MRP"])
+    render_page_header(
+        "Products",
+        "Govern public mandi catalog, approvals, and pricing without slipping back into ERP complexity.",
+        ["Public Catalog", "Mandi Price", "MRP"],
+        role=viewer_role.replace("_", " ").title() if viewer_role else "Catalog View",
+        metrics=[("Catalog Mode", "Governed visibility"), ("Proposal Path", "Manufacturer to admin")],
+        kicker="Digital Manpur Catalog Grid",
+    )
     render_metric_grid(
         [
             render_metric_card("Catalog Products", str(len(products)), "SUCCESS"),
@@ -38,9 +48,29 @@ def render_products_dashboard(app_context: dict) -> None:
         "Onboarding Flow",
         render_mobile_record_card({"Propose": "Manufacturer/Admin", "Approve": "Platform Admin"}),
     )
+    product_preview = "".join(
+        f"""
+        <article class="mt-product-card">
+          <div class="mt-product-card__image"></div>
+          <h3>{escape(str(item.get('name', item.get('product_id', 'Product'))))}</h3>
+          <p>{escape(str(item.get('description', 'Governed catalog product with pricing and visibility controls.') or 'Governed catalog product with pricing and visibility controls.'))}</p>
+          <div class="mt-chip-row">
+            <span class="mt-price-chip">Mandi: {escape(str(item.get('approved_mandi_price', item.get('suggested_mandi_price', item.get('mandi_price', 0)))))}</span>
+            <span class="mt-price-chip">MRP: {escape(str(item.get('approved_mrp', item.get('suggested_mrp', item.get('mrp', 0)))))}</span>
+          </div>
+          <div class="mt-chip-row">
+            <span class="mt-chip">{escape(str(item.get('approved_visibility', item.get('visibility_request', 'MANDI_NETWORK'))))}</span>
+            <span class="mt-chip">{escape(str(item.get('status', 'ACTIVE')))}</span>
+          </div>
+        </article>
+        """
+        for item in products[:3]
+    )
     overview_tab, activity_tab, thread_tab = st.tabs(["Overview", "Activity", "Proposal Threads"])
     with overview_tab:
         render_section_intro("Catalog Governance", "Manufacturers can propose products and platform admin approves them with mandi price and MRP.")
+        if product_preview:
+            render_html(f"<section class='mt-grid mt-grid--actions'>{product_preview}</section>")
         st.dataframe(products, use_container_width=True)
     if not user:
         return
