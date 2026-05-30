@@ -41,9 +41,6 @@ def render_auth_panel(app_context: dict) -> None:
             st.success(f"{user.name} signed in as {user.role}")
             if user.manufacturer_code:
                 st.caption(f"Manufacturer: {user.manufacturer_code}")
-            if st.session_state.get("admin_runtime_unlocked"):
-                st.caption("Admin runtime access is unlocked for this session.")
-            st.caption(f"Build: {BUILD_COMMIT}")
             if st.button("Logout", use_container_width=True):
                 app_context["security_service"].revoke_runtime_session()
                 clear_runtime_session()
@@ -52,7 +49,6 @@ def render_auth_panel(app_context: dict) -> None:
             return
 
         st.info("Use the central login page on the homepage to continue with Google.")
-        st.caption(f"Build: {BUILD_COMMIT}")
 
 
 def handle_oauth_callback(app_context: dict) -> None:
@@ -107,47 +103,29 @@ def handle_oauth_callback(app_context: dict) -> None:
 def render_security_panel(app_context: dict) -> None:
     if not app_context["current_user"]:
         return
+    security_service = app_context["security_service"]
+    current_user = app_context["current_user"]
+    if not security_service.is_admin_identity(current_user):
+        return
     with st.sidebar:
         st.markdown("## Runtime Security")
-        security_service = app_context["security_service"]
-        current_user = app_context["current_user"]
-        status = security_service.export_security_status()
-        st.caption("Streamlit Cloud secrets hold only the verification layer and OAuth identifiers. Encrypted tokens stay outside TOML.")
-        if security_service.is_admin_identity(current_user):
-            vault_ready = security_service.admin_vault_matches_user(current_user)
-            expander_title = "Admin Runtime Vault" if vault_ready else "Unlock Admin Drive Runtime"
-            with st.expander(expander_title, expanded=not st.session_state.get("admin_runtime_unlocked", False)):
-                if vault_ready:
-                    st.success("One-time verification is already completed for this admin. Vault-backed unlock is available.")
-                    verification_key = ""
-                    button_label = "Unlock From Vault"
-                else:
-                    st.info("This verification key is needed only once. After successful setup, the admin vault will unlock future sessions.")
-                    verification_key = st.text_input("Verification Key", type="password")
-                    button_label = "Verify And Create Vault"
-                if st.button(button_label, use_container_width=True):
-                    try:
-                        runtime_state = security_service.unlock_admin_runtime(current_user, verification_key)
-                        set_flash(f"Admin runtime unlocked for {runtime_state['principal']}.")
-                        st.rerun()
-                    except Exception as exc:  # noqa: BLE001
-                        st.error(str(exc))
-        else:
-            st.info("Admin runtime unlock is available only to the signed-in admin identity.")
-        st.write(
-            {
-                "current_user_role": current_user.role if current_user else None,
-                "current_user_email": current_user.email if current_user else None,
-                "is_admin_identity": security_service.is_admin_identity(current_user),
-                "verification_configured": status["verification_configured"],
-                "admin_runtime_unlocked": st.session_state.get("admin_runtime_unlocked", False),
-                "token_file_present": status["admin_token_file_present"],
-                "token_placeholder_detected": status["admin_token_placeholder"],
-                "long_lived_admin_runtime_enabled": app_context.get("long_lived_admin_runtime_enabled", False),
-                "admin_vault_ready": status["admin_vault_ready"],
-            }
-        )
-        st.caption(f"Source: {BUILD_FILE.parent.parent.name}/{BUILD_FILE.name}")
+        vault_ready = security_service.admin_vault_matches_user(current_user)
+        expander_title = "Admin Runtime Vault" if vault_ready else "Unlock Admin Drive Runtime"
+        with st.expander(expander_title, expanded=not st.session_state.get("admin_runtime_unlocked", False)):
+            if vault_ready:
+                st.success("Vault-backed admin runtime unlock is available for this account.")
+                verification_key = ""
+                button_label = "Unlock From Vault"
+            else:
+                verification_key = st.text_input("Verification Key", type="password")
+                button_label = "Verify And Unlock"
+            if st.button(button_label, use_container_width=True):
+                try:
+                    runtime_state = security_service.unlock_admin_runtime(current_user, verification_key)
+                    set_flash(f"Admin runtime unlocked for {runtime_state['principal']}.")
+                    st.rerun()
+                except Exception as exc:  # noqa: BLE001
+                    st.error(str(exc))
 
 
 def resolve_navigation_sections(app_context: dict) -> list[str]:
