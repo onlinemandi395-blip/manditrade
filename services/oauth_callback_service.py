@@ -29,10 +29,19 @@ class OAuthCallbackService:
         ADMIN_TOKEN: None,
     }
 
-    def __init__(self, auth_service: AuthService, security_service: SecurityService, state_store_path: Path | None = None) -> None:
+    def __init__(
+        self,
+        auth_service: AuthService,
+        security_service: SecurityService,
+        state_store_path: Path | None = None,
+        runtime_reports_root: Path | None = None,
+        runtime_environment: str = "local",
+    ) -> None:
         self.auth_service = auth_service
         self.security_service = security_service
         self.state_store_path = state_store_path
+        self.runtime_reports_root = runtime_reports_root
+        self.runtime_environment = runtime_environment
 
     def _read_state_store(self) -> dict[str, Any]:
         if not self.state_store_path or not self.state_store_path.exists():
@@ -259,3 +268,33 @@ class OAuthCallbackService:
         auth_tokens = st.session_state.get("auth_tokens")
         user = st.session_state.get("user")
         return bool(auth_tokens and user)
+
+    def capture_failure(
+        self,
+        *,
+        error: str,
+        error_description: str = "",
+        state: str = "",
+    ) -> dict[str, Any]:
+        payload = {
+            "error": error,
+            "error_description": error_description,
+            "state": state,
+            "client_id_used": self.auth_service.oauth_config.get("client_id", ""),
+            "redirect_uri_used": self.auth_service.oauth_config.get("redirect_uri", ""),
+            "runtime_environment": self.runtime_environment,
+            "timestamp": datetime.now(UTC).isoformat(),
+        }
+        if self.runtime_reports_root:
+            self.runtime_reports_root.mkdir(parents=True, exist_ok=True)
+            target = self.runtime_reports_root / f"oauth_failure_{datetime.now(UTC).strftime('%Y%m%dT%H%M%S%f')}.json"
+            target.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            payload["report_path"] = str(target)
+        return payload
+
+    def friendly_error_message(self, error: str, error_description: str = "") -> str:
+        if error == "disabled_client" or "disabled_client" in error_description.lower():
+            return "Google OAuth client is disabled, deleted, or mismatched. Create/enable OAuth Web Client in Google Cloud Console and update Streamlit secrets."
+        if error_description.strip():
+            return f"OAuth failed: {error_description}"
+        return f"OAuth failed: {error}"

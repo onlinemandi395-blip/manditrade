@@ -48,6 +48,8 @@ def render_health_dashboard(app_context: dict) -> None:
         "demo_mode": app_context["system_config"]["app"].get("demo_mode", False),
         "safe_mode": app_context["system_config"]["app"].get("safe_mode", False),
         "staging_mode": app_context["system_config"]["app"].get("staging_mode", False),
+        "oauth_secrets_override_active": app_context.get("oauth_secrets_override_active", False),
+        "oauth_config_fallback_active": app_context.get("oauth_config_fallback_active", False),
         "notification_mode": app_context.get("notification_mode", "mock"),
         "google_runtime_enabled": app_context.get("google_runtime_enabled", False),
         "long_lived_admin_runtime_enabled": app_context.get("long_lived_admin_runtime_enabled", False),
@@ -84,6 +86,20 @@ def render_health_dashboard(app_context: dict) -> None:
             oauth_status = app_context["google_runtime_diagnostic_service"].oauth_status(current_user)
             with st.expander("OAuth Status", expanded=False):
                 st.json(oauth_status)
+                st.markdown("### OAuth Recovery Checklist")
+                st.markdown(
+                    "\n".join(
+                        [
+                            "1. Google Cloud Console -> APIs & Services -> Credentials",
+                            "2. Verify OAuth Client ID is active",
+                            "3. Add redirect URI:",
+                            "   - http://localhost:8501",
+                            "   - https://manpur-mandi-trade.streamlit.app",
+                            "4. Update Streamlit/local secrets with latest client_id/client_secret",
+                            "5. Reboot app",
+                        ]
+                    )
+                )
             admin_token_status = app_context["google_runtime_diagnostic_service"].admin_token_status()
             with st.expander("Admin Token Status", expanded=False):
                 st.json(admin_token_status)

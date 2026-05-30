@@ -24,6 +24,11 @@ def render_header(app_context: dict) -> None:
         st.error("Startup blockers: " + " | ".join(app_context["startup_checks"]))
     if app_context.get("startup_warnings"):
         st.warning("Deployment warnings: " + " | ".join(app_context["startup_warnings"]))
+    if (
+        app_context["system_config"]["app"].get("runtime_environment") == "staging_cloud"
+        and app_context.get("oauth_config_fallback_active", False)
+    ):
+        st.error("Cloud runtime requires Streamlit secrets Google credentials.")
     if app_context["effective_demo_mode"]:
         st.info("DEMO_MODE is active. Real Google runtime actions are blocked until staging secrets are complete.")
     elif not app_context.get("long_lived_admin_runtime_enabled", False):
@@ -53,10 +58,25 @@ def render_auth_panel(app_context: dict) -> None:
 
 def handle_oauth_callback(app_context: dict) -> None:
     query_params = st.query_params
+    error_value = query_params.get("error")
+    error_description_value = query_params.get("error_description")
     code_value = query_params.get("code")
     state_value = query_params.get("state")
+    error = error_value[0] if isinstance(error_value, list) else error_value
+    error_description = error_description_value[0] if isinstance(error_description_value, list) else error_description_value
     code = code_value[0] if isinstance(code_value, list) else code_value
     state = state_value[0] if isinstance(state_value, list) else state_value
+    if error:
+        report = app_context["oauth_callback_service"].capture_failure(
+            error=str(error),
+            error_description=str(error_description or ""),
+            state=str(state or ""),
+        )
+        app_context["logging_service"].log_error("oauth_errors", str(error), report)
+        app_context["oauth_callback_service"].reset_authorization_state()
+        st.query_params.clear()
+        st.error(app_context["oauth_callback_service"].friendly_error_message(str(error), str(error_description or "")))
+        return
     if not code:
         return
     if app_context["oauth_callback_service"].restore_session():
@@ -116,6 +136,11 @@ def handle_oauth_callback(app_context: dict) -> None:
         st.rerun()
     except Exception as exc:  # noqa: BLE001
         app_context["logging_service"].log_error("oauth_errors", str(exc), {"state": state})
+        app_context["oauth_callback_service"].capture_failure(
+            error="oauth_callback_failed",
+            error_description=str(exc),
+            state=str(state or ""),
+        )
         app_context["oauth_callback_service"].reset_authorization_state()
         st.query_params.clear()
         st.error(f"OAuth callback failed: {exc}")

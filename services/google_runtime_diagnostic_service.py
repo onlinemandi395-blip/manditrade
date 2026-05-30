@@ -65,10 +65,16 @@ class GoogleRuntimeDiagnosticService:
 
         google_cfg = self.security_service.get_streamlit_google_config()
         auth_tokens = st.session_state.get("auth_tokens") or {}
+        auth_oauth_cfg = self.auth_service.oauth_config
+        client_id = str(auth_oauth_cfg.get("client_id", "") or "")
         status = {
             "oauth_configured": bool(google_cfg.get("client_id") and google_cfg.get("client_secret") and google_cfg.get("redirect_uri")),
-            "redirect_uri": google_cfg.get("redirect_uri", ""),
+            "client_id_present": bool(client_id),
+            "client_id_suffix": client_id[-8:] if client_id else "",
+            "redirect_uri": auth_oauth_cfg.get("redirect_uri", ""),
             "runtime_environment": st.session_state.get("runtime_environment", "unknown"),
+            "secrets_override_active": bool(st.session_state.get("oauth_secrets_override_active", False)),
+            "oauth_config_fallback_active": bool(st.session_state.get("oauth_config_fallback_active", False)),
             "mock_auth_enabled": self.auth_service.enable_mock_auth,
             "current_user_email": current_user.email if current_user else "",
             "session_source": auth_tokens.get("session_source", current_user.session_source if current_user else "none"),

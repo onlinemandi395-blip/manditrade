@@ -95,11 +95,18 @@ def build_app_context() -> dict:
         logging_service=None,
         runtime_metrics_service=None,
     )
+    oauth_secrets_override_active = False
     if "google" in st.secrets and oauth_config.get("streamlit_cloud", {}).get("allow_secret_override", True):
         google_secret_overrides = dict(st.secrets["google"])
         oauth_config["google_oauth"]["client_id"] = google_secret_overrides.get("client_id", oauth_config["google_oauth"]["client_id"])
         oauth_config["google_oauth"]["client_secret"] = google_secret_overrides.get("client_secret", oauth_config["google_oauth"]["client_secret"])
         oauth_config["google_oauth"]["redirect_uri"] = google_secret_overrides.get("redirect_uri", oauth_config["google_oauth"]["redirect_uri"])
+        oauth_secrets_override_active = bool(
+            google_secret_overrides.get("client_id")
+            and google_secret_overrides.get("client_secret")
+            and google_secret_overrides.get("redirect_uri")
+        )
+    oauth_config_fallback_active = not oauth_secrets_override_active
 
     auth_service = AuthService(oauth_config=oauth_config, enable_mock_auth=system_config["security"]["enable_mock_auth"])
     security_secret_overrides = dict(st.secrets["security"]) if "security" in st.secrets else {}
@@ -149,7 +156,13 @@ def build_app_context() -> dict:
     gmail_service.safe_drive_write_service = safe_drive_write_service
     governance_service = GovernanceService(governance_root=GOVERNANCE_DIR, safe_drive_write_service=safe_drive_write_service)
     governance_service.ensure_files()
-    oauth_callback_service = OAuthCallbackService(auth_service=auth_service, security_service=security_service, state_store_path=APP_RUNTIME_DIR / "oauth_states.json")
+    oauth_callback_service = OAuthCallbackService(
+        auth_service=auth_service,
+        security_service=security_service,
+        state_store_path=APP_RUNTIME_DIR / "oauth_states.json",
+        runtime_reports_root=APP_RUNTIME_DIR / "integration_reports",
+        runtime_environment=system_config["app"].get("runtime_environment", "local"),
+    )
     client_service = ClientService(
         drive_service=drive_service,
         gmail_service=gmail_service,
@@ -306,7 +319,12 @@ def build_app_context() -> dict:
     )
 
     startup_checks = config_service.validate_streamlit_secrets(security_service.load_streamlit_secrets())
-    deployment_validation = config_service.validate_deployment_profile(system_config, oauth_config)
+    deployment_validation = config_service.validate_deployment_profile(
+        system_config,
+        oauth_config,
+        oauth_secrets_override_active=oauth_secrets_override_active,
+        oauth_config_fallback_active=oauth_config_fallback_active,
+    )
     startup_blockers = list(startup_checks) + deployment_validation["blockers"]
     startup_warnings = deployment_validation["warnings"]
     runtime_environment = system_config["app"].get("runtime_environment", "local")
@@ -406,6 +424,8 @@ def build_app_context() -> dict:
         "effective_demo_mode": effective_demo_mode,
         "google_runtime_enabled": google_runtime_enabled,
         "long_lived_admin_runtime_enabled": long_lived_admin_runtime_enabled,
+        "oauth_secrets_override_active": oauth_secrets_override_active,
+        "oauth_config_fallback_active": oauth_config_fallback_active,
         "notification_mode": gmail_service.describe_mode(),
         "latest_pilot_status": latest_pilot_status,
         "google_runtime_diagnostic_service": google_runtime_diagnostic_service,

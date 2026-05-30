@@ -11,6 +11,7 @@ from services.encryption_service import EncryptionService
 from services.google_runtime_diagnostic_service import GoogleRuntimeDiagnosticService
 from services.oauth_callback_service import OAuthCallbackService
 from services.security_service import SecurityService
+from bootstrap.app_bootstrap import handle_oauth_callback
 
 
 def _oauth_config() -> dict:
@@ -107,6 +108,22 @@ def test_mock_auth_is_rejected_in_staging_cloud_profile():
     assert "staging_cloud runtime cannot expose mock authentication." in result["blockers"]
 
 
+def test_staging_cloud_blocks_oauth_config_fallback():
+    system_config = {
+        "app": {"runtime_environment": "staging_cloud", "demo_mode": False},
+        "notifications": {"notification_mode": "live"},
+        "security": {"enable_mock_auth": False},
+    }
+    oauth_config = {"google_oauth": {"redirect_uri": "https://example.streamlit.app"}}
+    result = ConfigService().validate_deployment_profile(
+        system_config,
+        oauth_config,
+        oauth_secrets_override_active=False,
+        oauth_config_fallback_active=True,
+    )
+    assert "Cloud runtime requires Streamlit secrets Google credentials." in result["blockers"]
+
+
 def test_mock_auth_is_rejected_in_production_profile():
     system_config = {
         "app": {"runtime_environment": "production", "demo_mode": False},
@@ -129,6 +146,8 @@ def test_oauth_status_reports_runtime_and_session_source(tmp_path, monkeypatch):
     st.session_state.clear()
     st.session_state["runtime_environment"] = "staging_cloud"
     st.session_state["auth_tokens"] = {"session_source": "google_oauth", "granted_scopes": ["openid"]}
+    st.session_state["oauth_secrets_override_active"] = True
+    st.session_state["oauth_config_fallback_active"] = False
     auth_service = AuthService(_oauth_config(), enable_mock_auth=False)
     security_service = _build_security_service(tmp_path, auth_service)
 
@@ -157,6 +176,12 @@ def test_oauth_status_reports_runtime_and_session_source(tmp_path, monkeypatch):
     assert status["mock_auth_enabled"] is False
     assert status["session_source"] == "google_oauth"
     assert status["granted_scopes"] == ["openid"]
+    assert status["redirect_uri"] == "https://example.streamlit.app"
+    assert status["client_id_present"] is True
+    assert status["client_id_suffix"] == "lient-id"[-8:]
+    assert status["secrets_override_active"] is True
+    assert status["oauth_config_fallback_active"] is False
+    assert "client_secret" not in str(status)
 
 
 def test_admin_vault_is_initialized_once_and_allows_future_unlocks(tmp_path, monkeypatch):
@@ -221,3 +246,54 @@ def test_oauth_state_tracks_flow_specific_context(tmp_path):
     assert st.session_state["oauth_flow_type"] == callback_service.MANUFACTURER_DRIVE
     assert st.session_state["oauth_flow_context"]["manufacturer_id"] == "MANU101"
     assert st.session_state["oauth_flow_context"]["scopes"] == ["https://www.googleapis.com/auth/drive.file"]
+
+
+def test_disabled_client_failure_report_generated_and_friendly_message(tmp_path, monkeypatch):
+    st.session_state.clear()
+    auth_service = AuthService(_oauth_config(), enable_mock_auth=False)
+    security_service = _build_security_service(tmp_path, auth_service)
+    callback_service = OAuthCallbackService(
+        auth_service,
+        security_service,
+        state_store_path=tmp_path / "oauth_states.json",
+        runtime_reports_root=tmp_path / "integration_reports",
+        runtime_environment="staging_cloud",
+    )
+    report = callback_service.capture_failure(
+        error="disabled_client",
+        error_description="The OAuth client was disabled",
+        state="state-123",
+    )
+    message = callback_service.friendly_error_message("disabled_client", "The OAuth client was disabled")
+
+    assert Path(report["report_path"]).exists()
+    assert report["client_id_used"] == "client-id"
+    assert report["redirect_uri_used"] == "https://example.streamlit.app"
+    assert "client_secret" not in str(report)
+    assert "Google OAuth client is disabled" in message
+
+
+def test_handle_oauth_callback_renders_disabled_client_message(tmp_path, monkeypatch):
+    st.session_state.clear()
+    auth_service = AuthService(_oauth_config(), enable_mock_auth=False)
+    security_service = _build_security_service(tmp_path, auth_service)
+    callback_service = OAuthCallbackService(
+        auth_service,
+        security_service,
+        state_store_path=tmp_path / "oauth_states.json",
+        runtime_reports_root=tmp_path / "integration_reports",
+        runtime_environment="staging_cloud",
+    )
+    messages: list[str] = []
+    monkeypatch.setattr(st, "query_params", {"error": "disabled_client", "error_description": "The OAuth client was disabled", "state": "abc"})
+    monkeypatch.setattr(st, "error", lambda message: messages.append(message))
+
+    app_context = {
+        "oauth_callback_service": callback_service,
+        "logging_service": SimpleNamespace(log_error=lambda *_args, **_kwargs: None),
+        "system_config": {"app": {"runtime_environment": "staging_cloud"}},
+    }
+    handle_oauth_callback(app_context)
+
+    assert messages
+    assert "Google OAuth client is disabled" in messages[0]

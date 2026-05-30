@@ -63,7 +63,14 @@ class ConfigService:
                     issues.append(f"Missing Streamlit secret: [{section}] {field}")
         return issues
 
-    def validate_deployment_profile(self, system_config: dict[str, Any], oauth_config: dict[str, Any]) -> dict[str, list[str]]:
+    def validate_deployment_profile(
+        self,
+        system_config: dict[str, Any],
+        oauth_config: dict[str, Any],
+        *,
+        oauth_secrets_override_active: bool = False,
+        oauth_config_fallback_active: bool = False,
+    ) -> dict[str, list[str]]:
         blockers: list[str] = []
         warnings: list[str] = []
         runtime_environment = system_config.get("app", {}).get("runtime_environment", "local")
@@ -74,6 +81,8 @@ class ConfigService:
 
         if runtime_environment == "staging_cloud" and "localhost" in redirect_uri:
             blockers.append("staging_cloud runtime cannot use a localhost redirect URI.")
+        if runtime_environment == "staging_cloud" and oauth_config_fallback_active:
+            blockers.append("Cloud runtime requires Streamlit secrets Google credentials.")
         if runtime_environment == "staging_cloud" and demo_mode:
             blockers.append("staging_cloud runtime cannot run with demo_mode=true.")
         if runtime_environment == "staging_cloud" and notification_mode != "live":
