@@ -7,11 +7,13 @@ from bootstrap.route_registry import can_access_route
 from bootstrap.app_bootstrap import resolve_navigation_sections
 
 
-def test_google_login_is_rendered_in_top_header_with_same_tab_link():
+def test_google_login_is_rendered_in_sidebar_session_area():
     bootstrap_content = Path("bootstrap/app_bootstrap.py").read_text(encoding="utf-8")
     access_content = Path("modules/access/dashboard.py").read_text(encoding="utf-8")
+    assert "## Session" in bootstrap_content
+    assert "mt-sidebar-google-login" in bootstrap_content
     assert "render_same_tab_link_button(\"Continue with Google\"" in bootstrap_content
-    assert "mt-top-login-bar" in bootstrap_content
+    assert "build_authorization_url(flow_type=app_context[\"oauth_callback_service\"].LOGIN)" in bootstrap_content
     assert "render_new_tab_link_button" not in access_content
 
 
@@ -91,3 +93,11 @@ def test_unauthenticated_navigation_hides_marketplace_and_access():
     )
     assert "Marketplace" not in sections
     assert "Access" not in sections
+
+
+def test_no_mock_or_demo_login_visible_in_access_surface():
+    bootstrap_content = Path("bootstrap/app_bootstrap.py").read_text(encoding="utf-8").lower()
+    access_content = Path("modules/access/dashboard.py").read_text(encoding="utf-8").lower()
+    combined = "\n".join([bootstrap_content, access_content])
+    assert "mock login" not in combined
+    assert "demo login" not in combined

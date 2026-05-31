@@ -104,8 +104,17 @@ def render_auth_panel(app_context: dict) -> None:
                 set_flash("Session closed and runtime tokens cleared.")
                 st.rerun()
             return
-
-        st.info("Use the central MandiTrade login page to continue with Google. The app will route you to the correct workspace after sign-in.")
+        login_blocked_for_cloud_fallback = (
+            app_context["system_config"]["app"].get("runtime_environment") == "staging_cloud"
+            and app_context.get("oauth_config_fallback_active", False)
+        )
+        auth_url = None if login_blocked_for_cloud_fallback else app_context["oauth_callback_service"].build_authorization_url(flow_type=app_context["oauth_callback_service"].LOGIN)
+        if login_blocked_for_cloud_fallback:
+            render_html("<span class='mt-sidebar-google-login mt-sidebar-google-login--disabled'>Configure Streamlit secrets</span>")
+        elif auth_url and app_context["google_runtime_enabled"]:
+            render_html(render_same_tab_link_button("Continue with Google", auth_url, class_name="mt-sidebar-google-login"))
+        else:
+            render_html("<span class='mt-sidebar-google-login mt-sidebar-google-login--disabled'>Google OAuth unavailable</span>")
 
 
 def handle_oauth_callback(app_context: dict) -> None:

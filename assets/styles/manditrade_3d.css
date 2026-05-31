@@ -496,6 +496,38 @@ div[data-baseweb="tab-border"] {
   cursor: default;
 }
 
+.mt-sidebar-google-login {
+  display: inline-flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  margin: 4px 0 2px 0;
+  padding: 0 18px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background:
+    linear-gradient(135deg, rgba(56,193,114,0.24), rgba(56,189,248,0.18) 52%, rgba(245,158,11,0.20)),
+    rgba(255,255,255,0.05);
+  color: var(--text-main);
+  text-decoration: none;
+  font-weight: 700;
+  text-align: center;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.mt-sidebar-google-login:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.24);
+  border-color: rgba(255,255,255,0.2);
+}
+
+.mt-sidebar-google-login--disabled {
+  opacity: 0.78;
+  cursor: default;
+}
+
 .mt-hero,
 .mt-panel,
 .mt-card,
@@ -1170,6 +1202,9 @@ div[data-baseweb="tab-border"] {
     justify-content: stretch;
   }
   .mt-google-login-btn {
+    width: 100%;
+  }
+  .mt-sidebar-google-login {
     width: 100%;
   }
   .mt-grid--metrics,
