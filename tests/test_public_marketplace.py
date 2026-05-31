@@ -156,7 +156,7 @@ def test_public_buyer_navigation_excludes_internal_routes(tmp_path):
         "public_buyer_service": public_buyer_service,
     }
     sections = resolve_navigation_sections(app_context)
-    assert sections == ["Dashboard", "My Profile", "Notifications", "My Actions", "Marketplace", "Marketplace Orders", "Jobs"]
+    assert sections == ["My Profile", "Dashboard", "Notifications", "My Actions", "Marketplace", "Marketplace Orders", "Jobs"]
     assert "Inventory" not in sections
     assert "RFQ" not in sections
     assert "Ledger" not in sections

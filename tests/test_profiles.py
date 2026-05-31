@@ -129,14 +129,53 @@ def test_navigation_sections_include_my_profile_for_signed_in_roles():
         }
     )
 
-    assert "My Profile" in admin_sections
-    assert "My Profile" in manufacturer_sections
-    assert "Clients" in manufacturer_sections
-    assert "Platform Commission" in admin_sections
-    assert "Mandi Orders" in admin_sections
-    assert "Marketplace" in manufacturer_sections
-    assert "My Profile" in client_sections
-    assert "Payments" in client_sections
+    assert admin_sections == [
+        "My Profile",
+        "Dashboard",
+        "Notifications",
+        "My Actions",
+        "Manufacturers",
+        "Products",
+        "Product Approvals",
+        "Marketplace",
+        "Marketplace Orders",
+        "Mandi Network",
+        "Mandi Orders",
+        "RFQ",
+        "Jobs",
+        "Platform Commission",
+        "Payments",
+        "Ledger",
+        "System Health",
+    ]
+    assert manufacturer_sections == [
+        "My Profile",
+        "Dashboard",
+        "Notifications",
+        "My Actions",
+        "Products",
+        "Product Approvals",
+        "Clients",
+        "Mandi Network",
+        "Mandi Orders",
+        "RFQ",
+        "Jobs",
+        "Platform Commission",
+        "Payments",
+        "Ledger",
+    ]
+    assert client_sections == [
+        "My Profile",
+        "Dashboard",
+        "Notifications",
+        "My Actions",
+        "Marketplace",
+        "Marketplace Orders",
+        "RFQ",
+        "Payments",
+        "Ledger",
+        "System Health",
+    ]
 
 
 def test_superuser_navigation_includes_all_context_sections():
@@ -149,22 +188,22 @@ def test_superuser_navigation_includes_all_context_sections():
         }
     )
     assert sections == [
-        "Dashboard",
         "My Profile",
+        "Dashboard",
         "Notifications",
         "My Actions",
-        "Marketplace",
-        "Marketplace Orders",
-        "Mandi Network",
-        "RFQ",
-        "Mandi Orders",
         "Manufacturers",
         "Products",
         "Product Approvals",
+        "Marketplace",
+        "Marketplace Orders",
+        "Mandi Network",
+        "Mandi Orders",
+        "RFQ",
+        "Jobs",
+        "Platform Commission",
         "Payments",
         "Ledger",
-        "Platform Commission",
-        "Jobs",
         "System Health",
     ]
 
@@ -239,6 +278,19 @@ def test_role_navigation_map_is_normalized():
     assert "Commission Summary" not in flattened
     assert "Public Orders" not in flattened
     assert "rfq" not in flattened
+
+
+def test_manufacturer_navigation_has_clients_not_manufacturers():
+    security_service = SimpleNamespace(is_admin_identity=lambda _user: False)
+    sections = resolve_navigation_sections(
+        {
+            "current_user": SimpleNamespace(role="manufacturer", email="owner@example.com", manufacturer_code="MANU101"),
+            "security_service": security_service,
+            "worker_service": SimpleNamespace(get_worker_by_email=lambda _email: None),
+        }
+    )
+    assert "Clients" in sections
+    assert "Manufacturers" not in sections
 
 
 def test_superuser_context_can_preview_client_dashboard_without_losing_admin_identity(monkeypatch):

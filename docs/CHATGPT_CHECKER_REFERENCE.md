@@ -1,104 +1,64 @@
 # MandiTrade Checker Reference
 
-Generated from the current repository state on 2026-05-31 after the final navigation and RBAC normalization pass.
+Generated from the current repository state on 2026-05-31 after the strict navigation matrix and manufacturer clients bug fix pass.
 
-## Normalized Navigation Status
+## Strict Navigation Matrix Status
 
-- Navigation is now centralized through [services/navigation_service.py](C:/2026/manditrade/manditrade/services/navigation_service.py) using `ROLE_NAVIGATION_MAP`.
-- Sidebar rendering in [bootstrap/app_bootstrap.py](C:/2026/manditrade/manditrade/bootstrap/app_bootstrap.py) now groups sections visually instead of scattering role navigation logic across modules.
-- Navigation terminology is now aligned to the final product layers:
-  - `Marketplace`
-  - `Marketplace Orders`
-  - `Mandi Network`
-  - `Mandi Orders`
-  - `RFQ`
-  - `Payments`
-  - `Ledger`
-  - `Platform Commission`
+- Role navigation is now centralized through:
+  - [services/navigation_service.py](C:/2026/manditrade/manditrade/services/navigation_service.py)
+- `ROLE_NAVIGATION_MAP` now controls the final strict role views.
+- Sidebar rendering in [bootstrap/app_bootstrap.py](C:/2026/manditrade/manditrade/bootstrap/app_bootstrap.py) now reads directly from the centralized role map and grouped navigation structure.
 
-## Role Navigation Matrix
+## Manufacturer Clients Bug Fix Status
 
-- `platform_admin` / SuperUser:
-  - `Dashboard`
-  - `My Profile`
-  - `Notifications`
-  - `My Actions`
-  - `Marketplace`
-  - `Marketplace Orders`
-  - `Mandi Network`
-  - `RFQ`
-  - `Mandi Orders`
-  - `Manufacturers`
-  - `Products`
-  - `Product Approvals`
-  - `Payments`
-  - `Ledger`
-  - `Platform Commission`
-  - `Jobs`
-  - `System Health`
-- `manufacturer`:
-  - `Dashboard`
-  - `My Profile`
-  - `Notifications`
-  - `My Actions`
-  - `Products`
-  - `Inventory`
+- Manufacturer navigation now includes:
   - `Clients`
-  - `Client Orders`
-  - `Ledger`
-  - `Marketplace`
-  - `Marketplace Orders`
-  - `Mandi Network`
-  - `RFQ`
-  - `Mandi Orders`
-  - `Payments`
-  - `Jobs`
-- `client`:
-  - `Dashboard`
-  - `My Profile`
-  - `Notifications`
-  - `My Actions`
-  - `Products`
-  - `My Orders`
-  - `Ledger`
-  - `Payments`
-- `public_buyer`:
-  - `Dashboard`
-  - `My Profile`
-  - `Notifications`
-  - `My Actions`
-  - `Marketplace`
-  - `Marketplace Orders`
-  - `Jobs`
-- `worker`:
-  - `Dashboard`
-  - `My Profile`
-  - `Notifications`
-  - `My Actions`
-  - `Marketplace`
-  - `Marketplace Orders`
-  - `Jobs`
+- Manufacturer navigation does not include:
+  - `Manufacturers`
+- Manufacturer role cannot access manufacturer registry or manufacturer CRUD routes.
+- Manufacturer client management remains handled through:
+  - [modules/clients/dashboard.py](C:/2026/manditrade/manditrade/modules/clients/dashboard.py)
+- That page continues to support manufacturer-scoped:
+  - create client
+  - edit client
+  - deactivate client
+  - Gmail invite
+  - client visibility restricted to own manufacturer workspace
 
-## Naming Cleanup Status
+## Platform Admin Manufacturer Page Status
 
-- Old or mixed labels are removed from normalized navigation:
-  - `Mandiplace`
-  - `Mandiplace Orders`
-  - lowercase `rfq`
-  - `Commission Summary`
-  - `Public Orders` as a primary nav label
-- [bootstrap/route_registry.py](C:/2026/manditrade/manditrade/bootstrap/route_registry.py) now maps normalized labels onto existing working modules and summary surfaces.
+- Manufacturer registry and manufacturer governance remain platform-admin owned through:
+  - [modules/admin/manufacturers.py](C:/2026/manditrade/manditrade/modules/admin/manufacturers.py)
+- Platform admin still supervises manufacturer activity without exposing raw private client detail in supervisor mode.
 
-## RBAC Normalization Status
+## Route Alias Compatibility Status
 
-- RBAC continues to work centrally through [bootstrap/route_registry.py](C:/2026/manditrade/manditrade/bootstrap/route_registry.py).
-- Key protections remain intact:
-  - public buyers cannot access RFQ
-  - clients cannot access inventory
-  - workers cannot access payments
-  - manufacturers cannot access System Health
-  - SuperUser can access all normalized sections
-- SuperUser context switching still works, but navigation stays normalized from the SuperUser base role.
+- Alias compatibility is now preserved through:
+  - `NAV_ALIAS_MAP` in [services/navigation_service.py](C:/2026/manditrade/manditrade/services/navigation_service.py)
+- Supported aliases include:
+  - `MyProfile` -> `My Profile`
+  - `Notification` -> `Notifications`
+  - `My Action` -> `My Actions`
+  - `Marketplace Order` -> `Marketplace Orders`
+  - `Mandiplace` -> `Mandi Network`
+  - `Mandiplace Order` -> `Mandi Orders`
+  - `rfq` -> `RFQ`
+  - `Payment` -> `Payments`
+  - `Manufacturer` -> `Manufacturers`
+  - `Product Approval` -> `Product Approvals`
+
+## RBAC Enforcement Status
+
+- RBAC enforcement remains centralized through:
+  - [bootstrap/route_registry.py](C:/2026/manditrade/manditrade/bootstrap/route_registry.py)
+- Key strict checks now hold:
+  - manufacturer can access `Clients`
+  - manufacturer cannot access `Manufacturers`
+  - public buyer cannot access `RFQ`
+  - public buyer cannot access `Ledger`
+  - worker cannot access `Payments`
+  - client can access a safe `System Health` route that does not expose admin runtime diagnostics
+  - platform admin can access all listed admin views
 
 ## Test Result
 
@@ -108,4 +68,4 @@ Generated from the current repository state on 2026-05-31 after the final naviga
 
 ## Remaining Blocker
 
-- Some legacy internal route and module names still exist behind the normalized labels for compatibility, but user-facing navigation and RBAC terminology are now aligned to the final product structure.
+- Some legacy internal modules still sit behind normalized labels and alias compatibility for stability, but the role matrix and manufacturer/client ownership rules are now centrally enforced.
