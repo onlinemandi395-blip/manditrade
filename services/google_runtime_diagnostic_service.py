@@ -67,6 +67,7 @@ class GoogleRuntimeDiagnosticService:
         auth_tokens = st.session_state.get("auth_tokens") or {}
         auth_oauth_cfg = self.auth_service.oauth_config
         client_id = str(auth_oauth_cfg.get("client_id", "") or "")
+        oauth_same_tab_rca_status = st.session_state.get("oauth_same_tab_rca_status") or {}
         status = {
             "oauth_configured": bool(google_cfg.get("client_id") and google_cfg.get("client_secret") and google_cfg.get("redirect_uri")),
             "client_id_present": bool(client_id),
@@ -75,6 +76,10 @@ class GoogleRuntimeDiagnosticService:
             "runtime_environment": st.session_state.get("runtime_environment", "unknown"),
             "secrets_override_active": bool(st.session_state.get("oauth_secrets_override_active", False)),
             "oauth_config_fallback_active": bool(st.session_state.get("oauth_config_fallback_active", False)),
+            "login_navigation_mode": st.session_state.get("oauth_login_navigation_mode", "same_tab"),
+            "last_oauth_failure_reason": st.session_state.get("oauth_last_failure_reason", ""),
+            "same_tab_rca_status": oauth_same_tab_rca_status,
+            "state_persistence_mode": "runtime_state_store",
             "mock_auth_enabled": self.auth_service.enable_mock_auth,
             "current_user_email": current_user.email if current_user else "",
             "session_source": auth_tokens.get("session_source", current_user.session_source if current_user else "none"),

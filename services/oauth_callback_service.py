@@ -58,6 +58,14 @@ class OAuthCallbackService:
         self.state_store_path.parent.mkdir(parents=True, exist_ok=True)
         self.state_store_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
+    def _write_runtime_report(self, prefix: str, payload: dict[str, Any]) -> dict[str, Any]:
+        if self.runtime_reports_root:
+            self.runtime_reports_root.mkdir(parents=True, exist_ok=True)
+            target = self.runtime_reports_root / f"{prefix}_{datetime.now(UTC).strftime('%Y%m%dT%H%M%S%f')}.json"
+            target.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            payload["report_path"] = str(target)
+        return payload
+
     def issue_state_token(self) -> str:
         return secrets.token_urlsafe(24)
 
@@ -296,11 +304,8 @@ class OAuthCallbackService:
             "runtime_environment": self.runtime_environment,
             "timestamp": datetime.now(UTC).isoformat(),
         }
-        if self.runtime_reports_root:
-            self.runtime_reports_root.mkdir(parents=True, exist_ok=True)
-            target = self.runtime_reports_root / f"oauth_failure_{datetime.now(UTC).strftime('%Y%m%dT%H%M%S%f')}.json"
-            target.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-            payload["report_path"] = str(target)
+        st.session_state["oauth_last_failure_reason"] = error_description or error
+        self._write_runtime_report("oauth_failure", payload)
         return payload
 
     def friendly_error_message(self, error: str, error_description: str = "") -> str:
@@ -320,6 +325,53 @@ class OAuthCallbackService:
             "oauth_config_fallback_active": bool(st.session_state.get("oauth_config_fallback_active", False)),
         }
 
+    def oauth_state_persistence_status(self, state: str = "") -> dict[str, Any]:
+        state_token = state or str(st.session_state.get("oauth_state_token") or "")
+        pending = self._lookup_pending_state(state_token) if state_token else None
+        session_verifier = st.session_state.get("oauth_code_verifier")
+        return {
+            "state_store_path": str(self.state_store_path) if self.state_store_path else "",
+            "state_store_exists": bool(self.state_store_path and self.state_store_path.exists()),
+            "state_token_present_in_session": bool(st.session_state.get("oauth_state_token")),
+            "state_token_present_in_store": bool(pending),
+            "pkce_present_in_session": bool(session_verifier),
+            "pkce_present_in_store": bool((pending or {}).get("code_verifier")),
+            "state_persistence_mode": "runtime_state_store",
+            "session_state_survived_redirect": bool(st.session_state.get("oauth_state_token") and session_verifier),
+        }
+
+    def generate_same_tab_rca_report(self, *, login_navigation_mode: str = "same_tab", failure_reason: str = "") -> dict[str, Any]:
+        state_token = str(st.session_state.get("oauth_state_token") or "")
+        pending = self._lookup_pending_state(state_token) if state_token else None
+        session_verifier = st.session_state.get("oauth_code_verifier")
+        secrets_override_active = bool(st.session_state.get("oauth_secrets_override_active", False))
+        fallback_active = bool(st.session_state.get("oauth_config_fallback_active", False))
+        session_survived = bool(state_token and session_verifier)
+        resolved_failure = failure_reason or st.session_state.get("oauth_last_failure_reason") or ""
+        if not resolved_failure and login_navigation_mode == "same_tab" and not session_survived and pending:
+            resolved_failure = "Same-tab redirect appears to drop Streamlit session_state before callback; runtime state store is required."
+        if not resolved_failure and fallback_active and self.runtime_environment == "staging_cloud":
+            resolved_failure = "Cloud runtime is using oauth_config fallback instead of Streamlit secrets."
+        payload = self.oauth_debug_snapshot()
+        payload.update(
+            {
+                "state_created": bool(state_token or pending),
+                "state_found_on_callback": bool(pending),
+                "pkce_created": bool(session_verifier or (pending or {}).get("code_verifier")),
+                "pkce_found_on_callback": bool((pending or {}).get("code_verifier")),
+                "session_state_survived_redirect": session_survived,
+                "secrets_override_active": secrets_override_active,
+                "oauth_config_fallback_active": fallback_active,
+                "failure_reason": resolved_failure,
+                "recommended_mode": "new_tab" if not session_survived or fallback_active else "same_tab",
+                "state_persistence_mode": "runtime_state_store",
+                "login_navigation_mode": login_navigation_mode,
+                "timestamp": datetime.now(UTC).isoformat(),
+            }
+        )
+        st.session_state["oauth_same_tab_rca_status"] = payload
+        return self._write_runtime_report("oauth_same_tab_rca", payload)
+
     def _write_login_url_diagnostic(self, authorization_url: str, scopes: list[str]) -> dict[str, Any]:
         payload = self.oauth_debug_snapshot()
         parsed = urlparse(authorization_url)
@@ -332,11 +384,7 @@ class OAuthCallbackService:
                 "state_present": bool(params.get("state")),
                 "client_id_matches_config": (params.get("client_id", [""])[0] == self.auth_service.oauth_config.get("client_id", "")),
                 "redirect_uri_matches_config": (params.get("redirect_uri", [""])[0] == self.auth_service.oauth_config.get("redirect_uri", "")),
+                "state_persistence_mode": "runtime_state_store",
             }
         )
-        if self.runtime_reports_root:
-            self.runtime_reports_root.mkdir(parents=True, exist_ok=True)
-            target = self.runtime_reports_root / f"oauth_login_url_diagnostic_{datetime.now(UTC).strftime('%Y%m%dT%H%M%S%f')}.json"
-            target.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-            payload["report_path"] = str(target)
-        return payload
+        return self._write_runtime_report("oauth_login_url_diagnostic", payload)

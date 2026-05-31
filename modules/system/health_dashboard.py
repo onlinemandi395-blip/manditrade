@@ -87,6 +87,15 @@ def render_health_dashboard(app_context: dict) -> None:
             oauth_status = app_context["google_runtime_diagnostic_service"].oauth_status(current_user)
             with st.expander("OAuth Status", expanded=False):
                 st.json(oauth_status)
+                st.markdown("### OAuth Navigation + RCA")
+                st.write(
+                    {
+                        "login_navigation_mode": oauth_status.get("login_navigation_mode", ""),
+                        "last_oauth_failure_reason": oauth_status.get("last_oauth_failure_reason", ""),
+                        "same_tab_rca_status": oauth_status.get("same_tab_rca_status", {}),
+                        "state_persistence_mode": oauth_status.get("state_persistence_mode", ""),
+                    }
+                )
                 st.markdown("### OAuth Recovery Checklist")
                 st.markdown(
                     "\n".join(

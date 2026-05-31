@@ -40,6 +40,9 @@
   "public_access": {
     "auto_onboard_unknown_google_users": true
   },
+  "oauth": {
+    "login_navigation_mode": "new_tab"
+  },
   "commission": {
     "admin_profit_share_percent": 50,
     "manufacturer_profit_share_percent": 50,

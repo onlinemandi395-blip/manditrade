@@ -7,7 +7,7 @@ import streamlit as st
 from bootstrap.route_registry import render_route
 from bootstrap.service_container import build_app_context
 from components.html_renderer import render_html
-from components.ui_shell import render_same_tab_link_button
+from components.ui_shell import render_configurable_link_button, render_same_tab_link_button
 from components.ui_shell import apply_ui_shell
 from utils.session import clear_runtime_session, ensure_session_defaults, pop_flash, set_flash
 
@@ -24,8 +24,15 @@ ADMIN_CONTEXT_OPTIONS = {
 }
 
 
+def _resolve_login_navigation_mode(app_context: dict) -> str:
+    configured = str(app_context["system_config"].get("oauth", {}).get("login_navigation_mode", "new_tab")).strip().lower()
+    return configured if configured in {"same_tab", "new_tab"} else "new_tab"
+
+
 def render_header(app_context: dict) -> None:
     if not app_context.get("current_user"):
+        login_navigation_mode = _resolve_login_navigation_mode(app_context)
+        st.session_state["oauth_login_navigation_mode"] = login_navigation_mode
         login_blocked_for_cloud_fallback = (
             app_context["system_config"]["app"].get("runtime_environment") == "staging_cloud"
             and app_context.get("oauth_config_fallback_active", False)
@@ -35,7 +42,12 @@ def render_header(app_context: dict) -> None:
         if login_blocked_for_cloud_fallback:
             login_cta = "<span class='mt-google-login-btn mt-google-login-btn--disabled'>Configure Streamlit secrets</span>"
         elif auth_url and app_context["google_runtime_enabled"]:
-            login_cta = render_same_tab_link_button("Continue with Google", auth_url, class_name="mt-google-login-btn")
+            login_cta = render_configurable_link_button(
+                "Continue with Google",
+                auth_url,
+                navigation_mode=login_navigation_mode,
+                class_name="mt-google-login-btn",
+            )
         else:
             login_cta = "<span class='mt-google-login-btn mt-google-login-btn--disabled'>Google OAuth unavailable</span>"
         render_html(
@@ -104,6 +116,8 @@ def render_auth_panel(app_context: dict) -> None:
                 set_flash("Session closed and runtime tokens cleared.")
                 st.rerun()
             return
+        login_navigation_mode = _resolve_login_navigation_mode(app_context)
+        st.session_state["oauth_login_navigation_mode"] = login_navigation_mode
         login_blocked_for_cloud_fallback = (
             app_context["system_config"]["app"].get("runtime_environment") == "staging_cloud"
             and app_context.get("oauth_config_fallback_active", False)
@@ -112,7 +126,14 @@ def render_auth_panel(app_context: dict) -> None:
         if login_blocked_for_cloud_fallback:
             render_html("<span class='mt-sidebar-google-login mt-sidebar-google-login--disabled'>Configure Streamlit secrets</span>")
         elif auth_url and app_context["google_runtime_enabled"]:
-            render_html(render_same_tab_link_button("Continue with Google", auth_url, class_name="mt-sidebar-google-login"))
+            render_html(
+                render_configurable_link_button(
+                    "Continue with Google",
+                    auth_url,
+                    navigation_mode=login_navigation_mode,
+                    class_name="mt-sidebar-google-login",
+                )
+            )
         else:
             render_html("<span class='mt-sidebar-google-login mt-sidebar-google-login--disabled'>Google OAuth unavailable</span>")
 
@@ -128,6 +149,10 @@ def handle_oauth_callback(app_context: dict) -> None:
     code = code_value[0] if isinstance(code_value, list) else code_value
     state = state_value[0] if isinstance(state_value, list) else state_value
     if error:
+        app_context["oauth_callback_service"].generate_same_tab_rca_report(
+            login_navigation_mode=_resolve_login_navigation_mode(app_context),
+            failure_reason=str(error_description or error or ""),
+        )
         report = app_context["oauth_callback_service"].capture_failure(
             error=str(error),
             error_description=str(error_description or ""),
@@ -144,6 +169,9 @@ def handle_oauth_callback(app_context: dict) -> None:
         return
     try:
         token_payload = app_context["oauth_callback_service"].exchange_code(str(code), str(state) if state else None)
+        app_context["oauth_callback_service"].generate_same_tab_rca_report(
+            login_navigation_mode=_resolve_login_navigation_mode(app_context),
+        )
         flow_type = token_payload.get("flow_type", app_context["oauth_callback_service"].LOGIN)
         if flow_type in {
             app_context["oauth_callback_service"].MANUFACTURER_DRIVE,
@@ -200,6 +228,10 @@ def handle_oauth_callback(app_context: dict) -> None:
         st.rerun()
     except Exception as exc:  # noqa: BLE001
         app_context["logging_service"].log_error("oauth_errors", str(exc), {"state": state})
+        app_context["oauth_callback_service"].generate_same_tab_rca_report(
+            login_navigation_mode=_resolve_login_navigation_mode(app_context),
+            failure_reason=str(exc),
+        )
         app_context["oauth_callback_service"].capture_failure(
             error="oauth_callback_failed",
             error_description=str(exc),

@@ -258,6 +258,22 @@ def test_oauth_state_tracks_flow_specific_context(tmp_path):
     assert st.session_state["oauth_flow_context"]["scopes"] == ["https://www.googleapis.com/auth/drive.file"]
 
 
+def test_oauth_state_and_pkce_are_persisted_in_runtime_store(tmp_path):
+    st.session_state.clear()
+    auth_service = AuthService(_oauth_config(), enable_mock_auth=False)
+    security_service = _build_security_service(tmp_path, auth_service)
+    callback_service = OAuthCallbackService(auth_service, security_service, state_store_path=tmp_path / "oauth_states.json")
+
+    callback_service.build_authorization_url(flow_type=callback_service.LOGIN)
+    token = st.session_state["oauth_state_token"]
+    pending = callback_service._lookup_pending_state(token)
+
+    assert pending is not None
+    assert pending["token"] == token
+    assert pending["code_verifier"]
+    assert pending["scopes"]
+
+
 def test_authorization_url_uses_current_client_and_redirect_uri_and_fresh_state(tmp_path):
     st.session_state.clear()
     auth_service = AuthService(_oauth_config(), enable_mock_auth=False)
@@ -305,6 +321,114 @@ def test_oauth_login_url_diagnostic_report_is_generated(tmp_path):
     assert "client-id" not in payload
     assert "client_secret" not in payload
     assert "https://example.streamlit.app" in payload
+
+
+def test_callback_can_recover_state_without_session_only_pkce(tmp_path, monkeypatch):
+    st.session_state.clear()
+    auth_service = AuthService(_oauth_config(), enable_mock_auth=False)
+    security_service = _build_security_service(tmp_path, auth_service)
+    callback_service = OAuthCallbackService(
+        auth_service,
+        security_service,
+        state_store_path=tmp_path / "oauth_states.json",
+        runtime_reports_root=tmp_path / "integration_reports",
+        runtime_environment="staging_cloud",
+    )
+    callback_service.build_authorization_url(flow_type=callback_service.LOGIN)
+    returned_state = st.session_state["oauth_state_token"]
+    pending = callback_service._lookup_pending_state(returned_state)
+    st.session_state.pop("oauth_code_verifier", None)
+    captured = {}
+
+    class FakeFlow:
+        code_verifier = None
+        credentials = SimpleNamespace(
+            token="token",
+            refresh_token="refresh-token",
+            token_uri="https://oauth2.googleapis.com/token",
+            client_id="client-id",
+            client_secret="client-secret",
+            scopes=["openid"],
+        )
+
+        def fetch_token(self, code):
+            captured["code"] = code
+            captured["code_verifier"] = self.code_verifier
+
+    monkeypatch.setattr(auth_service, "build_flow", lambda scopes=None: FakeFlow())
+    payload = callback_service.exchange_code("oauth-code", returned_state)
+
+    assert pending is not None
+    assert captured["code"] == "oauth-code"
+    assert captured["code_verifier"] == pending["code_verifier"]
+    assert payload["flow_type"] == callback_service.LOGIN
+
+
+def test_same_tab_rca_report_is_generated_with_recommended_mode(tmp_path):
+    st.session_state.clear()
+    auth_service = AuthService(_oauth_config(), enable_mock_auth=False)
+    security_service = _build_security_service(tmp_path, auth_service)
+    callback_service = OAuthCallbackService(
+        auth_service,
+        security_service,
+        state_store_path=tmp_path / "oauth_states.json",
+        runtime_reports_root=tmp_path / "integration_reports",
+        runtime_environment="staging_cloud",
+    )
+    st.session_state["oauth_secrets_override_active"] = True
+    st.session_state["oauth_config_fallback_active"] = False
+    callback_service.build_authorization_url(flow_type=callback_service.LOGIN)
+    st.session_state.pop("oauth_code_verifier", None)
+    report = callback_service.generate_same_tab_rca_report(login_navigation_mode="same_tab")
+
+    assert Path(report["report_path"]).exists()
+    assert report["state_created"] is True
+    assert report["state_found_on_callback"] is True
+    assert report["pkce_created"] is True
+    assert report["pkce_found_on_callback"] is True
+    assert report["session_state_survived_redirect"] is False
+    assert report["recommended_mode"] == "new_tab"
+    assert report["state_persistence_mode"] == "runtime_state_store"
+
+
+def test_oauth_status_includes_navigation_mode_and_rca(tmp_path, monkeypatch):
+    st.session_state.clear()
+    st.session_state["runtime_environment"] = "staging_cloud"
+    st.session_state["auth_tokens"] = {"session_source": "google_oauth", "granted_scopes": ["openid"]}
+    st.session_state["oauth_secrets_override_active"] = True
+    st.session_state["oauth_config_fallback_active"] = False
+    st.session_state["oauth_login_navigation_mode"] = "new_tab"
+    st.session_state["oauth_last_failure_reason"] = "Same-tab redirect lost session."
+    st.session_state["oauth_same_tab_rca_status"] = {"recommended_mode": "new_tab"}
+    auth_service = AuthService(_oauth_config(), enable_mock_auth=False)
+    security_service = _build_security_service(tmp_path, auth_service)
+
+    class FakeCredentials:
+        token = "token"
+        refresh_token = "refresh"
+        scopes = ["openid"]
+
+    diagnostic_service = GoogleRuntimeDiagnosticService(
+        auth_service=auth_service,
+        security_service=security_service,
+        drive_service=SimpleNamespace(),
+        gmail_service=SimpleNamespace(),
+        runtime_reports_root=tmp_path / "reports",
+    )
+    monkeypatch.setattr(diagnostic_service, "get_current_credentials", lambda _user: FakeCredentials())
+    user = auth_service.create_authenticated_user(
+        profile={"email": "admin@example.com", "name": "Admin", "id": "sub-1", "verified_email": True},
+        email="admin@example.com",
+        role="admin",
+        subject_id="sub-1",
+        granted_scopes=["openid"],
+    )
+    status = diagnostic_service.oauth_status(user)
+
+    assert status["login_navigation_mode"] == "new_tab"
+    assert status["last_oauth_failure_reason"] == "Same-tab redirect lost session."
+    assert status["same_tab_rca_status"]["recommended_mode"] == "new_tab"
+    assert status["state_persistence_mode"] == "runtime_state_store"
 
 
 def test_disabled_client_failure_report_generated_and_friendly_message(tmp_path, monkeypatch):

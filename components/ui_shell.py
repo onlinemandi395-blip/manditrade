@@ -150,3 +150,15 @@ def render_new_tab_link_button(label: str, href: str, *, class_name: str = "mt-i
         f"<a class='{escape(class_name)}' href='{escape(href)}' target='_blank' rel='noopener noreferrer'>"
         f"{escape(label)}</a>"
     )
+
+
+def render_configurable_link_button(
+    label: str,
+    href: str,
+    *,
+    navigation_mode: str = "same_tab",
+    class_name: str = "mt-inline-link-button",
+) -> str:
+    if navigation_mode == "new_tab":
+        return render_new_tab_link_button(label, href, class_name=class_name)
+    return render_same_tab_link_button(label, href, class_name=class_name)

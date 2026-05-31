@@ -66,6 +66,7 @@ def build_app_context() -> dict:
     subscription_plans = load_config("subscription_plans.json")
     system_config.setdefault("ledger_reminders", {"enabled": True, "upcoming_days_before": 3, "final_reminder_after_days": 15, "max_reminders_per_due": 4})
     system_config.setdefault("public_access", {"auto_onboard_unknown_google_users": True})
+    system_config.setdefault("oauth", {"login_navigation_mode": "new_tab"})
     system_config.setdefault(
         "public_payment",
         {

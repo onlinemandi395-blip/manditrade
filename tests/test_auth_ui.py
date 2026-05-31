@@ -12,9 +12,19 @@ def test_google_login_is_rendered_in_sidebar_session_area():
     access_content = Path("modules/access/dashboard.py").read_text(encoding="utf-8")
     assert "## Session" in bootstrap_content
     assert "mt-sidebar-google-login" in bootstrap_content
-    assert "render_same_tab_link_button(\"Continue with Google\"" in bootstrap_content
+    assert "render_configurable_link_button(" in bootstrap_content
     assert "build_authorization_url(flow_type=app_context[\"oauth_callback_service\"].LOGIN)" in bootstrap_content
     assert "render_new_tab_link_button" not in access_content
+
+
+def test_login_navigation_mode_supports_new_tab_and_same_tab():
+    shell_content = Path("components/ui_shell.py").read_text(encoding="utf-8")
+    bootstrap_content = Path("bootstrap/app_bootstrap.py").read_text(encoding="utf-8")
+    config_content = Path("configs/system_config.json").read_text(encoding="utf-8")
+    assert 'render_new_tab_link_button' in shell_content
+    assert 'render_same_tab_link_button' in shell_content
+    assert '"login_navigation_mode": "new_tab"' in config_content
+    assert "_resolve_login_navigation_mode" in bootstrap_content
 
 
 def test_marketplace_does_not_render_separate_public_buyer_login():
@@ -58,6 +68,13 @@ def test_same_tab_google_link_never_uses_blank_target():
     assert "target='_blank'" in shell_content
     same_tab_block = shell_content.split("def render_same_tab_link_button", 1)[1].split("def render_new_tab_link_button", 1)[0]
     assert "_blank" not in same_tab_block
+
+
+def test_new_tab_google_link_uses_blank_target_and_noopener():
+    shell_content = Path("components/ui_shell.py").read_text(encoding="utf-8")
+    new_tab_block = shell_content.split("def render_new_tab_link_button", 1)[1].split("def render_configurable_link_button", 1)[0]
+    assert "target='_blank'" in new_tab_block
+    assert "rel='noopener noreferrer'" in new_tab_block
 
 
 def test_route_guard_blocks_unauthorized_normal_users():
