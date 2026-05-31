@@ -190,7 +190,6 @@ def _render_worker_profile_form(current_user, worker: dict | None) -> tuple[bool
 def _render_admin_profile(app_context: dict) -> None:
     current_user = app_context["current_user"]
     governance_service = app_context["governance_service"]
-    security_service = app_context["security_service"]
     stored = governance_service.get_admin_profile(current_user.email)
     render_page_header("My Profile", "Maintain your platform-admin contact details and operational profile from one safe place.", ["Platform Admin", "Profile"])
     render_metric_grid(
@@ -199,7 +198,7 @@ def _render_admin_profile(app_context: dict) -> None:
             render_metric_card("Email", current_user.email, "OPEN"),
         ]
     )
-    render_section_intro("Admin Identity", "Sensitive OAuth and runtime secrets stay in Streamlit secrets. This page stores only profile and operational contact details.")
+    render_section_intro("Admin Identity", "Keep your profile, contact details, and support information current.")
     if stored:
         render_3d_panel(
             render_mobile_record_card(
@@ -211,24 +210,6 @@ def _render_admin_profile(app_context: dict) -> None:
             ),
             "Saved Admin Profile",
         )
-    render_section_intro("Admin Runtime Access", "If runtime unlock is needed, use it here instead of the sidebar.")
-    vault_ready = security_service.admin_vault_matches_user(current_user)
-    expander_title = "Admin Runtime Vault" if vault_ready else "Unlock Admin Drive Runtime"
-    with st.expander(expander_title, expanded=False):
-        if vault_ready:
-            st.success("Vault-backed admin runtime unlock is available for this account.")
-            verification_key = ""
-            button_label = "Unlock From Vault"
-        else:
-            verification_key = st.text_input("Verification Key", type="password", key="admin_profile_runtime_key")
-            button_label = "Verify And Unlock"
-        if st.button(button_label, use_container_width=True, key="admin_profile_runtime_unlock"):
-            try:
-                runtime_state = security_service.unlock_admin_runtime(current_user, verification_key)
-                st.success(f"Admin runtime unlocked for {runtime_state['principal']}.")
-                st.rerun()
-            except Exception as exc:  # noqa: BLE001
-                st.error(str(exc))
     submitted, payload = _render_admin_profile_form(current_user, stored)
     if submitted:
         governance_service.upsert_admin_profile(payload)

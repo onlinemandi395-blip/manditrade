@@ -21,7 +21,7 @@ def render_login_page(app_context: dict) -> None:
         [
             render_metric_card("Single Login", "One entry for all users", "SUCCESS"),
             render_metric_card("Role Routing", "Automatic after sign-in", "OPEN"),
-            render_metric_card("Workspace Access", "Based on onboarding and approvals", "PENDING"),
+            render_metric_card("Getting Started", "Fast sign-in for every role", "PENDING"),
         ]
     )
     render_showcase_strip(
@@ -65,12 +65,7 @@ def render_login_page(app_context: dict) -> None:
         </section>
         """
     )
-    st.caption("Google sign-in is available in the top navigation. No role selector, marketplace shortcut, or separate access page is shown before login.")
-
-    with st.expander("Need access help?", expanded=False):
-        st.write("If your email is already onboarded, your dashboard will load automatically after login.")
-        st.write("If you are a new public buyer entering from Marketplace, the app can create your marketplace profile after Google sign-in.")
-        st.write("Manufacturer, client, or worker onboarding stays admin-managed in the backend.")
+    st.caption("Use the sign-in button in the sidebar to continue.")
 
 
 def render_access_portal(app_context: dict) -> None:
@@ -81,18 +76,18 @@ def render_pending_user_dashboard(app_context: dict) -> None:
     current_user = app_context["current_user"]
     request = app_context["access_portal_service"].find_latest_request(current_user.email) if current_user else None
     render_page_header(
-        "Access Pending",
-        "Your Google account is verified, but your MandiTrade workspace access is still being finalized.",
-        ["Pending Review", "RBAC Mapping"],
+        "Account Setup In Progress",
+        "Your account is being prepared. Please check back soon or contact support if you need help.",
+        ["Preparing Account"],
     )
     render_metric_grid(
         [
-            render_metric_card("Current Role", current_user.role if current_user else "pending_user", "PENDING"),
-            render_metric_card("Request Status", (request or {}).get("status", "NO_ACCESS_MAPPING"), "WARNING"),
+            render_metric_card("Account Status", "In Progress", "PENDING"),
+            render_metric_card("Next Step", "We will guide you shortly", "WARNING"),
         ]
     )
-    render_section_intro("Next Step", "Contact platform admin if this account should already have access. Once mapped, the correct dashboard will load automatically on next login.")
+    render_section_intro("Next Step", "If your access should already be active, contact support and we will help you complete setup.")
     if request:
-        st.write(request)
+        st.info("Your request has been received and is under review.")
     else:
-        st.info("This email is authenticated but not yet linked to a MandiTrade role.")
+        st.info("Your account is not fully ready yet.")

@@ -52,7 +52,7 @@ def render_marketplace_dashboard(app_context: dict) -> None:
             or search_term.strip().lower() in str(item.get("description", "")).lower()
         )
     ]
-    render_section_intro("Public Catalog", "Only ACTIVE, PUBLIC, public-sale-enabled products are visible here. No mandi price, RFQ, inventory, or internal seller notes are exposed.")
+    render_section_intro("Public Catalog", "Browse public products, compare pricing, and place upfront-pay orders from one simple marketplace view.")
     preview_cards = "".join(
         f"""
         <article class="mt-product-card">
@@ -73,7 +73,7 @@ def render_marketplace_dashboard(app_context: dict) -> None:
     st.dataframe(filtered, use_container_width=True)
 
     if not user:
-        st.info("Use the global MandiTrade Google login to continue.")
+        st.info("Sign in from the sidebar to continue.")
         return
 
     if user.role != "public_buyer":

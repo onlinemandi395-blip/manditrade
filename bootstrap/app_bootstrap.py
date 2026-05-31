@@ -12,7 +12,6 @@ from components.ui_shell import apply_ui_shell
 from utils.session import clear_runtime_session, ensure_session_defaults, pop_flash, set_flash
 
 
-BUILD_COMMIT = "ui-jobs-20260528"
 BUILD_FILE = Path(__file__).resolve()
 CSS_FILE = BUILD_FILE.parent.parent / "assets" / "styles" / "manditrade_3d.css"
 ADMIN_CONTEXT_OPTIONS = {
@@ -27,6 +26,14 @@ ADMIN_CONTEXT_OPTIONS = {
 def _resolve_login_navigation_mode(app_context: dict) -> str:
     configured = str(app_context["system_config"].get("oauth", {}).get("login_navigation_mode", "new_tab")).strip().lower()
     return configured if configured in {"same_tab", "new_tab"} else "new_tab"
+
+
+def _show_admin_debug_text(app_context: dict) -> bool:
+    session_user = app_context.get("session_user") or app_context.get("current_user")
+    return bool(
+        app_context["system_config"].get("ui", {}).get("show_debug_text", False)
+        and app_context["security_service"].is_admin_identity(session_user)
+    )
 
 
 def render_header(app_context: dict) -> None:
@@ -44,21 +51,12 @@ def render_header(app_context: dict) -> None:
     else:
         st.title(app_context["system_config"]["app"]["name"])
         st.caption(app_context["system_config"]["app"]["tagline"])
-    if app_context["config_issues"]:
-        st.warning("Configuration issues detected: " + " | ".join(app_context["config_issues"]))
     if app_context["startup_checks"]:
-        st.error("Startup blockers: " + " | ".join(app_context["startup_checks"]))
-    if app_context.get("startup_warnings"):
+        st.error("Some services are temporarily unavailable. Please try again shortly.")
+    elif app_context.get("startup_warnings") and _show_admin_debug_text(app_context):
         st.warning("Deployment warnings: " + " | ".join(app_context["startup_warnings"]))
-    if (
-        app_context["system_config"]["app"].get("runtime_environment") == "staging_cloud"
-        and app_context.get("oauth_config_fallback_active", False)
-    ):
-        st.error("Cloud runtime requires Streamlit secrets Google credentials.")
-    if app_context["effective_demo_mode"]:
-        st.info("DEMO_MODE is active. Real Google runtime actions are blocked until staging secrets are complete.")
-    elif not app_context.get("long_lived_admin_runtime_enabled", False):
-        st.info("Long-lived admin runtime mode is not provisioned yet. Local OAuth session mode remains available.")
+    if app_context["config_issues"] and _show_admin_debug_text(app_context):
+        st.warning("Configuration issues detected: " + " | ".join(app_context["config_issues"]))
     flash = pop_flash()
     if flash:
         st.success(flash)
@@ -93,7 +91,7 @@ def render_auth_panel(app_context: dict) -> None:
             if st.button("Logout", use_container_width=True):
                 app_context["security_service"].revoke_runtime_session()
                 clear_runtime_session()
-                set_flash("Session closed and runtime tokens cleared.")
+                set_flash("Signed out successfully.")
                 st.rerun()
             return
         login_navigation_mode = _resolve_login_navigation_mode(app_context)
@@ -104,7 +102,7 @@ def render_auth_panel(app_context: dict) -> None:
         )
         auth_url = None if login_blocked_for_cloud_fallback else app_context["oauth_callback_service"].build_authorization_url(flow_type=app_context["oauth_callback_service"].LOGIN)
         if login_blocked_for_cloud_fallback:
-            render_html("<span class='mt-sidebar-google-login mt-sidebar-google-login--disabled'>Configure Streamlit secrets</span>")
+            render_html("<span class='mt-sidebar-google-login mt-sidebar-google-login--disabled'>Sign-in temporarily unavailable</span>")
         elif auth_url and app_context["google_runtime_enabled"]:
             render_html(
                 render_configurable_link_button(
@@ -115,7 +113,7 @@ def render_auth_panel(app_context: dict) -> None:
                 )
             )
         else:
-            render_html("<span class='mt-sidebar-google-login mt-sidebar-google-login--disabled'>Google OAuth unavailable</span>")
+            render_html("<span class='mt-sidebar-google-login mt-sidebar-google-login--disabled'>Sign-in temporarily unavailable</span>")
 
 
 def handle_oauth_callback(app_context: dict) -> None:
@@ -204,7 +202,7 @@ def handle_oauth_callback(app_context: dict) -> None:
             st.session_state["manufacturer_context"] = resolved_identity["manufacturer_code"]
         app_context["oauth_callback_service"].reset_authorization_state()
         st.query_params.clear()
-        set_flash("OAuth session initialized.")
+        set_flash("Signed in successfully.")
         st.rerun()
     except Exception as exc:  # noqa: BLE001
         app_context["logging_service"].log_error("oauth_errors", str(exc), {"state": state})

@@ -43,6 +43,9 @@
   "oauth": {
     "login_navigation_mode": "new_tab"
   },
+  "ui": {
+    "show_debug_text": false
+  },
   "commission": {
     "admin_profit_share_percent": 50,
     "manufacturer_profit_share_percent": 50,

@@ -131,3 +131,27 @@ def test_no_mock_or_demo_login_visible_in_access_surface():
     combined = "\n".join([bootstrap_content, access_content])
     assert "mock login" not in combined
     assert "demo login" not in combined
+
+
+def test_normal_ui_files_hide_debug_and_runtime_copy():
+    files = [
+        Path("bootstrap/app_bootstrap.py"),
+        Path("modules/access/dashboard.py"),
+        Path("modules/marketplace/dashboard.py"),
+        Path("modules/notifications/dashboard.py"),
+        Path("modules/payments/dashboard.py"),
+        Path("modules/profile/dashboard.py"),
+    ]
+    combined = "\n".join(path.read_text(encoding="utf-8").lower() for path in files)
+    banned_phrases = [
+        "oauth session initialized",
+        "long-lived admin runtime",
+        "local oauth session mode",
+        "client_id suffix",
+        "secrets override",
+        "fallback active",
+        "no_access_mapping",
+        "use central login",
+    ]
+    for phrase in banned_phrases:
+        assert phrase not in combined

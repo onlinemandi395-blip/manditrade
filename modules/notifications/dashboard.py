@@ -14,10 +14,10 @@ def render_notifications_dashboard(app_context: dict) -> None:
     user = app_context["current_user"]
     render_page_header(
         "Notifications",
-        "In-app alerts and runtime Gmail triggers for RFQs, payments, dispatch, and jobs.",
-        ["Notification Center", "Runtime Gmail"],
+        "Stay on top of orders, dispatch, payments, RFQs, and important updates in one place.",
+        ["Notification Center", "Email Updates"],
         role=user.role.replace("_", " ").title() if user else "Role Aware",
-        metrics=[("Trigger Mode", "Immediate runtime"), ("Unread Focus", "Action-led")],
+        metrics=[("Email Updates", "Active"), ("Unread Focus", "Action-led")],
         kicker="Digital Manpur Signal Feed",
     )
     notifications: list[dict] = []
@@ -45,14 +45,14 @@ def render_notifications_dashboard(app_context: dict) -> None:
     render_metric_grid(
         [
             render_metric_card("In-App Alerts", str(len(notifications)), "PENDING"),
-            render_metric_card("Gmail Mode", app_context["gmail_service"].describe_mode().upper(), "OPEN"),
+            render_metric_card("Email Updates", "Live", "OPEN"),
             render_metric_card("Unread", str(len([item for item in notifications if not item.get("read", False)])), "HIGH_PRIORITY"),
         ]
     )
     render_showcase_strip(
         [
             ("Unread Alerts", str(len([item for item in notifications if not item.get("read", False)])), "HIGH_PRIORITY"),
-            ("Trigger Style", "Runtime", "SUCCESS"),
+            ("Trigger Style", "Immediate", "SUCCESS"),
             ("Live Feed", "Dispatch + RFQ + Jobs", "OPEN"),
         ]
     )
@@ -60,9 +60,9 @@ def render_notifications_dashboard(app_context: dict) -> None:
         "Alert Surface",
         render_mobile_record_card({"In-App": len(notifications), "Unread": len([item for item in notifications if not item.get("read", False)])}),
         "Delivery Surface",
-        render_mobile_record_card({"Mode": app_context["gmail_service"].describe_mode().upper(), "Trigger": "Immediate runtime send"}),
+        render_mobile_record_card({"Mode": "Live", "Trigger": "Sent during actions"}),
     )
-    alerts_tab, delivery_tab = st.tabs(["In-App Alerts", "Runtime Delivery"])
+    alerts_tab, delivery_tab = st.tabs(["In-App Alerts", "Email Delivery"])
     with alerts_tab:
         if user and (user.manufacturer_code or user.role in {"platform_admin", "public_buyer"}):
             render_section_intro("In-App", "Role-relevant alerts stay visible here until read, resolved, or snoozed.")
@@ -89,5 +89,5 @@ def render_notifications_dashboard(app_context: dict) -> None:
         else:
             st.info("No role-specific alerts are available for this session.")
     with delivery_tab:
-        render_section_intro("Runtime Delivery", "Gmail notifications fire immediately from the active runtime session when actions trigger them. There is no user-facing queue.")
-        st.info("Notification emails are triggered live during the action itself. Review System Health for runtime failures if a send does not complete.")
+        render_section_intro("Email Delivery", "Important updates are sent as actions happen, so your team can respond quickly.")
+        st.info("If an email update does not arrive, please contact support.")

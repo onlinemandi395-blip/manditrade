@@ -1,76 +1,48 @@
 # MandiTrade Checker Reference
 
-Generated from the current repository state on 2026-05-31 after the OAuth same-tab RCA and controlled new-tab fallback pass.
+Generated from the current repository state on 2026-05-31 after the production UI cleanup pass.
 
-## Same-Tab RCA Status
+## Production UI Cleanup Status
 
-- OAuth RCA is now generated through [services/oauth_callback_service.py](C:/2026/manditrade/manditrade/services/oauth_callback_service.py) into:
-  - `runtime/integration_reports/oauth_same_tab_rca_*.json`
-- The RCA captures:
-  - `client_id_suffix`
-  - `redirect_uri`
-  - state creation and callback recovery status
-  - PKCE creation and callback recovery status
-  - whether Streamlit session state survived redirect
-  - whether secrets override is active
-  - whether oauth config fallback is active
-  - failure reason
-  - recommended navigation mode
-- Current safe conclusion is:
-  - same-tab is diagnosable
-  - persistent runtime state storage exists
-  - default login mode should remain `new_tab` until same-tab proves reliable in deployed Streamlit runtime
+- Normal user-facing screens have been cleaned up to remove developer-facing runtime and diagnostic copy.
+- Pre-login layout now stays focused on:
+  - MandiTrade brand
+  - short platform explanation
+  - sidebar Google login
+  - `Dashboard` only navigation
+- Technical diagnostics remain available in [modules/system/health_dashboard.py](C:/2026/manditrade/manditrade/modules/system/health_dashboard.py) for SuperUser only.
 
-## Chosen Login Mode Status
+## Debug Text Removal Status
 
-- Login navigation mode is now configurable in [configs/system_config.json](C:/2026/manditrade/manditrade/configs/system_config.json):
-  - `same_tab`
-  - `new_tab`
-- Current default is:
-  - `new_tab`
-- Sidebar and top-header login rendering now use the configured mode through:
+- User-facing copy was simplified in:
   - [bootstrap/app_bootstrap.py](C:/2026/manditrade/manditrade/bootstrap/app_bootstrap.py)
-  - [components/ui_shell.py](C:/2026/manditrade/manditrade/components/ui_shell.py)
+  - [modules/access/dashboard.py](C:/2026/manditrade/manditrade/modules/access/dashboard.py)
+  - [modules/marketplace/dashboard.py](C:/2026/manditrade/manditrade/modules/marketplace/dashboard.py)
+  - [modules/notifications/dashboard.py](C:/2026/manditrade/manditrade/modules/notifications/dashboard.py)
+  - [modules/payments/dashboard.py](C:/2026/manditrade/manditrade/modules/payments/dashboard.py)
+  - [modules/profile/dashboard.py](C:/2026/manditrade/manditrade/modules/profile/dashboard.py)
+- Production-safe messages now replace technical phrases such as runtime-mode notes, OAuth session wording, and internal access-state labels in normal UI flows.
+- A UI config flag now exists in [configs/system_config.json](C:/2026/manditrade/manditrade/configs/system_config.json):
+  - `ui.show_debug_text`
+  - default: `false`
 
-## Sidebar-Only Login Status
+## System Health Diagnostic Isolation Status
 
-- Before login, sidebar still shows:
+- Technical OAuth, Drive, Gmail, token, failure-report, and integration diagnostics remain isolated to:
+  - [modules/system/health_dashboard.py](C:/2026/manditrade/manditrade/modules/system/health_dashboard.py)
+- Normal users do not see these diagnostic surfaces in standard dashboards, marketplace, sidebar, or login pages.
+
+## Login And Navigation Status
+
+- Sidebar still shows:
   - `Session`
   - `Continue with Google`
   - `Navigation`
   - `Dashboard`
-- Google login now appears only in the sidebar session area.
-- The main page/header no longer renders a duplicate login button.
 - `Marketplace` remains hidden before login.
-- `Access` is not shown as a navigation item.
-- The Google login CTA is still built from fresh `build_authorization_url(...)` output and is never hardcoded.
-
-## State / PKCE Persistence Status
-
-- OAuth state and PKCE verifier are persisted outside volatile session state through:
-  - [services/oauth_callback_service.py](C:/2026/manditrade/manditrade/services/oauth_callback_service.py)
-  - `runtime/oauth_states.json`
-- Callback validation can recover from persisted runtime state even if same-tab or cross-tab browser behavior drops Streamlit session state.
-- System Health now exposes:
-  - login navigation mode
-  - last OAuth failure reason
-  - same-tab RCA snapshot
-  - state persistence mode
-  - redirect URI
-  - client ID suffix
-  - secrets override active
-  - fallback active
-
-## Public Buyer Fallback Status
-
-- Unknown Google users still default into `public_buyer` through [services/access_portal_service.py](C:/2026/manditrade/manditrade/services/access_portal_service.py).
-- `pending_user` is not used for normal unknown Google users.
-- `pending_user` remains reserved for blocked accounts or when public auto-onboarding is disabled.
-
-## Post-Login RBAC Status
-
-- Post-login RBAC logic is unchanged by this pass.
-- Successful OAuth callback still initializes the correct runtime session and lands the user in the correct role-aware workspace.
+- OAuth behavior is unchanged:
+  - sidebar login still uses fresh `build_authorization_url(...)`
+  - configured `new_tab` / `same_tab` behavior still works
 
 ## Test Result
 
@@ -80,4 +52,4 @@ Generated from the current repository state on 2026-05-31 after the OAuth same-t
 
 ## Remaining Blocker
 
-- Same-tab login is now better diagnosed, but deployed Streamlit browser/runtime behavior may still drop volatile session state during redirect in some cases. `new_tab` remains the safer default until same-tab is proven stable in production-like validation.
+- Same-tab login diagnostics are still preserved for System Health, but `new_tab` remains the safer production default until same-tab is proven stable in deployed validation.
