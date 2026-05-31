@@ -5,6 +5,7 @@ import secrets
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs, urlparse
 
 import streamlit as st
 
@@ -159,6 +160,7 @@ class OAuthCallbackService:
             manufacturer_id=manufacturer_id,
             scopes=selected_scopes,
         )
+        self._write_login_url_diagnostic(authorization_url, selected_scopes)
         return authorization_url
 
     def validate_state(self, returned_state: str | None) -> dict[str, Any]:
@@ -298,3 +300,34 @@ class OAuthCallbackService:
         if error_description.strip():
             return f"OAuth failed: {error_description}"
         return f"OAuth failed: {error}"
+
+    def oauth_debug_snapshot(self) -> dict[str, Any]:
+        client_id = str(self.auth_service.oauth_config.get("client_id", "") or "")
+        return {
+            "client_id_suffix": client_id[-8:] if client_id else "",
+            "redirect_uri": self.auth_service.oauth_config.get("redirect_uri", ""),
+            "runtime_environment": self.runtime_environment,
+            "secrets_override_active": bool(st.session_state.get("oauth_secrets_override_active", False)),
+            "oauth_config_fallback_active": bool(st.session_state.get("oauth_config_fallback_active", False)),
+        }
+
+    def _write_login_url_diagnostic(self, authorization_url: str, scopes: list[str]) -> dict[str, Any]:
+        payload = self.oauth_debug_snapshot()
+        parsed = urlparse(authorization_url)
+        params = parse_qs(parsed.query)
+        payload.update(
+            {
+                "scope_count": len(scopes),
+                "has_code_challenge": bool(params.get("code_challenge")),
+                "timestamp": datetime.now(UTC).isoformat(),
+                "state_present": bool(params.get("state")),
+                "client_id_matches_config": (params.get("client_id", [""])[0] == self.auth_service.oauth_config.get("client_id", "")),
+                "redirect_uri_matches_config": (params.get("redirect_uri", [""])[0] == self.auth_service.oauth_config.get("redirect_uri", "")),
+            }
+        )
+        if self.runtime_reports_root:
+            self.runtime_reports_root.mkdir(parents=True, exist_ok=True)
+            target = self.runtime_reports_root / f"oauth_login_url_diagnostic_{datetime.now(UTC).strftime('%Y%m%dT%H%M%S%f')}.json"
+            target.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            payload["report_path"] = str(target)
+        return payload

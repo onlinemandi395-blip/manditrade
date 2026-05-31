@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
+from urllib.parse import parse_qs, urlparse
 
 import streamlit as st
 
@@ -246,6 +247,55 @@ def test_oauth_state_tracks_flow_specific_context(tmp_path):
     assert st.session_state["oauth_flow_type"] == callback_service.MANUFACTURER_DRIVE
     assert st.session_state["oauth_flow_context"]["manufacturer_id"] == "MANU101"
     assert st.session_state["oauth_flow_context"]["scopes"] == ["https://www.googleapis.com/auth/drive.file"]
+
+
+def test_authorization_url_uses_current_client_and_redirect_uri_and_fresh_state(tmp_path):
+    st.session_state.clear()
+    auth_service = AuthService(_oauth_config(), enable_mock_auth=False)
+    security_service = _build_security_service(tmp_path, auth_service)
+    callback_service = OAuthCallbackService(
+        auth_service,
+        security_service,
+        state_store_path=tmp_path / "oauth_states.json",
+        runtime_reports_root=tmp_path / "integration_reports",
+        runtime_environment="staging_cloud",
+    )
+    st.session_state["oauth_secrets_override_active"] = True
+    st.session_state["oauth_config_fallback_active"] = False
+
+    first = callback_service.build_authorization_url(flow_type=callback_service.LOGIN)
+    second = callback_service.build_authorization_url(flow_type=callback_service.LOGIN)
+    first_params = parse_qs(urlparse(first).query)
+    second_params = parse_qs(urlparse(second).query)
+
+    assert first is not None
+    assert second is not None
+    assert first_params["client_id"][0] == "client-id"
+    assert first_params["redirect_uri"][0] == "https://example.streamlit.app"
+    assert first_params["state"][0] != second_params["state"][0]
+    assert "code_challenge" in first_params
+
+
+def test_oauth_login_url_diagnostic_report_is_generated(tmp_path):
+    st.session_state.clear()
+    auth_service = AuthService(_oauth_config(), enable_mock_auth=False)
+    security_service = _build_security_service(tmp_path, auth_service)
+    callback_service = OAuthCallbackService(
+        auth_service,
+        security_service,
+        state_store_path=tmp_path / "oauth_states.json",
+        runtime_reports_root=tmp_path / "integration_reports",
+        runtime_environment="staging_cloud",
+    )
+    st.session_state["oauth_secrets_override_active"] = True
+    st.session_state["oauth_config_fallback_active"] = False
+    callback_service.build_authorization_url(flow_type=callback_service.LOGIN)
+    reports = list((tmp_path / "integration_reports").glob("oauth_login_url_diagnostic_*.json"))
+    assert reports
+    payload = reports[0].read_text(encoding="utf-8")
+    assert "client-id" not in payload
+    assert "client_secret" not in payload
+    assert "https://example.streamlit.app" in payload
 
 
 def test_disabled_client_failure_report_generated_and_friendly_message(tmp_path, monkeypatch):

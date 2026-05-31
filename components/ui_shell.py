@@ -143,3 +143,10 @@ def render_same_tab_link_button(label: str, href: str, *, class_name: str = "mt-
         f"<a class='{escape(class_name)}' href='{escape(href)}' target='_self' rel='noopener noreferrer'>"
         f"{escape(label)}</a>"
     )
+
+
+def render_new_tab_link_button(label: str, href: str, *, class_name: str = "mt-inline-link-button") -> str:
+    return (
+        f"<a class='{escape(class_name)}' href='{escape(href)}' target='_blank' rel='noopener noreferrer'>"
+        f"{escape(label)}</a>"
+    )

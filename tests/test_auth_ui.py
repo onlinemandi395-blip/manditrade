@@ -3,16 +3,14 @@ from __future__ import annotations
 from pathlib import Path
 
 
-def test_access_portal_does_not_use_new_tab_google_link():
+def test_access_portal_uses_new_tab_google_link():
     content = Path("modules/access/dashboard.py").read_text(encoding="utf-8")
-    assert "target=\"_blank\"" not in content
-    assert "st.link_button(\"Continue with Google\"" not in content
+    assert "render_new_tab_link_button(\"Continue with Google\"" in content
 
 
-def test_public_buyer_login_does_not_use_new_tab_google_link():
+def test_public_buyer_login_uses_new_tab_google_link():
     content = Path("modules/marketplace/dashboard.py").read_text(encoding="utf-8")
-    assert "target=\"_blank\"" not in content
-    assert "st.link_button(\"Continue with Google as Public Buyer\"" not in content
+    assert "render_new_tab_link_button(\"Continue with Google as Public Buyer\"" in content
 
 
 def test_mock_login_and_manual_google_key_fields_are_not_visible_in_access_surfaces():

@@ -7,7 +7,7 @@ import streamlit as st
 from components.html_renderer import render_html
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
-from components.ui_shell import render_metric_card, render_page_header, render_same_tab_link_button, render_showcase_strip
+from components.ui_shell import render_metric_card, render_new_tab_link_button, render_page_header, render_showcase_strip
 
 
 def render_marketplace_dashboard(app_context: dict) -> None:
@@ -129,11 +129,17 @@ def _render_public_buyer_signin(app_context: dict) -> None:
     if st.button("Prepare Google Sign-In As Public Buyer", use_container_width=True):
         st.session_state["requested_role"] = "public_buyer"
         st.rerun()
-    auth_url = app_context["oauth_callback_service"].build_authorization_url(
+    login_blocked_for_cloud_fallback = (
+        app_context["system_config"]["app"].get("runtime_environment") == "staging_cloud"
+        and app_context.get("oauth_config_fallback_active", False)
+    )
+    auth_url = None if login_blocked_for_cloud_fallback else app_context["oauth_callback_service"].build_authorization_url(
         flow_type=app_context["oauth_callback_service"].LOGIN,
         role_context="public_buyer",
     )
     if st.session_state.get("requested_role") == "public_buyer" and auth_url and app_context["google_runtime_enabled"]:
-        render_html(render_same_tab_link_button("Continue with Google as Public Buyer", auth_url))
+        render_html(render_new_tab_link_button("Continue with Google as Public Buyer", auth_url))
+    elif st.session_state.get("requested_role") == "public_buyer" and login_blocked_for_cloud_fallback:
+        st.error("Cloud runtime is using local OAuth fallback. Configure Streamlit secrets.")
     elif st.session_state.get("requested_role") == "public_buyer":
         st.info("Google OAuth is not available yet in this runtime.")
