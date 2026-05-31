@@ -7,7 +7,7 @@ import streamlit as st
 from bootstrap.route_registry import render_route
 from bootstrap.service_container import build_app_context
 from components.html_renderer import render_html
-from components.ui_shell import render_configurable_link_button, render_same_tab_link_button
+from components.ui_shell import render_configurable_link_button
 from components.ui_shell import apply_ui_shell
 from utils.session import clear_runtime_session, ensure_session_defaults, pop_flash, set_flash
 
@@ -31,25 +31,6 @@ def _resolve_login_navigation_mode(app_context: dict) -> str:
 
 def render_header(app_context: dict) -> None:
     if not app_context.get("current_user"):
-        login_navigation_mode = _resolve_login_navigation_mode(app_context)
-        st.session_state["oauth_login_navigation_mode"] = login_navigation_mode
-        login_blocked_for_cloud_fallback = (
-            app_context["system_config"]["app"].get("runtime_environment") == "staging_cloud"
-            and app_context.get("oauth_config_fallback_active", False)
-        )
-        auth_url = None if login_blocked_for_cloud_fallback else app_context["oauth_callback_service"].build_authorization_url(flow_type=app_context["oauth_callback_service"].LOGIN)
-        login_cta = ""
-        if login_blocked_for_cloud_fallback:
-            login_cta = "<span class='mt-google-login-btn mt-google-login-btn--disabled'>Configure Streamlit secrets</span>"
-        elif auth_url and app_context["google_runtime_enabled"]:
-            login_cta = render_configurable_link_button(
-                "Continue with Google",
-                auth_url,
-                navigation_mode=login_navigation_mode,
-                class_name="mt-google-login-btn",
-            )
-        else:
-            login_cta = "<span class='mt-google-login-btn mt-google-login-btn--disabled'>Google OAuth unavailable</span>"
         render_html(
             f"""
             <section class="mt-top-login-bar">
@@ -57,7 +38,6 @@ def render_header(app_context: dict) -> None:
                 <strong>{app_context["system_config"]["app"]["name"]}</strong>
                 <span>{app_context["system_config"]["app"]["tagline"]}</span>
               </div>
-              <div class="mt-top-login-bar__cta">{login_cta}</div>
             </section>
             """
         )

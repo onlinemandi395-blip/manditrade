@@ -32,13 +32,15 @@ Generated from the current repository state on 2026-05-31 after the OAuth same-t
   - [bootstrap/app_bootstrap.py](C:/2026/manditrade/manditrade/bootstrap/app_bootstrap.py)
   - [components/ui_shell.py](C:/2026/manditrade/manditrade/components/ui_shell.py)
 
-## New-Tab Fallback Status
+## Sidebar-Only Login Status
 
 - Before login, sidebar still shows:
   - `Session`
   - `Continue with Google`
   - `Navigation`
   - `Dashboard`
+- Google login now appears only in the sidebar session area.
+- The main page/header no longer renders a duplicate login button.
 - `Marketplace` remains hidden before login.
 - `Access` is not shown as a navigation item.
 - The Google login CTA is still built from fresh `build_authorization_url(...)` output and is never hardcoded.

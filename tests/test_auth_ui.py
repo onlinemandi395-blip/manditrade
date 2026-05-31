@@ -15,6 +15,7 @@ def test_google_login_is_rendered_in_sidebar_session_area():
     assert "render_configurable_link_button(" in bootstrap_content
     assert "build_authorization_url(flow_type=app_context[\"oauth_callback_service\"].LOGIN)" in bootstrap_content
     assert "render_new_tab_link_button" not in access_content
+    assert "mt-google-login-btn" not in bootstrap_content
 
 
 def test_login_navigation_mode_supports_new_tab_and_same_tab():
@@ -110,6 +111,18 @@ def test_unauthenticated_navigation_hides_marketplace_and_access():
     )
     assert "Marketplace" not in sections
     assert "Access" not in sections
+
+
+def test_prelogin_has_exactly_one_continue_with_google_render_path():
+    bootstrap_content = Path("bootstrap/app_bootstrap.py").read_text(encoding="utf-8")
+    access_content = Path("modules/access/dashboard.py").read_text(encoding="utf-8")
+    combined = "\n".join([bootstrap_content, access_content])
+    assert combined.count("Continue with Google") == 1
+
+
+def test_main_page_does_not_render_continue_with_google():
+    access_content = Path("modules/access/dashboard.py").read_text(encoding="utf-8")
+    assert "Continue with Google" not in access_content
 
 
 def test_no_mock_or_demo_login_visible_in_access_surface():
