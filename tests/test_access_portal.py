@@ -31,7 +31,7 @@ def _oauth_config() -> dict:
     }
 
 
-def build_access_stack(tmp_path: Path):
+def build_access_stack(tmp_path: Path, *, auto_onboard_unknown_google_users: bool = True):
     json_service = JsonServiceStub()
     safe_write = SafeDriveWriteService(
         json_service=json_service,
@@ -79,6 +79,7 @@ def build_access_stack(tmp_path: Path):
         drive_service=drive_service,
         security_service=security_service,
         json_service=json_service,
+        auto_onboard_unknown_google_users=auto_onboard_unknown_google_users,
     )
     return governance_service, drive_service, client_service, worker_service, public_buyer_service, access_portal_service
 
@@ -212,3 +213,46 @@ def test_unknown_google_user_defaults_to_public_buyer(tmp_path):
     assert resolved["role"] == "public_buyer"
     assert resolved["public_buyer_id"] == buyer["public_buyer_id"]
     assert buyer is not None
+
+
+def test_unknown_google_user_does_not_become_pending_user_by_default(tmp_path):
+    _governance_service, _drive_service, _client_service, _worker_service, _public_buyer_service, access_portal_service = build_access_stack(tmp_path)
+    resolved = access_portal_service.resolve_identity(
+        email="freshbuyer@example.com",
+        display_name="Fresh Buyer",
+    )
+    assert resolved["role"] == "public_buyer"
+    assert resolved["status"] != "NO_ACCESS_MAPPING"
+
+
+def test_pending_user_used_when_public_auto_onboarding_disabled(tmp_path):
+    _governance_service, _drive_service, _client_service, _worker_service, _public_buyer_service, access_portal_service = build_access_stack(
+        tmp_path,
+        auto_onboard_unknown_google_users=False,
+    )
+    resolved = access_portal_service.resolve_identity(
+        email="blockedbuyer@example.com",
+        display_name="Blocked Buyer",
+    )
+    assert resolved["role"] == "pending_user"
+    assert resolved["status"] == "PUBLIC_AUTO_ONBOARDING_DISABLED"
+
+
+def test_pending_user_used_for_blocked_request(tmp_path):
+    _governance_service, _drive_service, _client_service, _worker_service, _public_buyer_service, access_portal_service = build_access_stack(tmp_path)
+    access_portal_service.submit_signup_request(
+        requested_role="manufacturer",
+        email="blocked@example.com",
+        full_name="Blocked User",
+        manufacturer_code="MANU999",
+    )
+    access_portal_service._mark_request_status(  # noqa: SLF001
+        access_portal_service.find_latest_request("blocked@example.com")["request_id"],
+        "BLOCKED",
+    )
+    resolved = access_portal_service.resolve_identity(
+        email="blocked@example.com",
+        display_name="Blocked User",
+    )
+    assert resolved["role"] == "pending_user"
+    assert resolved["status"] == "BLOCKED"

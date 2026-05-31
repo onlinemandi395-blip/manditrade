@@ -25,6 +25,7 @@ Generated from the current repository state on 2026-05-31 after the public buyer
 - If a Google user is not found in admin/manufacturer/client/worker mappings, the resolver now defaults them into `public_buyer` via [services/access_portal_service.py](C:/2026/manditrade/manditrade/services/access_portal_service.py).
 - First-time public buyers are now gated through profile completion before entering Marketplace in [modules/marketplace/dashboard.py](C:/2026/manditrade/manditrade/modules/marketplace/dashboard.py).
 - Returning public buyers with complete profiles go directly to Marketplace.
+- Unknown Google users now fall back to `public_buyer` by default instead of `pending_user`.
 
 ## Public Buyer Profile Model
 

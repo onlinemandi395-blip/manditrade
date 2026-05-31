@@ -7,6 +7,8 @@ from uuid import uuid4
 
 
 class AccessPortalService:
+    BLOCKING_REQUEST_STATUSES = {"BLOCKED", "REJECTED", "DISABLED", "SUSPENDED"}
+
     def __init__(
         self,
         *,
@@ -19,6 +21,7 @@ class AccessPortalService:
         drive_service,
         security_service,
         json_service,
+        auto_onboard_unknown_google_users: bool = True,
     ) -> None:
         self.governance_root = governance_root
         self.safe_drive_write_service = safe_drive_write_service
@@ -29,6 +32,7 @@ class AccessPortalService:
         self.drive_service = drive_service
         self.security_service = security_service
         self.json_service = json_service
+        self.auto_onboard_unknown_google_users = auto_onboard_unknown_google_users
 
     @property
     def access_requests_path(self) -> Path:
@@ -174,6 +178,15 @@ class AccessPortalService:
         request = self.find_latest_request(email_key, preferred_role_key or None)
         if request and request.get("status") == "READY_FOR_GOOGLE_SIGNIN":
             return self._activate_request(request, display_name=display_name)
+        if request and str(request.get("status", "")).strip().upper() in self.BLOCKING_REQUEST_STATUSES:
+            return {
+                "role": "pending_user",
+                "manufacturer_code": request.get("manufacturer_code") or manufacturer_code,
+                "status": request.get("status", "BLOCKED"),
+                "client_id": None,
+                "public_buyer_id": None,
+                "worker_id": None,
+            }
 
         client_match = self._find_client_membership(email_key)
         if client_match:
@@ -186,13 +199,6 @@ class AccessPortalService:
         public_buyer = self.public_buyer_service.get_by_email(email_key)
         if public_buyer:
             return {"role": "public_buyer", "manufacturer_code": None, "status": public_buyer.get("status", "ACTIVE"), "client_id": None, "public_buyer_id": public_buyer.get("public_buyer_id"), "worker_id": None}
-
-        if request:
-            return {
-                "role": "pending_user",
-                "manufacturer_code": request.get("manufacturer_code") or manufacturer_code,
-                "status": request.get("status", "PENDING_ADMIN_REVIEW"),
-            }
 
         if preferred_role_key == "worker":
             self.worker_service.upsert_worker(
@@ -213,12 +219,23 @@ class AccessPortalService:
             buyer = self.public_buyer_service.register_or_get(email=email_key, full_name=display_name or email_key)
             return {"role": "public_buyer", "manufacturer_code": None, "status": buyer.get("status", "ACTIVE"), "client_id": None, "public_buyer_id": buyer.get("public_buyer_id"), "worker_id": None}
 
+        if not self.auto_onboard_unknown_google_users:
+            return {
+                "role": "pending_user",
+                "manufacturer_code": manufacturer_code,
+                "status": "PUBLIC_AUTO_ONBOARDING_DISABLED",
+                "client_id": None,
+                "public_buyer_id": None,
+                "worker_id": None,
+            }
+
+        buyer = self.public_buyer_service.register_or_get(email=email_key, full_name=display_name or email_key)
         return {
-            "role": "pending_user",
-            "manufacturer_code": manufacturer_code,
-            "status": "NO_ACCESS_MAPPING",
+            "role": "public_buyer",
+            "manufacturer_code": None,
+            "status": buyer.get("status", "ACTIVE"),
             "client_id": None,
-            "public_buyer_id": None,
+            "public_buyer_id": buyer.get("public_buyer_id"),
             "worker_id": None,
         }
 

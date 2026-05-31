@@ -65,6 +65,7 @@ def build_app_context() -> dict:
     feature_flags = load_config("feature_flags.json")
     subscription_plans = load_config("subscription_plans.json")
     system_config.setdefault("ledger_reminders", {"enabled": True, "upcoming_days_before": 3, "final_reminder_after_days": 15, "max_reminders_per_due": 4})
+    system_config.setdefault("public_access", {"auto_onboard_unknown_google_users": True})
     system_config.setdefault(
         "public_payment",
         {
@@ -264,6 +265,7 @@ def build_app_context() -> dict:
         drive_service=drive_service,
         security_service=security_service,
         json_service=drive_service.json_service,
+        auto_onboard_unknown_google_users=bool(system_config.get("public_access", {}).get("auto_onboard_unknown_google_users", True)),
     )
     order_state_service = OrderStateService(audit_service=audit_service)
     delivery_service = DeliveryService(gmail_service=gmail_service, audit_service=audit_service, id_allocator_service=id_allocator_service)
