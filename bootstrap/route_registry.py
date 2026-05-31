@@ -31,7 +31,7 @@ from modules.workers.dashboard import render_workers_dashboard
 
 
 ROUTE_GROUPS = {
-    "public": {"Marketplace"},
+    "public": {"Dashboard", "Marketplace"},
     "shared_authenticated": {"My Actions", "Notifications", "My Profile", "Profile"},
     "manufacturer": {"Products", "Inventory", "Clients", "Client Orders", "Ledger", "RFQ"},
     "client": {"Products", "My Orders", "Ledger", "Dashboard", "Profile"},

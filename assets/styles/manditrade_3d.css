@@ -427,6 +427,75 @@ div[data-baseweb="tab-border"] {
   pointer-events: none;
 }
 
+.mt-top-login-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 0 18px 0;
+  padding: 14px 18px;
+  border-radius: 22px;
+  border: 1px solid rgba(255,255,255,0.09);
+  background:
+    linear-gradient(180deg, rgba(10, 20, 34, 0.76), rgba(9, 18, 31, 0.66)),
+    rgba(255,255,255,0.03);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(18px);
+}
+
+.mt-top-login-bar__brand {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mt-top-login-bar__brand strong {
+  font-size: 1rem;
+  letter-spacing: 0.02em;
+}
+
+.mt-top-login-bar__brand span {
+  color: #bfd0df;
+  font-size: 0.88rem;
+}
+
+.mt-top-login-bar__cta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.mt-google-login-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 0 18px;
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(255,255,255,0.12);
+  background:
+    linear-gradient(135deg, rgba(56,193,114,0.28), rgba(56,189,248,0.18) 50%, rgba(245,158,11,0.24)),
+    rgba(255,255,255,0.04);
+  color: var(--text-main);
+  text-decoration: none;
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.22);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, filter 0.18s ease;
+}
+
+.mt-google-login-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.30);
+  border-color: rgba(255,255,255,0.2);
+  filter: saturate(116%);
+}
+
+.mt-google-login-btn--disabled {
+  opacity: 0.75;
+  cursor: default;
+}
+
 .mt-hero,
 .mt-panel,
 .mt-card,
@@ -1093,6 +1162,16 @@ div[data-baseweb="tab-border"] {
 }
 
 @media (max-width: 767px) {
+  .mt-top-login-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .mt-top-login-bar__cta {
+    justify-content: stretch;
+  }
+  .mt-google-login-btn {
+    width: 100%;
+  }
   .mt-grid--metrics,
   .mt-grid--actions,
   .mt-grid--stack,

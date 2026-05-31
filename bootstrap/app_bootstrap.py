@@ -6,6 +6,8 @@ import streamlit as st
 
 from bootstrap.route_registry import render_route
 from bootstrap.service_container import build_app_context
+from components.html_renderer import render_html
+from components.ui_shell import render_same_tab_link_button
 from components.ui_shell import apply_ui_shell
 from utils.session import clear_runtime_session, ensure_session_defaults, pop_flash, set_flash
 
@@ -23,8 +25,33 @@ ADMIN_CONTEXT_OPTIONS = {
 
 
 def render_header(app_context: dict) -> None:
-    st.title(app_context["system_config"]["app"]["name"])
-    st.caption(app_context["system_config"]["app"]["tagline"])
+    if not app_context.get("current_user"):
+        login_blocked_for_cloud_fallback = (
+            app_context["system_config"]["app"].get("runtime_environment") == "staging_cloud"
+            and app_context.get("oauth_config_fallback_active", False)
+        )
+        auth_url = None if login_blocked_for_cloud_fallback else app_context["oauth_callback_service"].build_authorization_url(flow_type=app_context["oauth_callback_service"].LOGIN)
+        login_cta = ""
+        if login_blocked_for_cloud_fallback:
+            login_cta = "<span class='mt-google-login-btn mt-google-login-btn--disabled'>Configure Streamlit secrets</span>"
+        elif auth_url and app_context["google_runtime_enabled"]:
+            login_cta = render_same_tab_link_button("Continue with Google", auth_url, class_name="mt-google-login-btn")
+        else:
+            login_cta = "<span class='mt-google-login-btn mt-google-login-btn--disabled'>Google OAuth unavailable</span>"
+        render_html(
+            f"""
+            <section class="mt-top-login-bar">
+              <div class="mt-top-login-bar__brand">
+                <strong>{app_context["system_config"]["app"]["name"]}</strong>
+                <span>{app_context["system_config"]["app"]["tagline"]}</span>
+              </div>
+              <div class="mt-top-login-bar__cta">{login_cta}</div>
+            </section>
+            """
+        )
+    else:
+        st.title(app_context["system_config"]["app"]["name"])
+        st.caption(app_context["system_config"]["app"]["tagline"])
     if app_context["config_issues"]:
         st.warning("Configuration issues detected: " + " | ".join(app_context["config_issues"]))
     if app_context["startup_checks"]:
@@ -47,7 +74,7 @@ def render_header(app_context: dict) -> None:
 
 def render_auth_panel(app_context: dict) -> None:
     with st.sidebar:
-        st.markdown("## Access")
+        st.markdown("## Session")
         user = app_context["current_user"]
         session_user = app_context.get("session_user")
         if user:
@@ -176,6 +203,8 @@ def handle_oauth_callback(app_context: dict) -> None:
 
 def resolve_navigation_sections(app_context: dict) -> list[str]:
     current_user = app_context.get("current_user")
+    if not current_user:
+        return ["Dashboard"]
     security_service = app_context["security_service"]
     is_admin_identity = security_service.is_admin_identity(current_user)
     worker_profile = app_context["worker_service"].get_worker_by_email(current_user.email) if current_user and getattr(current_user, "email", "") else None
@@ -227,7 +256,7 @@ def resolve_navigation_sections(app_context: dict) -> list[str]:
         return ["Dashboard", "My Profile", "My Actions", "Notifications", "Jobs in Mandi", "Workers"]
     if role == "pending_user":
         return ["Dashboard"]
-    return ["Dashboard", "Marketplace"]
+    return ["Dashboard"]
 
 
 def render_sidebar_navigation(app_context: dict) -> str:

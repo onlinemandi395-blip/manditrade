@@ -1,99 +1,48 @@
 # MandiTrade Checker Reference
 
-Generated from the current repository state on 2026-05-31 after the public buyer first-login onboarding polish pass.
+Generated from the current repository state on 2026-05-31 after the pre-login dashboard landing and top-nav Google login pass.
 
-## Pre-Login Navigation Cleanup Status
+## Pre-Login Dashboard Navigation Status
 
-- Unauthenticated navigation now resolves to `Access` only in [bootstrap/app_bootstrap.py](C:/2026/manditrade/manditrade/bootstrap/app_bootstrap.py).
-- `Marketplace` and `Dashboard` are no longer shown as separate pre-login homepage/sidebar destinations.
-- Unauthenticated route access still renders the same central login page through [bootstrap/route_registry.py](C:/2026/manditrade/manditrade/bootstrap/route_registry.py).
+- Unauthenticated navigation now resolves to `Dashboard` only in [bootstrap/app_bootstrap.py](C:/2026/manditrade/manditrade/bootstrap/app_bootstrap.py).
+- `Marketplace` is no longer shown in the pre-login sidebar.
+- `Access` is no longer shown as a separate pre-login destination.
+- Unauthenticated users still reach one shared landing/login renderer through [bootstrap/route_registry.py](C:/2026/manditrade/manditrade/bootstrap/route_registry.py) and [modules/access/dashboard.py](C:/2026/manditrade/manditrade/modules/access/dashboard.py).
 
-## Single Login / RBAC Flow Status
+## Top-Nav Google Login Status
 
-- The app keeps one canonical login renderer in [modules/access/dashboard.py](C:/2026/manditrade/manditrade/modules/access/dashboard.py).
-- Google Sign-In remains the only login action.
-- No marketplace-specific login or dashboard-specific login entry remains.
+- Google Sign-In is now rendered from the top header bar in [bootstrap/app_bootstrap.py](C:/2026/manditrade/manditrade/bootstrap/app_bootstrap.py).
+- The public landing body in [modules/access/dashboard.py](C:/2026/manditrade/manditrade/modules/access/dashboard.py) no longer embeds a separate in-content login button.
+- The header CTA styling is provided through:
+  - [assets/styles/manditrade_3d.css](C:/2026/manditrade/manditrade/assets/styles/manditrade_3d.css)
+  - `.mt-top-login-bar`
+  - `.mt-google-login-btn`
 
-## Public Buyer First-Login Onboarding Status
+## Same-Tab OAuth Link Status
 
-- After Google OAuth, role resolution still runs through:
-  - admin email from config/secrets
-  - manufacturer registry
-  - manufacturer client registry
-  - public buyer registry
-  - worker registry
-- If a Google user is not found in admin/manufacturer/client/worker mappings, the resolver now defaults them into `public_buyer` via [services/access_portal_service.py](C:/2026/manditrade/manditrade/services/access_portal_service.py).
-- First-time public buyers are now gated through profile completion before entering Marketplace in [modules/marketplace/dashboard.py](C:/2026/manditrade/manditrade/modules/marketplace/dashboard.py).
-- Returning public buyers with complete profiles go directly to Marketplace.
-- Unknown Google users now fall back to `public_buyer` by default instead of `pending_user`.
+- Pre-login Google Sign-In uses [components/ui_shell.py](C:/2026/manditrade/manditrade/components/ui_shell.py) `render_same_tab_link_button(...)`.
+- The link renders with `target="_self"` and does not use `_blank`.
+- Header login URL generation still comes from the current OAuth runtime in [bootstrap/app_bootstrap.py](C:/2026/manditrade/manditrade/bootstrap/app_bootstrap.py) via `build_authorization_url(...)`.
+- Cloud fallback blockers and secrets warnings remain active, so staging cloud still refuses ambiguous local OAuth fallback.
 
-## Public Buyer Profile Model
+## Public Landing / Marketplace Route Status
 
-- Public buyer profiles are now maintained through [services/public_buyer_service.py](C:/2026/manditrade/manditrade/services/public_buyer_service.py) with fields including:
-  - `full_name`
-  - `mobile`
-  - `alternate_mobile`
-  - `business_name`
-  - `city`
-  - `state`
-  - `pin_code`
-  - `delivery_address`
-  - `landmark`
-  - `preferred_payment_mode`
-  - `delivery_instructions`
-  - `profile_status`
-- Unified session payload now carries:
-  - `base_role`
-  - `active_context`
-  - `manufacturer_code`
-  - `client_id`
-  - `public_buyer_id`
-  - `worker_id`
-- Landing behavior remains:
-  - SuperUser/Admin -> SuperUser Dashboard
-  - Manufacturer -> Manufacturer Dashboard
-  - Client -> Client Dashboard
-  - Public Buyer -> Marketplace
-  - Worker -> Worker Dashboard
+- Unauthenticated `Dashboard` opens the public landing dashboard.
+- Unauthenticated `Marketplace` also resolves to that same landing/login experience instead of exposing a separate pre-login marketplace surface.
+- Marketplace remains post-login only for public buyers and role-appropriate users.
 
-## Marketplace Login Unification Status
+## Public Buyer First-Login Status
 
-- Marketplace is not a separate login system.
-- Unauthenticated marketplace access now routes to the same global login page.
-- Marketplace appears only after login for public/default buyers.
-- Incomplete public buyer profiles see a welcome/setup flow before product browsing and checkout.
+- Unknown Google users still default into `public_buyer` through [services/access_portal_service.py](C:/2026/manditrade/manditrade/services/access_portal_service.py).
+- First-time public buyers are still gated through profile completion before entering Marketplace in [modules/marketplace/dashboard.py](C:/2026/manditrade/manditrade/modules/marketplace/dashboard.py).
+- Returning complete public buyers still land directly in Marketplace.
 
-## Dashboard Login Unification Status
+## Post-Login RBAC Status
 
-- Dashboard is not a separate login system.
-- Unauthenticated dashboard access routes to the same global login page.
-- Centralized `can_access_route(...)` now applies route access logic instead of page-by-page login branching.
-
-## Three-Price Product Rule Status
-
-- Manufacturer product proposal continues to support:
-  - `mandi_price`
-  - `client_price`
-  - `marketplace_price`
-- Platform admin approval continues to support:
-  - `approved_mandi_price`
-  - `approved_client_price`
-  - `approved_marketplace_price`
-- Viewer pricing remains RBAC-scoped:
-  - clients see `client_price`
-  - public buyers see `marketplace_price`
-  - manufacturers/admin can inspect allowed pricing fields
-
-## SuperUser / RBAC Status
-
-- SuperUser base authority and context-switch behavior remain active from the previous pass.
-- Normal users remain restricted to their own route groups.
-- SuperUser privacy boundary for other manufacturers' private client identities remains intact.
-
-## Privacy / Storage Status
-
-- Public buyer profiles remain stored in the dedicated public-buyer area and are not mixed into manufacturer private client registries.
-- Public buyer profile data is used for public marketplace operations only.
+- Post-login RBAC behavior is unchanged by this pass.
+- SuperUser context-switch behavior remains active.
+- Manufacturers, clients, public buyers, and workers still receive only their allowed route groups after login.
+- SuperUser privacy boundaries for other manufacturers' private clients remain intact.
 
 ## Test Result
 
@@ -103,5 +52,5 @@ Generated from the current repository state on 2026-05-31 after the public buyer
 
 ## Remaining Blockers
 
-- The compatibility label `platform_admin` still remains in code and data structures instead of a fully normalized `SUPERUSER` constant.
-- Public buyer onboarding is now functional and validated, but richer welcome UX, address autofill, and progressive checkout nudges remain polish items rather than launch blockers.
+- The compatibility runtime label `platform_admin` still remains in code and data structures instead of a normalized `SUPERUSER` constant.
+- The public landing is now cleaner and more aligned with the login flow, but richer welcome UX and deeper marketing/explainer content are still polish items rather than RBAC blockers.

@@ -5,17 +5,17 @@ import streamlit as st
 from components.html_renderer import render_html
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
-from components.ui_shell import render_metric_card, render_new_tab_link_button, render_page_header, render_showcase_strip
+from components.ui_shell import render_metric_card, render_page_header, render_showcase_strip
 
 
 def render_login_page(app_context: dict) -> None:
     render_page_header(
-        "Login to MandiTrade",
-        "Sign in once with Google. MandiTrade will automatically load the right RBAC dashboard for your account.",
-        ["Google Sign-In Only", "RBAC Auto Routing", "Secure Access"],
-        role="Universal Entry",
-        metrics=[("Workspace Mode", "Role-aware"), ("Delivery Surface", "Google-only access")],
-        kicker="Digital Manpur Access Layer",
+        "MandiTrade",
+        "Digital Manpur for manufacturer networks, public marketplace trade, RFQ sourcing, khata discipline, and role-aware operations after one Google sign-in.",
+        ["Single Sign-In", "RBAC Routing", "Post-Login Marketplace"],
+        role="Public Landing",
+        metrics=[("Marketplace", "After sign-in"), ("Workspace Mode", "Role-aware")],
+        kicker="Digital Manpur Public Landing",
     )
     render_metric_grid(
         [
@@ -31,7 +31,7 @@ def render_login_page(app_context: dict) -> None:
             ("Public Buyers", "Instant pay shopping", "SUCCESS"),
         ]
     )
-    render_section_intro("Access", "Manufacturers, clients, workers, and platform admins all enter through one abstracted login page. Access is mapped in the background after authentication.")
+    render_section_intro("Platform Overview", "Manufacturers, clients, workers, public buyers, and SuperUser all enter through one Google sign-in. The correct workspace loads automatically after authentication.")
     render_html(
         """
         <section class="mt-login-layout">
@@ -54,39 +54,21 @@ def render_login_page(app_context: dict) -> None:
           </article>
           <article class="mt-login-card">
             <div class="mt-login-card__content">
-              <p class="mt-kicker">Google Sign-In</p>
-              <h3>One secure login for every role</h3>
+              <p class="mt-kicker">After Sign-In</p>
+              <h3>One public landing, multiple role-aware workspaces</h3>
               <p>
-                Continue with Google to open the correct workspace automatically. No role picker
-                or token entry is shown here.
+                Public buyers reach Marketplace after sign-in. Manufacturers unlock inventory, clients manage proposal orders,
+                and RFQ plus khata workflows stay role-scoped after authentication.
               </p>
             </div>
           </article>
         </section>
         """
     )
-
-    login_blocked_for_cloud_fallback = (
-        app_context["system_config"]["app"].get("runtime_environment") == "staging_cloud"
-        and app_context.get("oauth_config_fallback_active", False)
-    )
-    auth_url = None if login_blocked_for_cloud_fallback else app_context["oauth_callback_service"].build_authorization_url(flow_type=app_context["oauth_callback_service"].LOGIN)
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        if login_blocked_for_cloud_fallback:
-            st.error("Cloud runtime is using local OAuth fallback. Configure Streamlit secrets.")
-        elif auth_url and app_context["google_runtime_enabled"]:
-            render_html(render_new_tab_link_button("Continue with Google", auth_url))
-        else:
-            st.info("Google OAuth is not available yet in this runtime.")
-        st.caption("No role selection, marketplace login, dashboard login, or onboarding token is shown on this page.")
-        if app_context["system_config"]["app"].get("safe_mode", False) or app_context["system_config"]["app"].get("staging_mode", False):
-            with st.expander("OAuth Debug", expanded=False):
-                st.json(app_context["oauth_callback_service"].oauth_debug_snapshot())
+    st.caption("Google sign-in is available in the top navigation. No role selector, marketplace shortcut, or separate access page is shown before login.")
 
     with st.expander("Need access help?", expanded=False):
         st.write("If your email is already onboarded, your dashboard will load automatically after login.")
-        st.write("If access is still pending, MandiTrade will show a pending-access screen with next steps.")
         st.write("If you are a new public buyer entering from Marketplace, the app can create your marketplace profile after Google sign-in.")
         st.write("Manufacturer, client, or worker onboarding stays admin-managed in the backend.")
 
