@@ -8,7 +8,7 @@ from components.three_d_cards import render_metric_grid
 from components.ui_shell import render_metric_card, render_new_tab_link_button, render_page_header, render_showcase_strip
 
 
-def render_access_portal(app_context: dict) -> None:
+def render_login_page(app_context: dict) -> None:
     render_page_header(
         "Login to MandiTrade",
         "Sign in once with Google. MandiTrade will automatically load the right RBAC dashboard for your account.",
@@ -79,7 +79,7 @@ def render_access_portal(app_context: dict) -> None:
             render_html(render_new_tab_link_button("Continue with Google", auth_url))
         else:
             st.info("Google OAuth is not available yet in this runtime.")
-        st.caption("No role selection, signup form, or onboarding token is shown on this page.")
+        st.caption("No role selection, marketplace login, dashboard login, or onboarding token is shown on this page.")
         if app_context["system_config"]["app"].get("safe_mode", False) or app_context["system_config"]["app"].get("staging_mode", False):
             with st.expander("OAuth Debug", expanded=False):
                 st.json(app_context["oauth_callback_service"].oauth_debug_snapshot())
@@ -87,7 +87,12 @@ def render_access_portal(app_context: dict) -> None:
     with st.expander("Need access help?", expanded=False):
         st.write("If your email is already onboarded, your dashboard will load automatically after login.")
         st.write("If access is still pending, MandiTrade will show a pending-access screen with next steps.")
-        st.write("New manufacturer, client, or worker onboarding stays admin-managed in the backend.")
+        st.write("If you are a new public buyer entering from Marketplace, the app can create your marketplace profile after Google sign-in.")
+        st.write("Manufacturer, client, or worker onboarding stays admin-managed in the backend.")
+
+
+def render_access_portal(app_context: dict) -> None:
+    render_login_page(app_context)
 
 
 def render_pending_user_dashboard(app_context: dict) -> None:

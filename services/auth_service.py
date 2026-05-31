@@ -18,6 +18,9 @@ class AuthUser:
     base_role: str | None = None
     active_context: str | None = None
     manufacturer_code: str | None = None
+    client_id: str | None = None
+    public_buyer_id: str | None = None
+    worker_id: str | None = None
     session_source: str = "mock"
     subject_id: str | None = None
     granted_scopes: list[str] | None = None
@@ -69,6 +72,9 @@ class AuthService:
             base_role=role,
             active_context=role,
             manufacturer_code=manufacturer_code,
+            client_id=None,
+            public_buyer_id=None,
+            worker_id=None,
             session_source="mock",
         )
 
@@ -80,6 +86,9 @@ class AuthService:
         role: str,
         subject_id: str | None = None,
         manufacturer_code: str | None = None,
+        client_id: str | None = None,
+        public_buyer_id: str | None = None,
+        worker_id: str | None = None,
         granted_scopes: list[str] | None = None,
         token_metadata: dict[str, Any] | None = None,
     ) -> AuthUser:
@@ -102,6 +111,9 @@ class AuthService:
             base_role=role,
             active_context=role,
             manufacturer_code=manufacturer_code,
+            client_id=client_id,
+            public_buyer_id=public_buyer_id,
+            worker_id=worker_id,
             session_source="google_oauth",
             subject_id=resolved_subject,
             granted_scopes=list(granted_scopes or []),

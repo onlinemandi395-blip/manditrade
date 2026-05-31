@@ -71,6 +71,9 @@ def test_oauth_callback_session_initialization_succeeds_with_mock_auth_disabled(
             "email": "manufacturer@example.com",
             "name": "Manufacturer User",
             "role": "manufacturer",
+            "client_id": None,
+            "public_buyer_id": None,
+            "worker_id": None,
             "subject_id": "subject-456",
             "granted_scopes": ["openid"],
             "profile": {
@@ -93,8 +96,14 @@ def test_oauth_callback_session_initialization_succeeds_with_mock_auth_disabled(
     )
 
     assert st.session_state["user"]["session_source"] == "google_oauth"
+    assert st.session_state["user"]["base_role"] == "manufacturer"
+    assert st.session_state["user"]["active_context"] == "manufacturer"
     assert st.session_state["auth_tokens"]["session_source"] == "google_oauth"
     assert st.session_state["auth_tokens"]["subject_id"] == "subject-456"
+    assert "manufacturer_code" in st.session_state["auth_tokens"]
+    assert "client_id" in st.session_state["auth_tokens"]
+    assert "public_buyer_id" in st.session_state["auth_tokens"]
+    assert "worker_id" in st.session_state["auth_tokens"]
     assert Path(st.session_state["auth_tokens"]["token_file"]).exists()
 
 

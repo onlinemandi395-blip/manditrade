@@ -242,3 +242,16 @@ def test_superuser_context_can_preview_client_dashboard_without_losing_admin_ide
     monkeypatch.setattr("bootstrap.route_registry.render_client_dashboard", lambda _ctx: hits.append("client"))
     render_route("Dashboard", app_context)
     assert hits == ["client"]
+
+
+def test_unauthenticated_routes_render_global_login_page(monkeypatch):
+    hits: list[str] = []
+    app_context = {
+        "current_user": None,
+        "session_user": None,
+        "security_service": SimpleNamespace(is_admin_identity=lambda _user: False),
+    }
+    monkeypatch.setattr("bootstrap.route_registry.render_login_page", lambda _ctx: hits.append("login"))
+    render_route("Dashboard", app_context)
+    render_route("Marketplace", app_context)
+    assert hits == ["login", "login"]

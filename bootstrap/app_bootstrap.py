@@ -78,7 +78,7 @@ def render_auth_panel(app_context: dict) -> None:
                 st.rerun()
             return
 
-        st.info("Use the central login page on the homepage to continue with Google, or browse the public marketplace from the sidebar.")
+        st.info("Use the central MandiTrade login page to continue with Google. The app will route you to the correct workspace after sign-in.")
 
 
 def handle_oauth_callback(app_context: dict) -> None:
@@ -143,6 +143,9 @@ def handle_oauth_callback(app_context: dict) -> None:
                 "email": email,
                 "name": profile.get("name", email),
                 "role": resolved_identity["role"],
+                "client_id": resolved_identity.get("client_id"),
+                "public_buyer_id": resolved_identity.get("public_buyer_id"),
+                "worker_id": resolved_identity.get("worker_id"),
                 "subject_id": profile.get("id"),
                 "granted_scopes": list(token_payload.get("scopes", [])),
                 "profile": profile,

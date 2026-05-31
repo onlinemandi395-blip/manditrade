@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from modules.access.dashboard import render_access_portal, render_pending_user_dashboard
+from modules.access.dashboard import render_login_page, render_pending_user_dashboard
 from modules.actions.dashboard import render_actions_dashboard
 from modules.admin.commission_summary import render_commission_summary_dashboard
 from modules.admin.dashboard import render_admin_dashboard
@@ -30,10 +30,55 @@ from modules.system.health_dashboard import render_health_dashboard
 from modules.workers.dashboard import render_workers_dashboard
 
 
+ROUTE_GROUPS = {
+    "public": {"Marketplace"},
+    "shared_authenticated": {"My Actions", "Notifications", "My Profile", "Profile"},
+    "manufacturer": {"Products", "Inventory", "Clients", "Client Orders", "Ledger", "RFQ"},
+    "client": {"Products", "My Orders", "Ledger", "Dashboard", "Profile"},
+    "public_buyer": {"Marketplace", "My Orders", "My Profile"},
+    "worker": {"Dashboard", "My Profile", "Jobs in Mandi", "Workers"},
+    "admin": {
+        "Dashboard",
+        "Product Approvals",
+        "Manufacturers",
+        "Public Orders",
+        "Inventory Summary",
+        "Commission Summary",
+        "Payments",
+        "Clients Preview",
+        "Ledger Summary",
+        "System Health",
+    },
+}
+
+
+def can_access_route(user, section: str, app_context: dict) -> bool:
+    if not user:
+        return section in ROUTE_GROUPS["public"]
+    session_user = app_context.get("session_user") or user
+    security_service = app_context["security_service"]
+    if security_service.is_admin_identity(session_user):
+        return True
+    role = user.role
+    if section in ROUTE_GROUPS["shared_authenticated"]:
+        return True
+    if role in {"manufacturer", "admin_as_manufacturer"}:
+        return section in ROUTE_GROUPS["manufacturer"] | {"Dashboard", "Marketplace"}
+    if role == "client":
+        return section in ROUTE_GROUPS["client"]
+    if role == "public_buyer":
+        return section in ROUTE_GROUPS["public_buyer"]
+    if role == "worker":
+        return section in ROUTE_GROUPS["worker"]
+    if role == "pending_user":
+        return section == "Dashboard"
+    return False
+
+
 def render_dashboard(app_context: dict) -> None:
     user = app_context["current_user"]
     if not user:
-        render_access_portal(app_context)
+        render_login_page(app_context)
         return
     if app_context["security_service"].is_admin_identity(app_context.get("session_user") or user) and user.role == "platform_admin":
         render_admin_dashboard(app_context)
@@ -54,6 +99,14 @@ def render_route(section: str, app_context: dict) -> None:
     session_user = app_context.get("session_user") or user
     is_admin_identity = app_context["security_service"].is_admin_identity(session_user)
     supervisor_mode = bool(is_admin_identity and getattr(user, "role", "") == "platform_admin")
+    if not user:
+        if section == "Marketplace":
+            st.session_state["requested_role"] = "public_buyer"
+        render_login_page(app_context)
+        return
+    if not can_access_route(user, section, app_context):
+        st.warning("You do not have access to this view.")
+        return
     if section == "Dashboard":
         render_dashboard(app_context)
     elif section == "My Actions":

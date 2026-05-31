@@ -162,14 +162,14 @@ class AccessPortalService:
         preferred_role_key = (preferred_role or "").strip().lower()
 
         if self.security_service.get_admin_email() and email_key == self.security_service.get_admin_email().strip().lower():
-            return {"role": "platform_admin", "manufacturer_code": manufacturer_code, "status": "AUTHORIZED"}
+            return {"role": "platform_admin", "manufacturer_code": manufacturer_code, "status": "AUTHORIZED", "client_id": None, "public_buyer_id": None, "worker_id": None}
 
         manufacturer = next(
             (item for item in self.governance_service.list_manufacturers() if item.get("owner_email", "").strip().lower() == email_key),
             None,
         )
         if manufacturer:
-            return {"role": "manufacturer", "manufacturer_code": manufacturer.get("manufacturer_code"), "status": manufacturer.get("status", "ACTIVE")}
+            return {"role": "manufacturer", "manufacturer_code": manufacturer.get("manufacturer_code"), "status": manufacturer.get("status", "ACTIVE"), "client_id": None, "public_buyer_id": None, "worker_id": None}
 
         request = self.find_latest_request(email_key, preferred_role_key or None)
         if request and request.get("status") == "READY_FOR_GOOGLE_SIGNIN":
@@ -177,15 +177,15 @@ class AccessPortalService:
 
         client_match = self._find_client_membership(email_key)
         if client_match:
-            return {"role": "client", "manufacturer_code": client_match["manufacturer_code"], "status": client_match.get("status", "ACTIVE")}
+            return {"role": "client", "manufacturer_code": client_match["manufacturer_code"], "status": client_match.get("status", "ACTIVE"), "client_id": client_match.get("client_id"), "public_buyer_id": None, "worker_id": None}
 
         worker = self.worker_service.get_worker_by_email(email_key)
         if worker:
-            return {"role": "worker", "manufacturer_code": None, "status": worker.get("status", "ACTIVE")}
+            return {"role": "worker", "manufacturer_code": None, "status": worker.get("status", "ACTIVE"), "client_id": None, "public_buyer_id": None, "worker_id": worker.get("worker_id")}
 
         public_buyer = self.public_buyer_service.get_by_email(email_key)
         if public_buyer:
-            return {"role": "public_buyer", "manufacturer_code": None, "status": public_buyer.get("status", "ACTIVE")}
+            return {"role": "public_buyer", "manufacturer_code": None, "status": public_buyer.get("status", "ACTIVE"), "client_id": None, "public_buyer_id": public_buyer.get("public_buyer_id"), "worker_id": None}
 
         if request:
             return {
@@ -206,16 +206,20 @@ class AccessPortalService:
                 available=True,
                 public_profile_opt_in=False,
             )
-            return {"role": "worker", "manufacturer_code": None, "status": "SELF_REGISTERED"}
+            worker = self.worker_service.get_worker_by_email(email_key)
+            return {"role": "worker", "manufacturer_code": None, "status": "SELF_REGISTERED", "client_id": None, "public_buyer_id": None, "worker_id": (worker or {}).get("worker_id")}
 
         if preferred_role_key == "public_buyer":
             buyer = self.public_buyer_service.register_or_get(email=email_key, full_name=display_name or email_key)
-            return {"role": "public_buyer", "manufacturer_code": None, "status": buyer.get("status", "ACTIVE")}
+            return {"role": "public_buyer", "manufacturer_code": None, "status": buyer.get("status", "ACTIVE"), "client_id": None, "public_buyer_id": buyer.get("public_buyer_id"), "worker_id": None}
 
         return {
             "role": "pending_user",
             "manufacturer_code": manufacturer_code,
             "status": "NO_ACCESS_MAPPING",
+            "client_id": None,
+            "public_buyer_id": None,
+            "worker_id": None,
         }
 
     def _activate_request(self, request: dict[str, Any], *, display_name: str = "") -> dict[str, Any]:
@@ -234,7 +238,7 @@ class AccessPortalService:
                 if updates:
                     self.governance_service.update_manufacturer(manufacturer_code, updates)
                 self._mark_request_status(request["request_id"], "ACTIVE")
-                return {"role": "manufacturer", "manufacturer_code": manufacturer_code, "status": "ACTIVE"}
+                return {"role": "manufacturer", "manufacturer_code": manufacturer_code, "status": "ACTIVE", "client_id": None, "public_buyer_id": None, "worker_id": None}
 
         if role == "client" and manufacturer_code and request.get("invite_token"):
             invite = self.client_service.validate_onboarding(manufacturer_code, request["invite_token"], email)
@@ -251,7 +255,7 @@ class AccessPortalService:
                 }
                 self.client_service.complete_profile(manufacturer_code, profile)
                 self._mark_request_status(request["request_id"], "ACTIVE")
-                return {"role": "client", "manufacturer_code": manufacturer_code, "status": "ACTIVE"}
+                return {"role": "client", "manufacturer_code": manufacturer_code, "status": "ACTIVE", "client_id": profile.get("client_id"), "public_buyer_id": None, "worker_id": None}
 
         if role == "worker":
             self.worker_service.upsert_worker(
@@ -266,14 +270,15 @@ class AccessPortalService:
                 public_profile_opt_in=True,
             )
             self._mark_request_status(request["request_id"], "ACTIVE")
-            return {"role": "worker", "manufacturer_code": None, "status": "ACTIVE"}
+            worker = self.worker_service.get_worker_by_email(email)
+            return {"role": "worker", "manufacturer_code": None, "status": "ACTIVE", "client_id": None, "public_buyer_id": None, "worker_id": (worker or {}).get("worker_id")}
 
         if role == "public_buyer":
             buyer = self.public_buyer_service.register_or_get(email=email, full_name=request.get("full_name") or display_name or email)
             self._mark_request_status(request["request_id"], "ACTIVE")
-            return {"role": "public_buyer", "manufacturer_code": None, "status": buyer.get("status", "ACTIVE")}
+            return {"role": "public_buyer", "manufacturer_code": None, "status": buyer.get("status", "ACTIVE"), "client_id": None, "public_buyer_id": buyer.get("public_buyer_id"), "worker_id": None}
 
-        return {"role": "pending_user", "manufacturer_code": manufacturer_code or None, "status": request.get("status", "PENDING_ADMIN_REVIEW")}
+        return {"role": "pending_user", "manufacturer_code": manufacturer_code or None, "status": request.get("status", "PENDING_ADMIN_REVIEW"), "client_id": None, "public_buyer_id": None, "worker_id": None}
 
     def _find_client_membership(self, email: str) -> dict[str, Any] | None:
         for manufacturer in self.governance_service.list_manufacturers():
@@ -283,10 +288,10 @@ class AccessPortalService:
             profiles = self.client_service.list_client_profiles(manufacturer_code)
             for profile in profiles:
                 if profile.get("email", "").strip().lower() == email:
-                    return {"manufacturer_code": manufacturer_code, "status": profile.get("status", "ACTIVE")}
+                    return {"manufacturer_code": manufacturer_code, "status": profile.get("status", "ACTIVE"), "client_id": profile.get("client_id")}
             for client in self.client_service.list_clients(manufacturer_code):
                 if client.get("email", "").strip().lower() == email:
-                    return {"manufacturer_code": manufacturer_code, "status": client.get("status", "INVITED")}
+                    return {"manufacturer_code": manufacturer_code, "status": client.get("status", "INVITED"), "client_id": client.get("client_id")}
         return None
 
     def _mark_request_status(self, request_id: str, status: str) -> None:

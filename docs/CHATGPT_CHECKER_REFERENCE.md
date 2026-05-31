@@ -1,60 +1,59 @@
 # MandiTrade Checker Reference
 
-Generated from the current repository state on 2026-05-31 after the SuperUser context-switch pass.
+Generated from the current repository state on 2026-05-31 after the single unified login and role-redirect pass.
 
-## Admin / SuperUser Model Status
+## Single Login Page Status
 
-- Admin is now treated as one conceptual SuperUser account.
-- Internal runtime label `platform_admin` still exists for compatibility.
-- Base authority and UI context are separated:
-  - `base_role` controls authority
-  - `active_context` controls which dashboard/profile/workspace is rendered
-- SuperUser can switch context across:
-  - `Platform Admin`
-  - `Manufacturer`
-  - `Client`
-  - `Public Buyer`
-  - `Worker`
+- The app now uses one canonical login renderer in [modules/access/dashboard.py](C:/2026/manditrade/manditrade/modules/access/dashboard.py).
+- Google Sign-In is the only login action.
+- No marketplace-specific login or dashboard-specific login entry remains.
 
-## Context Switcher Status
+## Duplicate Login Removal Status
 
-- Admin-only context switcher is available in the sidebar.
-- Selected context is stored in session and serialized with the signed-in user payload.
-- `ADMIN_MANU` is used as the private operating workspace when SuperUser previews manufacturer/client private flows.
+- Marketplace no longer renders a separate public-buyer sign-in CTA.
+- Unauthenticated Dashboard and Marketplace routes both render the same global login page through centralized route handling in [bootstrap/route_registry.py](C:/2026/manditrade/manditrade/bootstrap/route_registry.py).
+- The sidebar auth panel no longer suggests separate marketplace browsing/login behavior.
 
-## RBAC Rule Status
+## Role-Based Landing Status
 
-- SuperUser base authority can access all route groups even when UI is previewing a non-admin context.
-- Normal users remain restricted to their assigned role surfaces only.
-- SuperUser navigation now includes:
-  - `Dashboard`
-  - `My Profile`
-  - `Products`
-  - `Product Approvals`
-  - `Manufacturers`
-  - `Marketplace`
-  - `Public Orders`
-  - `Client Orders`
-  - `RFQ`
-  - `Inventory Summary`
-  - `Commission Summary`
-  - `Payments`
-  - `Clients Preview`
-  - `Ledger Summary`
-  - `My Actions`
-  - `Notifications`
-  - `System Health`
+- After Google OAuth, role resolution still runs through:
+  - admin email from config/secrets
+  - manufacturer registry
+  - manufacturer client registry
+  - public buyer registry
+  - worker registry
+- Unified session payload now carries:
+  - `base_role`
+  - `active_context`
+  - `manufacturer_code`
+  - `client_id`
+  - `public_buyer_id`
+  - `worker_id`
+- Landing behavior remains:
+  - SuperUser/Admin -> SuperUser Dashboard
+  - Manufacturer -> Manufacturer Dashboard
+  - Client -> Client Dashboard
+  - Public Buyer -> Marketplace
+  - Worker -> Worker Dashboard
+  - Unknown -> pending/access-mapping flow
 
-## Privacy Boundary Status
+## Marketplace Login Unification Status
 
-- SuperUser supervisor mode remains aggregate-only for other manufacturers' private business.
-- Supervisor surfaces do not expose:
-  - client names
-  - client emails
-  - phone numbers
-  - private ledger notes
-  - private payment proposals
-- Full private detail access is limited to `ADMIN_MANU` when the SuperUser is previewing manufacturer/client private operating context.
+- Marketplace is not a separate login system.
+- Unauthenticated marketplace access now routes to the same global login page.
+- Public buyer creation remains driven by the same Google OAuth flow and role resolver rather than a separate marketplace auth surface.
+
+## Dashboard Login Unification Status
+
+- Dashboard is not a separate login system.
+- Unauthenticated dashboard access routes to the same global login page.
+- Centralized `can_access_route(...)` now applies route access logic instead of page-by-page login branching.
+
+## SuperUser / RBAC Status
+
+- SuperUser base authority and context-switch behavior remain active from the previous pass.
+- Normal users remain restricted to their own route groups.
+- SuperUser privacy boundary for other manufacturers' private client identities remains intact.
 
 ## Test Result
 
@@ -65,4 +64,4 @@ Generated from the current repository state on 2026-05-31 after the SuperUser co
 ## Remaining Blockers
 
 - The compatibility label `platform_admin` still remains in code and data structures instead of a fully normalized `SUPERUSER` constant.
-- SuperUser analytics remain table-first operational summaries rather than richer reporting dashboards.
+- Unknown user post-login flow still lands on pending/access mapping unless the role resolver has a marketplace/public-buyer hint, so broader self-serve onboarding design remains a product decision rather than a login-system blocker.
