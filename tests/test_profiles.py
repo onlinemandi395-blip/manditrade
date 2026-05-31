@@ -5,6 +5,8 @@ from types import SimpleNamespace
 
 from bootstrap.route_registry import render_route
 from bootstrap.app_bootstrap import resolve_navigation_sections
+from services.auth_service import AuthUser
+from services.security_service import SecurityService
 from services.client_service import ClientService
 from services.encryption_service import EncryptionService
 from services.file_lock_service import FileLockService
@@ -136,6 +138,59 @@ def test_navigation_sections_include_my_profile_for_signed_in_roles():
     assert "My Orders" in client_sections
 
 
+def test_superuser_navigation_includes_all_context_sections():
+    security_service = SimpleNamespace(is_admin_identity=lambda _user: True)
+    sections = resolve_navigation_sections(
+        {
+            "current_user": SimpleNamespace(role="platform_admin", base_role="platform_admin", active_context="platform_admin", email="admin@example.com", manufacturer_code=None),
+            "security_service": security_service,
+            "worker_service": SimpleNamespace(get_worker_by_email=lambda _email: None),
+        }
+    )
+    assert sections == [
+        "Dashboard",
+        "My Profile",
+        "Products",
+        "Product Approvals",
+        "Manufacturers",
+        "Marketplace",
+        "Public Orders",
+        "Client Orders",
+        "RFQ",
+        "Inventory Summary",
+        "Commission Summary",
+        "Payments",
+        "Clients Preview",
+        "Ledger Summary",
+        "My Actions",
+        "Notifications",
+        "System Health",
+    ]
+
+
+def test_security_service_builds_effective_superuser_context(tmp_path):
+    security_service = SecurityService(
+        encryption_service=EncryptionService(secret_seed="test-seed"),
+        auth_service=SimpleNamespace(),
+        admin_token_file=tmp_path / "admin_token.enc",
+        manufacturer_token_dir=tmp_path / "manufacturer_tokens",
+        runtime_tokens_dir=tmp_path / "runtime_tokens",
+        require_verification_for_admin_runtime=False,
+    )
+    user = AuthUser(
+        email="admin@example.com",
+        name="Admin",
+        role="platform_admin",
+        base_role="platform_admin",
+        active_context="manufacturer",
+    )
+    effective_user = security_service.build_effective_user(user)
+    assert effective_user is not None
+    assert effective_user.role == "manufacturer"
+    assert effective_user.base_role == "platform_admin"
+    assert effective_user.manufacturer_code == "ADMIN_MANU"
+
+
 def test_master_data_contains_shared_categories_and_states():
     service = MasterDataService()
     categories = service.get_product_categories()
@@ -161,3 +216,29 @@ def test_superadmin_summary_routes_use_dedicated_modules(monkeypatch):
     render_route("Commission Summary", app_context)
 
     assert hits == ["rfq", "inventory", "commission"]
+
+
+def test_superuser_supervisor_mode_routes_private_sections_to_safe_summaries(monkeypatch):
+    hits: list[str] = []
+    app_context = {
+        "current_user": SimpleNamespace(role="platform_admin", base_role="platform_admin", active_context="platform_admin", email="admin@example.com", manufacturer_code=None),
+        "session_user": SimpleNamespace(role="platform_admin", base_role="platform_admin", active_context="platform_admin", email="admin@example.com", manufacturer_code=None),
+        "security_service": SimpleNamespace(is_admin_identity=lambda _user: True),
+    }
+    monkeypatch.setattr("bootstrap.route_registry.render_admin_dashboard", lambda _ctx, section="Dashboard": hits.append(section))
+    render_route("Client Orders", app_context)
+    render_route("Clients Preview", app_context)
+    render_route("Ledger Summary", app_context)
+    assert hits == ["Client Orders", "Clients Preview", "Ledger Summary"]
+
+
+def test_superuser_context_can_preview_client_dashboard_without_losing_admin_identity(monkeypatch):
+    hits: list[str] = []
+    app_context = {
+        "current_user": SimpleNamespace(role="client", base_role="platform_admin", active_context="client", email="admin@example.com", manufacturer_code="ADMIN_MANU"),
+        "session_user": SimpleNamespace(role="platform_admin", base_role="platform_admin", active_context="client", email="admin@example.com", manufacturer_code=None),
+        "security_service": SimpleNamespace(is_admin_identity=lambda _user: True),
+    }
+    monkeypatch.setattr("bootstrap.route_registry.render_client_dashboard", lambda _ctx: hits.append("client"))
+    render_route("Dashboard", app_context)
+    assert hits == ["client"]

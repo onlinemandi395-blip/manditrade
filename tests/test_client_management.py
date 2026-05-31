@@ -243,3 +243,31 @@ def test_other_manufacturer_cannot_read_private_order_registry(tmp_path):
 
     assert order_query.get_order("MANU101", "ORD-2026-000001") is not None
     assert order_query.get_order("MANU202", "ORD-2026-000001") is None
+
+
+def test_superuser_admin_manu_context_can_see_only_admin_manu_private_clients(tmp_path):
+    governance, drive, client_service, _gmail, _access_service = _build_stack(tmp_path)
+    _seed_manufacturer(governance, drive, "ADMIN_MANU", "admin@example.com")
+    _seed_manufacturer(governance, drive, "MANU202", "owner2@example.com")
+    admin_client = client_service.create_client(
+        "ADMIN_MANU",
+        {
+            "business_name": "Admin Retail",
+            "owner_name": "Admin Operator",
+            "email": "admin-client@example.com",
+            "status": "ACTIVE",
+        },
+    )
+    other_client = client_service.create_client(
+        "MANU202",
+        {
+            "business_name": "Other Retail",
+            "owner_name": "Other Owner",
+            "email": "other-client@example.com",
+            "status": "ACTIVE",
+        },
+    )
+
+    admin_clients = client_service.list_clients("ADMIN_MANU")
+    assert any(item.get("email") == admin_client["email"] for item in admin_clients)
+    assert all(item.get("email") != other_client["email"] for item in admin_clients)

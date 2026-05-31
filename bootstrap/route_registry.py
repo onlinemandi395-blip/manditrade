@@ -35,7 +35,7 @@ def render_dashboard(app_context: dict) -> None:
     if not user:
         render_access_portal(app_context)
         return
-    if user.role in {"admin", "platform_admin"}:
+    if app_context["security_service"].is_admin_identity(app_context.get("session_user") or user) and user.role == "platform_admin":
         render_admin_dashboard(app_context)
     elif user.role in {"manufacturer", "admin_as_manufacturer"}:
         render_manufacturer_dashboard(app_context)
@@ -50,6 +50,10 @@ def render_dashboard(app_context: dict) -> None:
 
 
 def render_route(section: str, app_context: dict) -> None:
+    user = app_context.get("current_user")
+    session_user = app_context.get("session_user") or user
+    is_admin_identity = app_context["security_service"].is_admin_identity(session_user)
+    supervisor_mode = bool(is_admin_identity and getattr(user, "role", "") == "platform_admin")
     if section == "Dashboard":
         render_dashboard(app_context)
     elif section == "My Actions":
@@ -71,19 +75,24 @@ def render_route(section: str, app_context: dict) -> None:
         else:
             render_orders_dashboard(app_context)
     elif section in {"Inventory", "Inventory Summary"}:
-        if section == "Inventory Summary":
+        if section == "Inventory Summary" or supervisor_mode:
             render_inventory_summary_dashboard(app_context)
         else:
             render_inventory_management(app_context)
     elif section == "Client Orders":
-        render_orders_dashboard(app_context)
+        if supervisor_mode:
+            render_admin_dashboard(app_context, section="Client Orders")
+        else:
+            render_orders_dashboard(app_context)
     elif section in {"Mandi RFQ", "RFQ"}:
-        if app_context["security_service"].is_admin_identity(app_context.get("current_user")) and not getattr(app_context.get("current_user"), "manufacturer_code", None):
+        if supervisor_mode:
             render_rfq_summary_dashboard(app_context)
         else:
             render_rfq_dashboard(app_context)
     elif section in {"Ledger / Khata", "Ledger"}:
         render_ledger_dashboard(app_context)
+    elif section == "Ledger Summary":
+        render_admin_dashboard(app_context, section="Ledger Summary")
     elif section in {"Payments", "Commission Summary"}:
         if section == "Commission Summary":
             render_commission_summary_dashboard(app_context)
@@ -93,6 +102,8 @@ def render_route(section: str, app_context: dict) -> None:
         render_dispatch_management(app_context)
     elif section == "Clients":
         render_clients_dashboard(app_context)
+    elif section == "Clients Preview":
+        render_admin_dashboard(app_context, section="Clients Preview")
     elif section == "Jobs in Mandi":
         render_jobs_dashboard(app_context)
     elif section == "Workers":

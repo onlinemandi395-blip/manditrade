@@ -248,9 +248,12 @@ class OAuthCallbackService:
         else:
             raise PermissionError(f"Unsupported session source: {session_source}")
         st.session_state["user"] = self.auth_service.serialize_user(user)
+        st.session_state["admin_active_context"] = user.active_context or user.role
         st.session_state["auth_tokens"] = {
             "principal": user.email,
             "role": user.role,
+            "base_role": user.base_role,
+            "active_context": user.active_context,
             "manufacturer_code": manufacturer_code,
             "session_source": user.session_source,
             "subject_id": user.subject_id,

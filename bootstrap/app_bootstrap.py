@@ -13,6 +13,13 @@ from utils.session import clear_runtime_session, ensure_session_defaults, pop_fl
 BUILD_COMMIT = "ui-jobs-20260528"
 BUILD_FILE = Path(__file__).resolve()
 CSS_FILE = BUILD_FILE.parent.parent / "assets" / "styles" / "manditrade_3d.css"
+ADMIN_CONTEXT_OPTIONS = {
+    "platform_admin": "Platform Admin",
+    "manufacturer": "Manufacturer",
+    "client": "Client",
+    "public_buyer": "Public Buyer",
+    "worker": "Worker",
+}
 
 
 def render_header(app_context: dict) -> None:
@@ -42,8 +49,26 @@ def render_auth_panel(app_context: dict) -> None:
     with st.sidebar:
         st.markdown("## Access")
         user = app_context["current_user"]
+        session_user = app_context.get("session_user")
         if user:
-            st.success(f"{user.name} signed in as {user.role}")
+            if app_context["security_service"].is_admin_identity(session_user or user):
+                active_context = app_context.get("active_context", "platform_admin")
+                st.success(f"{user.name} signed in as SuperUser")
+                st.caption(f"View as: {ADMIN_CONTEXT_OPTIONS.get(active_context, active_context.replace('_', ' ').title())}")
+                selected_context = st.selectbox(
+                    "View as",
+                    options=list(ADMIN_CONTEXT_OPTIONS),
+                    index=list(ADMIN_CONTEXT_OPTIONS).index(active_context if active_context in ADMIN_CONTEXT_OPTIONS else "platform_admin"),
+                    format_func=lambda key: ADMIN_CONTEXT_OPTIONS[key],
+                    key="admin_context_switcher",
+                )
+                if selected_context != active_context and session_user:
+                    session_user.active_context = selected_context
+                    st.session_state["admin_active_context"] = selected_context
+                    st.session_state["user"] = app_context["auth_service"].serialize_user(session_user)
+                    st.rerun()
+            else:
+                st.success(f"{user.name} signed in as {user.role}")
             if user.manufacturer_code:
                 st.caption(f"Manufacturer: {user.manufacturer_code}")
             if st.button("Logout", use_container_width=True):
@@ -167,10 +192,26 @@ def resolve_navigation_sections(app_context: dict) -> list[str]:
     ]
     if role in {"manufacturer", "admin_as_manufacturer"}:
         return manufacturer_sections
-    if is_admin_identity and current_user and current_user.manufacturer_code:
-        return [*manufacturer_sections, "Product Approvals", "Manufacturers", "System Health"]
     if is_admin_identity:
-        return ["Dashboard", "My Profile", "Products", "Product Approvals", "Manufacturers", "Marketplace", "Public Orders", "RFQ", "Inventory Summary", "Commission Summary", "Payments", "My Actions", "Notifications", "System Health"]
+        return [
+            "Dashboard",
+            "My Profile",
+            "Products",
+            "Product Approvals",
+            "Manufacturers",
+            "Marketplace",
+            "Public Orders",
+            "Client Orders",
+            "RFQ",
+            "Inventory Summary",
+            "Commission Summary",
+            "Payments",
+            "Clients Preview",
+            "Ledger Summary",
+            "My Actions",
+            "Notifications",
+            "System Health",
+        ]
     if role == "public_buyer":
         return ["Marketplace", "My Orders", "My Actions", "Notifications", "My Profile"]
     if role == "client":
@@ -194,7 +235,7 @@ def render_sidebar_navigation(app_context: dict) -> str:
     with st.sidebar:
         st.markdown("## Navigation")
         if is_admin_identity:
-            st.caption("Admin Nav Enabled")
+            st.caption(f"SuperUser context: {ADMIN_CONTEXT_OPTIONS.get(app_context.get('active_context', 'platform_admin'), 'Platform Admin')}")
         return st.radio("Go to", sections, label_visibility="collapsed")
 
 

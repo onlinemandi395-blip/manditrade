@@ -15,6 +15,8 @@ class AuthUser:
     email: str
     name: str
     role: str
+    base_role: str | None = None
+    active_context: str | None = None
     manufacturer_code: str | None = None
     session_source: str = "mock"
     subject_id: str | None = None
@@ -64,6 +66,8 @@ class AuthService:
             email=email,
             name=name,
             role=role,
+            base_role=role,
+            active_context=role,
             manufacturer_code=manufacturer_code,
             session_source="mock",
         )
@@ -95,6 +99,8 @@ class AuthService:
             email=normalized_email,
             name=name,
             role=role,
+            base_role=role,
+            active_context=role,
             manufacturer_code=manufacturer_code,
             session_source="google_oauth",
             subject_id=resolved_subject,
@@ -112,6 +118,9 @@ class AuthService:
     def deserialize_user(self, payload: dict[str, Any] | None) -> AuthUser | None:
         if not payload:
             return None
+        payload = dict(payload)
+        payload.setdefault("base_role", payload.get("role"))
+        payload.setdefault("active_context", payload.get("active_context") or payload.get("role"))
         return AuthUser(**payload)
 
     def refresh_credentials(self, credentials_payload: dict[str, Any], scopes: list[str] | None = None) -> Credentials:

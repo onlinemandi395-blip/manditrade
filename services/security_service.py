@@ -4,6 +4,7 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from dataclasses import replace
 
 import streamlit as st
 
@@ -14,6 +15,7 @@ from services.json_service import JsonService
 
 class SecurityService:
     PLACEHOLDER_ADMIN_TOKEN = "REPLACE_WITH_ENCRYPTED_ADMIN_REFRESH_TOKEN"
+    ADMIN_MANUFACTURER_CODE = "ADMIN_MANU"
 
     def __init__(
         self,
@@ -56,8 +58,47 @@ class SecurityService:
             return False
         expected_email = (self.get_admin_email() or "").strip().lower()
         return bool(
-            user.role in {"admin", "platform_admin"}
+            self.get_base_role(user) in {"admin", "platform_admin", "superuser"}
             or (expected_email and user.email.strip().lower() == expected_email)
+        )
+
+    def get_base_role(self, user: AuthUser | None) -> str:
+        if not user:
+            return ""
+        return str(getattr(user, "base_role", None) or user.role or "").strip().lower()
+
+    def get_active_context(self, user: AuthUser | None) -> str:
+        if not user:
+            return ""
+        base_role = self.get_base_role(user)
+        active_context = str(getattr(user, "active_context", None) or "").strip().lower()
+        if self.is_admin_identity(user):
+            return active_context or "platform_admin"
+        if base_role == "admin_as_manufacturer":
+            return "manufacturer"
+        return active_context or base_role
+
+    def build_effective_user(self, user: AuthUser | None) -> AuthUser | None:
+        if not user:
+            return None
+        base_role = self.get_base_role(user)
+        active_context = self.get_active_context(user)
+        if not self.is_admin_identity(user):
+            if user.base_role is None or user.active_context is None:
+                return replace(user, base_role=base_role, active_context=active_context)
+            return user
+        effective_role = "platform_admin" if active_context in {"", "platform_admin", "superuser"} else active_context
+        manufacturer_code = user.manufacturer_code
+        if active_context in {"manufacturer", "client"}:
+            manufacturer_code = self.ADMIN_MANUFACTURER_CODE
+        elif active_context in {"public_buyer", "worker", "platform_admin"}:
+            manufacturer_code = None
+        return replace(
+            user,
+            role=effective_role,
+            base_role=base_role or "platform_admin",
+            active_context=active_context or "platform_admin",
+            manufacturer_code=manufacturer_code,
         )
 
     @property
@@ -94,7 +135,7 @@ class SecurityService:
     def validate_admin_runtime_request(self, user: AuthUser | None, submitted_key: str) -> tuple[bool, str]:
         if not user:
             return False, "Sign in before requesting admin runtime access."
-        if user.role not in {"admin", "platform_admin"}:
+        if self.get_base_role(user) not in {"admin", "platform_admin", "superuser"}:
             return False, "Only admin users can unlock admin runtime access."
 
         expected_email = self.get_admin_email()

@@ -52,7 +52,8 @@ def _build_supervisory_rows(app_context: dict) -> list[dict]:
 
 
 def render_admin_dashboard(app_context: dict, section: str = "Dashboard") -> None:
-    render_page_header("SuperAdmin Dashboard", "Supervise marketplace, manufacturer performance, public orders, and platform health without exposing private client records.", ["SuperAdmin", "Governance"])
+    active_context = app_context.get("active_context", "platform_admin")
+    render_page_header("SuperUser Control Center", "One admin identity with context-aware previews, platform controls, and privacy-safe manufacturer supervision.", ["SuperUser", "Context Switch"])
     rows, pending_products, active_products, actions, public_orders = _build_supervisory_rows(app_context)
 
     render_metric_grid(
@@ -65,9 +66,9 @@ def render_admin_dashboard(app_context: dict, section: str = "Dashboard") -> Non
     )
     render_showcase_strip(
         [
-            ("Product Queue", str(len(pending_products)), "PENDING"),
-            ("Registry Health", str(len(rows)), "SUCCESS"),
-            ("Governance Load", str(sum(int(item.get("count", 0)) for item in actions)), "HIGH_PRIORITY"),
+            ("Platform Control", "Enabled", "SUCCESS"),
+            ("Context View", active_context.replace("_", " ").title(), "OPEN"),
+            ("System Health", "Available", "PENDING"),
         ]
     )
     render_dual_panel(
@@ -88,7 +89,16 @@ def render_admin_dashboard(app_context: dict, section: str = "Dashboard") -> Non
     elif section == "Payments":
         render_section_intro("Payments Summary", "Payments supervision shows aggregate manufacturer receivable load and public-order throughput, not private client notes.")
         st.dataframe(rows, use_container_width=True)
+    elif section == "Clients Preview":
+        render_section_intro("Clients Preview", "Client supervision is aggregate-only by manufacturer. Raw client names, emails, phones, and addresses are intentionally hidden.")
+        st.dataframe([{k: row[k] for k in ("manufacturer_code", "status", "subscription_plan", "client_count", "active_client_count")} for row in rows], use_container_width=True)
+    elif section == "Ledger Summary":
+        render_section_intro("Ledger Summary", "Ledger supervision shows pending counts and due totals only. Private notes and proposal detail stay hidden.")
+        st.dataframe([{k: row[k] for k in ("manufacturer_code", "ledger_entry_count", "pending_ledger_entries", "ledger_balance_due")} for row in rows], use_container_width=True)
+    elif section == "Client Orders":
+        render_section_intro("Client Orders Summary", "Private client order supervision remains aggregate-only outside the ADMIN_MANU operating context.")
+        st.dataframe([{k: row[k] for k in ("manufacturer_code", "private_order_count", "private_order_value", "rfq_request_count", "rfq_response_count")} for row in rows], use_container_width=True)
     else:
-        render_section_intro("Governance Overview", "Dashboard is summary-only. Use Product Approvals for proposals, Manufacturers for registry controls, and public modules for open-market supervision.")
+        render_section_intro("Governance Overview", "Dashboard is summary-only in supervisor mode. Switch context to preview manufacturer, client, public-buyer, or worker surfaces while preserving admin authority.")
         st.dataframe(rows, use_container_width=True)
     st.info("SuperAdmin visibility is aggregate-only for manufacturer private business. Raw client names, emails, notes, delivery addresses, and negotiation comments stay hidden.")

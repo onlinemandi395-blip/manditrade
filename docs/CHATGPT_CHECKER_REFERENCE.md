@@ -1,60 +1,32 @@
 # MandiTrade Checker Reference
 
-Generated from the current repository state on 2026-05-30 after the pilot blocker fix pass for RFQ pricing, storage separation, and dedicated SuperAdmin summaries.
+Generated from the current repository state on 2026-05-31 after the SuperUser context-switch pass.
 
-## RFQ Pricing Validation Status
+## Admin / SuperUser Model Status
 
-- RFQ supplier responses now require explicit priced items in [services/procurement_transaction_service.py](C:/2026/manditrade/manditrade/services/procurement_transaction_service.py).
-- Response item validation now enforces:
-  - `qty > 0`
-  - `offered_unit_price > 0`
-  - `total_price = qty * offered_unit_price`
-- Buyer acceptance is blocked if priced RFQ items are missing or zero-valued.
-- Mandi khata creation for RFQ acceptance now uses response `total_price` instead of a zero-value fallback.
-- RFQ UI now shows a validation error banner in [modules/rfq/dashboard.py](C:/2026/manditrade/manditrade/modules/rfq/dashboard.py) when invalid priced responses are present.
+- Admin is now treated as one conceptual SuperUser account.
+- Internal runtime label `platform_admin` still exists for compatibility.
+- Base authority and UI context are separated:
+  - `base_role` controls authority
+  - `active_context` controls which dashboard/profile/workspace is rendered
+- SuperUser can switch context across:
+  - `Platform Admin`
+  - `Manufacturer`
+  - `Client`
+  - `Public Buyer`
+  - `Worker`
 
-## Shared vs Private Storage Separation Status
+## Context Switcher Status
 
-- Domain-path separation was tightened in [services/domain_paths_service.py](C:/2026/manditrade/manditrade/services/domain_paths_service.py).
-- Inventory paths now distinguish:
-  - full private dual inventory via `private_self_inventory_path`
-  - shared mandi projection via `shared_mandi_inventory_projection_path`
-- [services/dual_inventory_service.py](C:/2026/manditrade/manditrade/services/dual_inventory_service.py) now writes:
-  - full self + mandi operational inventory to private zone
-  - mandi-only projection to shared zone
-- Private client order full documents remain in private zone through [services/order_transaction_service.py](C:/2026/manditrade/manditrade/services/order_transaction_service.py).
-- Shared-zone monthly client-order files are now sanitized projections only.
-- [services/query/order_query_service.py](C:/2026/manditrade/manditrade/services/query/order_query_service.py) now reads manufacturer private client-order docs instead of shared-zone projections.
-- [services/query/inventory_query_service.py](C:/2026/manditrade/manditrade/services/query/inventory_query_service.py) now reads mandi-visible shared inventory projections only.
+- Admin-only context switcher is available in the sidebar.
+- Selected context is stored in session and serialized with the signed-in user payload.
+- `ADMIN_MANU` is used as the private operating workspace when SuperUser previews manufacturer/client private flows.
 
-## Dedicated SuperAdmin Summary Modules
+## RBAC Rule Status
 
-- SuperAdmin summary routes now use dedicated read-only modules:
-  - [modules/admin/rfq_summary.py](C:/2026/manditrade/manditrade/modules/admin/rfq_summary.py)
-  - [modules/admin/inventory_summary.py](C:/2026/manditrade/manditrade/modules/admin/inventory_summary.py)
-  - [modules/admin/commission_summary.py](C:/2026/manditrade/manditrade/modules/admin/commission_summary.py)
-- Route wiring was updated in [bootstrap/route_registry.py](C:/2026/manditrade/manditrade/bootstrap/route_registry.py).
-- Summary rules now hold:
-  - read-only
-  - aggregate-only
-  - no private client identities
-  - no private ledger notes
-  - no private payment proposals
-
-## SuperAdmin Privacy Boundary
-
-- SuperAdmin dashboards remain summary-only in [modules/admin/dashboard.py](C:/2026/manditrade/manditrade/modules/admin/dashboard.py).
-- Dedicated admin summary pages and helper services do not expose:
-  - client name
-  - client email
-  - client mobile
-  - private shipping address
-  - private negotiation comments
-  - private payment proposal details
-
-## Navigation Status
-
-- SuperAdmin nav includes:
+- SuperUser base authority can access all route groups even when UI is previewing a non-admin context.
+- Normal users remain restricted to their assigned role surfaces only.
+- SuperUser navigation now includes:
   - `Dashboard`
   - `My Profile`
   - `Products`
@@ -62,49 +34,35 @@ Generated from the current repository state on 2026-05-30 after the pilot blocke
   - `Manufacturers`
   - `Marketplace`
   - `Public Orders`
+  - `Client Orders`
   - `RFQ`
   - `Inventory Summary`
   - `Commission Summary`
   - `Payments`
+  - `Clients Preview`
+  - `Ledger Summary`
   - `My Actions`
   - `Notifications`
   - `System Health`
-- Manufacturer/admin-as-manufacturer nav remains:
-  - `Dashboard`
-  - `My Profile`
-  - `Products`
-  - `Inventory`
-  - `Clients`
-  - `Client Orders`
-  - `Ledger`
-  - `RFQ`
-  - `Marketplace`
-  - `My Actions`
-  - `Notifications`
 
-## Tests Result
+## Privacy Boundary Status
 
-### `python -m pytest tests/ -q`
+- SuperUser supervisor mode remains aggregate-only for other manufacturers' private business.
+- Supervisor surfaces do not expose:
+  - client names
+  - client emails
+  - phone numbers
+  - private ledger notes
+  - private payment proposals
+- Full private detail access is limited to `ADMIN_MANU` when the SuperUser is previewing manufacturer/client private operating context.
 
-```text
-sssss................................................................... [ 69%]
-................................                                         [100%]
-99 passed, 5 skipped in 23.25s
-```
+## Test Result
 
-### `python -m compileall app.py modules services utils components schemas bootstrap scripts`
-
-```text
-passed
-```
-
-### `python -c "import app; print('app import ok')"`
-
-```text
-app import ok
-```
+- `python -m pytest tests/ -q`
+- `python -m compileall app.py modules services utils components schemas bootstrap scripts`
+- `python -c "import app; print('app import ok')"`
 
 ## Remaining Blockers
 
-- The codebase still uses the internal runtime role label `platform_admin` instead of a globally normalized `SUPER_ADMIN` constant.
-- SuperAdmin analytics pages are now dedicated and safe, but they are still table-driven operational summaries rather than richer chart/reporting dashboards.
+- The compatibility label `platform_admin` still remains in code and data structures instead of a fully normalized `SUPERUSER` constant.
+- SuperUser analytics remain table-first operational summaries rather than richer reporting dashboards.

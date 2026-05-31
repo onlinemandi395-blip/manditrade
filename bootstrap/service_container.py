@@ -364,6 +364,12 @@ def build_app_context() -> dict:
     }
     config_service.write_latest_pilot_status(APP_RUNTIME_DIR / "integration_reports" / "latest_pilot_status.json", latest_pilot_status)
 
+    session_user = auth_service.deserialize_user(st.session_state.get("user"))
+    if session_user and security_service.is_admin_identity(session_user):
+        requested_context = str(st.session_state.get("admin_active_context") or getattr(session_user, "active_context", None) or "platform_admin").strip().lower()
+        session_user.active_context = requested_context or "platform_admin"
+    effective_user = security_service.build_effective_user(session_user)
+
     return {
         "config_service": config_service,
         "config_issues": config_issues,
@@ -441,5 +447,9 @@ def build_app_context() -> dict:
             "recovery": RUNTIME_RECOVERY_DIR,
             "version_history": RUNTIME_VERSION_HISTORY_DIR,
         },
-        "current_user": auth_service.deserialize_user(st.session_state.get("user")),
+        "current_user": effective_user,
+        "session_user": session_user,
+        "base_role": security_service.get_base_role(session_user),
+        "active_context": security_service.get_active_context(session_user),
+        "is_superuser": security_service.is_admin_identity(session_user),
     }

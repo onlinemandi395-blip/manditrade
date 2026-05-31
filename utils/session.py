@@ -21,6 +21,7 @@ def ensure_session_defaults() -> None:
         "manufacturer_context": None,
         "requested_role": None,
         "client_onboarding_token": None,
+        "admin_active_context": "platform_admin",
         "session_last_seen": time.time(),
     }
     for key, value in defaults.items():

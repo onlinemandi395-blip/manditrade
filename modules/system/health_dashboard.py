@@ -81,8 +81,9 @@ def render_health_dashboard(app_context: dict) -> None:
         st.info("User-facing Gmail queues are disabled. Notification emails are triggered immediately from the active runtime session.")
 
     current_user = app_context["current_user"]
+    session_user = app_context.get("session_user") or current_user
     with diagnostics_tab:
-        if current_user and current_user.role in {"admin", "platform_admin"}:
+        if current_user and app_context["security_service"].is_admin_identity(session_user):
             oauth_status = app_context["google_runtime_diagnostic_service"].oauth_status(current_user)
             with st.expander("OAuth Status", expanded=False):
                 st.json(oauth_status)
