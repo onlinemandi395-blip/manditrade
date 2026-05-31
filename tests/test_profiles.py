@@ -255,3 +255,43 @@ def test_unauthenticated_routes_render_global_login_page(monkeypatch):
     render_route("Dashboard", app_context)
     render_route("Marketplace", app_context)
     assert hits == ["login", "login"]
+
+
+def test_public_buyer_profile_edit_persists_complete_fields(tmp_path):
+    governance, drive, _client_service = _build_persistence_stack(tmp_path)
+    json_service = JsonServiceStub()
+    safe_write = SafeDriveWriteService(
+        json_service=json_service,
+        file_lock_service=FileLockService(),
+        schema_validation_service=SchemaValidationService(),
+        backups_root=tmp_path / "backups_public",
+        logging_service=LoggingStub(),
+        version_history_root=tmp_path / "history_public",
+    )
+    from services.public_buyer_service import PublicBuyerService
+    buyer_service = PublicBuyerService(
+        public_buyers_root=tmp_path / "public_buyers",
+        safe_drive_write_service=safe_write,
+        json_service=json_service,
+        id_allocator_service=type("Allocator", (), {"allocate": lambda self, domain: "PB-2026-000001"})(),
+    )
+    buyer = buyer_service.register_or_get(email="buyer@example.com", full_name="Buyer")
+    updated = buyer_service.upsert_profile(
+        buyer["public_buyer_id"],
+        {
+            "full_name": "Buyer User",
+            "mobile": "9876543210",
+            "alternate_mobile": "9123456789",
+            "business_name": "Buyer Home",
+            "city": "Pune",
+            "state": "Maharashtra",
+            "pin_code": "411001",
+            "delivery_address": "Flat 101",
+            "landmark": "Near market",
+            "preferred_payment_mode": "UPI",
+            "delivery_instructions": "Ring bell",
+        },
+    )
+    assert updated["profile_status"] == "COMPLETE"
+    assert updated["preferred_payment_mode"] == "UPI"
+    assert updated["address"]["line1"] == "Flat 101"

@@ -8,6 +8,7 @@ from components.html_renderer import render_html
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
 from components.ui_shell import render_metric_card, render_page_header, render_showcase_strip
+from modules.profile.dashboard import render_public_buyer_profile_setup
 
 
 def render_marketplace_dashboard(app_context: dict) -> None:
@@ -82,6 +83,9 @@ def render_marketplace_dashboard(app_context: dict) -> None:
     buyer = app_context["public_buyer_service"].get_by_email(user.email)
     if not buyer:
         st.error("Public buyer profile not found for this account.")
+        return
+    if not app_context["public_buyer_service"].is_profile_complete(buyer):
+        render_public_buyer_profile_setup(app_context, welcome_mode=True)
         return
     cart_service = app_context["public_cart_service"]
     order_service = app_context["public_order_service"]

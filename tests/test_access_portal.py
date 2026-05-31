@@ -198,3 +198,17 @@ def test_public_buyer_signup_creates_public_marketplace_identity(tmp_path):
     assert resolved["role"] == "public_buyer"
     assert buyer is not None
     assert buyer["status"] == "ACTIVE"
+
+
+def test_unknown_google_user_defaults_to_public_buyer(tmp_path):
+    _governance_service, _drive_service, _client_service, _worker_service, public_buyer_service, access_portal_service = build_access_stack(tmp_path)
+
+    resolved = access_portal_service.resolve_identity(
+        email="newuser@example.com",
+        display_name="New User",
+    )
+    buyer = public_buyer_service.get_by_email("newuser@example.com")
+
+    assert resolved["role"] == "public_buyer"
+    assert resolved["public_buyer_id"] == buyer["public_buyer_id"]
+    assert buyer is not None

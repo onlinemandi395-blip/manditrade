@@ -3,7 +3,10 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from bootstrap.app_bootstrap import resolve_navigation_sections
+from modules.marketplace.dashboard import render_marketplace_dashboard
 from services.action_center_service import ActionCenterService
 from services.domain_paths_service import DomainPathsService
 from services.dual_inventory_service import DualInventoryService
@@ -20,6 +23,14 @@ from services.schema_validation_service import SchemaValidationService
 from tests.helpers.failure_injector import GmailStub, LoggingStub
 from tests.helpers.fake_storage import DriveStub, JsonServiceStub
 from tests.helpers.transaction_fixtures import build_order_service, current_user
+
+
+class _FakeTab:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
 
 
 def build_public_stack(tmp_path: Path):
@@ -149,6 +160,143 @@ def test_public_buyer_navigation_excludes_internal_routes(tmp_path):
     assert "Inventory" not in sections
     assert "Mandi RFQ" not in sections
     assert "Ledger / Khata" not in sections
+
+
+def test_new_public_buyer_profile_starts_incomplete(tmp_path):
+    stack = build_public_stack(tmp_path)
+    buyer = stack["public_buyer_service"].register_or_get(email="buyer@example.com", full_name="Buyer")
+    assert buyer["profile_status"] == "INCOMPLETE"
+    assert stack["public_buyer_service"].is_profile_complete(buyer) is False
+
+
+def test_public_buyer_profile_save_requires_required_fields(tmp_path):
+    stack = build_public_stack(tmp_path)
+    buyer = stack["public_buyer_service"].register_or_get(email="buyer@example.com", full_name="Buyer")
+    with pytest.raises(ValueError, match="required"):
+        stack["public_buyer_service"].validate_profile(
+            {
+                "full_name": "Buyer",
+                "mobile": "",
+                "city": "Pune",
+                "state": "Maharashtra",
+                "pin_code": "411001",
+                "delivery_address": "Shop 1",
+                "preferred_payment_mode": "UPI",
+            }
+        )
+    updated = stack["public_buyer_service"].upsert_profile(
+        buyer["public_buyer_id"],
+        {
+            "full_name": "Buyer",
+            "mobile": "9876543210",
+            "city": "Pune",
+            "state": "Maharashtra",
+            "pin_code": "411001",
+            "delivery_address": "Shop 1",
+            "landmark": "Near gate",
+            "preferred_payment_mode": "UPI",
+        },
+    )
+    assert updated["profile_status"] == "COMPLETE"
+    assert updated["delivery_address"] == "Shop 1"
+
+
+def test_invalid_public_buyer_mobile_and_pin_are_rejected(tmp_path):
+    stack = build_public_stack(tmp_path)
+    with pytest.raises(ValueError, match="10 digits"):
+        stack["public_buyer_service"].validate_profile(
+            {
+                "full_name": "Buyer",
+                "mobile": "12345",
+                "city": "Pune",
+                "state": "Maharashtra",
+                "pin_code": "411001",
+                "delivery_address": "Shop 1",
+                "preferred_payment_mode": "UPI",
+            }
+        )
+
+
+def test_incomplete_public_buyer_marketplace_shows_onboarding(monkeypatch, tmp_path):
+    stack = build_public_stack(tmp_path)
+    seed_public_product(stack, product_id="PRD-2026-000001", manufacturer_code="MANU101")
+    buyer = stack["public_buyer_service"].register_or_get(email="buyer@example.com", full_name="Buyer")
+    hits: list[str] = []
+    monkeypatch.setattr("modules.marketplace.dashboard.render_public_buyer_profile_setup", lambda _ctx, welcome_mode=False: hits.append(f"welcome:{welcome_mode}"))
+    monkeypatch.setattr("modules.marketplace.dashboard.render_page_header", lambda *args, **kwargs: None)
+    monkeypatch.setattr("modules.marketplace.dashboard.render_metric_grid", lambda *args, **kwargs: None)
+    monkeypatch.setattr("modules.marketplace.dashboard.render_showcase_strip", lambda *args, **kwargs: None)
+    monkeypatch.setattr("modules.marketplace.dashboard.render_section_intro", lambda *args, **kwargs: None)
+    monkeypatch.setattr("modules.marketplace.dashboard.render_html", lambda *args, **kwargs: None)
+    monkeypatch.setattr("modules.marketplace.dashboard.st.dataframe", lambda *args, **kwargs: None)
+    monkeypatch.setattr("modules.marketplace.dashboard.st.columns", lambda *_args, **_kwargs: (SimpleNamespace(text_input=lambda *a, **k: "", selectbox=lambda *a, **k: "All"), SimpleNamespace(selectbox=lambda *a, **k: "All")))
+    monkeypatch.setattr("modules.marketplace.dashboard.st.selectbox", lambda _label, options, **_kwargs: options[0])
+    monkeypatch.setattr("modules.marketplace.dashboard.st.number_input", lambda *_args, **_kwargs: 1)
+    monkeypatch.setattr("modules.marketplace.dashboard.st.button", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr("modules.marketplace.dashboard.st.json", lambda *_args, **_kwargs: None)
+    app_context = {
+        "current_user": SimpleNamespace(role="public_buyer", email="buyer@example.com"),
+        "product_catalog_service": stack["product_service"],
+        "public_buyer_service": stack["public_buyer_service"],
+        "public_cart_service": stack["public_cart_service"],
+        "public_order_service": stack["public_order_service"],
+    }
+    render_marketplace_dashboard(app_context)
+    assert hits == ["welcome:True"]
+
+
+def test_complete_public_buyer_marketplace_skips_onboarding(monkeypatch, tmp_path):
+    stack = build_public_stack(tmp_path)
+    seed_public_product(stack, product_id="PRD-2026-000001", manufacturer_code="MANU101")
+    buyer = stack["public_buyer_service"].register_or_get(email="buyer@example.com", full_name="Buyer")
+    stack["public_buyer_service"].upsert_profile(
+        buyer["public_buyer_id"],
+        {
+            "full_name": "Buyer",
+            "mobile": "9876543210",
+            "city": "Pune",
+            "state": "Maharashtra",
+            "pin_code": "411001",
+            "delivery_address": "Flat 101",
+            "preferred_payment_mode": "UPI",
+        },
+    )
+    hits: list[str] = []
+    monkeypatch.setattr("modules.marketplace.dashboard.render_public_buyer_profile_setup", lambda _ctx, welcome_mode=False: hits.append(f"welcome:{welcome_mode}"))
+    monkeypatch.setattr("modules.marketplace.dashboard.render_page_header", lambda *args, **kwargs: None)
+    monkeypatch.setattr("modules.marketplace.dashboard.render_metric_grid", lambda *args, **kwargs: None)
+    monkeypatch.setattr("modules.marketplace.dashboard.render_showcase_strip", lambda *args, **kwargs: None)
+    monkeypatch.setattr("modules.marketplace.dashboard.render_section_intro", lambda *args, **kwargs: None)
+    monkeypatch.setattr("modules.marketplace.dashboard.render_html", lambda *args, **kwargs: None)
+    monkeypatch.setattr("modules.marketplace.dashboard.st.dataframe", lambda *args, **kwargs: None)
+    monkeypatch.setattr("modules.marketplace.dashboard.st.columns", lambda *_args, **_kwargs: (SimpleNamespace(text_input=lambda *a, **k: "", selectbox=lambda *a, **k: "All"), SimpleNamespace(selectbox=lambda *a, **k: "All")))
+    monkeypatch.setattr("modules.marketplace.dashboard.st.selectbox", lambda _label, options, **_kwargs: options[0])
+    monkeypatch.setattr("modules.marketplace.dashboard.st.number_input", lambda *_args, **_kwargs: 1)
+    monkeypatch.setattr("modules.marketplace.dashboard.st.button", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr("modules.marketplace.dashboard.st.json", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr("modules.marketplace.dashboard.st.tabs", lambda *_args, **_kwargs: (_FakeTab(), _FakeTab()))
+    monkeypatch.setattr("modules.marketplace.dashboard.st.info", lambda *args, **kwargs: None)
+    app_context = {
+        "current_user": SimpleNamespace(role="public_buyer", email="buyer@example.com"),
+        "product_catalog_service": stack["product_service"],
+        "public_buyer_service": stack["public_buyer_service"],
+        "public_cart_service": stack["public_cart_service"],
+        "public_order_service": stack["public_order_service"],
+    }
+    render_marketplace_dashboard(app_context)
+    assert hits == []
+    with pytest.raises(ValueError, match="6 digits"):
+        stack["public_buyer_service"].validate_profile(
+            {
+                "full_name": "Buyer",
+                "mobile": "9876543210",
+                "city": "Pune",
+                "state": "Maharashtra",
+                "pin_code": "4110",
+                "delivery_address": "Shop 1",
+                "preferred_payment_mode": "UPI",
+            }
+        )
 
 
 def test_public_cart_calculates_total_from_mrp_only(tmp_path):

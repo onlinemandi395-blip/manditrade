@@ -386,14 +386,21 @@ def _render_public_buyer_profile_form(current_user, profile: dict) -> tuple[bool
         email_value = col2.text_input("Email", value=current_user.email, disabled=True)
         mobile = col1.text_input("Mobile Number", value=profile.get("mobile", ""))
         alternate_mobile = col2.text_input("Alternate Mobile Number", value=profile.get("alternate_mobile", ""))
+        business_name = col1.text_input("Business / Household Name", value=profile.get("business_name", ""))
+        preferred_payment_mode = col2.selectbox(
+            "Preferred Payment Mode",
+            ["UPI", "Cash", "Card", "Net Banking"],
+            index=["UPI", "Cash", "Card", "Net Banking"].index(profile.get("preferred_payment_mode", "UPI"))
+            if profile.get("preferred_payment_mode", "UPI") in {"UPI", "Cash", "Card", "Net Banking"}
+            else 0,
+        )
         st.markdown("#### Delivery Address")
-        line1 = st.text_input("Address Line 1", value=address["line1"])
-        line2 = st.text_input("Address Line 2", value=address["line2"])
+        line1 = st.text_input("Delivery Address", value=profile.get("delivery_address", address["line1"]))
         city_col, state_col, pin_col = st.columns(3)
-        city = city_col.text_input("City", value=address["city"])
-        state = state_col.selectbox("State", states, index=states.index(address["state"]) if address["state"] in states else 0)
-        pin_code = pin_col.text_input("PIN Code", value=address["pin_code"])
-        landmark = st.text_input("Landmark", value=address["landmark"])
+        city = city_col.text_input("City", value=profile.get("city", address["city"]))
+        state = state_col.selectbox("State", states, index=states.index(profile.get("state", address["state"])) if profile.get("state", address["state"]) in states else 0)
+        pin_code = pin_col.text_input("PIN Code", value=profile.get("pin_code", address["pin_code"]))
+        landmark = st.text_input("Landmark", value=profile.get("landmark", address["landmark"]))
         delivery_instructions = st.text_area("Delivery Instructions", value=profile.get("delivery_instructions", ""), height=110)
         submitted = st.form_submit_button("Save Public Buyer Profile")
     return submitted, {
@@ -401,40 +408,50 @@ def _render_public_buyer_profile_form(current_user, profile: dict) -> tuple[bool
         "full_name": full_name.strip(),
         "mobile": mobile.strip(),
         "alternate_mobile": alternate_mobile.strip(),
-        "address": {
-            "line1": line1.strip(),
-            "line2": line2.strip(),
-            "city": city.strip(),
-            "state": state.strip(),
-            "pin_code": pin_code.strip(),
-            "landmark": landmark.strip(),
-        },
+        "business_name": business_name.strip(),
+        "city": city.strip(),
+        "state": state.strip(),
+        "pin_code": pin_code.strip(),
+        "delivery_address": line1.strip(),
+        "landmark": landmark.strip(),
+        "preferred_payment_mode": preferred_payment_mode.strip(),
         "delivery_instructions": delivery_instructions.strip(),
     }
 
 
-def _render_public_buyer_profile(app_context: dict) -> None:
+def render_public_buyer_profile_setup(app_context: dict, *, welcome_mode: bool = False) -> bool:
     current_user = app_context["current_user"]
     service = app_context["public_buyer_service"]
     profile = service.get_by_email(current_user.email)
-    render_page_header("My Profile", "Maintain public-buyer delivery details so instant-pay marketplace orders reach the correct address smoothly.", ["Public Buyer", "Delivery Profile"])
+    title = "Welcome to Marketplace" if welcome_mode else "My Profile"
+    subtitle = (
+        "Complete your delivery profile once so marketplace orders can be placed without confusion."
+        if welcome_mode
+        else "Maintain public-buyer delivery details so instant-pay marketplace orders reach the correct address smoothly."
+    )
+    render_page_header(title, subtitle, ["Public Buyer", "Delivery Profile"])
     if not profile:
         st.info("No public buyer profile is linked to this account yet.")
-        return
+        return False
     render_metric_grid(
         [
             render_metric_card("Role", "Public Buyer", "SUCCESS"),
             render_metric_card("Status", profile.get("status", "ACTIVE"), "OPEN"),
-            render_metric_card("Delivery City", _address_value(profile.get("address", {})).get("city", "Not set"), "PENDING"),
+            render_metric_card("Profile", profile.get("profile_status", "INCOMPLETE"), "SUCCESS" if service.is_profile_complete(profile) else "PENDING"),
         ]
     )
-    render_section_intro("Public Delivery Profile", "This profile is used only for public marketplace shopping. It does not unlock ledger, RFQ, or private-client flows.")
+    render_section_intro(
+        "Public Delivery Profile",
+        "This profile is used only for public marketplace shopping. It does not unlock ledger, RFQ, or private-client flows."
+        if not welcome_mode
+        else "Set your delivery basics once before entering Marketplace. This data stays separate from manufacturer private client registries.",
+    )
     render_3d_panel(
         render_mobile_record_card(
             {
                 "Name": profile.get("full_name", ""),
                 "Email": profile.get("email", ""),
-                "City": _address_value(profile.get("address", {})).get("city", ""),
+                "City": profile.get("city", _address_value(profile.get("address", {})).get("city", "")),
                 "Mobile": profile.get("mobile", ""),
             }
         ),
@@ -442,9 +459,19 @@ def _render_public_buyer_profile(app_context: dict) -> None:
     )
     submitted, payload = _render_public_buyer_profile_form(current_user, profile)
     if submitted:
-        service.upsert_profile(profile["public_buyer_id"], payload)
-        st.success("Public buyer profile saved.")
-        st.rerun()
+        try:
+            service.validate_profile(payload)
+            service.upsert_profile(profile["public_buyer_id"], payload)
+        except ValueError as exc:
+            st.error(str(exc))
+        else:
+            st.success("Public buyer profile saved.")
+            st.rerun()
+    return service.is_profile_complete(service.get_by_email(current_user.email))
+
+
+def _render_public_buyer_profile(app_context: dict) -> None:
+    render_public_buyer_profile_setup(app_context, welcome_mode=False)
 
 
 def render_my_profile_dashboard(app_context: dict) -> None:
