@@ -9,6 +9,7 @@ from bootstrap.service_container import build_app_context
 from components.html_renderer import render_html
 from components.ui_shell import render_configurable_link_button
 from components.ui_shell import apply_ui_shell
+from services.navigation_service import flatten_navigation_groups, get_navigation_groups
 from utils.session import clear_runtime_session, ensure_session_defaults, pop_flash, set_flash
 
 
@@ -222,72 +223,53 @@ def handle_oauth_callback(app_context: dict) -> None:
 
 def resolve_navigation_sections(app_context: dict) -> list[str]:
     current_user = app_context.get("current_user")
+    session_user = app_context.get("session_user") or current_user
     if not current_user:
-        return ["Dashboard"]
-    security_service = app_context["security_service"]
-    is_admin_identity = security_service.is_admin_identity(current_user)
-    worker_profile = app_context["worker_service"].get_worker_by_email(current_user.email) if current_user and getattr(current_user, "email", "") else None
-    role = current_user.role if current_user else None
-    manufacturer_sections = [
-        "Dashboard",
-        "My Profile",
-        "Products",
-        "Inventory",
-        "Clients",
-        "Client Orders",
-        "Ledger",
-        "RFQ",
-        "Marketplace",
-        "My Actions",
-        "Notifications",
-    ]
-    if role in {"manufacturer", "admin_as_manufacturer"}:
-        return manufacturer_sections
-    if is_admin_identity:
-        return [
-            "Dashboard",
-            "My Profile",
-            "Products",
-            "Product Approvals",
-            "Manufacturers",
-            "Marketplace",
-            "Public Orders",
-            "Client Orders",
-            "RFQ",
-            "Inventory Summary",
-            "Commission Summary",
-            "Payments",
-            "Clients Preview",
-            "Ledger Summary",
-            "My Actions",
-            "Notifications",
-            "System Health",
-        ]
-    if role == "public_buyer":
-        return ["Marketplace", "My Orders", "My Actions", "Notifications", "My Profile"]
-    if role == "client":
-        sections = ["Dashboard", "Products", "My Orders", "Ledger", "My Actions", "Notifications", "Profile"]
-        if worker_profile:
-            sections.append("Jobs in Mandi")
-            sections.append("Workers")
-        return sections
-    if role == "worker":
-        return ["Dashboard", "My Profile", "My Actions", "Notifications", "Jobs in Mandi", "Workers"]
-    if role == "pending_user":
-        return ["Dashboard"]
-    return ["Dashboard"]
+        return flatten_navigation_groups(get_navigation_groups("unauthenticated"))
+    if app_context["security_service"].is_admin_identity(session_user):
+        return flatten_navigation_groups(get_navigation_groups("platform_admin"))
+    role = (current_user.role or "").strip().lower()
+    normalized_role = "manufacturer" if role == "admin_as_manufacturer" else role
+    if normalized_role == "client":
+        return flatten_navigation_groups(get_navigation_groups("client"))
+    if normalized_role == "public_buyer":
+        return flatten_navigation_groups(get_navigation_groups("public_buyer"))
+    if normalized_role == "worker":
+        return flatten_navigation_groups(get_navigation_groups("worker"))
+    if normalized_role == "pending_user":
+        return flatten_navigation_groups(get_navigation_groups("pending_user"))
+    return flatten_navigation_groups(get_navigation_groups("manufacturer"))
 
 
 def render_sidebar_navigation(app_context: dict) -> str:
     current_user = app_context.get("current_user")
+    session_user = app_context.get("session_user") or current_user
     security_service = app_context["security_service"]
-    is_admin_identity = security_service.is_admin_identity(current_user)
-    sections = resolve_navigation_sections(app_context)
+    is_admin_identity = security_service.is_admin_identity(session_user)
+    if not current_user:
+        groups = get_navigation_groups("unauthenticated")
+    elif is_admin_identity:
+        groups = get_navigation_groups("platform_admin")
+    else:
+        role = (current_user.role or "").strip().lower()
+        normalized_role = "manufacturer" if role == "admin_as_manufacturer" else role
+        groups = get_navigation_groups(normalized_role or "unauthenticated")
+    sections = flatten_navigation_groups(groups)
+    selected = st.session_state.get("sidebar_section", sections[0] if sections else "Dashboard")
+    if selected not in sections:
+        selected = sections[0] if sections else "Dashboard"
+        st.session_state["sidebar_section"] = selected
     with st.sidebar:
         st.markdown("## Navigation")
         if is_admin_identity:
             st.caption(f"SuperUser context: {ADMIN_CONTEXT_OPTIONS.get(app_context.get('active_context', 'platform_admin'), 'Platform Admin')}")
-        return st.radio("Go to", sections, label_visibility="collapsed")
+        for group, items in groups:
+            st.caption(group.upper())
+            for item in items:
+                if st.button(item, key=f"nav_{item.lower().replace(' ', '_')}", use_container_width=True, type="primary" if selected == item else "secondary"):
+                    selected = item
+                    st.session_state["sidebar_section"] = item
+        return selected
 
 
 def main() -> None:

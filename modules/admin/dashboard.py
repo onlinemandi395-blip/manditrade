@@ -80,24 +80,27 @@ def render_admin_dashboard(app_context: dict, section: str = "Dashboard") -> Non
     if section == "Inventory Summary":
         render_section_intro("Inventory Summary", "SuperAdmin sees manufacturer-level inventory impact through private-order and RFQ activity summaries only.")
         st.dataframe(rows, use_container_width=True)
-    elif section == "Commission Summary":
-        render_section_intro("Commission Summary", "Commission supervision is limited to aggregate public order values and manufacturer-level balances, never raw client ledgers.")
+    elif section in {"Commission Summary", "Platform Commission"}:
+        render_section_intro("Platform Commission", "Commission supervision is limited to aggregate public order values and manufacturer-level balances, never raw client ledgers.")
         st.dataframe(rows, use_container_width=True)
-    elif section == "RFQ":
+    elif section in {"RFQ", "Mandi Network"}:
         render_section_intro("RFQ Summary", "Cross-manufacturer RFQ supervision stays aggregate and operational, without exposing private negotiation threads or client records.")
+        st.dataframe(rows, use_container_width=True)
+    elif section == "Mandi Orders":
+        render_section_intro("Mandi Orders", "Supervision of manufacturer-to-manufacturer order activity stays aggregate and network-focused.")
         st.dataframe(rows, use_container_width=True)
     elif section == "Payments":
         render_section_intro("Payments Summary", "Payments supervision shows aggregate manufacturer receivable load and public-order throughput, not private client notes.")
         st.dataframe(rows, use_container_width=True)
-    elif section == "Clients Preview":
-        render_section_intro("Clients Preview", "Client supervision is aggregate-only by manufacturer. Raw client names, emails, phones, and addresses are intentionally hidden.")
-        st.dataframe([{k: row[k] for k in ("manufacturer_code", "status", "subscription_plan", "client_count", "active_client_count")} for row in rows], use_container_width=True)
-    elif section == "Ledger Summary":
+    elif section == "Ledger":
         render_section_intro("Ledger Summary", "Ledger supervision shows pending counts and due totals only. Private notes and proposal detail stay hidden.")
         st.dataframe([{k: row[k] for k in ("manufacturer_code", "ledger_entry_count", "pending_ledger_entries", "ledger_balance_due")} for row in rows], use_container_width=True)
     elif section == "Client Orders":
         render_section_intro("Client Orders Summary", "Private client order supervision remains aggregate-only outside the ADMIN_MANU operating context.")
         st.dataframe([{k: row[k] for k in ("manufacturer_code", "private_order_count", "private_order_value", "rfq_request_count", "rfq_response_count")} for row in rows], use_container_width=True)
+    elif section == "Jobs":
+        render_section_intro("Jobs Summary", "Platform operations can supervise marketplace and mandi hiring activity without exposing unnecessary private detail.")
+        st.dataframe(rows, use_container_width=True)
     else:
         render_section_intro("Governance Overview", "Dashboard is summary-only in supervisor mode. Switch context to preview manufacturer, client, public-buyer, or worker surfaces while preserving admin authority.")
         st.dataframe(rows, use_container_width=True)

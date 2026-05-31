@@ -156,10 +156,10 @@ def test_public_buyer_navigation_excludes_internal_routes(tmp_path):
         "public_buyer_service": public_buyer_service,
     }
     sections = resolve_navigation_sections(app_context)
-    assert sections == ["Marketplace", "My Orders", "My Actions", "Notifications", "My Profile"]
+    assert sections == ["Dashboard", "My Profile", "Notifications", "My Actions", "Marketplace", "Marketplace Orders", "Jobs"]
     assert "Inventory" not in sections
-    assert "Mandi RFQ" not in sections
-    assert "Ledger / Khata" not in sections
+    assert "RFQ" not in sections
+    assert "Ledger" not in sections
 
 
 def test_new_public_buyer_profile_starts_incomplete(tmp_path):

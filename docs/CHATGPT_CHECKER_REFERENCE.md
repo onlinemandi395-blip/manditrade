@@ -1,48 +1,104 @@
 # MandiTrade Checker Reference
 
-Generated from the current repository state on 2026-05-31 after the production UI cleanup pass.
+Generated from the current repository state on 2026-05-31 after the final navigation and RBAC normalization pass.
 
-## Production UI Cleanup Status
+## Normalized Navigation Status
 
-- Normal user-facing screens have been cleaned up to remove developer-facing runtime and diagnostic copy.
-- Pre-login layout now stays focused on:
-  - MandiTrade brand
-  - short platform explanation
-  - sidebar Google login
-  - `Dashboard` only navigation
-- Technical diagnostics remain available in [modules/system/health_dashboard.py](C:/2026/manditrade/manditrade/modules/system/health_dashboard.py) for SuperUser only.
+- Navigation is now centralized through [services/navigation_service.py](C:/2026/manditrade/manditrade/services/navigation_service.py) using `ROLE_NAVIGATION_MAP`.
+- Sidebar rendering in [bootstrap/app_bootstrap.py](C:/2026/manditrade/manditrade/bootstrap/app_bootstrap.py) now groups sections visually instead of scattering role navigation logic across modules.
+- Navigation terminology is now aligned to the final product layers:
+  - `Marketplace`
+  - `Marketplace Orders`
+  - `Mandi Network`
+  - `Mandi Orders`
+  - `RFQ`
+  - `Payments`
+  - `Ledger`
+  - `Platform Commission`
 
-## Debug Text Removal Status
+## Role Navigation Matrix
 
-- User-facing copy was simplified in:
-  - [bootstrap/app_bootstrap.py](C:/2026/manditrade/manditrade/bootstrap/app_bootstrap.py)
-  - [modules/access/dashboard.py](C:/2026/manditrade/manditrade/modules/access/dashboard.py)
-  - [modules/marketplace/dashboard.py](C:/2026/manditrade/manditrade/modules/marketplace/dashboard.py)
-  - [modules/notifications/dashboard.py](C:/2026/manditrade/manditrade/modules/notifications/dashboard.py)
-  - [modules/payments/dashboard.py](C:/2026/manditrade/manditrade/modules/payments/dashboard.py)
-  - [modules/profile/dashboard.py](C:/2026/manditrade/manditrade/modules/profile/dashboard.py)
-- Production-safe messages now replace technical phrases such as runtime-mode notes, OAuth session wording, and internal access-state labels in normal UI flows.
-- A UI config flag now exists in [configs/system_config.json](C:/2026/manditrade/manditrade/configs/system_config.json):
-  - `ui.show_debug_text`
-  - default: `false`
-
-## System Health Diagnostic Isolation Status
-
-- Technical OAuth, Drive, Gmail, token, failure-report, and integration diagnostics remain isolated to:
-  - [modules/system/health_dashboard.py](C:/2026/manditrade/manditrade/modules/system/health_dashboard.py)
-- Normal users do not see these diagnostic surfaces in standard dashboards, marketplace, sidebar, or login pages.
-
-## Login And Navigation Status
-
-- Sidebar still shows:
-  - `Session`
-  - `Continue with Google`
-  - `Navigation`
+- `platform_admin` / SuperUser:
   - `Dashboard`
-- `Marketplace` remains hidden before login.
-- OAuth behavior is unchanged:
-  - sidebar login still uses fresh `build_authorization_url(...)`
-  - configured `new_tab` / `same_tab` behavior still works
+  - `My Profile`
+  - `Notifications`
+  - `My Actions`
+  - `Marketplace`
+  - `Marketplace Orders`
+  - `Mandi Network`
+  - `RFQ`
+  - `Mandi Orders`
+  - `Manufacturers`
+  - `Products`
+  - `Product Approvals`
+  - `Payments`
+  - `Ledger`
+  - `Platform Commission`
+  - `Jobs`
+  - `System Health`
+- `manufacturer`:
+  - `Dashboard`
+  - `My Profile`
+  - `Notifications`
+  - `My Actions`
+  - `Products`
+  - `Inventory`
+  - `Clients`
+  - `Client Orders`
+  - `Ledger`
+  - `Marketplace`
+  - `Marketplace Orders`
+  - `Mandi Network`
+  - `RFQ`
+  - `Mandi Orders`
+  - `Payments`
+  - `Jobs`
+- `client`:
+  - `Dashboard`
+  - `My Profile`
+  - `Notifications`
+  - `My Actions`
+  - `Products`
+  - `My Orders`
+  - `Ledger`
+  - `Payments`
+- `public_buyer`:
+  - `Dashboard`
+  - `My Profile`
+  - `Notifications`
+  - `My Actions`
+  - `Marketplace`
+  - `Marketplace Orders`
+  - `Jobs`
+- `worker`:
+  - `Dashboard`
+  - `My Profile`
+  - `Notifications`
+  - `My Actions`
+  - `Marketplace`
+  - `Marketplace Orders`
+  - `Jobs`
+
+## Naming Cleanup Status
+
+- Old or mixed labels are removed from normalized navigation:
+  - `Mandiplace`
+  - `Mandiplace Orders`
+  - lowercase `rfq`
+  - `Commission Summary`
+  - `Public Orders` as a primary nav label
+- [bootstrap/route_registry.py](C:/2026/manditrade/manditrade/bootstrap/route_registry.py) now maps normalized labels onto existing working modules and summary surfaces.
+
+## RBAC Normalization Status
+
+- RBAC continues to work centrally through [bootstrap/route_registry.py](C:/2026/manditrade/manditrade/bootstrap/route_registry.py).
+- Key protections remain intact:
+  - public buyers cannot access RFQ
+  - clients cannot access inventory
+  - workers cannot access payments
+  - manufacturers cannot access System Health
+  - SuperUser can access all normalized sections
+- SuperUser context switching still works, but navigation stays normalized from the SuperUser base role.
 
 ## Test Result
 
@@ -52,4 +108,4 @@ Generated from the current repository state on 2026-05-31 after the production U
 
 ## Remaining Blocker
 
-- Same-tab login diagnostics are still preserved for System Health, but `new_tab` remains the safer production default until same-tab is proven stable in deployed validation.
+- Some legacy internal route and module names still exist behind the normalized labels for compatibility, but user-facing navigation and RBAC terminology are now aligned to the final product structure.

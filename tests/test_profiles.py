@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 from bootstrap.route_registry import render_route
 from bootstrap.app_bootstrap import resolve_navigation_sections
+from services.navigation_service import ROLE_NAVIGATION_MAP
 from services.auth_service import AuthUser
 from services.security_service import SecurityService
 from services.client_service import ClientService
@@ -131,11 +132,11 @@ def test_navigation_sections_include_my_profile_for_signed_in_roles():
     assert "My Profile" in admin_sections
     assert "My Profile" in manufacturer_sections
     assert "Clients" in manufacturer_sections
-    assert "Inventory Summary" in admin_sections
-    assert "Commission Summary" in admin_sections
+    assert "Platform Commission" in admin_sections
+    assert "Mandi Orders" in admin_sections
     assert "Marketplace" in manufacturer_sections
-    assert "Profile" in client_sections
-    assert "My Orders" in client_sections
+    assert "My Profile" in client_sections
+    assert "Payments" in client_sections
 
 
 def test_superuser_navigation_includes_all_context_sections():
@@ -150,20 +151,20 @@ def test_superuser_navigation_includes_all_context_sections():
     assert sections == [
         "Dashboard",
         "My Profile",
+        "Notifications",
+        "My Actions",
+        "Marketplace",
+        "Marketplace Orders",
+        "Mandi Network",
+        "RFQ",
+        "Mandi Orders",
+        "Manufacturers",
         "Products",
         "Product Approvals",
-        "Manufacturers",
-        "Marketplace",
-        "Public Orders",
-        "Client Orders",
-        "RFQ",
-        "Inventory Summary",
-        "Commission Summary",
         "Payments",
-        "Clients Preview",
-        "Ledger Summary",
-        "My Actions",
-        "Notifications",
+        "Ledger",
+        "Platform Commission",
+        "Jobs",
         "System Health",
     ]
 
@@ -208,14 +209,12 @@ def test_superadmin_summary_routes_use_dedicated_modules(monkeypatch):
         "security_service": SimpleNamespace(is_admin_identity=lambda _user: True),
     }
     monkeypatch.setattr("bootstrap.route_registry.render_rfq_summary_dashboard", lambda _ctx: hits.append("rfq"))
-    monkeypatch.setattr("bootstrap.route_registry.render_inventory_summary_dashboard", lambda _ctx: hits.append("inventory"))
     monkeypatch.setattr("bootstrap.route_registry.render_commission_summary_dashboard", lambda _ctx: hits.append("commission"))
 
     render_route("RFQ", app_context)
-    render_route("Inventory Summary", app_context)
-    render_route("Commission Summary", app_context)
+    render_route("Platform Commission", app_context)
 
-    assert hits == ["rfq", "inventory", "commission"]
+    assert hits == ["rfq", "commission"]
 
 
 def test_superuser_supervisor_mode_routes_private_sections_to_safe_summaries(monkeypatch):
@@ -227,9 +226,19 @@ def test_superuser_supervisor_mode_routes_private_sections_to_safe_summaries(mon
     }
     monkeypatch.setattr("bootstrap.route_registry.render_admin_dashboard", lambda _ctx, section="Dashboard": hits.append(section))
     render_route("Client Orders", app_context)
-    render_route("Clients Preview", app_context)
-    render_route("Ledger Summary", app_context)
-    assert hits == ["Client Orders", "Clients Preview", "Ledger Summary"]
+    render_route("Ledger", app_context)
+    render_route("Mandi Orders", app_context)
+    assert hits == ["Client Orders", "Ledger", "Mandi Orders"]
+
+
+def test_role_navigation_map_is_normalized():
+    assert "platform_admin" in ROLE_NAVIGATION_MAP
+    flattened = [item for groups in ROLE_NAVIGATION_MAP.values() for _group, sections in groups for item in sections]
+    assert "Mandiplace" not in flattened
+    assert "Mandiplace Orders" not in flattened
+    assert "Commission Summary" not in flattened
+    assert "Public Orders" not in flattened
+    assert "rfq" not in flattened
 
 
 def test_superuser_context_can_preview_client_dashboard_without_losing_admin_identity(monkeypatch):

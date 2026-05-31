@@ -23,30 +23,37 @@ from modules.orders.dashboard import render_orders_dashboard
 from modules.orders.dispatch import render_dispatch_management
 from modules.payments.dashboard import render_payments_dashboard
 from modules.profile.dashboard import render_my_profile_dashboard
+from modules.procurement.dashboard import render_procurement_dashboard
 from modules.products.dashboard import render_products_dashboard
 from modules.public_orders.dashboard import render_public_orders_dashboard
 from modules.rfq.dashboard import render_rfq_dashboard
 from modules.system.health_dashboard import render_health_dashboard
-from modules.workers.dashboard import render_workers_dashboard
 
 
 ROUTE_GROUPS = {
     "public": {"Dashboard", "Marketplace"},
-    "shared_authenticated": {"My Actions", "Notifications", "My Profile", "Profile"},
-    "manufacturer": {"Products", "Inventory", "Clients", "Client Orders", "Ledger", "RFQ"},
-    "client": {"Products", "My Orders", "Ledger", "Dashboard", "Profile"},
-    "public_buyer": {"Marketplace", "My Orders", "My Profile"},
-    "worker": {"Dashboard", "My Profile", "Jobs in Mandi", "Workers"},
+    "shared_authenticated": {"My Actions", "Notifications", "My Profile", "Profile", "Dashboard"},
+    "manufacturer": {"Products", "Inventory", "Clients", "Client Orders", "Ledger", "Marketplace", "Marketplace Orders", "Mandi Network", "RFQ", "Mandi Orders", "Payments", "Jobs"},
+    "client": {"Products", "My Orders", "Ledger", "Dashboard", "My Profile", "Notifications", "My Actions", "Payments"},
+    "public_buyer": {"Dashboard", "Marketplace", "Marketplace Orders", "My Profile", "Notifications", "My Actions", "Jobs"},
+    "worker": {"Dashboard", "Marketplace", "Marketplace Orders", "My Profile", "Notifications", "My Actions", "Jobs"},
     "admin": {
         "Dashboard",
+        "My Profile",
+        "Notifications",
+        "My Actions",
+        "Marketplace",
+        "Marketplace Orders",
+        "Mandi Network",
+        "RFQ",
+        "Mandi Orders",
+        "Products",
         "Product Approvals",
         "Manufacturers",
-        "Public Orders",
-        "Inventory Summary",
-        "Commission Summary",
         "Payments",
-        "Clients Preview",
-        "Ledger Summary",
+        "Ledger",
+        "Platform Commission",
+        "Jobs",
         "System Health",
     },
 }
@@ -85,7 +92,7 @@ def render_dashboard(app_context: dict) -> None:
     elif user.role in {"manufacturer", "admin_as_manufacturer"}:
         render_manufacturer_dashboard(app_context)
     elif user.role == "worker":
-        render_workers_dashboard(app_context)
+        render_jobs_dashboard(app_context)
     elif user.role == "public_buyer":
         render_marketplace_dashboard(app_context)
     elif user.role == "pending_user":
@@ -119,52 +126,66 @@ def render_route(section: str, app_context: dict) -> None:
         render_products_dashboard(app_context)
     elif section in {"Marketplace", "Marketplace Preview"}:
         render_marketplace_dashboard(app_context)
-    elif section == "Public Orders":
-        render_public_orders_dashboard(app_context, buyer_mode=False)
+    elif section in {"Marketplace Orders", "Public Orders"}:
+        current_user = app_context.get("current_user")
+        if current_user and current_user.role == "public_buyer":
+            render_public_orders_dashboard(app_context, buyer_mode=True)
+        else:
+            render_public_orders_dashboard(app_context, buyer_mode=False)
     elif section == "My Orders":
         current_user = app_context.get("current_user")
         if current_user and current_user.role == "public_buyer":
             render_public_orders_dashboard(app_context, buyer_mode=True)
         else:
             render_orders_dashboard(app_context)
-    elif section in {"Inventory", "Inventory Summary"}:
-        if section == "Inventory Summary" or supervisor_mode:
-            render_inventory_summary_dashboard(app_context)
-        else:
-            render_inventory_management(app_context)
+    elif section == "Inventory":
+        render_inventory_management(app_context)
     elif section == "Client Orders":
         if supervisor_mode:
             render_admin_dashboard(app_context, section="Client Orders")
         else:
             render_orders_dashboard(app_context)
+    elif section == "Mandi Network":
+        if supervisor_mode:
+            render_admin_dashboard(app_context, section="Mandi Network")
+        else:
+            render_rfq_dashboard(app_context)
     elif section in {"Mandi RFQ", "RFQ"}:
         if supervisor_mode:
             render_rfq_summary_dashboard(app_context)
         else:
             render_rfq_dashboard(app_context)
+    elif section == "Mandi Orders":
+        if supervisor_mode:
+            render_admin_dashboard(app_context, section="Mandi Orders")
+        else:
+            render_procurement_dashboard(app_context)
     elif section in {"Ledger / Khata", "Ledger"}:
-        render_ledger_dashboard(app_context)
-    elif section == "Ledger Summary":
-        render_admin_dashboard(app_context, section="Ledger Summary")
-    elif section in {"Payments", "Commission Summary"}:
-        if section == "Commission Summary":
+        if supervisor_mode:
+            render_admin_dashboard(app_context, section="Ledger")
+        else:
+            render_ledger_dashboard(app_context)
+    elif section in {"Payments", "Platform Commission"}:
+        if section == "Platform Commission":
             render_commission_summary_dashboard(app_context)
+        elif supervisor_mode:
+            render_admin_dashboard(app_context, section="Payments")
         else:
             render_payments_dashboard(app_context)
     elif section == "Dispatch":
         render_dispatch_management(app_context)
     elif section == "Clients":
         render_clients_dashboard(app_context)
-    elif section == "Clients Preview":
-        render_admin_dashboard(app_context, section="Clients Preview")
-    elif section == "Jobs in Mandi":
+    elif section == "Jobs":
         render_jobs_dashboard(app_context)
-    elif section == "Workers":
-        render_workers_dashboard(app_context)
     elif section == "Product Approvals":
         render_product_approvals_dashboard(app_context)
     elif section == "Manufacturers":
         render_manufacturers_dashboard(app_context)
+    elif section == "Inventory Summary":
+        render_inventory_summary_dashboard(app_context)
+    elif section in {"Clients Preview", "Ledger Summary", "Commission Summary"}:
+        render_admin_dashboard(app_context, section=section)
     elif section == "Onboarding":
         render_manufacturer_onboarding(app_context)
     elif section == "System Health":

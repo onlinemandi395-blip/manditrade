@@ -83,11 +83,15 @@ def test_route_guard_blocks_unauthorized_normal_users():
     manufacturer = SimpleNamespace(role="manufacturer")
     client = SimpleNamespace(role="client")
     public_buyer = SimpleNamespace(role="public_buyer")
+    worker = SimpleNamespace(role="worker")
     assert can_access_route(manufacturer, "Inventory", app_context) is True
     assert can_access_route(manufacturer, "System Health", app_context) is False
     assert can_access_route(client, "Inventory", app_context) is False
     assert can_access_route(public_buyer, "Marketplace", app_context) is True
+    assert can_access_route(public_buyer, "RFQ", app_context) is False
     assert can_access_route(public_buyer, "Ledger", app_context) is False
+    assert can_access_route(worker, "Payments", app_context) is False
+    assert can_access_route(worker, "Jobs", app_context) is True
 
 
 def test_unauthenticated_navigation_shows_dashboard_only():
@@ -155,3 +159,9 @@ def test_normal_ui_files_hide_debug_and_runtime_copy():
     ]
     for phrase in banned_phrases:
         assert phrase not in combined
+
+
+def test_sidebar_navigation_groups_are_rendered_from_central_map():
+    bootstrap_content = Path("bootstrap/app_bootstrap.py").read_text(encoding="utf-8")
+    assert "services.navigation_service" in bootstrap_content
+    assert 'st.caption(group.upper())' in bootstrap_content
