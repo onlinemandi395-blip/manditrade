@@ -121,7 +121,7 @@ class AuthService:
         )
 
     def _validate_role(self, role: str) -> None:
-        if role not in {"admin", "manufacturer", "client", "worker", "platform_admin", "admin_as_manufacturer", "pending_user", "public_buyer"}:
+        if role not in {"admin", "manufacturer", "client", "worker", "platform_admin", "admin_as_manufacturer", "pending_user", "public_buyer", "mahajan"}:
             raise PermissionError(f"Unsupported user role: {role}")
 
     def serialize_user(self, user: AuthUser) -> dict[str, Any]:

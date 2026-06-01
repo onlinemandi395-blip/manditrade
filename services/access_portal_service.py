@@ -107,6 +107,9 @@ class AccessPortalService:
             validated = True
             status = "READY_FOR_GOOGLE_SIGNIN"
             validation_message = "Worker profile request is ready. Continue with Google sign-in."
+        elif role_key == "mahajan":
+            status = "PENDING_ADMIN_REVIEW"
+            validation_message = "Mahajan access request saved for admin review."
         elif role_key == "public_buyer":
             validated = True
             status = "READY_FOR_GOOGLE_SIGNIN"
@@ -289,6 +292,10 @@ class AccessPortalService:
             self._mark_request_status(request["request_id"], "ACTIVE")
             worker = self.worker_service.get_worker_by_email(email)
             return {"role": "worker", "manufacturer_code": None, "status": "ACTIVE", "client_id": None, "public_buyer_id": None, "worker_id": (worker or {}).get("worker_id")}
+
+        if role == "mahajan":
+            self._mark_request_status(request["request_id"], "ACTIVE")
+            return {"role": "mahajan", "manufacturer_code": None, "status": "ACTIVE", "client_id": None, "public_buyer_id": None, "worker_id": None}
 
         if role == "public_buyer":
             buyer = self.public_buyer_service.register_or_get(email=email, full_name=request.get("full_name") or display_name or email)

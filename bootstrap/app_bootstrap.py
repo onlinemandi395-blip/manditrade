@@ -17,6 +17,7 @@ BUILD_FILE = Path(__file__).resolve()
 CSS_FILE = BUILD_FILE.parent.parent / "assets" / "styles" / "manditrade_3d.css"
 ADMIN_CONTEXT_OPTIONS = {
     "platform_admin": "Platform Admin",
+    "mahajan": "Mahajan",
     "manufacturer": "Manufacturer",
     "client": "Client",
     "public_buyer": "Public Buyer",
@@ -232,6 +233,8 @@ def resolve_navigation_sections(app_context: dict) -> list[str]:
     normalized_role = "manufacturer" if role == "admin_as_manufacturer" else role
     if normalized_role == "client":
         return flatten_navigation_groups(get_navigation_groups("client"))
+    if normalized_role == "mahajan":
+        return flatten_navigation_groups(get_navigation_groups("mahajan"))
     if normalized_role == "public_buyer":
         return flatten_navigation_groups(get_navigation_groups("public_buyer"))
     if normalized_role == "worker":

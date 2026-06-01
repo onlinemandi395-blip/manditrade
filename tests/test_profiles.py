@@ -128,53 +128,69 @@ def test_navigation_sections_include_my_profile_for_signed_in_roles():
             "worker_service": worker_service,
         }
     )
+    mahajan_sections = resolve_navigation_sections(
+        {
+            "current_user": SimpleNamespace(role="mahajan", email="mahajan@example.com", manufacturer_code=None),
+            "security_service": security_service,
+            "worker_service": worker_service,
+        }
+    )
 
     assert admin_sections == [
-        "My Profile",
         "Dashboard",
+        "My Profile",
         "Notifications",
         "My Actions",
         "Manufacturers",
+        "Mahajans",
         "Products",
         "Product Approvals",
         "Marketplace",
         "Marketplace Orders",
-        "Mandi Network",
         "Mandi Orders",
-        "RFQ",
-        "Jobs",
-        "Platform Commission",
         "Payments",
         "Ledger",
+        "Platform Commission",
+        "Jobs",
         "System Health",
+        "Analytics",
+    ]
+    assert mahajan_sections == [
+        "Dashboard",
+        "My Profile",
+        "Notifications",
+        "My Actions",
+        "Raw Materials",
+        "Mandi Orders",
+        "Payments",
+        "Ledger",
+        "Jobs",
     ]
     assert manufacturer_sections == [
-        "My Profile",
         "Dashboard",
+        "My Profile",
         "Notifications",
         "My Actions",
         "Products",
-        "Product Approvals",
+        "Inventory",
         "Clients",
-        "Mandi Network",
-        "Mandi Orders",
-        "RFQ",
-        "Jobs",
-        "Platform Commission",
-        "Payments",
-        "Ledger",
-    ]
-    assert client_sections == [
-        "My Profile",
-        "Dashboard",
-        "Notifications",
-        "My Actions",
+        "Client Orders",
         "Marketplace",
         "Marketplace Orders",
-        "RFQ",
+        "Mandi Orders",
         "Payments",
         "Ledger",
-        "System Health",
+        "Jobs",
+    ]
+    assert client_sections == [
+        "Dashboard",
+        "My Profile",
+        "Notifications",
+        "My Actions",
+        "Products",
+        "Client Orders",
+        "Payments",
+        "Ledger",
     ]
 
 
@@ -188,23 +204,23 @@ def test_superuser_navigation_includes_all_context_sections():
         }
     )
     assert sections == [
-        "My Profile",
         "Dashboard",
+        "My Profile",
         "Notifications",
         "My Actions",
         "Manufacturers",
+        "Mahajans",
         "Products",
         "Product Approvals",
         "Marketplace",
         "Marketplace Orders",
-        "Mandi Network",
         "Mandi Orders",
-        "RFQ",
-        "Jobs",
-        "Platform Commission",
         "Payments",
         "Ledger",
+        "Platform Commission",
+        "Jobs",
         "System Health",
+        "Analytics",
     ]
 
 
@@ -247,13 +263,13 @@ def test_superadmin_summary_routes_use_dedicated_modules(monkeypatch):
         "current_user": SimpleNamespace(role="platform_admin", email="admin@example.com", manufacturer_code=None),
         "security_service": SimpleNamespace(is_admin_identity=lambda _user: True),
     }
-    monkeypatch.setattr("bootstrap.route_registry.render_rfq_summary_dashboard", lambda _ctx: hits.append("rfq"))
+    monkeypatch.setattr("bootstrap.route_registry.render_admin_dashboard", lambda _ctx, section="Dashboard": hits.append(section))
     monkeypatch.setattr("bootstrap.route_registry.render_commission_summary_dashboard", lambda _ctx: hits.append("commission"))
 
     render_route("RFQ", app_context)
     render_route("Platform Commission", app_context)
 
-    assert hits == ["rfq", "commission"]
+    assert hits == ["Mandi Orders", "commission"]
 
 
 def test_superuser_supervisor_mode_routes_private_sections_to_safe_summaries(monkeypatch):
@@ -264,10 +280,9 @@ def test_superuser_supervisor_mode_routes_private_sections_to_safe_summaries(mon
         "security_service": SimpleNamespace(is_admin_identity=lambda _user: True),
     }
     monkeypatch.setattr("bootstrap.route_registry.render_admin_dashboard", lambda _ctx, section="Dashboard": hits.append(section))
-    render_route("Client Orders", app_context)
     render_route("Ledger", app_context)
     render_route("Mandi Orders", app_context)
-    assert hits == ["Client Orders", "Ledger", "Mandi Orders"]
+    assert hits == ["Ledger", "Mandi Orders"]
 
 
 def test_role_navigation_map_is_normalized():

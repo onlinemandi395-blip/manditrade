@@ -201,6 +201,26 @@ def test_public_buyer_signup_creates_public_marketplace_identity(tmp_path):
     assert buyer["status"] == "ACTIVE"
 
 
+def test_mahajan_request_can_be_activated_after_admin_review(tmp_path):
+    _governance_service, _drive_service, _client_service, _worker_service, _public_buyer_service, access_portal_service = build_access_stack(tmp_path)
+
+    request = access_portal_service.submit_signup_request(
+        requested_role="mahajan",
+        email="mahajan@example.com",
+        full_name="Supply Partner",
+    )
+    access_portal_service._mark_request_status(request["request_id"], "READY_FOR_GOOGLE_SIGNIN")  # noqa: SLF001
+    resolved = access_portal_service.resolve_identity(
+        email="mahajan@example.com",
+        display_name="Supply Partner",
+        preferred_role="mahajan",
+    )
+
+    assert request["status"] == "PENDING_ADMIN_REVIEW"
+    assert resolved["role"] == "mahajan"
+    assert resolved["status"] == "ACTIVE"
+
+
 def test_unknown_google_user_defaults_to_public_buyer(tmp_path):
     _governance_service, _drive_service, _client_service, _worker_service, public_buyer_service, access_portal_service = build_access_stack(tmp_path)
 

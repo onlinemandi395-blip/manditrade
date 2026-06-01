@@ -5,11 +5,13 @@ import streamlit as st
 from modules.access.dashboard import render_login_page, render_pending_user_dashboard
 from modules.actions.dashboard import render_actions_dashboard
 from modules.account_status.dashboard import render_account_status_dashboard
+from modules.analytics.dashboard import render_analytics_dashboard
 from modules.admin.commission_summary import render_commission_summary_dashboard
 from modules.finance.commission_dashboard import render_commission_dashboard
 from modules.admin.dashboard import render_admin_dashboard
 from modules.admin.inventory_summary import render_inventory_summary_dashboard
 from modules.admin.manufacturers import render_manufacturers_dashboard
+from modules.mahajan.dashboard import render_mahajan_dashboard
 from modules.admin.product_approvals import render_product_approvals_dashboard
 from modules.admin.rfq_summary import render_rfq_summary_dashboard
 from modules.client.dashboard import render_client_dashboard
@@ -28,60 +30,66 @@ from modules.profile.dashboard import render_my_profile_dashboard
 from modules.procurement.dashboard import render_procurement_dashboard
 from modules.products.dashboard import render_products_dashboard
 from modules.public_orders.dashboard import render_public_orders_dashboard
-from modules.rfq.dashboard import render_rfq_dashboard
 from modules.system.health_dashboard import render_health_dashboard
+from services.navigation_service import NAV_ALIAS_MAP, normalize_navigation_label
 
 
 ROUTE_GROUPS = {
-    "public": {"Dashboard", "Marketplace"},
-    "shared_authenticated": {"My Actions", "Notifications", "My Profile", "Profile", "Dashboard"},
-    "manufacturer": {"Products", "Product Approvals", "Clients", "Ledger", "Mandi Network", "RFQ", "Mandi Orders", "Jobs", "Platform Commission", "Payments"},
-    "client": {"Marketplace", "Marketplace Orders", "RFQ", "Payments", "Ledger", "Dashboard", "My Profile", "Notifications", "My Actions", "System Health"},
-    "public_buyer": {"Dashboard", "Marketplace", "Marketplace Orders", "My Profile", "Notifications", "My Actions", "Jobs"},
-    "worker": {"Dashboard", "Marketplace", "Marketplace Orders", "My Profile", "Notifications", "My Actions", "Jobs"},
-    "admin": {
+    "public": {"Dashboard"},
+    "shared_authenticated": {"Dashboard", "My Profile", "Notifications", "My Actions"},
+    "platform_admin": {
         "Dashboard",
         "My Profile",
         "Notifications",
         "My Actions",
-        "Marketplace",
-        "Marketplace Orders",
-        "Mandi Network",
-        "RFQ",
-        "Mandi Orders",
+        "Manufacturers",
+        "Mahajans",
         "Products",
         "Product Approvals",
-        "Manufacturers",
+        "Marketplace",
+        "Marketplace Orders",
+        "Mandi Orders",
         "Payments",
         "Ledger",
         "Platform Commission",
         "Jobs",
         "System Health",
+        "Analytics",
     },
+    "mahajan": {"Dashboard", "My Profile", "Notifications", "My Actions", "Raw Materials", "Mandi Orders", "Payments", "Ledger", "Jobs"},
+    "manufacturer": {"Dashboard", "My Profile", "Notifications", "My Actions", "Products", "Inventory", "Clients", "Client Orders", "Marketplace", "Marketplace Orders", "Mandi Orders", "Payments", "Ledger", "Jobs"},
+    "client": {"Dashboard", "My Profile", "Notifications", "My Actions", "Products", "Client Orders", "Payments", "Ledger"},
+    "public_buyer": {"Dashboard", "My Profile", "Notifications", "My Actions", "Marketplace", "Marketplace Orders", "Jobs"},
+    "worker": {"Dashboard", "My Profile", "Notifications", "My Actions", "Jobs"},
 }
 
 
 def can_access_route(user, section: str, app_context: dict) -> bool:
+    normalized_section = normalize_navigation_label(section)
     if not user:
-        return section in ROUTE_GROUPS["public"]
+        return normalized_section in ROUTE_GROUPS["public"]
     session_user = app_context.get("session_user") or user
     security_service = app_context["security_service"]
-    if security_service.is_admin_identity(session_user):
+    role = (user.role or "").strip().lower()
+    if normalized_section in ROUTE_GROUPS["shared_authenticated"]:
         return True
-    role = user.role
-    if section in ROUTE_GROUPS["shared_authenticated"]:
-        return True
-    if role in {"manufacturer", "admin_as_manufacturer"}:
-        return section in ROUTE_GROUPS["manufacturer"]
-    if role == "client":
-        return section in ROUTE_GROUPS["client"]
-    if role == "public_buyer":
-        return section in ROUTE_GROUPS["public_buyer"]
-    if role == "worker":
-        return section in ROUTE_GROUPS["worker"]
+    if security_service.is_admin_identity(session_user) and role == "platform_admin":
+        return normalized_section in ROUTE_GROUPS["platform_admin"]
+    if role == "admin_as_manufacturer":
+        return normalized_section in ROUTE_GROUPS["manufacturer"]
+    if role in ROUTE_GROUPS:
+        return normalized_section in ROUTE_GROUPS[role]
     if role == "pending_user":
-        return section == "Dashboard"
+        return normalized_section == "Dashboard"
     return False
+
+
+def _render_access_denied(app_context: dict) -> None:
+    render_account_status_dashboard(
+        app_context,
+        title="Access Denied",
+        subtitle="This page is not available for your current role. Your workspace is still active, but this route stays restricted by platform policy.",
+    )
 
 
 def render_dashboard(app_context: dict) -> None:
@@ -91,6 +99,8 @@ def render_dashboard(app_context: dict) -> None:
         return
     if app_context["security_service"].is_admin_identity(app_context.get("session_user") or user) and user.role == "platform_admin":
         render_admin_dashboard(app_context)
+    elif user.role == "mahajan":
+        render_mahajan_dashboard(app_context)
     elif user.role in {"manufacturer", "admin_as_manufacturer"}:
         render_manufacturer_dashboard(app_context)
     elif user.role == "worker":
@@ -104,6 +114,7 @@ def render_dashboard(app_context: dict) -> None:
 
 
 def render_route(section: str, app_context: dict) -> None:
+    section = normalize_navigation_label(section)
     user = app_context.get("current_user")
     session_user = app_context.get("session_user") or user
     is_admin_identity = app_context["security_service"].is_admin_identity(session_user)
@@ -114,7 +125,7 @@ def render_route(section: str, app_context: dict) -> None:
         render_login_page(app_context)
         return
     if not can_access_route(user, section, app_context):
-        st.warning("You do not have access to this view.")
+        _render_access_denied(app_context)
         return
     if section == "Dashboard":
         render_dashboard(app_context)
@@ -132,7 +143,7 @@ def render_route(section: str, app_context: dict) -> None:
         current_user = app_context.get("current_user")
         if current_user and current_user.role == "public_buyer":
             render_public_orders_dashboard(app_context, buyer_mode=True)
-        elif current_user and current_user.role == "client":
+        elif current_user and current_user.role in {"client", "manufacturer", "admin_as_manufacturer"}:
             render_orders_dashboard(app_context)
         else:
             render_public_orders_dashboard(app_context, buyer_mode=False)
@@ -149,25 +160,11 @@ def render_route(section: str, app_context: dict) -> None:
             render_admin_dashboard(app_context, section="Client Orders")
         else:
             render_orders_dashboard(app_context)
-    elif section == "Mandi Network":
-        if supervisor_mode:
-            render_admin_dashboard(app_context, section="Mandi Network")
-        else:
-            render_rfq_dashboard(app_context)
-    elif section in {"Mandi RFQ", "RFQ"}:
-        if supervisor_mode:
-            render_rfq_summary_dashboard(app_context)
-        elif user and user.role == "client":
-            render_account_status_dashboard(
-                app_context,
-                title="RFQ",
-                subtitle="RFQ updates for client accounts are shared through your order and account workflow.",
-            )
-        else:
-            render_rfq_dashboard(app_context)
     elif section == "Mandi Orders":
         if supervisor_mode:
             render_admin_dashboard(app_context, section="Mandi Orders")
+        elif user and user.role == "mahajan":
+            render_mahajan_dashboard(app_context)
         else:
             render_procurement_dashboard(app_context)
     elif section in {"Ledger / Khata", "Ledger"}:
@@ -188,14 +185,16 @@ def render_route(section: str, app_context: dict) -> None:
         render_dispatch_management(app_context)
     elif section == "Clients":
         render_clients_dashboard(app_context)
+    elif section == "Mahajans":
+        render_mahajan_dashboard(app_context)
+    elif section == "Raw Materials":
+        render_mahajan_dashboard(app_context)
     elif section == "Jobs":
         render_jobs_dashboard(app_context)
+    elif section == "Analytics":
+        render_analytics_dashboard(app_context)
     elif section == "Product Approvals":
-        current_user = app_context.get("current_user")
-        if current_user and current_user.role in {"manufacturer", "admin_as_manufacturer"}:
-            render_products_dashboard(app_context)
-        else:
-            render_product_approvals_dashboard(app_context)
+        render_product_approvals_dashboard(app_context)
     elif section == "Manufacturers":
         render_manufacturers_dashboard(app_context)
     elif section == "Inventory Summary":
@@ -205,8 +204,4 @@ def render_route(section: str, app_context: dict) -> None:
     elif section == "Onboarding":
         render_manufacturer_onboarding(app_context)
     elif section == "System Health":
-        current_user = app_context.get("current_user")
-        if current_user and current_user.role == "client":
-            render_account_status_dashboard(app_context)
-        else:
-            render_health_dashboard(app_context)
+        render_health_dashboard(app_context)

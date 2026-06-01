@@ -11,7 +11,7 @@ from components.ui_shell import render_metric_card, render_page_header, render_s
 def render_login_page(app_context: dict) -> None:
     render_page_header(
         "MandiTrade",
-        "Digital Manpur for manufacturer networks, public marketplace trade, RFQ sourcing, khata discipline, and role-aware operations after one Google sign-in.",
+        "Digital Manpur for manufacturer networks, public marketplace trade, mandi-order sourcing, khata discipline, and role-aware operations after one Google sign-in.",
         ["Single Sign-In", "RBAC Routing", "Post-Login Marketplace"],
         role="Public Landing",
         metrics=[("Marketplace", "After sign-in"), ("Workspace Mode", "Role-aware")],
@@ -41,11 +41,11 @@ def render_login_page(app_context: dict) -> None:
               <p class="mt-kicker">Digital Manpur</p>
               <h3>Federated wholesale commerce with mandi lanes, khata clarity, and live operational control.</h3>
               <p>
-                This workspace is built for Bharat market operations: product governance, RFQ sourcing,
+                This workspace is built for Bharat market operations: product governance, mandi-order sourcing,
                 inventory control, jobs, payments, and role-aware dashboards without forcing users through a generic storefront.
               </p>
               <div class="mt-login-story__nodes">
-                <span class="mt-login-story__node">Mandi Network</span>
+                <span class="mt-login-story__node">Mandi Orders</span>
                 <span class="mt-login-story__node">Khata Visibility</span>
                 <span class="mt-login-story__node">Manufacturer Control</span>
                 <span class="mt-login-story__node">Client Routing</span>
@@ -58,7 +58,7 @@ def render_login_page(app_context: dict) -> None:
               <h3>One public landing, multiple role-aware workspaces</h3>
               <p>
                 Public buyers reach Marketplace after sign-in. Manufacturers unlock inventory, clients manage proposal orders,
-                and RFQ plus khata workflows stay role-scoped after authentication.
+                and mandi-order plus khata workflows stay role-scoped after authentication.
               </p>
             </div>
           </article>
