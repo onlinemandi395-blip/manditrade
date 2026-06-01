@@ -16,7 +16,7 @@ def render_raw_materials_dashboard(app_context: dict) -> None:
 
     render_page_header(
         "Raw Materials",
-        "Manage raw-material supply in the admin-controlled mandi channel.",
+        "Manage raw-material supply in the admin-controlled mandi channel. This page is for supply inputs, not finished products.",
         ["Supply Network", user.role.replace("_", " ").title() if user else "Role"],
     )
     render_metric_grid(
@@ -28,7 +28,7 @@ def render_raw_materials_dashboard(app_context: dict) -> None:
     )
     overview_tab, catalog_tab, add_tab, activity_tab = st.tabs(["Overview", "Catalog", "Add Raw Material", "Activity"])
     with overview_tab:
-        render_section_intro("Raw Material Supply", "Mahajans update their own supply catalog. Platform admin supervises the full upstream lane.")
+        render_section_intro("Raw Material Supply", "Raw Materials belong to the mahajan/admin supply layer. Finished Products remain on the Products page for downstream selling.")
         st.dataframe(materials, use_container_width=True)
     with catalog_tab:
         st.dataframe(materials, use_container_width=True)
@@ -56,4 +56,5 @@ def render_raw_materials_dashboard(app_context: dict) -> None:
             st.success("Raw material saved.")
             st.rerun()
     with activity_tab:
+        st.caption("Supply activity only. Finished product orders and catalog selling stay outside this page.")
         st.dataframe(supply_orders, use_container_width=True)

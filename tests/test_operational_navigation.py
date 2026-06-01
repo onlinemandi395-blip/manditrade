@@ -26,6 +26,7 @@ def test_operational_pages_use_tabs_and_metric_buttons():
         Path("modules/ledger/dashboard.py"),
         Path("modules/public_orders/dashboard.py"),
         Path("modules/analytics/dashboard.py"),
+        Path("modules/procurement/dashboard.py"),
     ]
     for path in files:
         content = path.read_text(encoding="utf-8")

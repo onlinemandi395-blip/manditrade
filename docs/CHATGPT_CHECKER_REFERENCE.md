@@ -1,113 +1,101 @@
 # MandiTrade Checker Reference
 
-Generated from the current repository state on 2026-06-01 after the admin-managed mahajan supply implementation.
+Generated from the current repository state on 2026-06-01 after the Mandi Order timeline and supply-flow usability pass.
 
-## Supply Model
+## Mandi Order Timeline Status
 
-- `Mahajan` is the upstream raw-material supplier.
-- `Platform Admin` controls the supply channel and sits between mahajan and manufacturer.
-- `Manufacturer` requests mandi/raw-material orders only through admin.
-- Manufacturers do not directly negotiate with mahajans inside the product workflow.
+- `Mandi Orders` now exposes a role-safe visual timeline for the admin-managed supply flow in [modules/procurement/dashboard.py](/c:/2026/manditrade/manditrade/modules/procurement/dashboard.py).
+- Timeline steps now explicitly render:
+  - `Manufacturer Requested`
+  - `Admin Reviewing`
+  - `Sent To Mahajan`
+  - `Mahajan Quoted`
+  - `Admin Price Set`
+  - `Manufacturer Confirmed`
+  - `Mahajan Dispatched`
+  - `Manufacturer Received`
+  - `Closed`
+- Timeline rendering now uses the shared component in [components/order_timeline.py](/c:/2026/manditrade/manditrade/components/order_timeline.py) with custom mandi labels.
+- Every order detail view now shows:
+  - order ID
+  - manufacturer
+  - mahajan
+  - raw material item summary
+  - mahajan price
+  - manufacturer price
+  - admin earning
+  - supply-ledger and mandi-ledger status
+  - current status
+  - timeline
+  - next action
 
-## Navigation And Route Status
-
-- Central navigation remains defined in [services/navigation_service.py](/c:/2026/manditrade/manditrade/services/navigation_service.py).
-- Sidebar route access remains centralized in [bootstrap/route_registry.py](/c:/2026/manditrade/manditrade/bootstrap/route_registry.py).
-- `Mahajans` is now a dedicated admin page through [modules/admin/mahajans.py](/c:/2026/manditrade/manditrade/modules/admin/mahajans.py).
-- `Raw Materials` is now a dedicated supply-catalog page through [modules/raw_materials/dashboard.py](/c:/2026/manditrade/manditrade/modules/raw_materials/dashboard.py).
-- `Mandi Orders` now routes all allowed roles through the admin-managed supply workflow in [modules/procurement/dashboard.py](/c:/2026/manditrade/manditrade/modules/procurement/dashboard.py).
-
-## Mandi Order Flow
-
-One mandi transaction now follows this operational chain:
-
-1. Manufacturer creates a supply request to admin.
-2. Admin assigns the request to a mahajan.
-3. Mahajan submits upstream quote pricing.
-4. Admin sets downstream manufacturer pricing and fee mix.
-5. Manufacturer confirms the admin-priced order.
-6. Mahajan dispatches through the admin-controlled channel.
-7. Manufacturer receives the shipment.
-
-Supported internal statuses now include:
-
-- `REQUESTED_BY_MANUFACTURER`
-- `ADMIN_REVIEWING`
-- `SENT_TO_MAHAJAN`
-- `MAHAJAN_QUOTED`
-- `ADMIN_PRICE_SET`
-- `MANUFACTURER_CONFIRMED`
-- `MAHAJAN_DISPATCHED`
-- `MANUFACTURER_RECEIVED`
-- `CLOSED`
-- `CANCELLED`
-
-## Pricing And Earnings
-
-- Upstream mahajan quote is stored as `mahajan_unit_price`.
-- Downstream manufacturer price is stored as `manufacturer_unit_price`.
-- Supply earnings are computed in [services/pricing_service.py](/c:/2026/manditrade/manditrade/services/pricing_service.py) through `calculate_supply_commission(...)`.
-- The commission object now tracks:
-  - mahajan bill amount
-  - manufacturer bill amount
-  - gross spread
-  - admin spread commission
-  - remaining spread share
-  - mahajan transaction fee
-  - admin total earning
-
-## Ledger Model
-
-One confirmed mandi supply order now creates dual ledger legs:
-
-- `Supply Ledger`
-  - relationship: `Admin <-> Mahajan`
-  - persisted through [services/governance_service.py](/c:/2026/manditrade/manditrade/services/governance_service.py)
-- `Mandi Ledger`
-  - relationship: `Admin <-> Manufacturer`
-  - persisted through the existing ledger service with metadata scope `mandi_ledger`
-
-Admin commission summary now also includes the supply channel through [modules/admin/commission_summary.py](/c:/2026/manditrade/manditrade/modules/admin/commission_summary.py).
-
-## Role Coverage
+## Role Action Status
 
 - `platform_admin`
-  - manages mahajan registry
-  - assigns supply requests
-  - sets downstream manufacturer price
-  - monitors supply ledger, mandi ledger, payments, and aggregate commission
+  - assign mahajan from manufacturer requests
+  - set downstream manufacturer price from mahajan quotes
+  - close received mandi orders
+  - cancel open mandi orders
 - `mahajan`
-  - sees only admin-linked supply requests
-  - manages own raw-material catalog
-  - quotes assigned orders
-  - dispatches confirmed orders
+  - submit quote only for assigned `Sent To Mahajan` orders
+  - dispatch only for `Manufacturer Confirmed` orders
 - `manufacturer`
-  - creates supply requests
-  - sees only own mandi orders
-  - confirms admin-priced orders
-  - marks dispatched shipments received
+  - create raw-material supply request
+  - confirm only admin-priced orders
+  - mark received only after mahajan dispatch
 
-## Identity And Actions
+Role-to-action scoping is enforced in the current UI helper flow inside [modules/procurement/dashboard.py](/c:/2026/manditrade/manditrade/modules/procurement/dashboard.py) and backed by transaction checks in [services/procurement_transaction_service.py](/c:/2026/manditrade/manditrade/services/procurement_transaction_service.py).
 
-- Access resolution now recognizes governance-backed mahajan records in [services/access_portal_service.py](/c:/2026/manditrade/manditrade/services/access_portal_service.py).
-- Action center now exposes supply-specific actions for admin, manufacturer, and mahajan in [services/action_center_service.py](/c:/2026/manditrade/manditrade/services/action_center_service.py).
+## Raw Material vs Product Separation Status
 
-## Persistence Added
+- `Raw Materials` is explicitly framed as the mahajan/admin supply-input layer in [modules/raw_materials/dashboard.py](/c:/2026/manditrade/manditrade/modules/raw_materials/dashboard.py).
+- `Products` is explicitly framed as the finished-product selling layer in [modules/products/dashboard.py](/c:/2026/manditrade/manditrade/modules/products/dashboard.py).
+- `Mandi Orders` now reinforces that raw materials belong to supply procurement while finished products belong to catalog/client/marketplace selling.
+- No RBAC changes were introduced in this usability pass.
 
-Governance-backed supply persistence now includes:
+## Dashboard Card Status
 
-- `mahajans.json`
-- `raw_materials.json`
-- `supply_orders.json`
-- `supply_ledgers.json`
+- `Mandi Orders` now includes clickable dashboard cards for:
+  - `Open Requests`
+  - `Awaiting Mahajan Quote`
+  - `Awaiting Manufacturer Confirmation`
+  - `Dispatched`
+  - `Received`
+  - `Closed`
+- These cards now filter the `Orders` tab dataset through shared page-state helpers in [utils/page_ui.py](/c:/2026/manditrade/manditrade/utils/page_ui.py).
 
-These are managed by [services/governance_service.py](/c:/2026/manditrade/manditrade/services/governance_service.py).
+## Transaction Flow Status
 
-## Verification
+- Admin-managed mahajan supply workflow remains intact:
+  - manufacturer request
+  - admin assignment
+  - mahajan quote
+  - admin pricing
+  - manufacturer confirmation
+  - mahajan dispatch
+  - manufacturer receipt
+  - admin close
+- Supply orders can now also be cancelled by admin before receipt.
+- Dual ledger behavior remains:
+  - `Supply Ledger` for `Admin <-> Mahajan`
+  - `Mandi Ledger` for `Admin <-> Manufacturer`
 
-- `python -m pytest tests/test_pricing_engine.py tests/test_transactions.py tests/test_access_portal.py -q`
-  - Passed: `38`
-- `python -m compileall modules/procurement/dashboard.py modules/admin/mahajans.py modules/raw_materials/dashboard.py services/governance_service.py services/pricing_service.py services/procurement_transaction_service.py`
+## Tests Result
+
+- `python -m pytest tests/ -q`
+  - Passed: `159`
+  - Skipped: `5`
+- `python -m compileall app.py modules services utils components schemas bootstrap scripts`
+  - Passed
+- `python -c "import app; print('app import ok')"`
   - Passed
 
-Full-suite verification should still be treated as the release gate after any adjacent UI or workflow edits.
+Additional coverage now checks:
+
+- mandi timeline statuses are complete
+- role-specific mandi actions are scoped correctly
+- order-detail payload contains the required business fields
+- dashboard-card status filters work
+- raw-material and finished-product labels stay separate
+- mandi RBAC still blocks wrong roles
+- admin cancel and close actions persist correctly

@@ -23,7 +23,7 @@ def render_products_dashboard(app_context: dict) -> None:
     )
     render_page_header(
         "Products",
-        "Govern public mandi catalog, approvals, and pricing without slipping back into ERP complexity.",
+        "Govern finished products for catalog selling, approvals, and pricing. Raw-material supply belongs on the Raw Materials and Mandi Orders pages.",
         ["Public Catalog", "Mandi Price", "Three-Tier Pricing"],
         role=viewer_role.replace("_", " ").title() if viewer_role else "Catalog View",
         metrics=[("Catalog Mode", "Governed visibility"), ("Proposal Path", "Manufacturer to admin")],
@@ -79,7 +79,7 @@ def render_products_dashboard(app_context: dict) -> None:
     )
     overview_tab, activity_tab, thread_tab = st.tabs(["Overview", "Activity", "Proposal Threads"])
     with overview_tab:
-        render_section_intro("Catalog Governance", "Manufacturers can propose products and platform admin approves mandi, client, and marketplace pricing.")
+        render_section_intro("Finished Product Catalog", "Manufacturers can propose finished products here. Raw materials and supplier quotes stay in the admin-managed supply workflow.")
         if product_preview:
             render_html(f"<section class='mt-grid mt-grid--actions'>{product_preview}</section>")
         st.dataframe(products, use_container_width=True)

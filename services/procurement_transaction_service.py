@@ -170,7 +170,8 @@ class ProcurementTransactionService:
             raise ValueError("Supply order not found.")
         order["mahajan_id"] = mahajan_id
         order["status"] = "SENT_TO_MAHAJAN"
-        order.setdefault("internal_status_history", []).append({"status": "SENT_TO_MAHAJAN", "at": datetime.now(UTC).isoformat(), "actor": admin_email})
+        order.setdefault("internal_status_history", []).append({"status": "ADMIN_REVIEWING", "at": datetime.now(UTC).isoformat(), "actor": admin_email})
+        order["internal_status_history"].append({"status": "SENT_TO_MAHAJAN", "at": datetime.now(UTC).isoformat(), "actor": admin_email})
         return self.governance_service.upsert_supply_order(order)
 
     def quote_supply_order(self, *, mandi_order_id: str, mahajan_id: str, mahajan_unit_price: float, mahajan_email: str, notes: str = "") -> dict[str, Any]:
@@ -289,6 +290,32 @@ class ProcurementTransactionService:
             raise PermissionError("Manufacturer cannot receive another manufacturer's supply order.")
         order["status"] = "MANUFACTURER_RECEIVED"
         order.setdefault("internal_status_history", []).append({"status": "MANUFACTURER_RECEIVED", "at": datetime.now(UTC).isoformat(), "actor": actor_email})
+        return self.governance_service.upsert_supply_order(order)
+
+    def close_supply_order(self, *, mandi_order_id: str, admin_email: str) -> dict[str, Any]:
+        if not self.governance_service:
+            raise ValueError("Governance service not configured for supply requests.")
+        order = self.governance_service.get_supply_order(mandi_order_id)
+        if not order:
+            raise ValueError("Supply order not found.")
+        if order.get("status") != "MANUFACTURER_RECEIVED":
+            raise ValueError("Only received mandi orders can be closed.")
+        order["status"] = "CLOSED"
+        order.setdefault("internal_status_history", []).append({"status": "CLOSED", "at": datetime.now(UTC).isoformat(), "actor": admin_email})
+        return self.governance_service.upsert_supply_order(order)
+
+    def cancel_supply_order(self, *, mandi_order_id: str, admin_email: str, reason: str = "") -> dict[str, Any]:
+        if not self.governance_service:
+            raise ValueError("Governance service not configured for supply requests.")
+        order = self.governance_service.get_supply_order(mandi_order_id)
+        if not order:
+            raise ValueError("Supply order not found.")
+        if order.get("status") in {"MANUFACTURER_RECEIVED", "CLOSED"}:
+            raise ValueError("Received or closed mandi orders cannot be cancelled.")
+        order["status"] = "CANCELLED"
+        if reason:
+            order["cancellation_reason"] = reason
+        order.setdefault("internal_status_history", []).append({"status": "CANCELLED", "at": datetime.now(UTC).isoformat(), "actor": admin_email, "reason": reason})
         return self.governance_service.upsert_supply_order(order)
 
     def respond_to_rfq(self, current_user, rfq_owner_code: str, rfq_id: str, available_items: list[dict[str, Any]], supplier_terms: dict[str, Any]) -> dict[str, Any]:
