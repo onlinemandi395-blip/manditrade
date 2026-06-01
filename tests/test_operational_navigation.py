@@ -27,6 +27,7 @@ def test_operational_pages_use_tabs_and_metric_buttons():
         Path("modules/public_orders/dashboard.py"),
         Path("modules/analytics/dashboard.py"),
         Path("modules/procurement/dashboard.py"),
+        Path("modules/suta_mandi/dashboard.py"),
     ]
     for path in files:
         content = path.read_text(encoding="utf-8")
@@ -45,3 +46,10 @@ def test_mahajan_profile_has_dedicated_renderer():
     content = Path("modules/profile/dashboard.py").read_text(encoding="utf-8")
     assert "def _render_mahajan_profile" in content
     assert 'if current_user.role == "mahajan"' in content
+
+
+def test_mahajans_page_has_admin_crud_controls():
+    content = Path("modules/admin/mahajans.py").read_text(encoding="utf-8")
+    assert "Create Mahajan" in content
+    assert "Update Mahajan" in content
+    assert "Delete Mahajan" in content

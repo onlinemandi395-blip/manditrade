@@ -32,6 +32,7 @@ from modules.procurement.dashboard import render_procurement_dashboard
 from modules.products.dashboard import render_products_dashboard
 from modules.public_orders.dashboard import render_public_orders_dashboard
 from modules.raw_materials.dashboard import render_raw_materials_dashboard
+from modules.suta_mandi.dashboard import render_suta_mandi_dashboard
 from modules.system.health_dashboard import render_health_dashboard
 from services.navigation_service import NAV_ALIAS_MAP, normalize_navigation_label
 
@@ -59,7 +60,7 @@ ROUTE_GROUPS = {
         "Analytics",
     },
     "mahajan": {"Dashboard", "My Profile", "Notifications", "My Actions", "Raw Materials", "Mandi Orders", "Payments", "Ledger", "Jobs"},
-    "manufacturer": {"Dashboard", "My Profile", "Notifications", "My Actions", "Products", "Inventory", "Clients", "Client Orders", "Marketplace", "Marketplace Orders", "Mandi Orders", "Payments", "Ledger", "Jobs"},
+    "manufacturer": {"Dashboard", "My Profile", "Notifications", "My Actions", "Products", "Inventory", "Clients", "Client Orders", "Marketplace", "Marketplace Orders", "Suta Mandi", "Mandi Orders", "Payments", "Ledger", "Jobs"},
     "client": {"Dashboard", "My Profile", "Notifications", "My Actions", "Products", "Client Orders", "Payments", "Ledger"},
     "public_buyer": {"Dashboard", "My Profile", "Notifications", "My Actions", "Marketplace", "Marketplace Orders", "Jobs"},
     "worker": {"Dashboard", "My Profile", "Notifications", "My Actions", "Jobs"},
@@ -139,6 +140,8 @@ def render_route(section: str, app_context: dict) -> None:
         render_my_profile_dashboard(app_context)
     elif section == "Products":
         render_products_dashboard(app_context)
+    elif section == "Suta Mandi":
+        render_suta_mandi_dashboard(app_context)
     elif section in {"Marketplace", "Marketplace Preview"}:
         render_marketplace_dashboard(app_context)
     elif section in {"Marketplace Orders", "Public Orders"}:

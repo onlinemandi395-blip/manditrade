@@ -10,6 +10,7 @@ from components.ui_shell import render_metric_card, render_page_header
 def render_raw_materials_dashboard(app_context: dict) -> None:
     user = app_context["current_user"]
     governance_service = app_context["governance_service"]
+    all_mahajans = governance_service.list_mahajans()
     mahajan = governance_service.get_mahajan_by_email(user.email) if user and user.role == "mahajan" else None
     materials = governance_service.list_raw_materials(mahajan_id=(mahajan or {}).get("mahajan_id")) if user and user.role == "mahajan" else governance_service.list_raw_materials()
     supply_orders = app_context["procurement_transaction_service"].list_supply_orders(mahajan_id=(mahajan or {}).get("mahajan_id")) if user and user.role == "mahajan" else app_context["procurement_transaction_service"].list_supply_orders()
@@ -37,6 +38,9 @@ def render_raw_materials_dashboard(app_context: dict) -> None:
         with st.form("raw_material_form"):
             raw_material_id = st.text_input("Raw Material ID", value=f"RM{len(materials) + 1:03d}")
             name = st.text_input("Name")
+            if user and user.role == "platform_admin":
+                owner_id = st.selectbox("Mahajan Owner", [item["mahajan_id"] for item in all_mahajans], format_func=lambda mahajan_id: f"{mahajan_id} | {next((item.get('business_name', '') for item in all_mahajans if item['mahajan_id'] == mahajan_id), '')}") if all_mahajans else ""
+            category = st.selectbox("Category", ["RAW_MATERIAL", "SUTA", "FIBER", "DYE", "CHEMICAL"], index=0)
             unit = st.text_input("Unit", value="kg")
             available_qty = st.number_input("Available Qty", min_value=0, step=1)
             supply_price = st.number_input("Supply Price", min_value=0.0, step=1.0)
@@ -47,6 +51,7 @@ def render_raw_materials_dashboard(app_context: dict) -> None:
                     "raw_material_id": raw_material_id,
                     "mahajan_id": owner_id,
                     "name": name,
+                    "category": category,
                     "unit": unit,
                     "available_qty": int(available_qty),
                     "supply_price": float(supply_price),

@@ -293,6 +293,30 @@ class GovernanceService:
         self.safe_drive_write_service.replace_document(self.mahajans_path, payload)
         return normalized
 
+    def delete_mahajan(self, mahajan_id: str) -> bool:
+        self.ensure_files()
+        mahajan_key = str(mahajan_id or "").strip().upper()
+        if not mahajan_key:
+            raise ValueError("Mahajan ID is required.")
+        existing = self.get_mahajan(mahajan_key)
+        if not existing:
+            raise ValueError("Mahajan not found.")
+        linked_materials = [item for item in self.list_raw_materials() if item.get("mahajan_id") == mahajan_key]
+        if linked_materials:
+            raise ValueError("Delete blocked: remove or reassign linked raw materials first.")
+        live_orders = [
+            item
+            for item in self.list_supply_orders()
+            if item.get("mahajan_id") == mahajan_key and item.get("status") not in {"CANCELLED", "CLOSED"}
+        ]
+        if live_orders:
+            raise ValueError("Delete blocked: active mandi supply orders are still linked to this mahajan.")
+        payload = self.json_service.read_json(self.mahajans_path, {"mahajans": []})
+        payload["mahajans"] = [item for item in payload.get("mahajans", []) if item.get("mahajan_id") != mahajan_key]
+        payload.setdefault("schema_version", "1.0")
+        self.safe_drive_write_service.replace_document(self.mahajans_path, payload)
+        return True
+
     def list_raw_materials(self, *, mahajan_id: str | None = None) -> list[dict[str, Any]]:
         self.ensure_files()
         rows = self.json_service.read_json(self.raw_materials_path, {"raw_materials": []}).get("raw_materials", [])

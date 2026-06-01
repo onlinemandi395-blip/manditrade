@@ -42,7 +42,7 @@ ROLE_NAVIGATION_MAP: dict[str, list[tuple[str, list[str]]]] = {
         ("Product Operations", ["Products", "Inventory"]),
         ("Client Network", ["Clients", "Client Orders"]),
         ("Marketplace", ["Marketplace", "Marketplace Orders"]),
-        ("Mandi Network", ["Mandi Orders"]),
+        ("Mandi Network", ["Suta Mandi", "Mandi Orders"]),
         ("Finance", ["Payments", "Ledger"]),
         ("Operations", ["Jobs"]),
     ],
