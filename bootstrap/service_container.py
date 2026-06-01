@@ -286,6 +286,8 @@ def build_app_context() -> dict:
         ledger_service=ledger_service,
         notification_center_service=notification_center_service,
         domain_paths_service=domain_paths_service,
+        governance_service=governance_service,
+        pricing_service=pricing_service,
     )
     order_transaction_service = OrderTransactionService(
         drive_service=drive_service,

@@ -20,12 +20,29 @@ def render_ledger_dashboard(app_context: dict) -> None:
         metrics=[("Readability", "High contrast"), ("Motion", "Minimal by design")],
         kicker="Digital Manpur Ledger Surface",
     )
-    if not user or not user.manufacturer_code:
-        st.info("Manufacturer-linked session required.")
+    if not user:
+        st.info("Sign in required.")
         return
-    ledgers = app_context["ledger_service"].list_ledgers_for_role(user.manufacturer_code, user.role)
-    pending_entries = sum(1 for ledger in ledgers for entry in ledger.get("entries", []) if entry.get("status") == "PENDING")
-    overdue_entries = sum(1 for ledger in ledgers for entry in ledger.get("entries", []) if entry.get("status") == "OVERDUE")
+    if user.role == "mahajan":
+        mahajan = app_context["governance_service"].get_mahajan_by_email(user.email)
+        ledgers = [
+            item
+            for item in app_context["governance_service"].list_supply_ledger_entries()
+            if item.get("mahajan_id") == (mahajan or {}).get("mahajan_id")
+        ]
+        pending_entries = len([item for item in ledgers if item.get("status") == "PENDING"])
+        overdue_entries = 0
+    elif user.role == "platform_admin":
+        ledgers = app_context["governance_service"].list_supply_ledger_entries()
+        pending_entries = len([item for item in ledgers if item.get("status") == "PENDING"])
+        overdue_entries = 0
+    else:
+        if not user.manufacturer_code:
+            st.info("Manufacturer-linked session required.")
+            return
+        ledgers = app_context["ledger_service"].list_ledgers_for_role(user.manufacturer_code, user.role)
+        pending_entries = sum(1 for ledger in ledgers for entry in ledger.get("entries", []) if entry.get("status") == "PENDING")
+        overdue_entries = sum(1 for ledger in ledgers for entry in ledger.get("entries", []) if entry.get("status") == "OVERDUE")
     render_metric_grid(
         [
             render_metric_card("Ledger Books", str(len(ledgers)), "SUCCESS"),
@@ -61,15 +78,22 @@ def render_ledger_dashboard(app_context: dict) -> None:
         st.dataframe(ledgers, use_container_width=True)
     with due_tab:
         overdue_rows = []
-        for ledger in ledgers:
-            for entry in ledger.get("entries", []):
-                if entry.get("status") in {"PENDING", "OVERDUE"}:
-                    overdue_rows.append({"ledger_id": ledger.get("ledger_id"), **entry})
+        if user.role in {"mahajan", "platform_admin"}:
+            overdue_rows = [item for item in ledgers if item.get("status") in {"PENDING", "OVERDUE"}]
+        else:
+            for ledger in ledgers:
+                for entry in ledger.get("entries", []):
+                    if entry.get("status") in {"PENDING", "OVERDUE"}:
+                        overdue_rows.append({"ledger_id": ledger.get("ledger_id"), **entry})
         if overdue_rows:
             st.dataframe(overdue_rows, use_container_width=True)
         else:
             st.info("No due or overdue ledger entries right now.")
     with payments_tab:
+        if user.role in {"mahajan", "platform_admin"}:
+            st.info("Supply-ledger payment settlement remains supervisory on this screen.")
+            st.dataframe(ledgers, use_container_width=True)
+            return
         payable_rows = []
         for ledger in ledgers:
             for entry in ledger.get("entries", []):

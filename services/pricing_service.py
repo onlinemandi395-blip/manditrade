@@ -19,6 +19,7 @@ class PricingService:
         commission_config = commission_config or {}
         self.admin_profit_share_percent = float(commission_config.get("admin_profit_share_percent", 50))
         self.manufacturer_profit_share_percent = float(commission_config.get("manufacturer_profit_share_percent", 50))
+        self.mahajan_transaction_fee_percent = float(commission_config.get("mahajan_transaction_fee_percent", 1))
         self.platform_fee_on_admin_commission = commission_config.get(
             "platform_fee_on_admin_commission",
             {"basic": 10, "premium": 5, "premium_plus": 1},
@@ -128,4 +129,50 @@ class PricingService:
             "admin_net_commission": admin_net,
             "manufacturer_profit_share": manufacturer_share,
             "subscription_plan": subscription_key,
+        }
+
+    def calculate_supply_commission(
+        self,
+        *,
+        mandi_order_id: str,
+        mahajan_id: str,
+        manufacturer_id: str,
+        raw_material_id: str,
+        qty: float,
+        unit: str,
+        mahajan_unit_price: float,
+        manufacturer_unit_price: float,
+        admin_spread_share_percent: float | None = None,
+        mahajan_fee_percent: float | None = None,
+    ) -> dict[str, Any]:
+        qty_value = float(qty or 0)
+        mahajan_price = round(float(mahajan_unit_price or 0), 2)
+        manufacturer_price = round(float(manufacturer_unit_price or 0), 2)
+        mahajan_bill_amount = round(qty_value * mahajan_price, 2)
+        manufacturer_bill_amount = round(qty_value * manufacturer_price, 2)
+        gross_spread = round(manufacturer_bill_amount - mahajan_bill_amount, 2)
+        spread_share_percent = float(admin_spread_share_percent if admin_spread_share_percent is not None else self.admin_profit_share_percent)
+        admin_spread_commission = round(max(gross_spread, 0) * (spread_share_percent / 100), 2)
+        remaining_spread_share = round(max(gross_spread, 0) - admin_spread_commission, 2)
+        supply_fee_percent = float(mahajan_fee_percent if mahajan_fee_percent is not None else self.mahajan_transaction_fee_percent)
+        mahajan_transaction_fee = round(mahajan_bill_amount * (supply_fee_percent / 100), 2)
+        admin_total_earning = round(admin_spread_commission + mahajan_transaction_fee, 2)
+        return {
+            "mandi_order_id": mandi_order_id,
+            "mahajan_id": mahajan_id,
+            "manufacturer_id": manufacturer_id,
+            "raw_material_id": raw_material_id,
+            "qty": qty_value,
+            "unit": unit,
+            "mahajan_unit_price": mahajan_price,
+            "manufacturer_unit_price": manufacturer_price,
+            "mahajan_bill_amount": mahajan_bill_amount,
+            "manufacturer_bill_amount": manufacturer_bill_amount,
+            "gross_spread": gross_spread,
+            "admin_spread_share_percent": spread_share_percent,
+            "admin_spread_commission": admin_spread_commission,
+            "remaining_spread_share": remaining_spread_share,
+            "mahajan_fee_percent": supply_fee_percent,
+            "mahajan_transaction_fee": mahajan_transaction_fee,
+            "admin_total_earning": admin_total_earning,
         }

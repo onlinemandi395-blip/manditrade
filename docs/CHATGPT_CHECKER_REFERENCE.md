@@ -1,115 +1,113 @@
 # MandiTrade Checker Reference
 
-Generated from the current repository state on 2026-06-01 after the operational sidebar-page pass.
+Generated from the current repository state on 2026-06-01 after the admin-managed mahajan supply implementation.
 
-## All Navigation Pages Operational Status
+## Supply Model
+
+- `Mahajan` is the upstream raw-material supplier.
+- `Platform Admin` controls the supply channel and sits between mahajan and manufacturer.
+- `Manufacturer` requests mandi/raw-material orders only through admin.
+- Manufacturers do not directly negotiate with mahajans inside the product workflow.
+
+## Navigation And Route Status
 
 - Central navigation remains defined in [services/navigation_service.py](/c:/2026/manditrade/manditrade/services/navigation_service.py).
-- Sidebar routes remain centralized in [bootstrap/route_registry.py](/c:/2026/manditrade/manditrade/bootstrap/route_registry.py).
-- Every label currently present in `ROLE_NAVIGATION_MAP` now routes to a non-blank screen.
-- Pages that were previously summary-only or placeholder-light now expose at least:
-  - page hero/header
-  - metric section
-  - horizontal tabs
-  - role-safe empty state or action surface
+- Sidebar route access remains centralized in [bootstrap/route_registry.py](/c:/2026/manditrade/manditrade/bootstrap/route_registry.py).
+- `Mahajans` is now a dedicated admin page through [modules/admin/mahajans.py](/c:/2026/manditrade/manditrade/modules/admin/mahajans.py).
+- `Raw Materials` is now a dedicated supply-catalog page through [modules/raw_materials/dashboard.py](/c:/2026/manditrade/manditrade/modules/raw_materials/dashboard.py).
+- `Mandi Orders` now routes all allowed roles through the admin-managed supply workflow in [modules/procurement/dashboard.py](/c:/2026/manditrade/manditrade/modules/procurement/dashboard.py).
 
-## Tabbed Page Status
+## Mandi Order Flow
 
-Tabbed layouts are now present across the main navigation surfaces, including:
+One mandi transaction now follows this operational chain:
 
-- [modules/actions/dashboard.py](/c:/2026/manditrade/manditrade/modules/actions/dashboard.py)
-- [modules/notifications/dashboard.py](/c:/2026/manditrade/manditrade/modules/notifications/dashboard.py)
-- [modules/profile/dashboard.py](/c:/2026/manditrade/manditrade/modules/profile/dashboard.py)
-- [modules/manufacturer/dashboard.py](/c:/2026/manditrade/manditrade/modules/manufacturer/dashboard.py)
-- [modules/client/dashboard.py](/c:/2026/manditrade/manditrade/modules/client/dashboard.py)
-- [modules/mahajan/dashboard.py](/c:/2026/manditrade/manditrade/modules/mahajan/dashboard.py)
-- [modules/payments/dashboard.py](/c:/2026/manditrade/manditrade/modules/payments/dashboard.py)
-- [modules/ledger/dashboard.py](/c:/2026/manditrade/manditrade/modules/ledger/dashboard.py)
-- [modules/public_orders/dashboard.py](/c:/2026/manditrade/manditrade/modules/public_orders/dashboard.py)
-- [modules/analytics/dashboard.py](/c:/2026/manditrade/manditrade/modules/analytics/dashboard.py)
+1. Manufacturer creates a supply request to admin.
+2. Admin assigns the request to a mahajan.
+3. Mahajan submits upstream quote pricing.
+4. Admin sets downstream manufacturer pricing and fee mix.
+5. Manufacturer confirms the admin-priced order.
+6. Mahajan dispatches through the admin-controlled channel.
+7. Manufacturer receives the shipment.
 
-Existing tabs already present in product, inventory, client registry, jobs, system health, and product approvals were preserved.
+Supported internal statuses now include:
 
-## Clickable Count Dashboard Status
+- `REQUESTED_BY_MANUFACTURER`
+- `ADMIN_REVIEWING`
+- `SENT_TO_MAHAJAN`
+- `MAHAJAN_QUOTED`
+- `ADMIN_PRICE_SET`
+- `MANUFACTURER_CONFIRMED`
+- `MAHAJAN_DISPATCHED`
+- `MANUFACTURER_RECEIVED`
+- `CLOSED`
+- `CANCELLED`
 
-- Shared helper added in [utils/page_ui.py](/c:/2026/manditrade/manditrade/utils/page_ui.py).
-- Helper functions now include:
-  - `render_metric_card_button`
-  - `render_metric_button_row`
-  - `set_active_tab_from_metric`
-  - `render_empty_state`
-  - `render_status_chip`
-- Clickable metric rows now exist on the main operational pages listed above.
-- Current behavior:
-  - clicking a metric stores page tab/filter intent in `st.session_state`
-  - relevant tabs and filtered table areas render on the target page
-- This is a Streamlit-safe implementation rather than custom JS card navigation.
+## Pricing And Earnings
 
-## CRUD / Action Coverage By Page
+- Upstream mahajan quote is stored as `mahajan_unit_price`.
+- Downstream manufacturer price is stored as `manufacturer_unit_price`.
+- Supply earnings are computed in [services/pricing_service.py](/c:/2026/manditrade/manditrade/services/pricing_service.py) through `calculate_supply_commission(...)`.
+- The commission object now tracks:
+  - mahajan bill amount
+  - manufacturer bill amount
+  - gross spread
+  - admin spread commission
+  - remaining spread share
+  - mahajan transaction fee
+  - admin total earning
 
-- `My Profile`
-  - admin, manufacturer, client, worker, public buyer, and mahajan now all have role-specific profile surfaces
-  - manufacturer/client/worker/public buyer keep editable forms
-  - mahajan now has a dedicated profile surface instead of falling through to a generic fallback
-- `Notifications`
-  - mark read
-  - mark resolved
-  - remind tomorrow
-  - public-buyer and manufacturer/admin notification status updates stay role-safe
-- `My Actions`
-  - grouped into pending/high-priority/due-today/completed tabs
-  - action cards remain operational summary surfaces
-- `Payments`
-  - reminder trigger remains available for manufacturer-linked payment follow-up
-  - other roles get role-safe summary tabs instead of blank action space
-- `Ledger`
-  - overview, entries, due/overdue, and payment tabs added
-  - add-payment flow now available from the ledger page
-- `Marketplace Orders`
-  - public-buyer flow and seller/admin flow both now use overview/orders/payments/delivery tabs
-  - payment-reference, verify, confirm, and dispatch actions remain intact
-- `Mahajan` / `Raw Materials`
-  - overview, catalog, add-raw-material, and activity tabs now exist
-  - current raw-material create flow is lightweight and local to the page surface
+## Ledger Model
 
-## RBAC Enforcement Status
+One confirmed mandi supply order now creates dual ledger legs:
 
-- Route guard remains centralized in [bootstrap/route_registry.py](/c:/2026/manditrade/manditrade/bootstrap/route_registry.py).
-- Sidebar hiding is still not the only control layer.
-- Effective-role sidebar behavior remains dynamic in [bootstrap/app_bootstrap.py](/c:/2026/manditrade/manditrade/bootstrap/app_bootstrap.py).
-- Key RBAC guarantees still hold:
-  - `platform_admin` gets governance and aggregate-only private-business views
-  - `manufacturer` sees own workspace only
-  - `mahajan` remains limited to admin-supply pages
-  - `client` sees own client-scope data only
-  - `public_buyer` stays in public-marketplace scope only
-  - `worker` stays in worker/job scope only
+- `Supply Ledger`
+  - relationship: `Admin <-> Mahajan`
+  - persisted through [services/governance_service.py](/c:/2026/manditrade/manditrade/services/governance_service.py)
+- `Mandi Ledger`
+  - relationship: `Admin <-> Manufacturer`
+  - persisted through the existing ledger service with metadata scope `mandi_ledger`
 
-## Production UI Status
+Admin commission summary now also includes the supply channel through [modules/admin/commission_summary.py](/c:/2026/manditrade/manditrade/modules/admin/commission_summary.py).
 
-- Normal pages do not expose runtime debug text, OAuth config details, fallback flags, or mock-login controls.
-- Diagnostics remain concentrated in [modules/system/health_dashboard.py](/c:/2026/manditrade/manditrade/modules/system/health_dashboard.py).
-- Public pre-login navigation still shows `Dashboard` only, and marketplace remains hidden before login.
+## Role Coverage
 
-## Tests Result
+- `platform_admin`
+  - manages mahajan registry
+  - assigns supply requests
+  - sets downstream manufacturer price
+  - monitors supply ledger, mandi ledger, payments, and aggregate commission
+- `mahajan`
+  - sees only admin-linked supply requests
+  - manages own raw-material catalog
+  - quotes assigned orders
+  - dispatches confirmed orders
+- `manufacturer`
+  - creates supply requests
+  - sees only own mandi orders
+  - confirms admin-priced orders
+  - marks dispatched shipments received
 
-- `python -m pytest tests/ -q`
-  - Passed: `150`
-  - Skipped: `5`
-- `python -m compileall app.py modules services utils components schemas bootstrap scripts`
+## Identity And Actions
+
+- Access resolution now recognizes governance-backed mahajan records in [services/access_portal_service.py](/c:/2026/manditrade/manditrade/services/access_portal_service.py).
+- Action center now exposes supply-specific actions for admin, manufacturer, and mahajan in [services/action_center_service.py](/c:/2026/manditrade/manditrade/services/action_center_service.py).
+
+## Persistence Added
+
+Governance-backed supply persistence now includes:
+
+- `mahajans.json`
+- `raw_materials.json`
+- `supply_orders.json`
+- `supply_ledgers.json`
+
+These are managed by [services/governance_service.py](/c:/2026/manditrade/manditrade/services/governance_service.py).
+
+## Verification
+
+- `python -m pytest tests/test_pricing_engine.py tests/test_transactions.py tests/test_access_portal.py -q`
+  - Passed: `38`
+- `python -m compileall modules/procurement/dashboard.py modules/admin/mahajans.py modules/raw_materials/dashboard.py services/governance_service.py services/pricing_service.py services/procurement_transaction_service.py`
   - Passed
-- `python -c "import app; print('app import ok')"`
-  - Passed
 
-Additional operational-nav coverage now checks:
-
-- all centralized nav items are represented in route registry source
-- operational pages include tabs
-- clickable metric helper wiring exists
-- mahajan profile has a dedicated renderer
-
-## Remaining Blockers
-
-- `Mahajan` and `Raw Materials` are now operational tabbed pages, but they still use lightweight in-page actions rather than a fully persisted supplier catalog workflow.
-- Clickable metric cards currently drive tab/filter intent through session state; they do not force true tab switching in the browser because Streamlit tabs are not fully programmatically controlled.
-- Internal RFQ/procurement naming still exists in some services/modules for compatibility, even though user-facing routing remains normalized to `Mandi Orders`.
+Full-suite verification should still be treated as the release gate after any adjacent UI or workflow edits.

@@ -111,6 +111,27 @@ def test_commission_calculates_correctly_for_subscription_plans(tmp_path):
     assert premium_plus["admin_net_commission"] == 24.75
 
 
+def test_supply_commission_tracks_spread_and_mahajan_fee(tmp_path):
+    pricing, _product_catalog, _governance, _ledger = _build_stack(tmp_path)
+    result = pricing.calculate_supply_commission(
+        mandi_order_id="MO-2026-000001",
+        mahajan_id="MAH001",
+        manufacturer_id="MANU001",
+        raw_material_id="RM001",
+        qty=1000,
+        unit="kg",
+        mahajan_unit_price=35,
+        manufacturer_unit_price=40,
+        mahajan_fee_percent=1,
+    )
+    assert result["mahajan_bill_amount"] == 35000
+    assert result["manufacturer_bill_amount"] == 40000
+    assert result["gross_spread"] == 5000
+    assert result["admin_spread_commission"] == 2500
+    assert result["mahajan_transaction_fee"] == 350
+    assert result["admin_total_earning"] == 2850
+
+
 def test_zero_or_negative_profit_returns_zero_commission_and_warning(tmp_path):
     pricing, _product_catalog, _governance, _ledger = _build_stack(tmp_path)
     result = pricing.calculate_commission({"mandi_price": 100, "client_price": 95}, pricing.CHANNEL_PRIVATE_CLIENT, None)

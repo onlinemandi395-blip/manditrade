@@ -11,6 +11,7 @@ def render_commission_summary_dashboard(app_context: dict) -> None:
     governance_service = app_context["governance_service"]
     order_query_service = app_context["order_query_service"]
     public_order_service = app_context["public_order_service"]
+    supply_orders = app_context["governance_service"].list_supply_orders()
     rows: list[dict] = []
     total_trade_value = 0.0
     total_admin_commission = 0.0
@@ -59,6 +60,23 @@ def render_commission_summary_dashboard(app_context: dict) -> None:
         total_admin_commission += private_row["admin_commission"] + public_row["admin_commission"]
         total_platform_fee += private_row["platform_fee"] + public_row["platform_fee"]
         total_manufacturer_share += private_row["manufacturer_share"] + public_row["manufacturer_share"]
+
+    supply_commission = sum(float((item.get("commission_object") or {}).get("admin_total_earning", 0) or 0) for item in supply_orders)
+    supply_trade_value = sum(float((item.get("commission_object") or {}).get("manufacturer_bill_amount", 0) or 0) for item in supply_orders)
+    if supply_orders:
+        rows.append(
+            {
+                "manufacturer_code": "ADMIN_SUPPLY",
+                "manufacturer_name": "Admin-Mahajan Supply Channel",
+                "channel": "MANDI_SUPPLY",
+                "gross_trade_value": round(supply_trade_value, 2),
+                "admin_commission": round(supply_commission, 2),
+                "platform_fee": 0.0,
+                "manufacturer_share": round(sum(float((item.get("commission_object") or {}).get("remaining_spread_share", 0) or 0) for item in supply_orders), 2),
+            }
+        )
+        total_trade_value += supply_trade_value
+        total_admin_commission += supply_commission
 
     render_page_header("Commission Summary", "Read-only SuperAdmin commission analytics by manufacturer and channel without exposing private client identities.", ["SuperAdmin", "Commission Summary"])
     render_metric_grid(

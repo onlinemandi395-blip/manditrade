@@ -9,6 +9,7 @@ from modules.analytics.dashboard import render_analytics_dashboard
 from modules.admin.commission_summary import render_commission_summary_dashboard
 from modules.finance.commission_dashboard import render_commission_dashboard
 from modules.admin.dashboard import render_admin_dashboard
+from modules.admin.mahajans import render_mahajans_dashboard
 from modules.admin.inventory_summary import render_inventory_summary_dashboard
 from modules.admin.manufacturers import render_manufacturers_dashboard
 from modules.mahajan.dashboard import render_mahajan_dashboard
@@ -30,6 +31,7 @@ from modules.profile.dashboard import render_my_profile_dashboard
 from modules.procurement.dashboard import render_procurement_dashboard
 from modules.products.dashboard import render_products_dashboard
 from modules.public_orders.dashboard import render_public_orders_dashboard
+from modules.raw_materials.dashboard import render_raw_materials_dashboard
 from modules.system.health_dashboard import render_health_dashboard
 from services.navigation_service import NAV_ALIAS_MAP, normalize_navigation_label
 
@@ -161,12 +163,12 @@ def render_route(section: str, app_context: dict) -> None:
         else:
             render_orders_dashboard(app_context)
     elif section == "Mandi Orders":
-        if supervisor_mode:
-            render_admin_dashboard(app_context, section="Mandi Orders")
-        elif user and user.role == "mahajan":
-            render_mahajan_dashboard(app_context)
-        else:
+        if "procurement_transaction_service" in app_context:
             render_procurement_dashboard(app_context)
+        elif supervisor_mode:
+            render_admin_dashboard(app_context, section="Mandi Orders")
+        else:
+            _render_access_denied(app_context)
     elif section in {"Ledger / Khata", "Ledger"}:
         if supervisor_mode:
             render_admin_dashboard(app_context, section="Ledger")
@@ -186,9 +188,9 @@ def render_route(section: str, app_context: dict) -> None:
     elif section == "Clients":
         render_clients_dashboard(app_context)
     elif section == "Mahajans":
-        render_mahajan_dashboard(app_context)
+        render_mahajans_dashboard(app_context)
     elif section == "Raw Materials":
-        render_mahajan_dashboard(app_context)
+        render_raw_materials_dashboard(app_context)
     elif section == "Jobs":
         render_jobs_dashboard(app_context)
     elif section == "Analytics":

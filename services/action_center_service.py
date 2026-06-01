@@ -23,6 +23,8 @@ class ActionCenterService:
         role = user.role
         if role == "platform_admin":
             return self._admin_actions()
+        if role == "mahajan":
+            return self._mahajan_actions(user.email)
         if role in {"manufacturer", "admin_as_manufacturer"}:
             return self._manufacturer_actions(user.manufacturer_code or "")
         if role == "public_buyer":
@@ -34,6 +36,7 @@ class ActionCenterService:
     def _admin_actions(self) -> list[dict[str, Any]]:
         actions = []
         products = self.governance_service.list_products()
+        supply_orders = self.governance_service.list_supply_orders() if hasattr(self.governance_service, "list_supply_orders") else []
         if any(item.get("status") == "PROPOSED" for item in products):
             actions.append({"type": "APPROVE_PRODUCT", "count": len([item for item in products if item.get("status") == "PROPOSED"])})
         unresolved = len([item for item in products if item.get("status") == "PROPOSED" and item.get("clarification_status") == "ADMIN_QUERY"])
@@ -49,6 +52,13 @@ class ActionCenterService:
                 actions.append({"type": "REVIEW_FAILED_PUBLIC_PAYMENT", "count": failed_payments})
             if public_orders:
                 actions.append({"type": "MONITOR_PUBLIC_ORDERS", "count": len(public_orders)})
+        if supply_orders:
+            manufacturer_requests = len([item for item in supply_orders if item.get("status") == "REQUESTED_BY_MANUFACTURER"])
+            quoted = len([item for item in supply_orders if item.get("status") == "MAHAJAN_QUOTED"])
+            if manufacturer_requests:
+                actions.append({"type": "REVIEW_MANDI_REQUEST", "count": manufacturer_requests})
+            if quoted:
+                actions.append({"type": "SET_ADMIN_SUPPLY_PRICE", "count": quoted})
         return actions
 
     def _manufacturer_actions(self, manufacturer_code: str) -> list[dict[str, Any]]:
@@ -100,6 +110,14 @@ class ActionCenterService:
                 actions.append({"type": "CONFIRM_PUBLIC_ORDER", "count": paid})
             if confirmed:
                 actions.append({"type": "DISPATCH_PUBLIC_ORDER", "count": confirmed})
+        if hasattr(self.governance_service, "list_supply_orders"):
+            supply_orders = [item for item in self.governance_service.list_supply_orders() if item.get("manufacturer_id") == manufacturer_code]
+            awaiting_confirmation = len([item for item in supply_orders if item.get("status") == "ADMIN_PRICE_SET"])
+            dispatched = len([item for item in supply_orders if item.get("status") == "MAHAJAN_DISPATCHED"])
+            if awaiting_confirmation:
+                actions.append({"type": "CONFIRM_ADMIN_SUPPLY_ORDER", "count": awaiting_confirmation})
+            if dispatched:
+                actions.append({"type": "RECEIVE_ADMIN_SUPPLY_ORDER", "count": dispatched})
         return actions
 
     def _client_actions(self, manufacturer_code: str, client_email: str) -> list[dict[str, Any]]:
@@ -113,6 +131,22 @@ class ActionCenterService:
             worker = self.worker_service.get_worker_by_email(client_email)
             if worker and worker.get("available"):
                 actions.append({"type": "RESPOND_TO_JOB", "count": len(self.job_service.list_open_jobs())})
+        return actions
+
+    def _mahajan_actions(self, email: str) -> list[dict[str, Any]]:
+        actions = []
+        if not hasattr(self.governance_service, "get_mahajan_by_email"):
+            return actions
+        mahajan = self.governance_service.get_mahajan_by_email(email)
+        if not mahajan:
+            return actions
+        supply_orders = [item for item in self.governance_service.list_supply_orders() if item.get("mahajan_id") == mahajan.get("mahajan_id")]
+        quote_needed = len([item for item in supply_orders if item.get("status") == "SENT_TO_MAHAJAN"])
+        dispatch_needed = len([item for item in supply_orders if item.get("status") == "MANUFACTURER_CONFIRMED"])
+        if quote_needed:
+            actions.append({"type": "QUOTE_SUPPLY_ORDER", "count": quote_needed})
+        if dispatch_needed:
+            actions.append({"type": "DISPATCH_SUPPLY_ORDER", "count": dispatch_needed})
         return actions
 
     def _worker_actions(self, email: str) -> list[dict[str, Any]]:

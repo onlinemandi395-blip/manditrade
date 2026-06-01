@@ -34,6 +34,8 @@ class ProcurementTransactionService:
         ledger_service,
         notification_center_service,
         domain_paths_service,
+        governance_service=None,
+        pricing_service=None,
     ) -> None:
         self.drive_service = drive_service
         self.safe_drive_write_service = safe_drive_write_service
@@ -49,6 +51,8 @@ class ProcurementTransactionService:
         self.ledger_service = ledger_service
         self.notification_center_service = notification_center_service
         self.domain_paths = domain_paths_service
+        self.governance_service = governance_service
+        self.pricing_service = pricing_service
 
     def _validate_available_items(self, available_items: list[dict[str, Any]]) -> list[dict[str, Any]]:
         normalized: list[dict[str, Any]] = []
@@ -118,6 +122,174 @@ class ProcurementTransactionService:
 
     def list_responses(self, manufacturer_code: str) -> list[dict[str, Any]]:
         return self._rfq_doc(manufacturer_code).get("responses", [])
+
+    def list_supply_orders(self, *, manufacturer_code: str | None = None, mahajan_id: str | None = None) -> list[dict[str, Any]]:
+        if not self.governance_service:
+            return []
+        orders = self.governance_service.list_supply_orders()
+        if manufacturer_code:
+            orders = [item for item in orders if item.get("manufacturer_id") == manufacturer_code]
+        if mahajan_id:
+            orders = [item for item in orders if item.get("mahajan_id") == mahajan_id]
+        return orders
+
+    def create_supply_request(
+        self,
+        *,
+        manufacturer_code: str,
+        raw_material_id: str,
+        qty: float,
+        unit: str,
+        requested_by: str,
+        notes: str = "",
+    ) -> dict[str, Any]:
+        if not self.governance_service:
+            raise ValueError("Governance service not configured for supply requests.")
+        order = {
+            "mandi_order_id": self.id_allocator_service.allocate("order").replace("ORD-", "MO-"),
+            "order_type": "mandi_order",
+            "raw_material_id": raw_material_id,
+            "manufacturer_id": manufacturer_code,
+            "mahajan_id": "",
+            "qty": float(qty or 0),
+            "unit": unit,
+            "requested_by": requested_by,
+            "notes": notes,
+            "status": "REQUESTED_BY_MANUFACTURER",
+            "internal_status_history": [
+                {"status": "REQUESTED_BY_MANUFACTURER", "at": datetime.now(UTC).isoformat(), "actor": requested_by}
+            ],
+        }
+        return self.governance_service.upsert_supply_order(order)
+
+    def assign_supply_to_mahajan(self, *, mandi_order_id: str, mahajan_id: str, admin_email: str) -> dict[str, Any]:
+        if not self.governance_service:
+            raise ValueError("Governance service not configured for supply requests.")
+        order = self.governance_service.get_supply_order(mandi_order_id)
+        if not order:
+            raise ValueError("Supply order not found.")
+        order["mahajan_id"] = mahajan_id
+        order["status"] = "SENT_TO_MAHAJAN"
+        order.setdefault("internal_status_history", []).append({"status": "SENT_TO_MAHAJAN", "at": datetime.now(UTC).isoformat(), "actor": admin_email})
+        return self.governance_service.upsert_supply_order(order)
+
+    def quote_supply_order(self, *, mandi_order_id: str, mahajan_id: str, mahajan_unit_price: float, mahajan_email: str, notes: str = "") -> dict[str, Any]:
+        if not self.governance_service:
+            raise ValueError("Governance service not configured for supply requests.")
+        order = self.governance_service.get_supply_order(mandi_order_id)
+        if not order:
+            raise ValueError("Supply order not found.")
+        if order.get("mahajan_id") and order.get("mahajan_id") != mahajan_id:
+            raise PermissionError("Mahajan cannot quote another mahajan's supply order.")
+        order["mahajan_id"] = mahajan_id
+        order["mahajan_unit_price"] = round(float(mahajan_unit_price or 0), 2)
+        order["mahajan_notes"] = notes
+        order["status"] = "MAHAJAN_QUOTED"
+        order.setdefault("internal_status_history", []).append({"status": "MAHAJAN_QUOTED", "at": datetime.now(UTC).isoformat(), "actor": mahajan_email})
+        return self.governance_service.upsert_supply_order(order)
+
+    def set_manufacturer_supply_price(
+        self,
+        *,
+        mandi_order_id: str,
+        manufacturer_unit_price: float,
+        admin_email: str,
+        mahajan_fee_percent: float | None = None,
+    ) -> dict[str, Any]:
+        if not self.governance_service or not self.pricing_service:
+            raise ValueError("Supply pricing services are not configured.")
+        order = self.governance_service.get_supply_order(mandi_order_id)
+        if not order:
+            raise ValueError("Supply order not found.")
+        commission = self.pricing_service.calculate_supply_commission(
+            mandi_order_id=mandi_order_id,
+            mahajan_id=order.get("mahajan_id", ""),
+            manufacturer_id=order.get("manufacturer_id", ""),
+            raw_material_id=order.get("raw_material_id", ""),
+            qty=float(order.get("qty", 0) or 0),
+            unit=str(order.get("unit", "")),
+            mahajan_unit_price=float(order.get("mahajan_unit_price", 0) or 0),
+            manufacturer_unit_price=float(manufacturer_unit_price or 0),
+            mahajan_fee_percent=mahajan_fee_percent,
+        )
+        order["manufacturer_unit_price"] = round(float(manufacturer_unit_price or 0), 2)
+        order["commission_object"] = commission
+        order["status"] = "ADMIN_PRICE_SET"
+        order.setdefault("internal_status_history", []).append({"status": "ADMIN_PRICE_SET", "at": datetime.now(UTC).isoformat(), "actor": admin_email})
+        return self.governance_service.upsert_supply_order(order)
+
+    def confirm_supply_order(self, *, mandi_order_id: str, manufacturer_code: str, actor_email: str) -> dict[str, Any]:
+        if not self.governance_service or not self.pricing_service:
+            raise ValueError("Supply pricing services are not configured.")
+        order = self.governance_service.get_supply_order(mandi_order_id)
+        if not order:
+            raise ValueError("Supply order not found.")
+        if order.get("manufacturer_id") != manufacturer_code:
+            raise PermissionError("Manufacturer cannot confirm another manufacturer's supply order.")
+        order["status"] = "MANUFACTURER_CONFIRMED"
+        order.setdefault("internal_status_history", []).append({"status": "MANUFACTURER_CONFIRMED", "at": datetime.now(UTC).isoformat(), "actor": actor_email})
+        commission = dict(order.get("commission_object") or {})
+        if not commission:
+            commission = self.pricing_service.calculate_supply_commission(
+                mandi_order_id=mandi_order_id,
+                mahajan_id=order.get("mahajan_id", ""),
+                manufacturer_id=order.get("manufacturer_id", ""),
+                raw_material_id=order.get("raw_material_id", ""),
+                qty=float(order.get("qty", 0) or 0),
+                unit=str(order.get("unit", "")),
+                mahajan_unit_price=float(order.get("mahajan_unit_price", 0) or 0),
+                manufacturer_unit_price=float(order.get("manufacturer_unit_price", 0) or 0),
+            )
+            order["commission_object"] = commission
+        self.ledger_service.create_entry(
+            manufacturer_code,
+            party_a="PLATFORM_ADMIN",
+            party_b=manufacturer_code,
+            entry_type="MANDI_LEDGER",
+            amount=float(commission.get("manufacturer_bill_amount", 0) or 0),
+            paid_amount=0,
+            ledger_days=7,
+            note=f"Admin-managed mandi supply order {mandi_order_id}",
+            metadata={"ledger_scope": "mandi_ledger", "supply_order": mandi_order_id, "commission_object": commission},
+        )
+        self.governance_service.create_supply_ledger_entry(
+            {
+                "entry_id": self.id_allocator_service.allocate("ledger_entry"),
+                "mandi_order_id": mandi_order_id,
+                "mahajan_id": order.get("mahajan_id", ""),
+                "manufacturer_id": manufacturer_code,
+                "entry_type": "SUPPLY_LEDGER",
+                "amount_due_to_mahajan": round(float(commission.get("mahajan_bill_amount", 0) or 0) - float(commission.get("mahajan_transaction_fee", 0) or 0), 2),
+                "mahajan_transaction_fee": float(commission.get("mahajan_transaction_fee", 0) or 0),
+                "status": "PENDING",
+                "created_at": datetime.now(UTC).isoformat(),
+            }
+        )
+        return self.governance_service.upsert_supply_order(order)
+
+    def dispatch_supply_order(self, *, mandi_order_id: str, mahajan_id: str, actor_email: str) -> dict[str, Any]:
+        if not self.governance_service:
+            raise ValueError("Governance service not configured for supply requests.")
+        order = self.governance_service.get_supply_order(mandi_order_id)
+        if not order:
+            raise ValueError("Supply order not found.")
+        if order.get("mahajan_id") != mahajan_id:
+            raise PermissionError("Mahajan cannot dispatch another mahajan's order.")
+        order["status"] = "MAHAJAN_DISPATCHED"
+        order.setdefault("internal_status_history", []).append({"status": "MAHAJAN_DISPATCHED", "at": datetime.now(UTC).isoformat(), "actor": actor_email})
+        return self.governance_service.upsert_supply_order(order)
+
+    def receive_supply_order(self, *, mandi_order_id: str, manufacturer_code: str, actor_email: str) -> dict[str, Any]:
+        if not self.governance_service:
+            raise ValueError("Governance service not configured for supply requests.")
+        order = self.governance_service.get_supply_order(mandi_order_id)
+        if not order:
+            raise ValueError("Supply order not found.")
+        if order.get("manufacturer_id") != manufacturer_code:
+            raise PermissionError("Manufacturer cannot receive another manufacturer's supply order.")
+        order["status"] = "MANUFACTURER_RECEIVED"
+        order.setdefault("internal_status_history", []).append({"status": "MANUFACTURER_RECEIVED", "at": datetime.now(UTC).isoformat(), "actor": actor_email})
+        return self.governance_service.upsert_supply_order(order)
 
     def respond_to_rfq(self, current_user, rfq_owner_code: str, rfq_id: str, available_items: list[dict[str, Any]], supplier_terms: dict[str, Any]) -> dict[str, Any]:
         transaction_id = self.id_allocator_service.allocate("transaction")

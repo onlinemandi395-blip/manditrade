@@ -26,6 +26,22 @@ class GovernanceService:
     def admin_profiles_path(self) -> Path:
         return self.governance_root / "admin_profiles.json"
 
+    @property
+    def mahajans_path(self) -> Path:
+        return self.governance_root / "mahajans.json"
+
+    @property
+    def raw_materials_path(self) -> Path:
+        return self.governance_root / "raw_materials.json"
+
+    @property
+    def supply_orders_path(self) -> Path:
+        return self.governance_root / "supply_orders.json"
+
+    @property
+    def supply_ledgers_path(self) -> Path:
+        return self.governance_root / "supply_ledgers.json"
+
     def ensure_files(self) -> None:
         if not self.products_path.exists():
             self.safe_drive_write_service.replace_document(
@@ -43,6 +59,26 @@ class GovernanceService:
             self.safe_drive_write_service.replace_document(
                 self.admin_profiles_path,
                 {"schema_version": "1.0", "profiles": []},
+            )
+        if not self.mahajans_path.exists():
+            self.safe_drive_write_service.replace_document(
+                self.mahajans_path,
+                {"schema_version": "1.0", "mahajans": []},
+            )
+        if not self.raw_materials_path.exists():
+            self.safe_drive_write_service.replace_document(
+                self.raw_materials_path,
+                {"schema_version": "1.0", "raw_materials": []},
+            )
+        if not self.supply_orders_path.exists():
+            self.safe_drive_write_service.replace_document(
+                self.supply_orders_path,
+                {"schema_version": "1.0", "supply_orders": []},
+            )
+        if not self.supply_ledgers_path.exists():
+            self.safe_drive_write_service.replace_document(
+                self.supply_ledgers_path,
+                {"schema_version": "1.0", "entries": []},
             )
 
     def list_products(self) -> list[dict[str, Any]]:
@@ -212,3 +248,123 @@ class GovernanceService:
         payload.setdefault("schema_version", "1.0")
         self.safe_drive_write_service.replace_document(self.admin_profiles_path, payload)
         return normalized
+
+    def list_mahajans(self) -> list[dict[str, Any]]:
+        self.ensure_files()
+        return self.json_service.read_json(self.mahajans_path, {"mahajans": []}).get("mahajans", [])
+
+    def get_mahajan(self, mahajan_id: str) -> dict[str, Any] | None:
+        self.ensure_files()
+        return next((item for item in self.list_mahajans() if item.get("mahajan_id") == mahajan_id), None)
+
+    def get_mahajan_by_email(self, email: str) -> dict[str, Any] | None:
+        self.ensure_files()
+        email_key = email.strip().lower()
+        return next((item for item in self.list_mahajans() if item.get("email", "").strip().lower() == email_key), None)
+
+    def upsert_mahajan(self, mahajan: dict[str, Any]) -> dict[str, Any]:
+        self.ensure_files()
+        payload = self.json_service.read_json(self.mahajans_path, {"mahajans": []})
+        mahajan_id = str(mahajan.get("mahajan_id") or "").strip().upper()
+        email = str(mahajan.get("email") or "").strip().lower()
+        if not mahajan_id:
+            raise ValueError("Mahajan ID is required.")
+        if not email:
+            raise ValueError("Mahajan email is required.")
+        now = datetime.now(UTC).isoformat()
+        existing = next((item for item in payload.get("mahajans", []) if item.get("mahajan_id") == mahajan_id), None)
+        normalized = {
+            "mahajan_id": mahajan_id,
+            "business_name": str(mahajan.get("business_name") or (existing or {}).get("business_name") or "").strip(),
+            "owner_name": str(mahajan.get("owner_name") or (existing or {}).get("owner_name") or "").strip(),
+            "email": email,
+            "mobile": str(mahajan.get("mobile") or (existing or {}).get("mobile") or "").strip(),
+            "city": str(mahajan.get("city") or (existing or {}).get("city") or "").strip(),
+            "status": str(mahajan.get("status") or (existing or {}).get("status") or "INVITED").strip().upper(),
+            "notes": str(mahajan.get("notes") or (existing or {}).get("notes") or "").strip(),
+            "created_at": (existing or {}).get("created_at") or now,
+            "updated_at": now,
+        }
+        if existing:
+            existing.update(normalized)
+        else:
+            payload.setdefault("mahajans", []).append(normalized)
+        payload.setdefault("schema_version", "1.0")
+        self.safe_drive_write_service.replace_document(self.mahajans_path, payload)
+        return normalized
+
+    def list_raw_materials(self, *, mahajan_id: str | None = None) -> list[dict[str, Any]]:
+        self.ensure_files()
+        rows = self.json_service.read_json(self.raw_materials_path, {"raw_materials": []}).get("raw_materials", [])
+        if mahajan_id:
+            return [item for item in rows if item.get("mahajan_id") == mahajan_id]
+        return rows
+
+    def upsert_raw_material(self, item: dict[str, Any]) -> dict[str, Any]:
+        self.ensure_files()
+        payload = self.json_service.read_json(self.raw_materials_path, {"raw_materials": []})
+        material_id = str(item.get("raw_material_id") or "").strip().upper()
+        if not material_id:
+            raise ValueError("Raw material ID is required.")
+        now = datetime.now(UTC).isoformat()
+        existing = next((row for row in payload.get("raw_materials", []) if row.get("raw_material_id") == material_id), None)
+        normalized = {
+            "raw_material_id": material_id,
+            "mahajan_id": str(item.get("mahajan_id") or (existing or {}).get("mahajan_id") or "").strip().upper(),
+            "name": str(item.get("name") or (existing or {}).get("name") or "").strip(),
+            "category": str(item.get("category") or (existing or {}).get("category") or "RAW_MATERIAL").strip().upper(),
+            "unit": str(item.get("unit") or (existing or {}).get("unit") or "kg").strip(),
+            "available_qty": int(item.get("available_qty") if item.get("available_qty") is not None else (existing or {}).get("available_qty", 0) or 0),
+            "supply_price": round(float(item.get("supply_price") if item.get("supply_price") is not None else (existing or {}).get("supply_price", 0) or 0), 2),
+            "status": str(item.get("status") or (existing or {}).get("status") or "ACTIVE").strip().upper(),
+            "created_at": (existing or {}).get("created_at") or now,
+            "updated_at": now,
+        }
+        if existing:
+            existing.update(normalized)
+        else:
+            payload.setdefault("raw_materials", []).append(normalized)
+        payload.setdefault("schema_version", "1.0")
+        self.safe_drive_write_service.replace_document(self.raw_materials_path, payload)
+        return normalized
+
+    def list_supply_orders(self) -> list[dict[str, Any]]:
+        self.ensure_files()
+        return self.json_service.read_json(self.supply_orders_path, {"supply_orders": []}).get("supply_orders", [])
+
+    def get_supply_order(self, order_id: str) -> dict[str, Any] | None:
+        self.ensure_files()
+        return next((item for item in self.list_supply_orders() if item.get("mandi_order_id") == order_id), None)
+
+    def upsert_supply_order(self, order: dict[str, Any]) -> dict[str, Any]:
+        self.ensure_files()
+        payload = self.json_service.read_json(self.supply_orders_path, {"supply_orders": []})
+        order_id = str(order.get("mandi_order_id") or "").strip().upper()
+        if not order_id:
+            raise ValueError("Mandi order ID is required.")
+        now = datetime.now(UTC).isoformat()
+        existing = next((row for row in payload.get("supply_orders", []) if row.get("mandi_order_id") == order_id), None)
+        normalized = dict(existing or {})
+        normalized.update(order)
+        normalized["mandi_order_id"] = order_id
+        normalized["updated_at"] = now
+        normalized["created_at"] = normalized.get("created_at") or now
+        if existing:
+            existing.update(normalized)
+        else:
+            payload.setdefault("supply_orders", []).append(normalized)
+        payload.setdefault("schema_version", "1.0")
+        self.safe_drive_write_service.replace_document(self.supply_orders_path, payload)
+        return normalized
+
+    def list_supply_ledger_entries(self) -> list[dict[str, Any]]:
+        self.ensure_files()
+        return self.json_service.read_json(self.supply_ledgers_path, {"entries": []}).get("entries", [])
+
+    def create_supply_ledger_entry(self, entry: dict[str, Any]) -> dict[str, Any]:
+        self.ensure_files()
+        payload = self.json_service.read_json(self.supply_ledgers_path, {"entries": []})
+        payload.setdefault("entries", []).append(entry)
+        payload.setdefault("schema_version", "1.0")
+        self.safe_drive_write_service.replace_document(self.supply_ledgers_path, payload)
+        return entry

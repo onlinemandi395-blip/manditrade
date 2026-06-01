@@ -269,6 +269,65 @@ def test_notification_creation(tmp_path):
     assert len(notifications) == 1
 
 
+def test_admin_managed_supply_order_creates_dual_legs(tmp_path):
+    runtime = build_runtime(tmp_path)
+    runtime["governance"].upsert_mahajan(
+        {
+            "mahajan_id": "MAH001",
+            "business_name": "Rice Supply Co",
+            "owner_name": "Supplier",
+            "email": "mahajan@example.com",
+            "status": "ACTIVE",
+        }
+    )
+    runtime["governance"].upsert_raw_material(
+        {
+            "raw_material_id": "RM001",
+            "mahajan_id": "MAH001",
+            "name": "Raw Rice",
+            "unit": "kg",
+            "available_qty": 5000,
+            "supply_price": 35,
+            "status": "ACTIVE",
+        }
+    )
+    procurement = build_procurement_service(runtime)
+    order = procurement.create_supply_request(
+        manufacturer_code="MANU101",
+        raw_material_id="RM001",
+        qty=1000,
+        unit="kg",
+        requested_by="buyer@example.com",
+        notes="Need urgent raw rice",
+    )
+    procurement.assign_supply_to_mahajan(mandi_order_id=order["mandi_order_id"], mahajan_id="MAH001", admin_email="admin@example.com")
+    procurement.quote_supply_order(
+        mandi_order_id=order["mandi_order_id"],
+        mahajan_id="MAH001",
+        mahajan_unit_price=35,
+        mahajan_email="mahajan@example.com",
+        notes="Can dispatch tomorrow",
+    )
+    priced = procurement.set_manufacturer_supply_price(
+        mandi_order_id=order["mandi_order_id"],
+        manufacturer_unit_price=40,
+        admin_email="admin@example.com",
+        mahajan_fee_percent=1,
+    )
+    confirmed = procurement.confirm_supply_order(
+        mandi_order_id=order["mandi_order_id"],
+        manufacturer_code="MANU101",
+        actor_email="buyer@example.com",
+    )
+    supply_ledger = runtime["governance"].list_supply_ledger_entries()
+    mandi_ledgers = procurement.ledger_service.list_ledgers("MANU101")
+    assert priced["commission_object"]["admin_total_earning"] == 2850
+    assert confirmed["status"] == "MANUFACTURER_CONFIRMED"
+    assert supply_ledger[0]["amount_due_to_mahajan"] == 34650
+    assert mandi_ledgers[0]["entries"][0]["amount"] == 40000
+    assert mandi_ledgers[0]["entries"][0]["metadata"]["ledger_scope"] == "mandi_ledger"
+
+
 def test_dispatch_and_delivery_flow_still_finalize_inventory(tmp_path):
     runtime = build_runtime(tmp_path)
     seed_order(runtime, "MANU101", status="CONFIRMED", reserved_qty=10)

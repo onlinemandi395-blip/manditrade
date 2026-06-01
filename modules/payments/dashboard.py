@@ -36,6 +36,18 @@ def render_payments_dashboard(app_context: dict) -> None:
         render_section_intro("Reminder Engine", "Send reminders for upcoming, due, overdue, and final follow-ups with a clean payment workflow.")
         st.info("This page stays role-safe: buyers and workers get payment visibility, while reminder triggers stay limited to manufacturer-linked sessions.")
     with pending_tab:
+        if user.role == "mahajan":
+            mahajan = app_context["governance_service"].get_mahajan_by_email(user.email)
+            entries = [
+                item
+                for item in app_context["governance_service"].list_supply_ledger_entries()
+                if item.get("mahajan_id") == (mahajan or {}).get("mahajan_id")
+            ]
+            st.dataframe(entries, use_container_width=True)
+            return
+        if user.role == "platform_admin":
+            st.dataframe(app_context["governance_service"].list_supply_ledger_entries(), use_container_width=True)
+            return
         if manufacturer_code:
             st.info("Pending verification and reminder-sensitive items are handled through ledger and order workflows.")
         else:

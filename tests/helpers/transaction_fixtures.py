@@ -9,11 +9,13 @@ from services.domain_paths_service import DomainPathsService
 from services.dual_inventory_service import DualInventoryService
 from services.event_dispatcher import EventDispatcher
 from services.file_lock_service import FileLockService
+from services.governance_service import GovernanceService
 from services.id_allocator_service import IdAllocatorService
 from services.ledger_service import LedgerService
 from services.notification_center_service import NotificationCenterService
 from services.order_state_service import OrderStateService
 from services.order_transaction_service import OrderTransactionService
+from services.pricing_service import PricingService
 from services.procurement_transaction_service import ProcurementTransactionService
 from services.rollback_service import RollbackService
 from services.safe_drive_write_service import SafeDriveWriteService
@@ -42,6 +44,9 @@ def build_runtime(tmp_path: Path):
     event_dispatcher = EventDispatcher(tmp_path / "events", id_allocator_service=allocator)
     rollback_service = RollbackService(safe_write, logging_service)
     domain_paths = DomainPathsService(drive)
+    governance = GovernanceService(tmp_path / "governance", safe_write)
+    governance.ensure_files()
+    pricing = PricingService({"admin_profit_share_percent": 50, "manufacturer_profit_share_percent": 50, "mahajan_transaction_fee_percent": 1})
     return {
         "json_service": json_service,
         "logging_service": logging_service,
@@ -52,6 +57,8 @@ def build_runtime(tmp_path: Path):
         "event_dispatcher": event_dispatcher,
         "rollback_service": rollback_service,
         "domain_paths": domain_paths,
+        "governance": governance,
+        "pricing": pricing,
     }
 
 
@@ -115,6 +122,8 @@ def build_procurement_service(runtime: dict, gmail_service=None, event_dispatche
         ledger_service=ledger_service,
         notification_center_service=notification_center_service,
         domain_paths_service=runtime["domain_paths"],
+        governance_service=runtime["governance"],
+        pricing_service=runtime["pricing"],
     )
 
 

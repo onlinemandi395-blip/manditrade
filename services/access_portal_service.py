@@ -195,6 +195,10 @@ class AccessPortalService:
         if client_match:
             return {"role": "client", "manufacturer_code": client_match["manufacturer_code"], "status": client_match.get("status", "ACTIVE"), "client_id": client_match.get("client_id"), "public_buyer_id": None, "worker_id": None}
 
+        mahajan = self.governance_service.get_mahajan_by_email(email_key) if hasattr(self.governance_service, "get_mahajan_by_email") else None
+        if mahajan and str(mahajan.get("status", "ACTIVE")).upper() in {"ACTIVE", "INVITED"}:
+            return {"role": "mahajan", "manufacturer_code": None, "status": mahajan.get("status", "ACTIVE"), "client_id": None, "public_buyer_id": None, "worker_id": None}
+
         worker = self.worker_service.get_worker_by_email(email_key)
         if worker:
             return {"role": "worker", "manufacturer_code": None, "status": worker.get("status", "ACTIVE"), "client_id": None, "public_buyer_id": None, "worker_id": worker.get("worker_id")}
