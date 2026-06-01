@@ -80,20 +80,24 @@ def test_new_tab_google_link_uses_blank_target_and_noopener():
 
 def test_route_guard_blocks_unauthorized_normal_users():
     app_context = {"security_service": SimpleNamespace(is_admin_identity=lambda _user: False), "session_user": None}
+    mahajan = SimpleNamespace(role="mahajan")
     manufacturer = SimpleNamespace(role="manufacturer")
     client = SimpleNamespace(role="client")
     public_buyer = SimpleNamespace(role="public_buyer")
     worker = SimpleNamespace(role="worker")
-    assert can_access_route(manufacturer, "Inventory", app_context) is False
+    assert can_access_route(mahajan, "Raw Materials", app_context) is True
+    assert can_access_route(mahajan, "Manufacturers", app_context) is False
+    assert can_access_route(manufacturer, "Inventory", app_context) is True
     assert can_access_route(manufacturer, "System Health", app_context) is False
     assert can_access_route(manufacturer, "Manufacturers", app_context) is False
     assert can_access_route(manufacturer, "Clients", app_context) is True
     assert can_access_route(client, "Inventory", app_context) is False
-    assert can_access_route(client, "System Health", app_context) is True
+    assert can_access_route(client, "System Health", app_context) is False
+    assert can_access_route(client, "Client Orders", app_context) is True
     assert can_access_route(public_buyer, "Marketplace", app_context) is True
     assert can_access_route(public_buyer, "RFQ", app_context) is False
     assert can_access_route(public_buyer, "Ledger", app_context) is False
-    assert can_access_route(worker, "Payments", app_context) is False
+    assert can_access_route(worker, "Marketplace", app_context) is False
     assert can_access_route(worker, "Jobs", app_context) is True
 
 

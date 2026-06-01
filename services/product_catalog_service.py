@@ -359,6 +359,14 @@ class ProductCatalogService:
             }:
                 result.pop(key, None)
             result["your_price"] = result.get("client_price", 0)
+        elif viewer_role == "mahajan":
+            for key in {
+                "client_price", "marketplace_price", "suggested_client_price", "suggested_marketplace_price",
+                "approved_client_price", "approved_marketplace_price", "created_by", "created_by_manufacturer_id",
+                "created_by_email", "public_seller_manufacturer_id", "visible",
+            }:
+                result.pop(key, None)
+            result["supply_price"] = result.get("mandi_price", 0)
         elif viewer_role == "public_buyer" or not viewer_role:
             for key in {
                 "mandi_price", "client_price", "suggested_mandi_price", "suggested_client_price", "approved_mandi_price",

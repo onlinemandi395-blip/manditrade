@@ -87,10 +87,14 @@ def test_price_visibility_is_role_scoped(tmp_path):
         approved_visibility="PUBLIC",
     )
     client_product = product_catalog.list_products(include_pending=False, viewer_role="client")[0]
+    mahajan_product = product_catalog.list_products(include_pending=False, viewer_role="mahajan")[0]
     public_product = product_catalog.list_products(include_pending=False, viewer_role="public_buyer")[0]
     assert "mandi_price" not in client_product
     assert "marketplace_price" not in client_product
     assert client_product["your_price"] == 130
+    assert "client_price" not in mahajan_product
+    assert "marketplace_price" not in mahajan_product
+    assert mahajan_product["supply_price"] == 100
     assert "mandi_price" not in public_product
     assert "client_price" not in public_product
     assert public_product["price"] == 150

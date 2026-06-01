@@ -1,71 +1,126 @@
 # MandiTrade Checker Reference
 
-Generated from the current repository state on 2026-05-31 after the strict navigation matrix and manufacturer clients bug fix pass.
+Generated from the current repository state on 2026-06-01 after the RBAC redefinition, route cleanup, and navigation normalization pass.
 
-## Strict Navigation Matrix Status
+## Final Role Model
 
-- Role navigation is now centralized through:
-  - [services/navigation_service.py](C:/2026/manditrade/manditrade/services/navigation_service.py)
-- `ROLE_NAVIGATION_MAP` now controls the final strict role views.
-- Sidebar rendering in [bootstrap/app_bootstrap.py](C:/2026/manditrade/manditrade/bootstrap/app_bootstrap.py) now reads directly from the centralized role map and grouped navigation structure.
+- `platform_admin`
+  - Platform governance only.
+  - Navigation includes `Manufacturers`, `Mahajans`, `Products`, `Product Approvals`, `Marketplace`, `Marketplace Orders`, `Mandi Orders`, `Payments`, `Ledger`, `Platform Commission`, `Jobs`, `System Health`, and `Analytics`.
+  - Route guard no longer treats platform admin as a blanket bypass for non-admin pages.
+- `mahajan`
+  - Admin-linked supply role.
+  - Navigation includes `Raw Materials`, `Mandi Orders`, `Payments`, `Ledger`, and `Jobs`.
+  - Marketplace, manufacturers, clients, and platform health stay blocked.
+- `manufacturer`
+  - Private seller/operator role.
+  - Navigation includes `Products`, `Inventory`, `Clients`, `Client Orders`, `Marketplace`, `Marketplace Orders`, `Mandi Orders`, `Payments`, `Ledger`, and `Jobs`.
+  - Does not expose `Manufacturers`, `Platform Commission`, or `System Health`.
+- `client`
+  - Private buyer under one manufacturer.
+  - Navigation includes `Products`, `Client Orders`, `Payments`, and `Ledger`.
+  - Marketplace admin and mandi-network routes stay blocked.
+- `public_buyer`
+  - Public marketplace role.
+  - Navigation includes `Marketplace`, `Marketplace Orders`, and `Jobs`.
+  - No client-order, mandi-order, or ledger access.
+- `worker`
+  - Workforce role.
+  - Navigation is limited to `Jobs` plus shared account pages.
 
-## Manufacturer Clients Bug Fix Status
+## Final Navigation Map
 
-- Manufacturer navigation now includes:
-  - `Clients`
-- Manufacturer navigation does not include:
-  - `Manufacturers`
-- Manufacturer role cannot access manufacturer registry or manufacturer CRUD routes.
-- Manufacturer client management remains handled through:
-  - [modules/clients/dashboard.py](C:/2026/manditrade/manditrade/modules/clients/dashboard.py)
-- That page continues to support manufacturer-scoped:
-  - create client
-  - edit client
-  - deactivate client
-  - Gmail invite
-  - client visibility restricted to own manufacturer workspace
-
-## Platform Admin Manufacturer Page Status
-
-- Manufacturer registry and manufacturer governance remain platform-admin owned through:
-  - [modules/admin/manufacturers.py](C:/2026/manditrade/manditrade/modules/admin/manufacturers.py)
-- Platform admin still supervises manufacturer activity without exposing raw private client detail in supervisor mode.
-
-## Route Alias Compatibility Status
-
-- Alias compatibility is now preserved through:
-  - `NAV_ALIAS_MAP` in [services/navigation_service.py](C:/2026/manditrade/manditrade/services/navigation_service.py)
-- Supported aliases include:
-  - `MyProfile` -> `My Profile`
-  - `Notification` -> `Notifications`
-  - `My Action` -> `My Actions`
-  - `Marketplace Order` -> `Marketplace Orders`
-  - `Mandiplace` -> `Mandi Network`
+- Navigation is centralized in [services/navigation_service.py](/c:/2026/manditrade/manditrade/services/navigation_service.py).
+- `ROLE_NAVIGATION_MAP` is now the only source of truth for role menus.
+- Pre-login navigation is limited to `Dashboard`.
+- The sidebar session area remains the only place where Google sign-in is rendered.
+- Legacy labels are normalized through `NAV_ALIAS_MAP`.
+  - `Mandiplace` -> `Mandi Orders`
   - `Mandiplace Order` -> `Mandi Orders`
-  - `rfq` -> `RFQ`
-  - `Payment` -> `Payments`
-  - `Manufacturer` -> `Manufacturers`
-  - `Product Approval` -> `Product Approvals`
+  - `rfq` / `RFQ` -> `Mandi Orders`
+  - `Marketplace Order` -> `Marketplace Orders`
+  - `Platform Commision` -> `Platform Commission`
 
-## RBAC Enforcement Status
+## Route Guard Status
 
-- RBAC enforcement remains centralized through:
-  - [bootstrap/route_registry.py](C:/2026/manditrade/manditrade/bootstrap/route_registry.py)
-- Key strict checks now hold:
-  - manufacturer can access `Clients`
-  - manufacturer cannot access `Manufacturers`
-  - public buyer cannot access `RFQ`
-  - public buyer cannot access `Ledger`
-  - worker cannot access `Payments`
-  - client can access a safe `System Health` route that does not expose admin runtime diagnostics
-  - platform admin can access all listed admin views
+- Central guard remains in [bootstrap/route_registry.py](/c:/2026/manditrade/manditrade/bootstrap/route_registry.py).
+- `can_access_route(user, route)` now normalizes aliases before permission checks.
+- Unauthenticated access resolves to the public landing flow and does not expose marketplace navigation before login.
+- Blocked routes render a clean access-denied status page instead of debug text or sidebar-only hiding.
+- Route access is now strict by role:
+  - `platform_admin` -> admin governance routes only
+  - `mahajan` -> supply routes only
+  - `manufacturer` -> manufacturer routes only
+  - `client` -> client routes only
+  - `public_buyer` -> public marketplace routes only
+  - `worker` -> worker routes only
 
-## Test Result
+## Mahajan Role Status
+
+- `mahajan` is now a first-class supported role in:
+  - [services/auth_service.py](/c:/2026/manditrade/manditrade/services/auth_service.py)
+  - [services/access_portal_service.py](/c:/2026/manditrade/manditrade/services/access_portal_service.py)
+  - [services/navigation_service.py](/c:/2026/manditrade/manditrade/services/navigation_service.py)
+  - [bootstrap/route_registry.py](/c:/2026/manditrade/manditrade/bootstrap/route_registry.py)
+  - [modules/mahajan/dashboard.py](/c:/2026/manditrade/manditrade/modules/mahajan/dashboard.py)
+- Current implementation supports admin-reviewed activation through the access-request flow.
+- Manufacturer-to-mahajan direct routing remains blocked.
+
+## Manufacturer / Client Separation Status
+
+- Manufacturer navigation includes `Clients` and `Client Orders`.
+- Manufacturer navigation does not include `Manufacturers`.
+- Manufacturer route access to manufacturer registry pages remains blocked.
+- Client management remains manufacturer-scoped in [modules/clients/dashboard.py](/c:/2026/manditrade/manditrade/modules/clients/dashboard.py).
+- Existing tests continue to verify:
+  - create client
+  - edit own client
+  - deactivate own client
+  - Gmail invite
+  - own-client privacy boundaries
+
+## RFQ To Mandi Orders Terminology Status
+
+- RFQ is no longer primary user-facing navigation.
+- User-facing route normalization now resolves RFQ-style labels to `Mandi Orders`.
+- Internal procurement/RFQ code paths remain in place for compatibility where needed.
+- Public landing copy now refers to mandi orders instead of RFQ-first wording.
+
+## Ledger Scope Status
+
+- Navigation label remains `Ledger`.
+- Visibility remains role-scoped:
+  - `platform_admin` sees supervisory ledger summaries only through admin views.
+  - `mahajan` sees own supply-finance route surface.
+  - `manufacturer` sees manufacturer ledger routes.
+  - `client` sees client ledger routes only.
+  - `public_buyer` and `worker` remain blocked from ledger routes.
+- Existing privacy tests continue to enforce hiding private notes and commission internals from client views.
+
+## Pricing Visibility Status
+
+- Product pricing visibility remains centralized in [services/product_catalog_service.py](/c:/2026/manditrade/manditrade/services/product_catalog_service.py).
+- Role visibility now aligns as follows:
+  - `platform_admin` -> full pricing visibility
+  - `manufacturer` -> full allowed pricing visibility
+  - `client` -> `client_price` only via `your_price`
+  - `public_buyer` -> `marketplace_price` only via `price`
+  - `mahajan` -> supply-facing `mandi_price` via `supply_price`
+
+## Tests Result
 
 - `python -m pytest tests/ -q`
-- `python -m compileall app.py modules services utils components schemas bootstrap scripts`
-- `python -c "import app; print('app import ok')"`
+  - Passed: `145`
+  - Skipped: `5`
+- RBAC coverage includes:
+  - exact navigation expectations by role
+  - pre-login sidebar restrictions
+  - alias normalization to `Mandi Orders`
+  - manufacturer/client privacy separation
+  - mahajan activation and route restrictions
+  - role-based pricing visibility
 
-## Remaining Blocker
+## Remaining Blockers
 
-- Some legacy internal modules still sit behind normalized labels and alias compatibility for stability, but the role matrix and manufacturer/client ownership rules are now centrally enforced.
+- Mahajan is now role-wired, but the current UI is still a scoped supply dashboard placeholder rather than a full raw-material operations suite.
+- Internal RFQ/procurement service naming remains in legacy code for compatibility, even though user-facing navigation now presents `Mandi Orders`.
