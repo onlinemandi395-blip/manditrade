@@ -53,3 +53,9 @@ def test_mahajans_page_has_admin_crud_controls():
     assert "Create Mahajan" in content
     assert "Update Mahajan" in content
     assert "Delete Mahajan" in content
+
+
+def test_manufacturer_dashboard_exposes_suta_mandi_shopping_navigation():
+    content = Path("modules/manufacturer/dashboard.py").read_text(encoding="utf-8")
+    assert "Open Suta Mandi Shopping" in content
+    assert 'st.session_state["sidebar_section"] = "Suta Mandi"' in content

@@ -12,7 +12,7 @@ from components.ui_shell import (
     render_page_header,
     render_showcase_strip,
 )
-from utils.page_ui import render_metric_button_row
+from utils.page_ui import render_metric_button_row, set_active_tab_from_metric
 
 
 def render_manufacturer_dashboard(app_context: dict) -> None:
@@ -48,6 +48,14 @@ def render_manufacturer_dashboard(app_context: dict) -> None:
             {"label": "Activity", "value": str(len(ledgers)), "tab_name": "Activity"},
         ],
     )
+    render_section_intro(
+        "Shopping Navigation",
+        "Use `Suta Mandi` from the sidebar to shop admin-curated suta raw materials supplied by mahajans. This is separate from finished Products selling.",
+    )
+    if st.button("Open Suta Mandi Shopping", use_container_width=True, key="manufacturer_open_suta_mandi"):
+        st.session_state["sidebar_section"] = "Suta Mandi"
+        set_active_tab_from_metric("suta_mandi", "Catalog")
+        st.rerun()
     render_showcase_strip(
         [
             ("Order Pipeline", str(len(orders)), "PENDING"),
