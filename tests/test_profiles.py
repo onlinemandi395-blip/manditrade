@@ -224,6 +224,34 @@ def test_superuser_navigation_includes_all_context_sections():
     ]
 
 
+def test_superuser_navigation_uses_active_context_role_sections():
+    security_service = SimpleNamespace(is_admin_identity=lambda _user: True)
+    sections = resolve_navigation_sections(
+        {
+            "current_user": SimpleNamespace(role="manufacturer", base_role="platform_admin", active_context="manufacturer", email="admin@example.com", manufacturer_code="ADMIN_MANU"),
+            "session_user": SimpleNamespace(role="platform_admin", base_role="platform_admin", active_context="manufacturer", email="admin@example.com", manufacturer_code=None),
+            "security_service": security_service,
+            "worker_service": SimpleNamespace(get_worker_by_email=lambda _email: None),
+        }
+    )
+    assert sections == [
+        "Dashboard",
+        "My Profile",
+        "Notifications",
+        "My Actions",
+        "Products",
+        "Inventory",
+        "Clients",
+        "Client Orders",
+        "Marketplace",
+        "Marketplace Orders",
+        "Mandi Orders",
+        "Payments",
+        "Ledger",
+        "Jobs",
+    ]
+
+
 def test_security_service_builds_effective_superuser_context(tmp_path):
     security_service = SecurityService(
         encryption_service=EncryptionService(secret_seed="test-seed"),

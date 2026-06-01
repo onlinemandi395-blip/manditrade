@@ -25,6 +25,24 @@ ADMIN_CONTEXT_OPTIONS = {
 }
 
 
+def _resolve_navigation_role(app_context: dict) -> str:
+    current_user = app_context.get("current_user")
+    session_user = app_context.get("session_user") or current_user
+    security_service = app_context["security_service"]
+
+    if not current_user:
+        return "unauthenticated"
+
+    role = (current_user.role or "").strip().lower()
+    normalized_role = "manufacturer" if role == "admin_as_manufacturer" else role
+
+    if security_service.is_admin_identity(session_user) and normalized_role == "platform_admin":
+        return "platform_admin"
+    if normalized_role in {"mahajan", "manufacturer", "client", "public_buyer", "worker", "pending_user"}:
+        return normalized_role
+    return "manufacturer"
+
+
 def _resolve_login_navigation_mode(app_context: dict) -> str:
     configured = str(app_context["system_config"].get("oauth", {}).get("login_navigation_mode", "new_tab")).strip().lower()
     return configured if configured in {"same_tab", "new_tab"} else "new_tab"
@@ -223,40 +241,15 @@ def handle_oauth_callback(app_context: dict) -> None:
 
 
 def resolve_navigation_sections(app_context: dict) -> list[str]:
-    current_user = app_context.get("current_user")
-    session_user = app_context.get("session_user") or current_user
-    if not current_user:
-        return flatten_navigation_groups(get_navigation_groups("unauthenticated"))
-    if app_context["security_service"].is_admin_identity(session_user):
-        return flatten_navigation_groups(get_navigation_groups("platform_admin"))
-    role = (current_user.role or "").strip().lower()
-    normalized_role = "manufacturer" if role == "admin_as_manufacturer" else role
-    if normalized_role == "client":
-        return flatten_navigation_groups(get_navigation_groups("client"))
-    if normalized_role == "mahajan":
-        return flatten_navigation_groups(get_navigation_groups("mahajan"))
-    if normalized_role == "public_buyer":
-        return flatten_navigation_groups(get_navigation_groups("public_buyer"))
-    if normalized_role == "worker":
-        return flatten_navigation_groups(get_navigation_groups("worker"))
-    if normalized_role == "pending_user":
-        return flatten_navigation_groups(get_navigation_groups("pending_user"))
-    return flatten_navigation_groups(get_navigation_groups("manufacturer"))
+    return flatten_navigation_groups(get_navigation_groups(_resolve_navigation_role(app_context)))
 
 
 def render_sidebar_navigation(app_context: dict) -> str:
     current_user = app_context.get("current_user")
     session_user = app_context.get("session_user") or current_user
-    security_service = app_context["security_service"]
-    is_admin_identity = security_service.is_admin_identity(session_user)
-    if not current_user:
-        groups = get_navigation_groups("unauthenticated")
-    elif is_admin_identity:
-        groups = get_navigation_groups("platform_admin")
-    else:
-        role = (current_user.role or "").strip().lower()
-        normalized_role = "manufacturer" if role == "admin_as_manufacturer" else role
-        groups = get_navigation_groups(normalized_role or "unauthenticated")
+    is_admin_identity = app_context["security_service"].is_admin_identity(session_user)
+    navigation_role = _resolve_navigation_role(app_context)
+    groups = get_navigation_groups(navigation_role)
     sections = flatten_navigation_groups(groups)
     selected = st.session_state.get("sidebar_section", sections[0] if sections else "Dashboard")
     if selected not in sections:
