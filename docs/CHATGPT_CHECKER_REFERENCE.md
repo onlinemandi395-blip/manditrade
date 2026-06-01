@@ -1,126 +1,115 @@
 # MandiTrade Checker Reference
 
-Generated from the current repository state on 2026-06-01 after the RBAC redefinition, route cleanup, and navigation normalization pass.
+Generated from the current repository state on 2026-06-01 after the operational sidebar-page pass.
 
-## Final Role Model
+## All Navigation Pages Operational Status
 
-- `platform_admin`
-  - Platform governance only.
-  - Navigation includes `Manufacturers`, `Mahajans`, `Products`, `Product Approvals`, `Marketplace`, `Marketplace Orders`, `Mandi Orders`, `Payments`, `Ledger`, `Platform Commission`, `Jobs`, `System Health`, and `Analytics`.
-  - Route guard no longer treats platform admin as a blanket bypass for non-admin pages.
-- `mahajan`
-  - Admin-linked supply role.
-  - Navigation includes `Raw Materials`, `Mandi Orders`, `Payments`, `Ledger`, and `Jobs`.
-  - Marketplace, manufacturers, clients, and platform health stay blocked.
-- `manufacturer`
-  - Private seller/operator role.
-  - Navigation includes `Products`, `Inventory`, `Clients`, `Client Orders`, `Marketplace`, `Marketplace Orders`, `Mandi Orders`, `Payments`, `Ledger`, and `Jobs`.
-  - Does not expose `Manufacturers`, `Platform Commission`, or `System Health`.
-- `client`
-  - Private buyer under one manufacturer.
-  - Navigation includes `Products`, `Client Orders`, `Payments`, and `Ledger`.
-  - Marketplace admin and mandi-network routes stay blocked.
-- `public_buyer`
-  - Public marketplace role.
-  - Navigation includes `Marketplace`, `Marketplace Orders`, and `Jobs`.
-  - No client-order, mandi-order, or ledger access.
-- `worker`
-  - Workforce role.
-  - Navigation is limited to `Jobs` plus shared account pages.
+- Central navigation remains defined in [services/navigation_service.py](/c:/2026/manditrade/manditrade/services/navigation_service.py).
+- Sidebar routes remain centralized in [bootstrap/route_registry.py](/c:/2026/manditrade/manditrade/bootstrap/route_registry.py).
+- Every label currently present in `ROLE_NAVIGATION_MAP` now routes to a non-blank screen.
+- Pages that were previously summary-only or placeholder-light now expose at least:
+  - page hero/header
+  - metric section
+  - horizontal tabs
+  - role-safe empty state or action surface
 
-## Final Navigation Map
+## Tabbed Page Status
 
-- Navigation is centralized in [services/navigation_service.py](/c:/2026/manditrade/manditrade/services/navigation_service.py).
-- `ROLE_NAVIGATION_MAP` is now the only source of truth for role menus.
-- Pre-login navigation is limited to `Dashboard`.
-- The sidebar session area remains the only place where Google sign-in is rendered.
-- Legacy labels are normalized through `NAV_ALIAS_MAP`.
-  - `Mandiplace` -> `Mandi Orders`
-  - `Mandiplace Order` -> `Mandi Orders`
-  - `rfq` / `RFQ` -> `Mandi Orders`
-  - `Marketplace Order` -> `Marketplace Orders`
-  - `Platform Commision` -> `Platform Commission`
+Tabbed layouts are now present across the main navigation surfaces, including:
 
-## Route Guard Status
+- [modules/actions/dashboard.py](/c:/2026/manditrade/manditrade/modules/actions/dashboard.py)
+- [modules/notifications/dashboard.py](/c:/2026/manditrade/manditrade/modules/notifications/dashboard.py)
+- [modules/profile/dashboard.py](/c:/2026/manditrade/manditrade/modules/profile/dashboard.py)
+- [modules/manufacturer/dashboard.py](/c:/2026/manditrade/manditrade/modules/manufacturer/dashboard.py)
+- [modules/client/dashboard.py](/c:/2026/manditrade/manditrade/modules/client/dashboard.py)
+- [modules/mahajan/dashboard.py](/c:/2026/manditrade/manditrade/modules/mahajan/dashboard.py)
+- [modules/payments/dashboard.py](/c:/2026/manditrade/manditrade/modules/payments/dashboard.py)
+- [modules/ledger/dashboard.py](/c:/2026/manditrade/manditrade/modules/ledger/dashboard.py)
+- [modules/public_orders/dashboard.py](/c:/2026/manditrade/manditrade/modules/public_orders/dashboard.py)
+- [modules/analytics/dashboard.py](/c:/2026/manditrade/manditrade/modules/analytics/dashboard.py)
 
-- Central guard remains in [bootstrap/route_registry.py](/c:/2026/manditrade/manditrade/bootstrap/route_registry.py).
-- `can_access_route(user, route)` now normalizes aliases before permission checks.
-- Unauthenticated access resolves to the public landing flow and does not expose marketplace navigation before login.
-- Blocked routes render a clean access-denied status page instead of debug text or sidebar-only hiding.
-- Route access is now strict by role:
-  - `platform_admin` -> admin governance routes only
-  - `mahajan` -> supply routes only
-  - `manufacturer` -> manufacturer routes only
-  - `client` -> client routes only
-  - `public_buyer` -> public marketplace routes only
-  - `worker` -> worker routes only
+Existing tabs already present in product, inventory, client registry, jobs, system health, and product approvals were preserved.
 
-## Mahajan Role Status
+## Clickable Count Dashboard Status
 
-- `mahajan` is now a first-class supported role in:
-  - [services/auth_service.py](/c:/2026/manditrade/manditrade/services/auth_service.py)
-  - [services/access_portal_service.py](/c:/2026/manditrade/manditrade/services/access_portal_service.py)
-  - [services/navigation_service.py](/c:/2026/manditrade/manditrade/services/navigation_service.py)
-  - [bootstrap/route_registry.py](/c:/2026/manditrade/manditrade/bootstrap/route_registry.py)
-  - [modules/mahajan/dashboard.py](/c:/2026/manditrade/manditrade/modules/mahajan/dashboard.py)
-- Current implementation supports admin-reviewed activation through the access-request flow.
-- Manufacturer-to-mahajan direct routing remains blocked.
+- Shared helper added in [utils/page_ui.py](/c:/2026/manditrade/manditrade/utils/page_ui.py).
+- Helper functions now include:
+  - `render_metric_card_button`
+  - `render_metric_button_row`
+  - `set_active_tab_from_metric`
+  - `render_empty_state`
+  - `render_status_chip`
+- Clickable metric rows now exist on the main operational pages listed above.
+- Current behavior:
+  - clicking a metric stores page tab/filter intent in `st.session_state`
+  - relevant tabs and filtered table areas render on the target page
+- This is a Streamlit-safe implementation rather than custom JS card navigation.
 
-## Manufacturer / Client Separation Status
+## CRUD / Action Coverage By Page
 
-- Manufacturer navigation includes `Clients` and `Client Orders`.
-- Manufacturer navigation does not include `Manufacturers`.
-- Manufacturer route access to manufacturer registry pages remains blocked.
-- Client management remains manufacturer-scoped in [modules/clients/dashboard.py](/c:/2026/manditrade/manditrade/modules/clients/dashboard.py).
-- Existing tests continue to verify:
-  - create client
-  - edit own client
-  - deactivate own client
-  - Gmail invite
-  - own-client privacy boundaries
+- `My Profile`
+  - admin, manufacturer, client, worker, public buyer, and mahajan now all have role-specific profile surfaces
+  - manufacturer/client/worker/public buyer keep editable forms
+  - mahajan now has a dedicated profile surface instead of falling through to a generic fallback
+- `Notifications`
+  - mark read
+  - mark resolved
+  - remind tomorrow
+  - public-buyer and manufacturer/admin notification status updates stay role-safe
+- `My Actions`
+  - grouped into pending/high-priority/due-today/completed tabs
+  - action cards remain operational summary surfaces
+- `Payments`
+  - reminder trigger remains available for manufacturer-linked payment follow-up
+  - other roles get role-safe summary tabs instead of blank action space
+- `Ledger`
+  - overview, entries, due/overdue, and payment tabs added
+  - add-payment flow now available from the ledger page
+- `Marketplace Orders`
+  - public-buyer flow and seller/admin flow both now use overview/orders/payments/delivery tabs
+  - payment-reference, verify, confirm, and dispatch actions remain intact
+- `Mahajan` / `Raw Materials`
+  - overview, catalog, add-raw-material, and activity tabs now exist
+  - current raw-material create flow is lightweight and local to the page surface
 
-## RFQ To Mandi Orders Terminology Status
+## RBAC Enforcement Status
 
-- RFQ is no longer primary user-facing navigation.
-- User-facing route normalization now resolves RFQ-style labels to `Mandi Orders`.
-- Internal procurement/RFQ code paths remain in place for compatibility where needed.
-- Public landing copy now refers to mandi orders instead of RFQ-first wording.
+- Route guard remains centralized in [bootstrap/route_registry.py](/c:/2026/manditrade/manditrade/bootstrap/route_registry.py).
+- Sidebar hiding is still not the only control layer.
+- Effective-role sidebar behavior remains dynamic in [bootstrap/app_bootstrap.py](/c:/2026/manditrade/manditrade/bootstrap/app_bootstrap.py).
+- Key RBAC guarantees still hold:
+  - `platform_admin` gets governance and aggregate-only private-business views
+  - `manufacturer` sees own workspace only
+  - `mahajan` remains limited to admin-supply pages
+  - `client` sees own client-scope data only
+  - `public_buyer` stays in public-marketplace scope only
+  - `worker` stays in worker/job scope only
 
-## Ledger Scope Status
+## Production UI Status
 
-- Navigation label remains `Ledger`.
-- Visibility remains role-scoped:
-  - `platform_admin` sees supervisory ledger summaries only through admin views.
-  - `mahajan` sees own supply-finance route surface.
-  - `manufacturer` sees manufacturer ledger routes.
-  - `client` sees client ledger routes only.
-  - `public_buyer` and `worker` remain blocked from ledger routes.
-- Existing privacy tests continue to enforce hiding private notes and commission internals from client views.
-
-## Pricing Visibility Status
-
-- Product pricing visibility remains centralized in [services/product_catalog_service.py](/c:/2026/manditrade/manditrade/services/product_catalog_service.py).
-- Role visibility now aligns as follows:
-  - `platform_admin` -> full pricing visibility
-  - `manufacturer` -> full allowed pricing visibility
-  - `client` -> `client_price` only via `your_price`
-  - `public_buyer` -> `marketplace_price` only via `price`
-  - `mahajan` -> supply-facing `mandi_price` via `supply_price`
+- Normal pages do not expose runtime debug text, OAuth config details, fallback flags, or mock-login controls.
+- Diagnostics remain concentrated in [modules/system/health_dashboard.py](/c:/2026/manditrade/manditrade/modules/system/health_dashboard.py).
+- Public pre-login navigation still shows `Dashboard` only, and marketplace remains hidden before login.
 
 ## Tests Result
 
 - `python -m pytest tests/ -q`
-  - Passed: `145`
+  - Passed: `150`
   - Skipped: `5`
-- RBAC coverage includes:
-  - exact navigation expectations by role
-  - pre-login sidebar restrictions
-  - alias normalization to `Mandi Orders`
-  - manufacturer/client privacy separation
-  - mahajan activation and route restrictions
-  - role-based pricing visibility
+- `python -m compileall app.py modules services utils components schemas bootstrap scripts`
+  - Passed
+- `python -c "import app; print('app import ok')"`
+  - Passed
+
+Additional operational-nav coverage now checks:
+
+- all centralized nav items are represented in route registry source
+- operational pages include tabs
+- clickable metric helper wiring exists
+- mahajan profile has a dedicated renderer
 
 ## Remaining Blockers
 
-- Mahajan is now role-wired, but the current UI is still a scoped supply dashboard placeholder rather than a full raw-material operations suite.
-- Internal RFQ/procurement service naming remains in legacy code for compatibility, even though user-facing navigation now presents `Mandi Orders`.
+- `Mahajan` and `Raw Materials` are now operational tabbed pages, but they still use lightweight in-page actions rather than a fully persisted supplier catalog workflow.
+- Clickable metric cards currently drive tab/filter intent through session state; they do not force true tab switching in the browser because Streamlit tabs are not fully programmatically controlled.
+- Internal RFQ/procurement naming still exists in some services/modules for compatibility, even though user-facing routing remains normalized to `Mandi Orders`.

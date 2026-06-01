@@ -6,10 +6,12 @@ from components.html_renderer import render_html
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
 from components.ui_shell import render_3d_panel, render_metric_card, render_mobile_record_card, render_page_header
+from utils.page_ui import render_metric_button_row
 
 
 def render_ledger_dashboard(app_context: dict) -> None:
     user = app_context["current_user"]
+    page_key = "ledger"
     render_page_header(
         "Ledger / Khata",
         "Keep bilateral udhar simple: due amount, paid amount, balance, reminders, and notes.",
@@ -31,6 +33,15 @@ def render_ledger_dashboard(app_context: dict) -> None:
             render_metric_card("Overdue Entries", str(overdue_entries), "OVERDUE" if overdue_entries else "OPEN"),
         ]
     )
+    render_metric_button_row(
+        page_key,
+        [
+            {"label": "Overview", "value": str(len(ledgers)), "tab_name": "Overview"},
+            {"label": "Entries", "value": str(pending_entries), "tab_name": "Entries"},
+            {"label": "Due/Overdue", "value": str(overdue_entries), "tab_name": "Due/Overdue"},
+            {"label": "Payments", "value": "Add Payment", "tab_name": "Payments"},
+        ],
+    )
     render_section_intro("Khata Snapshot", "Both mandi trade and client supply dues stay visible here without turning the product into full accounting software.")
     render_html(
         """
@@ -40,6 +51,37 @@ def render_ledger_dashboard(app_context: dict) -> None:
         </div>
         """
     )
-    if ledgers:
-        render_3d_panel("".join(render_mobile_record_card(item) for item in ledgers[:4]), "Latest Ledger Relationships", tone="subtle")
-    st.dataframe(ledgers, use_container_width=True)
+    overview_tab, entries_tab, due_tab, payments_tab = st.tabs(["Overview", "Entries", "Due/Overdue", "Payments"])
+    with overview_tab:
+        if ledgers:
+            render_3d_panel("".join(render_mobile_record_card(item) for item in ledgers[:4]), "Latest Ledger Relationships", tone="subtle")
+        else:
+            st.info("No ledger relationships found yet.")
+    with entries_tab:
+        st.dataframe(ledgers, use_container_width=True)
+    with due_tab:
+        overdue_rows = []
+        for ledger in ledgers:
+            for entry in ledger.get("entries", []):
+                if entry.get("status") in {"PENDING", "OVERDUE"}:
+                    overdue_rows.append({"ledger_id": ledger.get("ledger_id"), **entry})
+        if overdue_rows:
+            st.dataframe(overdue_rows, use_container_width=True)
+        else:
+            st.info("No due or overdue ledger entries right now.")
+    with payments_tab:
+        payable_rows = []
+        for ledger in ledgers:
+            for entry in ledger.get("entries", []):
+                payable_rows.append({"ledger_id": ledger.get("ledger_id"), **entry})
+        if not payable_rows:
+            st.info("No ledger payments are available yet.")
+        else:
+            selected_entry = st.selectbox("Ledger Entry", [item["entry_id"] for item in payable_rows])
+            amount = st.number_input("Payment Amount", min_value=0.0, step=1.0, value=0.0)
+            note = st.text_input("Payment Note")
+            if st.button("Add Payment", use_container_width=True, disabled=amount <= 0):
+                selected = next(item for item in payable_rows if item["entry_id"] == selected_entry)
+                app_context["ledger_service"].add_payment(user.manufacturer_code, selected["ledger_id"], selected_entry, amount, note)
+                st.success("Ledger payment recorded.")
+                st.rerun()

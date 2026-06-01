@@ -9,6 +9,7 @@ from components.ui_shell import render_3d_panel, render_metric_card, render_mobi
 from modules.onboarding.manufacturer_onboarding import _address_of as manufacturer_address_of
 from modules.onboarding.manufacturer_onboarding import _render_profile_form as render_manufacturer_profile_form
 from services.master_data_service import MasterDataService
+from utils.page_ui import render_metric_button_row
 
 WORK_TYPES = [
     "Full-time",
@@ -191,35 +192,55 @@ def _render_admin_profile(app_context: dict) -> None:
     current_user = app_context["current_user"]
     governance_service = app_context["governance_service"]
     stored = governance_service.get_admin_profile(current_user.email)
+    page_key = "profile_admin"
     render_page_header("My Profile", "Maintain your platform-admin contact details and operational profile from one safe place.", ["Platform Admin", "Profile"])
     render_metric_grid(
         [
             render_metric_card("Role", "Platform Admin", "SUCCESS"),
             render_metric_card("Email", current_user.email, "OPEN"),
+            render_metric_card("Setup", "Saved" if stored else "Pending", "PENDING" if not stored else "SUCCESS"),
         ]
     )
-    render_section_intro("Admin Identity", "Keep your profile, contact details, and support information current.")
-    if stored:
-        render_3d_panel(
-            render_mobile_record_card(
-                {
-                    "Full Name": stored.get("full_name", ""),
-                    "Designation": stored.get("designation", ""),
-                    "Support Email": stored.get("support_email", ""),
-                }
-            ),
-            "Saved Admin Profile",
-        )
-    submitted, payload = _render_admin_profile_form(current_user, stored)
-    if submitted:
-        governance_service.upsert_admin_profile(payload)
-        st.success("Admin profile saved.")
-        st.rerun()
+    render_metric_button_row(
+        page_key,
+        [
+            {"label": "Profile", "value": "Admin", "tab_name": "Profile"},
+            {"label": "Business", "value": "Office", "tab_name": "Business Details"},
+            {"label": "Connected", "value": "Runtime", "tab_name": "Connected Accounts"},
+            {"label": "Security", "value": "Admin", "tab_name": "Security"},
+        ],
+    )
+    profile_tab, business_tab, connected_tab, security_tab = st.tabs(["Profile", "Business Details", "Connected Accounts", "Security"])
+    with profile_tab:
+        render_section_intro("Admin Identity", "Keep your profile, contact details, and support information current.")
+        if stored:
+            render_3d_panel(
+                render_mobile_record_card(
+                    {
+                        "Full Name": stored.get("full_name", ""),
+                        "Designation": stored.get("designation", ""),
+                        "Support Email": stored.get("support_email", ""),
+                    }
+                ),
+                "Saved Admin Profile",
+            )
+        submitted, payload = _render_admin_profile_form(current_user, stored)
+        if submitted:
+            governance_service.upsert_admin_profile(payload)
+            st.success("Admin profile saved.")
+            st.rerun()
+    with business_tab:
+        st.json(stored or {}, expanded=False)
+    with connected_tab:
+        st.info("Connected runtime diagnostics and token visibility remain in System Health.")
+    with security_tab:
+        st.info("Admin security controls stay routed through the dedicated runtime and verification surfaces.")
 
 
 def _render_manufacturer_profile(app_context: dict) -> None:
     current_user = app_context["current_user"]
     manufacturer = app_context["governance_service"].get_manufacturer(current_user.manufacturer_code or "")
+    page_key = "profile_manufacturer"
     render_page_header("My Profile", "Maintain business, legal, banking, and workspace identity details from one dedicated profile page.", ["Manufacturer", "Profile"])
     if not manufacturer:
         st.info("No manufacturer registry record is linked to this account yet.")
@@ -231,68 +252,85 @@ def _render_manufacturer_profile(app_context: dict) -> None:
             render_metric_card("Drive", manufacturer.get("google_drive_connected_status", "NOT_CONNECTED"), "PENDING"),
         ]
     )
-    render_section_intro("Business Profile", "Use this page to keep manufacturer business, legal, and banking details current.")
-    render_3d_panel(
-        render_mobile_record_card(
-            {
-                "Business": manufacturer.get("business_name", manufacturer.get("manufacturer_name", "")),
-                "Owner": manufacturer.get("owner_name", ""),
-                "City": manufacturer_address_of(manufacturer).get("city", ""),
-                "Plan": manufacturer.get("subscription_plan", "Basic"),
-            }
-        ),
-        "Current Manufacturer Profile",
+    render_metric_button_row(
+        page_key,
+        [
+            {"label": "Profile", "value": manufacturer.get("status", "ACTIVE"), "tab_name": "Profile"},
+            {"label": "Business", "value": manufacturer.get("subscription_plan", "Basic"), "tab_name": "Business Details"},
+            {"label": "Connected", "value": "Google", "tab_name": "Connected Accounts"},
+            {"label": "Security", "value": "Workspace", "tab_name": "Security"},
+        ],
     )
-    submitted, payload = render_manufacturer_profile_form(
-        prefix="my_profile_manufacturer",
-        defaults=manufacturer,
-        submit_label="Save Manufacturer Profile",
-    )
-    if submitted:
-        app_context["manufacturer_onboarding_service"].update_manufacturer(current_user.manufacturer_code or "", payload)
-        st.success("Manufacturer profile saved.")
-        st.rerun()
+    profile_tab, business_tab, connected_tab, security_tab = st.tabs(["Profile", "Business Details", "Connected Accounts", "Security"])
+    with profile_tab:
+        render_section_intro("Business Profile", "Use this page to keep manufacturer business, legal, and banking details current.")
+        render_3d_panel(
+            render_mobile_record_card(
+                {
+                    "Business": manufacturer.get("business_name", manufacturer.get("manufacturer_name", "")),
+                    "Owner": manufacturer.get("owner_name", ""),
+                    "City": manufacturer_address_of(manufacturer).get("city", ""),
+                    "Plan": manufacturer.get("subscription_plan", "Basic"),
+                }
+            ),
+            "Current Manufacturer Profile",
+        )
+        submitted, payload = render_manufacturer_profile_form(
+            prefix="my_profile_manufacturer",
+            defaults=manufacturer,
+            submit_label="Save Manufacturer Profile",
+        )
+        if submitted:
+            app_context["manufacturer_onboarding_service"].update_manufacturer(current_user.manufacturer_code or "", payload)
+            st.success("Manufacturer profile saved.")
+            st.rerun()
+    with business_tab:
+        st.json(manufacturer, expanded=False)
     connected_accounts = app_context["connected_accounts_service"].get_status(current_user.manufacturer_code or "")
     drive_status = connected_accounts.get("drive", {}) or {}
     gmail_status = connected_accounts.get("gmail", {}) or {}
-    render_section_intro("Connected Accounts", "Google access stays consent-based. No client_id, client_secret, or API key entry is exposed to manufacturers.")
-    render_3d_panel(
-        render_mobile_record_card(
-            {
-                "Drive connected": "yes" if drive_status.get("connected") else "no",
-                "Drive email": drive_status.get("connected_email") or "Not connected",
-                "Last validation": drive_status.get("last_validated_at") or "Not validated",
-                "Gmail mode": "own" if gmail_status.get("connected") else "platform",
-            }
-        ),
-        "Connected Accounts",
-    )
-    drive_connect_url = app_context["connected_accounts_service"].build_connect_url(current_user.manufacturer_code or "", "drive")
-    gmail_connect_url = app_context["connected_accounts_service"].build_connect_url(current_user.manufacturer_code or "", "gmail")
-    drive_label = "Reconnect Google Drive" if drive_status.get("connected") else "Connect Google Drive"
-    gmail_label = "Reconnect Gmail" if gmail_status.get("connected") else "Connect Gmail"
-    link_html = ""
-    if drive_connect_url:
-        link_html += render_same_tab_link_button(drive_label, drive_connect_url)
-    if gmail_connect_url:
-        link_html += render_same_tab_link_button(gmail_label, gmail_connect_url)
-    if link_html:
-        render_html(link_html)
-    col_a, col_b = st.columns(2)
-    if drive_status.get("connected") and col_a.button("Disconnect Google Drive", use_container_width=True):
-        app_context["connected_accounts_service"].disconnect(current_user.manufacturer_code or "", "drive")
-        st.success("Google Drive disconnected.")
-        st.rerun()
-    if gmail_status.get("connected") and col_b.button("Disconnect Gmail", use_container_width=True):
-        app_context["connected_accounts_service"].disconnect(current_user.manufacturer_code or "", "gmail")
-        st.success("Gmail connection removed. Platform sender fallback remains available.")
-        st.rerun()
+    with connected_tab:
+        render_section_intro("Connected Accounts", "Google access stays consent-based. No client_id, client_secret, or API key entry is exposed to manufacturers.")
+        render_3d_panel(
+            render_mobile_record_card(
+                {
+                    "Drive connected": "yes" if drive_status.get("connected") else "no",
+                    "Drive email": drive_status.get("connected_email") or "Not connected",
+                    "Last validation": drive_status.get("last_validated_at") or "Not validated",
+                    "Gmail mode": "own" if gmail_status.get("connected") else "platform",
+                }
+            ),
+            "Connected Accounts",
+        )
+        drive_connect_url = app_context["connected_accounts_service"].build_connect_url(current_user.manufacturer_code or "", "drive")
+        gmail_connect_url = app_context["connected_accounts_service"].build_connect_url(current_user.manufacturer_code or "", "gmail")
+        drive_label = "Reconnect Google Drive" if drive_status.get("connected") else "Connect Google Drive"
+        gmail_label = "Reconnect Gmail" if gmail_status.get("connected") else "Connect Gmail"
+        link_html = ""
+        if drive_connect_url:
+            link_html += render_same_tab_link_button(drive_label, drive_connect_url)
+        if gmail_connect_url:
+            link_html += render_same_tab_link_button(gmail_label, gmail_connect_url)
+        if link_html:
+            render_html(link_html)
+        col_a, col_b = st.columns(2)
+        if drive_status.get("connected") and col_a.button("Disconnect Google Drive", use_container_width=True):
+            app_context["connected_accounts_service"].disconnect(current_user.manufacturer_code or "", "drive")
+            st.success("Google Drive disconnected.")
+            st.rerun()
+        if gmail_status.get("connected") and col_b.button("Disconnect Gmail", use_container_width=True):
+            app_context["connected_accounts_service"].disconnect(current_user.manufacturer_code or "", "gmail")
+            st.success("Gmail connection removed. Platform sender fallback remains available.")
+            st.rerun()
+    with security_tab:
+        st.info("Workspace security follows connected-account consent and role-based session controls.")
 
 
 def _render_client_profile(app_context: dict) -> None:
     current_user = app_context["current_user"]
     client_service = app_context["client_service"]
     profile = client_service.get_client_profile_by_email(current_user.manufacturer_code or "", current_user.email)
+    page_key = "profile_client"
     render_page_header("My Profile", "Keep client business and delivery details updated so orders reach the right place smoothly.", ["Client", "Delivery Profile"])
     if not current_user.manufacturer_code:
         st.info("Your client account is not mapped to a manufacturer workspace yet.")
@@ -307,29 +345,47 @@ def _render_client_profile(app_context: dict) -> None:
             render_metric_card("Delivery City", _address_value(profile.get("address", {})).get("city", "Not set"), "PENDING"),
         ]
     )
-    render_section_intro("Client Delivery Profile", "Update billing, mobile, and delivery preferences here for smoother fulfilment.")
-    render_3d_panel(
-        render_mobile_record_card(
-            {
-                "Business": profile.get("business_name", ""),
-                "Owner": profile.get("owner_name", ""),
-                "Email": profile.get("email", ""),
-                "City": _address_value(profile.get("address", {})).get("city", ""),
-            }
-        ),
-        "Current Client Profile",
+    render_metric_button_row(
+        page_key,
+        [
+            {"label": "Profile", "value": profile.get("status", "ACTIVE"), "tab_name": "Profile"},
+            {"label": "Business", "value": profile.get("business_name", ""), "tab_name": "Business Details"},
+            {"label": "Connected", "value": "Assigned", "tab_name": "Connected Accounts"},
+            {"label": "Security", "value": "Role", "tab_name": "Security"},
+        ],
     )
-    submitted, payload = _render_client_profile_form(current_user, profile)
-    if submitted:
-        client_service.upsert_client_profile(current_user.manufacturer_code or "", current_user.email, payload)
-        st.success("Client profile saved.")
-        st.rerun()
+    profile_tab, business_tab, connected_tab, security_tab = st.tabs(["Profile", "Business Details", "Connected Accounts", "Security"])
+    with profile_tab:
+        render_section_intro("Client Delivery Profile", "Update billing, mobile, and delivery preferences here for smoother fulfilment.")
+        render_3d_panel(
+            render_mobile_record_card(
+                {
+                    "Business": profile.get("business_name", ""),
+                    "Owner": profile.get("owner_name", ""),
+                    "Email": profile.get("email", ""),
+                    "City": _address_value(profile.get("address", {})).get("city", ""),
+                }
+            ),
+            "Current Client Profile",
+        )
+        submitted, payload = _render_client_profile_form(current_user, profile)
+        if submitted:
+            client_service.upsert_client_profile(current_user.manufacturer_code or "", current_user.email, payload)
+            st.success("Client profile saved.")
+            st.rerun()
+    with business_tab:
+        st.json(profile, expanded=False)
+    with connected_tab:
+        st.info("This client account is assigned to one manufacturer workspace.")
+    with security_tab:
+        st.info("Role-scoped access keeps this profile limited to your own data.")
 
 
 def _render_worker_profile(app_context: dict) -> None:
     current_user = app_context["current_user"]
     worker_service = app_context["worker_service"]
     worker = worker_service.get_worker_by_email(current_user.email)
+    page_key = "profile_worker"
     render_page_header("My Profile", "Maintain your worker identity, location, and skill details so mandi jobs reach you faster.", ["Worker", "Profile"])
     render_metric_grid(
         [
@@ -338,24 +394,41 @@ def _render_worker_profile(app_context: dict) -> None:
             render_metric_card("Public Profile", "Enabled" if (worker or {}).get("public_profile_opt_in", True) else "Hidden", "PENDING"),
         ]
     )
-    render_section_intro("Worker Details", "Keep your city, area, skills, and work preferences updated for better local job matching.")
-    if worker:
-        render_3d_panel(
-            render_mobile_record_card(
-                {
-                    "Name": worker.get("name", ""),
-                    "City": worker.get("city", ""),
-                    "Area": worker.get("area", ""),
-                    "Skills": ", ".join(worker.get("skills", [])[:3]),
-                }
-            ),
-            "Current Worker Profile",
-        )
-    submitted, payload = _render_worker_profile_form(current_user, worker)
-    if submitted:
-        worker_service.upsert_worker(**payload)
-        st.success("Worker profile saved.")
-        st.rerun()
+    render_metric_button_row(
+        page_key,
+        [
+            {"label": "Profile", "value": (worker or {}).get("status", "ACTIVE"), "tab_name": "Profile"},
+            {"label": "Business", "value": "Skills", "tab_name": "Business Details"},
+            {"label": "Connected", "value": "Availability", "tab_name": "Connected Accounts"},
+            {"label": "Security", "value": "Visibility", "tab_name": "Security"},
+        ],
+    )
+    profile_tab, business_tab, connected_tab, security_tab = st.tabs(["Profile", "Business Details", "Connected Accounts", "Security"])
+    with profile_tab:
+        render_section_intro("Worker Details", "Keep your city, area, skills, and work preferences updated for better local job matching.")
+        if worker:
+            render_3d_panel(
+                render_mobile_record_card(
+                    {
+                        "Name": worker.get("name", ""),
+                        "City": worker.get("city", ""),
+                        "Area": worker.get("area", ""),
+                        "Skills": ", ".join(worker.get("skills", [])[:3]),
+                    }
+                ),
+                "Current Worker Profile",
+            )
+        submitted, payload = _render_worker_profile_form(current_user, worker)
+        if submitted:
+            worker_service.upsert_worker(**payload)
+            st.success("Worker profile saved.")
+            st.rerun()
+    with business_tab:
+        st.json(worker or {}, expanded=False)
+    with connected_tab:
+        st.info("Worker availability and job applications stay connected through this profile.")
+    with security_tab:
+        st.info("Public profile visibility remains fully opt-in.")
 
 
 def _render_public_buyer_profile_form(current_user, profile: dict) -> tuple[bool, dict]:
@@ -404,6 +477,7 @@ def render_public_buyer_profile_setup(app_context: dict, *, welcome_mode: bool =
     current_user = app_context["current_user"]
     service = app_context["public_buyer_service"]
     profile = service.get_by_email(current_user.email)
+    page_key = "profile_public_buyer"
     title = "Welcome to Marketplace" if welcome_mode else "My Profile"
     subtitle = (
         "Complete your delivery profile once so marketplace orders can be placed without confusion."
@@ -421,38 +495,85 @@ def render_public_buyer_profile_setup(app_context: dict, *, welcome_mode: bool =
             render_metric_card("Profile", profile.get("profile_status", "INCOMPLETE"), "SUCCESS" if service.is_profile_complete(profile) else "PENDING"),
         ]
     )
-    render_section_intro(
-        "Public Delivery Profile",
-        "This profile is used only for public marketplace shopping. It does not unlock ledger, RFQ, or private-client flows."
-        if not welcome_mode
-        else "Set your delivery basics once before entering Marketplace. This data stays separate from manufacturer private client registries.",
+    render_metric_button_row(
+        page_key,
+        [
+            {"label": "Profile", "value": profile.get("profile_status", "INCOMPLETE"), "tab_name": "Profile"},
+            {"label": "Business", "value": profile.get("business_name", ""), "tab_name": "Business Details"},
+            {"label": "Connected", "value": "Marketplace", "tab_name": "Connected Accounts"},
+            {"label": "Security", "value": "Role", "tab_name": "Security"},
+        ],
     )
-    render_3d_panel(
-        render_mobile_record_card(
-            {
-                "Name": profile.get("full_name", ""),
-                "Email": profile.get("email", ""),
-                "City": profile.get("city", _address_value(profile.get("address", {})).get("city", "")),
-                "Mobile": profile.get("mobile", ""),
-            }
-        ),
-        "Current Public Buyer Profile",
-    )
-    submitted, payload = _render_public_buyer_profile_form(current_user, profile)
-    if submitted:
-        try:
-            service.validate_profile(payload)
-            service.upsert_profile(profile["public_buyer_id"], payload)
-        except ValueError as exc:
-            st.error(str(exc))
-        else:
-            st.success("Public buyer profile saved.")
-            st.rerun()
+    profile_tab, business_tab, connected_tab, security_tab = st.tabs(["Profile", "Business Details", "Connected Accounts", "Security"])
+    with profile_tab:
+        render_section_intro(
+            "Public Delivery Profile",
+            "This profile is used only for public marketplace shopping. It does not unlock ledger, RFQ, or private-client flows."
+            if not welcome_mode
+            else "Set your delivery basics once before entering Marketplace. This data stays separate from manufacturer private client registries.",
+        )
+        render_3d_panel(
+            render_mobile_record_card(
+                {
+                    "Name": profile.get("full_name", ""),
+                    "Email": profile.get("email", ""),
+                    "City": profile.get("city", _address_value(profile.get("address", {})).get("city", "")),
+                    "Mobile": profile.get("mobile", ""),
+                }
+            ),
+            "Current Public Buyer Profile",
+        )
+        submitted, payload = _render_public_buyer_profile_form(current_user, profile)
+        if submitted:
+            try:
+                service.validate_profile(payload)
+                service.upsert_profile(profile["public_buyer_id"], payload)
+            except ValueError as exc:
+                st.error(str(exc))
+            else:
+                st.success("Public buyer profile saved.")
+                st.rerun()
+    with business_tab:
+        st.json(profile, expanded=False)
+    with connected_tab:
+        st.info("This profile is used only for public marketplace checkout and delivery.")
+    with security_tab:
+        st.info("Public buyer access stays separate from private client and ledger flows.")
     return service.is_profile_complete(service.get_by_email(current_user.email))
 
 
 def _render_public_buyer_profile(app_context: dict) -> None:
     render_public_buyer_profile_setup(app_context, welcome_mode=False)
+
+
+def _render_mahajan_profile(app_context: dict) -> None:
+    current_user = app_context["current_user"]
+    render_page_header("My Profile", "Maintain your supplier identity, contact details, and admin-linked supply context from one place.", ["Mahajan", "Supplier Profile"])
+    render_metric_grid(
+        [
+            render_metric_card("Role", "Mahajan", "SUCCESS"),
+            render_metric_card("Email", current_user.email, "OPEN"),
+            render_metric_card("Profile", "Active", "PENDING"),
+        ]
+    )
+    render_metric_button_row(
+        "profile_mahajan",
+        [
+            {"label": "Profile", "value": "Supplier", "tab_name": "Profile"},
+            {"label": "Business", "value": "Raw Materials", "tab_name": "Business Details"},
+            {"label": "Connected", "value": "Admin Linked", "tab_name": "Connected Accounts"},
+            {"label": "Security", "value": "Role", "tab_name": "Security"},
+        ],
+    )
+    profile_tab, business_tab, connected_tab, security_tab = st.tabs(["Profile", "Business Details", "Connected Accounts", "Security"])
+    with profile_tab:
+        st.info("Mahajan supplier profile is active for this email.")
+    with business_tab:
+        st.info("Raw-material business details can be expanded here without exposing marketplace or client data.")
+    with connected_tab:
+        st.info("This account stays scoped to the admin supply channel.")
+    with security_tab:
+        st.info("Mahajan access does not unlock manufacturers, marketplace management, or platform diagnostics.")
 
 
 def render_my_profile_dashboard(app_context: dict) -> None:
@@ -472,6 +593,9 @@ def render_my_profile_dashboard(app_context: dict) -> None:
         return
     if current_user.role == "worker":
         _render_worker_profile(app_context)
+        return
+    if current_user.role == "mahajan":
+        _render_mahajan_profile(app_context)
         return
     if current_user.role == "public_buyer":
         _render_public_buyer_profile(app_context)

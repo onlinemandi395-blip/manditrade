@@ -12,10 +12,12 @@ from components.ui_shell import (
     render_page_header,
     render_showcase_strip,
 )
+from utils.page_ui import render_metric_button_row
 
 
 def render_manufacturer_dashboard(app_context: dict) -> None:
     user = app_context["current_user"]
+    page_key = "manufacturer_dashboard"
     render_page_header("Manufacturer Dashboard", "Digital Bharat Mandi + Khata + RFQ + Inventory + Jobs Network in one operating view.", ["Dual Inventory", "Jobs Network", "Khata"])
     if not user or not user.manufacturer_code:
         st.info("Sign in as a manufacturer to view workspace details.")
@@ -37,6 +39,15 @@ def render_manufacturer_dashboard(app_context: dict) -> None:
             render_metric_card("Active Jobs", str(len([item for item in jobs if item.get("status") != "COMPLETED"])), "HIGH_PRIORITY"),
         ]
     )
+    render_metric_button_row(
+        page_key,
+        [
+            {"label": "Overview", "value": str(len(orders)), "tab_name": "Overview"},
+            {"label": "Today", "value": str(len(rfqs)), "tab_name": "Today"},
+            {"label": "Pending", "value": str(len([item for item in orders if item.get('status') not in {'DELIVERED', 'CLOSED'}])), "tab_name": "Pending"},
+            {"label": "Activity", "value": str(len(ledgers)), "tab_name": "Activity"},
+        ],
+    )
     render_showcase_strip(
         [
             ("Order Pipeline", str(len(orders)), "PENDING"),
@@ -57,6 +68,19 @@ def render_manufacturer_dashboard(app_context: dict) -> None:
         "Jobs Snapshot",
         "".join(render_mobile_record_card(item) for item in jobs[:2]) if jobs else render_mobile_record_card({"Jobs": "No active jobs", "Status": "Stable"}),
     )
-    if ledgers:
-        render_3d_panel("".join(render_mobile_record_card(item) for item in ledgers[:4]), "Ledger Snapshot")
-    st.dataframe(ledgers, use_container_width=True)
+    overview_tab, today_tab, pending_tab, activity_tab = st.tabs(["Overview", "Today", "Pending", "Activity"])
+    with overview_tab:
+        if ledgers:
+            render_3d_panel("".join(render_mobile_record_card(item) for item in ledgers[:4]), "Ledger Snapshot")
+        else:
+            st.info("No ledger records yet.")
+    with today_tab:
+        st.dataframe(rfqs, use_container_width=True)
+    with pending_tab:
+        pending_orders = [item for item in orders if item.get("status") not in {"DELIVERED", "CLOSED"}]
+        if pending_orders:
+            st.dataframe(pending_orders, use_container_width=True)
+        else:
+            st.info("No pending manufacturer orders right now.")
+    with activity_tab:
+        st.dataframe(ledgers, use_container_width=True)

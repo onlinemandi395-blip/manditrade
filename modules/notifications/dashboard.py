@@ -8,10 +8,12 @@ from components.html_renderer import render_html
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
 from components.ui_shell import render_3d_panel, render_dual_panel, render_metric_card, render_mobile_record_card, render_page_header, render_showcase_strip
+from utils.page_ui import get_active_filter, render_metric_button_row
 
 
 def render_notifications_dashboard(app_context: dict) -> None:
     user = app_context["current_user"]
+    page_key = "notifications"
     render_page_header(
         "Notifications",
         "Stay on top of orders, dispatch, payments, RFQs, and important updates in one place.",
@@ -49,6 +51,15 @@ def render_notifications_dashboard(app_context: dict) -> None:
             render_metric_card("Unread", str(len([item for item in notifications if not item.get("read", False)])), "HIGH_PRIORITY"),
         ]
     )
+    render_metric_button_row(
+        page_key,
+        [
+            {"label": "Unread", "value": str(len([item for item in notifications if not item.get("read", False)])), "tab_name": "Unread", "filter_value": "unread"},
+            {"label": "All", "value": str(len(notifications)), "tab_name": "All", "filter_value": "all"},
+            {"label": "Resolved", "value": str(len([item for item in notifications if item.get("resolved", False)])), "tab_name": "Resolved", "filter_value": "resolved"},
+            {"label": "High Priority", "value": str(len([item for item in notifications if str(item.get("priority", "")).upper() == "HIGH"])), "tab_name": "Settings", "filter_value": "high"},
+        ],
+    )
     render_showcase_strip(
         [
             ("Unread Alerts", str(len([item for item in notifications if not item.get("read", False)])), "HIGH_PRIORITY"),
@@ -62,10 +73,12 @@ def render_notifications_dashboard(app_context: dict) -> None:
         "Delivery Surface",
         render_mobile_record_card({"Mode": "Live", "Trigger": "Sent during actions"}),
     )
-    alerts_tab, delivery_tab = st.tabs(["In-App Alerts", "Email Delivery"])
-    with alerts_tab:
+    unread_tab, all_tab, resolved_tab, settings_tab = st.tabs(["Unread", "All", "Resolved", "Settings"])
+    active_filter = get_active_filter(page_key).lower()
+    with unread_tab:
         if user and (user.manufacturer_code or user.role in {"platform_admin", "public_buyer"}):
             render_section_intro("In-App", "Role-relevant alerts stay visible here until read, resolved, or snoozed.")
+            unread_rows = [item for item in notifications if not item.get("read", False)]
             preview_cards = "".join(
                 f"""
                 <article class="mt-glass-card mt-notification-card {'mt-notification-card--unread' if not item.get('read', False) else ''} {'mt-notification-card--resolved' if item.get('resolved', False) else ''}">
@@ -80,14 +93,62 @@ def render_notifications_dashboard(app_context: dict) -> None:
                   <p class="mt-notification-card__message">{escape(str(item.get('message', '')))}</p>
                 </article>
                 """
-                for item in notifications[:4]
+                for item in unread_rows[:4]
             )
-            if notifications:
+            if unread_rows:
                 render_html(f"<section class='mt-card-stack'>{preview_cards}</section>")
-                render_3d_panel("".join(render_mobile_record_card(item) for item in notifications[:5]), "Latest Alerts", tone="subtle")
-            st.dataframe(notifications, use_container_width=True)
+                render_3d_panel("".join(render_mobile_record_card(item) for item in unread_rows[:5]), "Latest Alerts", tone="subtle")
+            st.dataframe(unread_rows, use_container_width=True)
+            if unread_rows:
+                selected_unread = st.selectbox("Manage Unread Notification", [item["notification_id"] for item in unread_rows], key="notif_unread_select")
+                if st.button("Mark Read", key="notif_mark_read", use_container_width=True):
+                    _update_notification_status(app_context, user, selected_unread, mark_read=True)
+                    st.success("Notification marked read.")
+                    st.rerun()
+            if active_filter == "unread":
+                st.caption("Metric filter applied: unread")
         else:
             st.info("No role-specific alerts are available for this session.")
-    with delivery_tab:
-        render_section_intro("Email Delivery", "Important updates are sent as actions happen, so your team can respond quickly.")
+    with all_tab:
+        st.dataframe(notifications, use_container_width=True)
+    with resolved_tab:
+        resolved_rows = [item for item in notifications if item.get("resolved", False)]
+        if resolved_rows:
+            st.dataframe(resolved_rows, use_container_width=True)
+        else:
+            st.info("No resolved notifications yet.")
+    with settings_tab:
+        render_section_intro("Notification Controls", "Use these lightweight controls to keep the feed clean without exposing runtime internals.")
+        if notifications:
+            selected_id = st.selectbox("Select Notification", [item["notification_id"] for item in notifications], key="notif_select")
+            col1, col2 = st.columns(2)
+            if col1.button("Mark Resolved", use_container_width=True, key="notif_resolve"):
+                _update_notification_status(app_context, user, selected_id, resolved=True)
+                st.success("Notification marked resolved.")
+                st.rerun()
+            if col2.button("Remind Tomorrow", use_container_width=True, key="notif_remind"):
+                _update_notification_status(app_context, user, selected_id, remind_later_at="tomorrow")
+                st.success("Reminder deferred.")
+                st.rerun()
         st.info("If an email update does not arrive, please contact support.")
+
+
+def _update_notification_status(app_context: dict, user, notification_id: str, *, mark_read: bool | None = None, resolved: bool | None = None, remind_later_at: str | None = None) -> None:
+    service = app_context["notification_center_service"]
+    if user.role == "public_buyer":
+        buyer = app_context["public_buyer_service"].get_by_email(user.email)
+        if buyer:
+            service.update_public_status(buyer["public_buyer_id"], notification_id, mark_read=mark_read, resolved=resolved, remind_later_at=remind_later_at)
+        return
+    manufacturer_code = user.manufacturer_code
+    if user.role == "platform_admin" and not manufacturer_code:
+        manufacturers = app_context["governance_service"].list_manufacturers()
+        for manufacturer in manufacturers:
+            try:
+                service.update_status(manufacturer.get("manufacturer_code", ""), notification_id, mark_read=mark_read, resolved=resolved, remind_later_at=remind_later_at)
+                return
+            except ValueError:
+                continue
+        return
+    if manufacturer_code:
+        service.update_status(manufacturer_code, notification_id, mark_read=mark_read, resolved=resolved, remind_later_at=remind_later_at)

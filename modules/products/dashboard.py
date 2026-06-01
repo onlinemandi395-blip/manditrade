@@ -8,6 +8,7 @@ from components.html_renderer import render_html
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
 from components.ui_shell import render_dual_panel, render_metric_card, render_mobile_record_card, render_page_header, render_showcase_strip
+from utils.page_ui import render_metric_button_row
 
 
 def render_products_dashboard(app_context: dict) -> None:
@@ -34,6 +35,15 @@ def render_products_dashboard(app_context: dict) -> None:
             render_metric_card("Proposed", str(len([item for item in products if item.get("status") == "PROPOSED"])), "PENDING"),
             render_metric_card("Active", str(len([item for item in products if item.get("status") == "ACTIVE"])), "OPEN"),
         ]
+    )
+    render_metric_button_row(
+        "products",
+        [
+            {"label": "Overview", "value": str(len(products)), "tab_name": "Overview"},
+            {"label": "Registry", "value": str(len(products)), "tab_name": "Overview"},
+            {"label": "Create", "value": str(len([item for item in products if item.get('status') == 'PROPOSED'])), "tab_name": "Activity"},
+            {"label": "Activity", "value": str(len([item for item in products if item.get('status') == 'ACTIVE'])), "tab_name": "Proposal Threads"},
+        ],
     )
     render_showcase_strip(
         [
