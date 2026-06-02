@@ -11,6 +11,7 @@ from typing import Any, Callable
 from services.file_lock_service import FileLockService
 from services.logging_service import LoggingService
 from services.schema_validation_service import SchemaValidationService
+from services.cache_service import CacheService
 
 
 class SafeDriveWriteService:
@@ -29,6 +30,7 @@ class SafeDriveWriteService:
         self.backups_root = backups_root
         self.logging_service = logging_service
         self.version_history_root = version_history_root
+        self.cache_service = CacheService(ttl_seconds=15)
 
     def _document_hash(self, payload: dict[str, Any]) -> str:
         encoded = json.dumps(payload, sort_keys=True, ensure_ascii=True).encode("utf-8")
@@ -95,6 +97,7 @@ class SafeDriveWriteService:
             payload["_version"] = datetime.now(UTC).isoformat()
             payload["document_hash"] = self._document_hash(payload)
             self.json_service.write_json(target, payload)
+            self.cache_service.invalidate("json", str(target))
             try:
                 verified = json.loads(target.read_text(encoding="utf-8"))
                 if verified.get("document_hash") != payload["document_hash"]:

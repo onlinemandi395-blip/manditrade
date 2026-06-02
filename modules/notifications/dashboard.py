@@ -6,6 +6,7 @@ import streamlit as st
 
 from components.html_renderer import render_html
 from components.filter_bar import render_filter_bar
+from components.paginated_table import render_paginated_table
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
 from components.ui_shell import render_3d_panel, render_dual_panel, render_metric_card, render_mobile_record_card, render_page_header, render_showcase_strip
@@ -112,7 +113,7 @@ def render_notifications_dashboard(app_context: dict) -> None:
                 st.download_button("Download Unread CSV", export_rows_to_csv_bytes(unread_rows), file_name="notifications-unread.csv", mime="text/csv", use_container_width=True)
             else:
                 render_empty_state("No notifications need attention right now.")
-            st.dataframe(unread_rows, use_container_width=True)
+            render_paginated_table(page_key="notifications_unread", rows=unread_rows, search_fields=["notification_id", "title"], status_field="priority")
             if unread_rows:
                 selected_unread = st.selectbox("Manage Unread Notification", [item["notification_id"] for item in unread_rows], key="notif_unread_select")
                 selected_item = next(item for item in unread_rows if item["notification_id"] == selected_unread)
@@ -141,13 +142,13 @@ def render_notifications_dashboard(app_context: dict) -> None:
             csv_col, json_col = st.columns(2)
             csv_col.download_button("Export CSV", export_rows_to_csv_bytes(filtered_notifications), file_name="notifications.csv", mime="text/csv", use_container_width=True)
             json_col.download_button("Export JSON", export_rows_to_json_bytes(filtered_notifications), file_name="notifications.json", mime="application/json", use_container_width=True)
-            st.dataframe(filtered_notifications, use_container_width=True)
+            render_paginated_table(page_key="notifications_all", rows=filtered_notifications, search_fields=["notification_id", "title"], status_field="priority")
         else:
             render_empty_state("No notifications match the current filters.")
     with resolved_tab:
         resolved_rows = [item for item in notifications if item.get("resolved", False)]
         if resolved_rows:
-            st.dataframe(resolved_rows, use_container_width=True)
+            render_paginated_table(page_key="notifications_resolved", rows=resolved_rows, search_fields=["notification_id", "title"], status_field="priority")
         else:
             render_empty_state("No resolved notifications yet.")
     with settings_tab:

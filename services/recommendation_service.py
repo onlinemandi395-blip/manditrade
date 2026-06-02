@@ -20,6 +20,11 @@ class RecommendationService:
         self.safe_drive_write_service.replace_document(self.recommendations_path, payload)
         return recommendations
 
+    def read_latest(self) -> dict[str, Any]:
+        if not self.recommendations_path.exists():
+            return {}
+        return __import__("json").loads(self.recommendations_path.read_text(encoding="utf-8"))
+
     def _for_admin(self, app_context: dict) -> list[dict[str, Any]]:
         alerts = app_context["alert_engine"].list_alerts(resolved=False)
         items: list[dict[str, Any]] = []

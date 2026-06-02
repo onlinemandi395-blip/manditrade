@@ -250,10 +250,10 @@ def render_sidebar_navigation(app_context: dict) -> str:
     navigation_role = _resolve_navigation_role(app_context)
     groups = get_navigation_groups(navigation_role)
     sections = flatten_navigation_groups(groups)
-    selected = st.session_state.get("sidebar_section", sections[0] if sections else "Dashboard")
+    selected = app_context["session_state_service"].get_navigation(sections[0] if sections else "Dashboard")
     if selected not in sections:
         selected = sections[0] if sections else "Dashboard"
-        st.session_state["sidebar_section"] = selected
+        app_context["session_state_service"].set_navigation(selected)
     with st.sidebar:
         st.markdown("## Navigation")
         if is_admin_identity:
@@ -263,7 +263,7 @@ def render_sidebar_navigation(app_context: dict) -> str:
             for item in items:
                 if st.button(item, key=f"nav_{item.lower().replace(' ', '_')}", use_container_width=True, type="primary" if selected == item else "secondary"):
                     selected = item
-                    st.session_state["sidebar_section"] = item
+                    app_context["session_state_service"].set_navigation(item)
         return selected
 
 

@@ -92,6 +92,16 @@ class AlertEngine:
                 generated.append(self._build_alert("LOW", "STALE_JOB", "job", job.get("job_id", ""), f"Job {job.get('job_id', '')} has no applications for a week."))
         return self._persist_generated_alerts(generated)
 
+    def read_snapshot(self) -> dict[str, Any]:
+        self.ensure_file()
+        alerts = self.list_alerts()
+        return {
+            "generated_at": datetime.now(UTC).isoformat(),
+            "total_alerts": len(alerts),
+            "open_alerts": len([item for item in alerts if not item.get("resolved", False)]),
+            "critical_alerts": len([item for item in alerts if str(item.get("severity", "")).upper() == "CRITICAL" and not item.get("resolved", False)]),
+        }
+
     def _persist_generated_alerts(self, generated: list[dict[str, Any]]) -> list[dict[str, Any]]:
         existing = self.list_alerts()
         existing_index = {

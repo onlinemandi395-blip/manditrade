@@ -6,6 +6,7 @@ import streamlit as st
 
 from components.filter_bar import render_filter_bar
 from components.html_renderer import render_html
+from components.paginated_table import render_paginated_table
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
 from components.ui_shell import render_dual_panel, render_metric_card, render_mobile_record_card, render_page_header, render_showcase_strip
@@ -89,7 +90,7 @@ def render_products_dashboard(app_context: dict) -> None:
             csv_col, json_col = st.columns(2)
             csv_col.download_button("Export CSV", export_rows_to_csv_bytes(filtered_products), file_name="products.csv", mime="text/csv", use_container_width=True)
             json_col.download_button("Export JSON", export_rows_to_json_bytes(filtered_products), file_name="products.json", mime="application/json", use_container_width=True)
-            st.dataframe(filtered_products, use_container_width=True)
+            render_paginated_table(page_key="products_catalog", rows=filtered_products, search_fields=["product_id", "name"], status_field="status")
         else:
             render_empty_state("No finished products are visible for this view yet.")
     if not user:

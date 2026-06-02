@@ -83,6 +83,11 @@ class KPIService:
         self.safe_drive_write_service.replace_document(self.snapshot_path, snapshot)
         return snapshot
 
+    def read_latest_snapshot(self) -> dict[str, Any]:
+        if not self.snapshot_path.exists():
+            return {}
+        return __import__("json").loads(self.snapshot_path.read_text(encoding="utf-8"))
+
     def calculate_manufacturer_health_score(self, app_context: dict, manufacturer_code: str) -> int:
         inventory = app_context["inventory_query_service"].list_inventory_snapshot(manufacturer_code)
         entries = app_context["ledger_service"].list_ledger_entries(manufacturer_code)

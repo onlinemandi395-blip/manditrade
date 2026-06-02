@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from services.alert_engine import AlertEngine
 from services.automation_tasks import AutomationTasks
 from services.audit_service import AuditService
+from services.event_bus import EventBus
 from services.governance_service import GovernanceService
 from services.id_allocator_service import IdAllocatorService
 from services.job_service import JobService
@@ -50,7 +51,15 @@ def _build_app_context(tmp_path: Path) -> dict:
     search_service = OperationalSearchService()
     procurement = build_procurement_service(runtime)
     job_service = JobService(tmp_path / "governance", runtime["safe_write"], runtime["json_service"], runtime["allocator"])
-    automation = AutomationTasks(runtime_root=tmp_path, alert_engine=alert_engine, recommendation_service=recommendation_service, kpi_service=kpi_service, audit_service=audit_service)
+    automation = AutomationTasks(
+        runtime_root=tmp_path,
+        alert_engine=alert_engine,
+        recommendation_service=recommendation_service,
+        kpi_service=kpi_service,
+        audit_service=audit_service,
+        safe_drive_write_service=runtime["safe_write"],
+        event_bus=EventBus(),
+    )
     return {
         **runtime,
         "audit_service": audit_service,

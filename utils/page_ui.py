@@ -4,7 +4,10 @@ from typing import Iterable
 
 import streamlit as st
 
+from services.session_state_service import SessionStateService
 from utils.status_styles import get_status_style
+
+_SESSION_STATE = SessionStateService()
 
 
 def render_page_hero(*, title: str, subtitle: str, role_label: str = "", description: str = "") -> None:
@@ -23,8 +26,12 @@ def _state_key(page_key: str, suffix: str) -> str:
 
 def set_active_tab_from_metric(page_key: str, tab_name: str, *, filter_value: str = "") -> None:
     st.session_state[_state_key(page_key, "tab")] = tab_name
+    _SESSION_STATE.set_active_tab(page_key, tab_name)
     if filter_value:
         st.session_state[_state_key(page_key, "filter")] = filter_value
+        current_filters = _SESSION_STATE.get_filters(page_key)
+        current_filters["metric_filter"] = filter_value
+        _SESSION_STATE.set_filters(page_key, current_filters)
 
 
 def get_active_filter(page_key: str) -> str:

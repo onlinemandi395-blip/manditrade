@@ -13,7 +13,7 @@ def render_analytics_dashboard(app_context: dict) -> None:
     render_page_header("Analytics", "Review marketplace, mandi network, and finance summaries from one admin-safe operations page.", ["Platform Admin", "Summary View"])
     current_user = app_context["current_user"]
     governance_service = app_context["governance_service"]
-    kpis = app_context["kpi_service"].calculate_snapshot(app_context)
+    kpis = app_context["kpi_service"].read_latest_snapshot() or app_context["kpi_service"].calculate_snapshot(app_context)
 
     if current_user and current_user.role == "manufacturer" and current_user.manufacturer_code:
         orders = app_context["order_query_service"].list_orders(current_user.manufacturer_code)

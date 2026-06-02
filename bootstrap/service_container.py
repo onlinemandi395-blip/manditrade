@@ -21,6 +21,7 @@ from services.domain_paths_service import DomainPathsService
 from services.drive_service import DriveService
 from services.dual_inventory_service import DualInventoryService
 from services.encryption_service import EncryptionService
+from services.event_bus import EventBus
 from services.event_dispatcher import EventDispatcher
 from services.file_lock_service import FileLockService
 from services.gmail_service import GmailService
@@ -53,6 +54,7 @@ from services.runtime_metrics_service import RuntimeMetricsService
 from services.safe_drive_write_service import SafeDriveWriteService
 from services.schema_validation_service import SchemaValidationService
 from services.security_service import SecurityService
+from services.session_state_service import SessionStateService
 from services.startup_recovery_service import StartupRecoveryService
 from services.token_rotation_service import TokenRotationService
 from services.trade_confirmation_service import TradeConfirmationService
@@ -149,6 +151,8 @@ def build_app_context() -> dict:
     )
     token_rotation_service = TokenRotationService(auth_service=auth_service)
     cache_service = CacheService()
+    session_state_service = SessionStateService()
+    event_bus = EventBus()
     event_dispatcher = EventDispatcher(APP_RUNTIME_DIR / "events", id_allocator_service=id_allocator_service, dead_letter_service=dead_letter_service, logging_service=logging_service, runtime_metrics_service=runtime_metrics_service)
     safe_drive_write_service = SafeDriveWriteService(
         json_service=drive_service.json_service,
@@ -209,7 +213,7 @@ def build_app_context() -> dict:
     )
     kpi_service = KPIService(snapshot_path=APP_RUNTIME_DIR / "kpis" / "latest.json", safe_drive_write_service=safe_drive_write_service)
     recommendation_service = RecommendationService(recommendations_path=APP_RUNTIME_DIR / "recommendations" / "latest.json", safe_drive_write_service=safe_drive_write_service)
-    operational_search_service = OperationalSearchService()
+    operational_search_service = OperationalSearchService(index_path=APP_RUNTIME_DIR / "search_index" / "latest.json", safe_drive_write_service=safe_drive_write_service)
     product_catalog_service = ProductCatalogService(
         governance_service=governance_service,
         id_allocator_service=id_allocator_service,
@@ -333,6 +337,8 @@ def build_app_context() -> dict:
         recommendation_service=recommendation_service,
         kpi_service=kpi_service,
         audit_service=audit_service,
+        safe_drive_write_service=safe_drive_write_service,
+        event_bus=event_bus,
     )
 
     startup_checks = config_service.validate_streamlit_secrets(security_service.load_streamlit_secrets())
@@ -410,9 +416,11 @@ def build_app_context() -> dict:
         "token_rotation_service": token_rotation_service,
         "rollback_service": rollback_service,
         "event_dispatcher": event_dispatcher,
+        "event_bus": event_bus,
         "procurement_transaction_service": procurement_transaction_service,
         "order_transaction_service": order_transaction_service,
         "cache_service": cache_service,
+        "session_state_service": session_state_service,
         "dead_letter_service": dead_letter_service,
         "runtime_metrics_service": runtime_metrics_service,
         "safe_drive_write_service": safe_drive_write_service,

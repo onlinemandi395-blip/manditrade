@@ -178,6 +178,17 @@ def render_health_dashboard(app_context: dict) -> None:
         if search_value:
             order_transaction_rows = [row for row in order_transaction_rows if search_value.lower() in str(row).lower()]
         st.dataframe(order_transaction_rows, use_container_width=True)
+        st.markdown("### Recovery Utilities")
+        col1, col2 = st.columns(2)
+        if col1.button("Rebuild Search Index", use_container_width=True):
+            st.json(app_context["operational_search_service"].rebuild_index(app_context), expanded=False)
+        if col2.button("Refresh KPI Snapshot", use_container_width=True):
+            st.json(app_context["kpi_service"].calculate_snapshot(app_context), expanded=False)
+        col3, col4 = st.columns(2)
+        if col3.button("Regenerate Alerts", use_container_width=True):
+            st.json(app_context["alert_engine"].generate_alerts(app_context), expanded=False)
+        if col4.button("Repair Snapshots", use_container_width=True):
+            st.json(app_context["automation_tasks"].run_daily_tasks(app_context), expanded=False)
 
     with events_tab:
         search_value = st.text_input("Search locks / events / stress summaries", key="health_events_search")

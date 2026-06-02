@@ -3,6 +3,7 @@ from __future__ import annotations
 import streamlit as st
 
 from components.filter_bar import render_filter_bar
+from components.paginated_table import render_paginated_table
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
 from components.ui_shell import render_metric_card, render_page_header
@@ -20,10 +21,10 @@ def render_operations_dashboard(app_context: dict) -> None:
         ["Platform Admin", "Operational Intelligence"],
         role=current_user.role.replace("_", " ").title() if current_user else "Admin",
     )
-    kpis = app_context["kpi_service"].calculate_snapshot(app_context)
-    new_alerts = app_context["alert_engine"].generate_alerts(app_context)
+    kpis = app_context["kpi_service"].read_latest_snapshot() or app_context["kpi_service"].calculate_snapshot(app_context)
+    new_alerts = []
     alerts = app_context["alert_engine"].list_alerts(resolved=False)
-    recommendations = app_context["recommendation_service"].generate(app_context)
+    recommendations = (app_context["recommendation_service"].read_latest() or {}).get("recommendations", {}) or app_context["recommendation_service"].generate(app_context)
     audit_summary = app_context["audit_service"].summarize_structured_events()
 
     render_metric_grid(
@@ -110,7 +111,7 @@ def render_operations_dashboard(app_context: dict) -> None:
             col1, col2 = st.columns(2)
             col1.download_button("Export Alerts CSV", export_rows_to_csv_bytes(filtered_alerts), file_name="operations-alerts.csv", mime="text/csv", use_container_width=True)
             col2.download_button("Export Alerts JSON", export_rows_to_json_bytes(filtered_alerts), file_name="operations-alerts.json", mime="application/json", use_container_width=True)
-            st.dataframe(filtered_alerts, use_container_width=True)
+            render_paginated_table(page_key="operations_alerts", rows=filtered_alerts, search_fields=["alert_id", "entity_id", "message"], status_field="severity")
             selected_alert = st.selectbox("Resolve Alert", [item["alert_id"] for item in filtered_alerts], key="resolve_ops_alert")
             if st.button("Mark Alert Resolved", use_container_width=True):
                 app_context["alert_engine"].resolve_alert(selected_alert)
