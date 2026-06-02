@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -70,3 +70,57 @@ class AuditService:
         lines = self.log_path.read_text(encoding="utf-8").splitlines()
         recent = lines[-limit:]
         return [json.loads(line) for line in recent if line.strip()]
+
+    def read_structured_events(
+        self,
+        *,
+        actor: str = "",
+        entity_type: str = "",
+        severity: str = "",
+        limit: int = 200,
+    ) -> list[dict[str, Any]]:
+        if not self.audit_dir.exists():
+            return []
+        rows: list[dict[str, Any]] = []
+        for path in sorted(self.audit_dir.glob("*.jsonl"), reverse=True):
+            for line in path.read_text(encoding="utf-8").splitlines():
+                if not line.strip():
+                    continue
+                row = json.loads(line)
+                if actor and str(row.get("actor", "")).strip().lower() != actor.strip().lower():
+                    continue
+                if entity_type and str(row.get("entity_type", "")).strip().lower() != entity_type.strip().lower():
+                    continue
+                if severity and str(row.get("details", {}).get("severity", "")).strip().upper() != severity.strip().upper():
+                    continue
+                rows.append(row)
+                if len(rows) >= limit:
+                    return rows
+        return rows
+
+    def summarize_structured_events(self) -> dict[str, Any]:
+        rows = self.read_structured_events(limit=500)
+        return {
+            "total_events": len(rows),
+            "warning_events": len([row for row in rows if str(row.get("details", {}).get("severity", "")).upper() in {"HIGH", "CRITICAL"}]),
+            "actors": len({str(row.get("actor", "")) for row in rows if row.get("actor")}),
+            "entities": len({f"{row.get('entity_type', '')}:{row.get('entity_id', '')}" for row in rows if row.get("entity_id")}),
+        }
+
+    def archive_old_logs(self, *, keep_days: int = 30) -> int:
+        if not self.audit_dir.exists():
+            return 0
+        archive_dir = self.audit_dir / "archive"
+        archive_dir.mkdir(parents=True, exist_ok=True)
+        cutoff = datetime.now(UTC).date() - timedelta(days=keep_days)
+        moved = 0
+        for path in self.audit_dir.glob("*.jsonl"):
+            try:
+                file_date = datetime.fromisoformat(path.stem).date()
+            except ValueError:
+                continue
+            if file_date < cutoff:
+                target = archive_dir / path.name
+                path.replace(target)
+                moved += 1
+        return moved

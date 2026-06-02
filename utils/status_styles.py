@@ -28,6 +28,8 @@ STATUS_STYLES: dict[str, dict[str, str]] = {
     "INVITED": {"label": "Invited", "tone": "info", "color": "#0369a1", "background": "#eff6ff"},
     "HIGH": {"label": "High", "tone": "danger", "color": "#b91c1c", "background": "#fef2f2"},
     "HIGH_PRIORITY": {"label": "High Priority", "tone": "danger", "color": "#b91c1c", "background": "#fef2f2"},
+    "MEDIUM": {"label": "Medium", "tone": "warning", "color": "#b45309", "background": "#fff7ed"},
+    "CRITICAL": {"label": "Critical", "tone": "danger", "color": "#7f1d1d", "background": "#fee2e2"},
     "PARTIAL": {"label": "Partial", "tone": "warning", "color": "#b45309", "background": "#fff7ed"},
 }
 

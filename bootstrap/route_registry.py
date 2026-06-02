@@ -9,6 +9,7 @@ from modules.analytics.dashboard import render_analytics_dashboard
 from modules.admin.commission_summary import render_commission_summary_dashboard
 from modules.finance.commission_dashboard import render_commission_dashboard
 from modules.admin.dashboard import render_admin_dashboard
+from modules.admin.operations_dashboard import render_operations_dashboard
 from modules.admin.mahajans import render_mahajans_dashboard
 from modules.admin.inventory_summary import render_inventory_summary_dashboard
 from modules.admin.manufacturers import render_manufacturers_dashboard
@@ -56,6 +57,7 @@ ROUTE_GROUPS = {
         "Payments",
         "Ledger",
         "Platform Commission",
+        "Operations Center",
         "Jobs",
         "System Health",
         "Analytics",
@@ -191,6 +193,8 @@ def render_route(section: str, app_context: dict) -> None:
         render_mahajans_dashboard(app_context)
     elif section == "Raw Materials":
         render_raw_materials_dashboard(app_context)
+    elif section == "Operations Center":
+        render_operations_dashboard(app_context)
     elif section == "Jobs":
         render_jobs_dashboard(app_context)
     elif section == "Analytics":

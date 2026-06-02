@@ -33,7 +33,7 @@ ROLE_NAVIGATION_MAP: dict[str, list[tuple[str, list[str]]]] = {
         ("Mandi Network", ["MandiPlace", "Mandi Orders"]),
         ("Supply Network", ["Raw Materials", "Supply Orders"]),
         ("Finance", ["Payments", "Ledger", "Platform Commission"]),
-        ("Operations", ["Jobs", "System Health", "Analytics"]),
+        ("Operations", ["Operations Center", "Jobs", "System Health", "Analytics"]),
     ],
     "mahajan": [
         ("Core", ["Dashboard", "My Profile", "Notifications", "My Actions"]),

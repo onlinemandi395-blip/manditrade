@@ -6,6 +6,8 @@ import streamlit as st
 
 from services.action_center_service import ActionCenterService
 from services.access_portal_service import AccessPortalService
+from services.alert_engine import AlertEngine
+from services.automation_tasks import AutomationTasks
 from services.audit_service import AuditService
 from services.auth_service import AuthService
 from services.bootstrap_service import BootstrapService
@@ -31,6 +33,7 @@ from services.ledger_service import LedgerService
 from services.logging_service import LoggingService
 from services.manufacturer_onboarding_service import ManufacturerOnboardingService
 from services.notification_center_service import NotificationCenterService
+from services.operational_search_service import OperationalSearchService
 from services.oauth_callback_service import OAuthCallbackService
 from services.order_state_service import OrderStateService
 from services.order_transaction_service import OrderTransactionService
@@ -40,6 +43,8 @@ from services.public_buyer_service import PublicBuyerService
 from services.public_cart_service import PublicCartService
 from services.public_order_service import PublicOrderService
 from services.pricing_service import PricingService
+from services.kpi_service import KPIService
+from services.recommendation_service import RecommendationService
 from services.query.inventory_query_service import InventoryQueryService
 from services.query.order_query_service import OrderQueryService
 from services.query.procurement_query_service import ProcurementQueryService
@@ -196,6 +201,15 @@ def build_app_context() -> dict:
         public_buyers_root=public_buyers_root,
     )
     pricing_service = PricingService(system_config.get("commission", {}))
+    alert_engine = AlertEngine(
+        alerts_path=APP_RUNTIME_DIR / "alerts" / "alerts.json",
+        safe_drive_write_service=safe_drive_write_service,
+        json_service=drive_service.json_service,
+        id_allocator_service=id_allocator_service,
+    )
+    kpi_service = KPIService(snapshot_path=APP_RUNTIME_DIR / "kpis" / "latest.json", safe_drive_write_service=safe_drive_write_service)
+    recommendation_service = RecommendationService(recommendations_path=APP_RUNTIME_DIR / "recommendations" / "latest.json", safe_drive_write_service=safe_drive_write_service)
+    operational_search_service = OperationalSearchService()
     product_catalog_service = ProductCatalogService(
         governance_service=governance_service,
         id_allocator_service=id_allocator_service,
@@ -313,6 +327,13 @@ def build_app_context() -> dict:
         worker_service=worker_service,
         public_order_service=public_order_service,
     )
+    automation_tasks = AutomationTasks(
+        runtime_root=APP_RUNTIME_DIR,
+        alert_engine=alert_engine,
+        recommendation_service=recommendation_service,
+        kpi_service=kpi_service,
+        audit_service=audit_service,
+    )
 
     startup_checks = config_service.validate_streamlit_secrets(security_service.load_streamlit_secrets())
     deployment_validation = config_service.validate_deployment_profile(
@@ -413,6 +434,11 @@ def build_app_context() -> dict:
         "public_cart_service": public_cart_service,
         "public_order_service": public_order_service,
         "pricing_service": pricing_service,
+        "alert_engine": alert_engine,
+        "kpi_service": kpi_service,
+        "recommendation_service": recommendation_service,
+        "operational_search_service": operational_search_service,
+        "automation_tasks": automation_tasks,
         "access_portal_service": access_portal_service,
         "action_center_service": action_center_service,
         "order_query_service": OrderQueryService(drive_service=drive_service, json_service=drive_service.json_service, domain_paths_service=domain_paths_service),

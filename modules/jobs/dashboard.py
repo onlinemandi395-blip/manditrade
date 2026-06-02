@@ -36,7 +36,7 @@ def render_jobs_dashboard(app_context: dict) -> None:
         "Worker Pool",
         render_mobile_record_card({"Workers": len(worker_service.list_workers(include_private=True)), "Mode": "Local mandi network"}),
     )
-    overview_tab, create_or_apply_tab, applications_tab = st.tabs(["Overview", "Create / Apply", "Applications"])
+    overview_tab, create_or_apply_tab, applications_tab, lifecycle_tab = st.tabs(["Overview", "Create / Apply", "Applications", "Lifecycle"])
 
     with overview_tab:
         if jobs:
@@ -97,6 +97,22 @@ def render_jobs_dashboard(app_context: dict) -> None:
                     st.rerun()
             else:
                 render_empty_state("No job applications have been received yet.")
+        with lifecycle_tab:
+            own_jobs = job_service.list_jobs(manufacturer_id=user.manufacturer_code)
+            if own_jobs:
+                filtered_jobs = render_filter_bar(page_key="jobs_lifecycle", rows=own_jobs, search_fields=["job_id", "title", "status", "lifecycle_status"], status_field="lifecycle_status", date_field="created_at", search_placeholder="Search by job ID or title")
+                csv_col, json_col = st.columns(2)
+                csv_col.download_button("Export Jobs CSV", export_rows_to_csv_bytes(filtered_jobs), file_name="jobs-lifecycle.csv", mime="text/csv", use_container_width=True)
+                json_col.download_button("Export Jobs JSON", export_rows_to_json_bytes(filtered_jobs), file_name="jobs-lifecycle.json", mime="application/json", use_container_width=True)
+                st.dataframe(filtered_jobs, use_container_width=True)
+                selected_job = st.selectbox("Update Job Lifecycle", [item["job_id"] for item in own_jobs], key="job_lifecycle_select")
+                lifecycle_status = st.selectbox("Lifecycle Status", ["ACTIVE", "PAUSED", "CLOSED", "ARCHIVED"], key="job_lifecycle_status")
+                if st.button("Save Job Lifecycle", use_container_width=True):
+                    job_service.update_job_lifecycle(job_id=selected_job, lifecycle_status=lifecycle_status)
+                    st.success("Job lifecycle updated.")
+                    st.rerun()
+            else:
+                render_empty_state("No jobs are available to manage yet.")
     else:
         worker = worker_service.get_worker_by_email(user.email) if user else None
         with create_or_apply_tab:
@@ -118,3 +134,5 @@ def render_jobs_dashboard(app_context: dict) -> None:
                     st.dataframe(worker_applications, use_container_width=True)
                 else:
                     render_empty_state("No applications submitted yet.")
+        with lifecycle_tab:
+            render_empty_state("Lifecycle controls are available to hiring manufacturers only.")

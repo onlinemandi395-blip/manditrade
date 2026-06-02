@@ -41,11 +41,11 @@ class JobService:
         if manufacturer_id:
             jobs = [item for item in jobs if item.get("manufacturer_id") == manufacturer_id]
         if status:
-            jobs = [item for item in jobs if item.get("status") == status]
+            jobs = [item for item in jobs if item.get("status") == status or item.get("lifecycle_status") == status]
         return jobs
 
     def list_open_jobs(self) -> list[dict[str, Any]]:
-        return self.list_jobs(status="OPEN")
+        return [item for item in self.list_jobs() if str(item.get("lifecycle_status", "ACTIVE")).upper() == "ACTIVE" and str(item.get("status", "")).upper() in {"ACTIVE", "APPLICATIONS_RECEIVED"}]
 
     def list_applications(self, *, job_id: str | None = None, worker_id: str | None = None, manufacturer_id: str | None = None) -> list[dict[str, Any]]:
         self.ensure_file()
@@ -90,7 +90,10 @@ class JobService:
             "skills_required": [item.strip() for item in skills_required if item.strip()],
             "description": description.strip(),
             "manufacturer_contact_email": manufacturer_contact_email.strip().lower(),
-            "status": "OPEN",
+            "status": "ACTIVE",
+            "lifecycle_status": "ACTIVE",
+            "shortlisted_worker_ids": [],
+            "selected_application_id": "",
             "created_at": datetime.now(UTC).isoformat(),
         }
         self.safe_drive_write_service.append_record(self.jobs_path, "jobs", job)
@@ -102,7 +105,7 @@ class JobService:
         job = next((item for item in payload.get("jobs", []) if item.get("job_id") == job_id), None)
         if job is None:
             raise ValueError(f"Job not found: {job_id}")
-        if job.get("status") not in {"OPEN", "APPLICATIONS_RECEIVED"}:
+        if str(job.get("lifecycle_status", "ACTIVE")).upper() != "ACTIVE" or job.get("status") not in {"ACTIVE", "APPLICATIONS_RECEIVED"}:
             raise ValueError("Job is not open for applications.")
         existing = next((item for item in payload.get("applications", []) if item.get("job_id") == job_id and item.get("worker_id") == worker_id), None)
         if existing:
@@ -148,12 +151,19 @@ class JobService:
             raise ValueError("Job application not found.")
         application["status"] = next_status
         application["updated_at"] = datetime.now(UTC).isoformat()
+        if next_status == "SHORTLISTED":
+            shortlist = list(job.get("shortlisted_worker_ids", []) or [])
+            if application.get("worker_id") not in shortlist:
+                shortlist.append(application.get("worker_id"))
+            job["shortlisted_worker_ids"] = shortlist
         if next_status == "ACCEPTED":
             job["status"] = "WORKER_ACCEPTED"
+            job["selected_application_id"] = application_id
         elif next_status == "WORKER_CONFIRMED":
             job["status"] = "IN_PROGRESS"
         elif next_status == "COMPLETED":
             job["status"] = "COMPLETED"
+            job["lifecycle_status"] = "CLOSED"
         self.safe_drive_write_service.replace_document(self.jobs_path, payload)
         if self.gmail_service and application.get("worker_contact_email"):
             self.gmail_service.enqueue_message(
@@ -174,6 +184,30 @@ class JobService:
                 source_id=job_id,
             )
         return application
+
+    def update_job_lifecycle(self, *, job_id: str, lifecycle_status: str) -> dict[str, Any]:
+        self.ensure_file()
+        payload = self.json_service.read_json(self.jobs_path, {"jobs": [], "applications": []})
+        updated: dict[str, Any] | None = None
+        next_status = lifecycle_status.strip().upper()
+        if next_status not in {"ACTIVE", "PAUSED", "CLOSED", "ARCHIVED"}:
+            raise ValueError("Unsupported job lifecycle status.")
+        for job in payload.get("jobs", []):
+            if job.get("job_id") == job_id:
+                job["lifecycle_status"] = next_status
+                if next_status == "ACTIVE" and job.get("status") == "PAUSED":
+                    job["status"] = "ACTIVE"
+                if next_status == "PAUSED":
+                    job["status"] = "PAUSED"
+                if next_status in {"CLOSED", "ARCHIVED"} and job.get("status") in {"ACTIVE", "APPLICATIONS_RECEIVED", "PAUSED"}:
+                    job["status"] = next_status
+                job["updated_at"] = datetime.now(UTC).isoformat()
+                updated = dict(job)
+                break
+        if updated is None:
+            raise ValueError(f"Job not found: {job_id}")
+        self.safe_drive_write_service.replace_document(self.jobs_path, payload)
+        return updated
 
     def complete_job(self, *, job_id: str, application_id: str, manufacturer_id: str, worker_id: str, unpaid_amount: float = 0.0, note: str = "") -> dict[str, Any]:
         application = self.update_application_status(job_id=job_id, application_id=application_id, next_status="COMPLETED")

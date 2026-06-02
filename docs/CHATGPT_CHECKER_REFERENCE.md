@@ -1,6 +1,6 @@
 # MandiTrade Checker Reference
 
-Generated from the current repository state on 2026-06-02 after the operations maturity + UX hardening pass.
+Generated from the current repository state on 2026-06-02 after the operational intelligence + automation pass.
 
 ## Final Role Model
 
@@ -28,110 +28,139 @@ Generated from the current repository state on 2026-06-02 after the operations m
   - manufacturer-only yarn / suta buying surface
   - fulfilled through admin + mahajan routing
 
-## Operations Maturity Status
+## Operations Center Status
 
-- Reusable filtering and search helpers now exist in:
-  - [utils/filtering.py](/c:/2026/manditrade/manditrade/utils/filtering.py)
-  - [components/filter_bar.py](/c:/2026/manditrade/manditrade/components/filter_bar.py)
-- Reusable timeline rendering now exists in:
-  - [components/timeline.py](/c:/2026/manditrade/manditrade/components/timeline.py)
-  - [components/order_timeline.py](/c:/2026/manditrade/manditrade/components/order_timeline.py)
-- Centralized status styling now exists in:
-  - [utils/status_styles.py](/c:/2026/manditrade/manditrade/utils/status_styles.py)
-- Export utilities now exist in:
-  - [utils/export_utils.py](/c:/2026/manditrade/manditrade/utils/export_utils.py)
-- Notification deep-link helpers now exist in:
-  - [utils/deep_links.py](/c:/2026/manditrade/manditrade/utils/deep_links.py)
+- Admin now has a dedicated `Operations Center` route and page:
+  - [modules/admin/operations_dashboard.py](/c:/2026/manditrade/manditrade/modules/admin/operations_dashboard.py)
+- Navigation and route access are wired through:
+  - [services/navigation_service.py](/c:/2026/manditrade/manditrade/services/navigation_service.py)
+  - [bootstrap/route_registry.py](/c:/2026/manditrade/manditrade/bootstrap/route_registry.py)
+- Current operational sections include:
+  - commerce health
+  - supply health
+  - financial health
+  - workforce health
+  - platform health
+  - alerts
+  - recommendations
+  - operational search
+  - automation task runner
 
-## Workflow Visibility Status
+## Alert Engine Status
 
-- `Mandi Orders` now supports:
-  - KPI filter cards
-  - reusable filter/search layer
-  - export to CSV / JSON
-  - role-aware order detail
-  - logistics console visibility
-  - admin logistics update controls
-- Main implementation:
-  - [modules/procurement/dashboard.py](/c:/2026/manditrade/manditrade/modules/procurement/dashboard.py)
+- Reusable alert engine now exists in:
+  - [services/alert_engine.py](/c:/2026/manditrade/manditrade/services/alert_engine.py)
+- Alerts persist centrally in runtime storage and currently cover:
+  - overdue payments
+  - stalled mandi orders
+  - delayed dispatches
+  - low raw-material stock
+  - unverified public payments
+  - inactive manufacturers
+  - inactive mahajans
+  - failed logistics updates
+  - pending approvals too long
 
-- `Marketplace Orders` now supports:
-  - reusable filter/search layer
-  - visual timeline
-  - logistics visibility
-  - admin logistics updates
-  - export to CSV / JSON
-- Main implementation:
-  - [modules/public_orders/dashboard.py](/c:/2026/manditrade/manditrade/modules/public_orders/dashboard.py)
+## Recommendation Engine Status
 
-- `Notifications` now supports:
-  - filter/search
-  - export
-  - related-record deep links
-  - better empty states
-- Main implementation:
-  - [modules/notifications/dashboard.py](/c:/2026/manditrade/manditrade/modules/notifications/dashboard.py)
+- Rule-based recommendation service now exists in:
+  - [services/recommendation_service.py](/c:/2026/manditrade/manditrade/services/recommendation_service.py)
+- Recommendations now generate for:
+  - `platform_admin`
+  - `manufacturer`
+  - `mahajan`
 
-## Logistics Console Status
+## KPI Engine Status
 
-- Marketplace logistics are persisted in [services/public_order_service.py](/c:/2026/manditrade/manditrade/services/public_order_service.py).
-- Mandi / supply logistics are persisted in [services/procurement_transaction_service.py](/c:/2026/manditrade/manditrade/services/procurement_transaction_service.py).
-- Admin remains the logistics owner across marketplace and supply flows.
+- Reusable KPI calculator now exists in:
+  - [services/kpi_service.py](/c:/2026/manditrade/manditrade/services/kpi_service.py)
+- Current KPI coverage includes:
+  - marketplace orders / revenue
+  - active mandi orders
+  - fulfillment and supplier response timing
+  - dispatch and low-stock rates
+  - outstanding ledger and commission pending
+  - jobs filled and worker response rate
+  - manufacturer / mahajan / platform health scores
 
-## Audit Logging Status
+## Automation Task Status
 
-- Structured governance logs are now written under:
-  - `app_runtime/audit/audit_logs/`
-- Logging service:
-  - [services/audit_service.py](/c:/2026/manditrade/manditrade/services/audit_service.py)
-- Current audit coverage includes:
-  - product upserts / archive
-  - manufacturer upserts / archive
-  - mahajan upserts / archive
-  - raw-material upserts
-  - supply-order lifecycle updates
-  - supply-ledger creation
-  - marketplace payment and logistics updates
+- Scheduler-compatible automation utilities now exist in:
+  - [services/automation_tasks.py](/c:/2026/manditrade/manditrade/services/automation_tasks.py)
+- Current task entry points:
+  - `run_hourly_tasks()`
+  - `run_daily_tasks()`
+- Current automated actions:
+  - recompute KPI snapshot
+  - generate alerts
+  - refresh recommendations
+  - archive old audit logs
+  - write hourly / daily task summaries
 
-## Archive Model Status
+## Operational Search Status
 
-- Hard-delete behavior for live admin registry actions is replaced by archive status updates for:
-  - products
+- Global admin operational search now exists in:
+  - [services/operational_search_service.py](/c:/2026/manditrade/manditrade/services/operational_search_service.py)
+- Search currently covers:
   - manufacturers
   - mahajans
-- Archive behavior is handled in:
-  - [services/governance_service.py](/c:/2026/manditrade/manditrade/services/governance_service.py)
-- Current lifecycle set in live UI now includes `ARCHIVED` where relevant.
+  - products
+  - raw materials
+  - mandi / supply orders
+  - marketplace orders
+  - ledger entries
 
-## Search / Filter Status
+## Audit Intelligence Status
 
-- Reusable search/filter is now applied across major operational pages including:
-  - `Marketplace Orders`
-  - `Mandi Orders`
-  - `Products`
-  - `Raw Materials`
-  - `Payments`
-  - `Ledger`
-  - `Jobs`
-  - `Notifications`
-  - `Manufacturers`
-  - `Mahajans`
-  - `Suta Mandi`
+- Structured governance logs remain in:
+  - `app_runtime/audit/audit_logs/`
+- Audit filtering and summaries now support:
+  - actor filter
+  - entity filter
+  - severity filter
+  - summary counts
+  - old-log archival
+- Main implementation:
+  - [services/audit_service.py](/c:/2026/manditrade/manditrade/services/audit_service.py)
 
-## Raw Material vs Product Separation Status
+## Analytics Maturity Status
 
-- Finished-product wording remains on:
-  - [modules/products/dashboard.py](/c:/2026/manditrade/manditrade/modules/products/dashboard.py)
-- Supply-input wording remains on:
-  - [modules/raw_materials/dashboard.py](/c:/2026/manditrade/manditrade/modules/raw_materials/dashboard.py)
-  - [modules/procurement/dashboard.py](/c:/2026/manditrade/manditrade/modules/procurement/dashboard.py)
-  - [modules/suta_mandi/dashboard.py](/c:/2026/manditrade/manditrade/modules/suta_mandi/dashboard.py)
+- Analytics now reads from the KPI engine and shows stronger operational summaries in:
+  - [modules/analytics/dashboard.py](/c:/2026/manditrade/manditrade/modules/analytics/dashboard.py)
+- Current admin analytics now include:
+  - KPI summary cards
+  - public marketplace trends
+  - raw-material trend charts
+  - finance snapshots
 
-## Suta Mandi Status
+## Jobs Lifecycle Status
 
-- `Suta Mandi` remains manufacturer-only.
-- Suta catalog filtering/export now exists.
-- Public-buyer and mahajan public exposure remain blocked by route + navigation rules.
+- Jobs lifecycle is now more mature in:
+  - [services/job_service.py](/c:/2026/manditrade/manditrade/services/job_service.py)
+  - [modules/jobs/dashboard.py](/c:/2026/manditrade/manditrade/modules/jobs/dashboard.py)
+- Current job lifecycle support includes:
+  - `ACTIVE`
+  - `PAUSED`
+  - `CLOSED`
+  - `ARCHIVED`
+- Additional worker-selection state now includes:
+  - shortlist tracking
+  - selected application tracking
+
+## Status / Workflow Support
+
+- Reusable filtering and search helpers:
+  - [utils/filtering.py](/c:/2026/manditrade/manditrade/utils/filtering.py)
+  - [components/filter_bar.py](/c:/2026/manditrade/manditrade/components/filter_bar.py)
+- Reusable timeline rendering:
+  - [components/timeline.py](/c:/2026/manditrade/manditrade/components/timeline.py)
+  - [components/order_timeline.py](/c:/2026/manditrade/manditrade/components/order_timeline.py)
+- Centralized status styling:
+  - [utils/status_styles.py](/c:/2026/manditrade/manditrade/utils/status_styles.py)
+- Export utilities:
+  - [utils/export_utils.py](/c:/2026/manditrade/manditrade/utils/export_utils.py)
+- Deep-link helpers:
+  - [utils/deep_links.py](/c:/2026/manditrade/manditrade/utils/deep_links.py)
 
 ## Compatibility Note
 
@@ -141,7 +170,7 @@ Generated from the current repository state on 2026-06-02 after the operations m
 ## Tests Result
 
 - `python -m pytest tests/ -q`
-  - Passed: `177`
+  - Passed: `184`
   - Skipped: `5`
 - `python -m compileall app.py modules services utils components schemas bootstrap scripts`
   - Passed
@@ -150,6 +179,6 @@ Generated from the current repository state on 2026-06-02 after the operations m
 
 ## Remaining Blockers
 
-- Some pages still use simple `st.dataframe(...)` detail surfaces after filtering instead of a fully unified record-detail shell.
-- Jobs and worker operations are more mature now, but their archive lifecycle is still lighter than the product / supplier registry archive model.
-- Compatibility-only internal names from the old client-era data model still exist and should only be removed in a dedicated migration pass.
+- Alerts and recommendations are intentionally rule-based and deterministic; there is still no forecasting depth or adaptive scoring beyond current heuristics.
+- Operational search currently routes to page-level detail surfaces, not a universal modal detail shell.
+- Legacy compatibility-only internal names from the old client-era data model still exist and should only be removed in a dedicated migration pass.

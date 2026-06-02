@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from collections import Counter
-
 import streamlit as st
 
 from components.responsive_layout import render_section_intro
@@ -15,15 +13,12 @@ def render_analytics_dashboard(app_context: dict) -> None:
     render_page_header("Analytics", "Review marketplace, mandi network, and finance summaries from one admin-safe operations page.", ["Platform Admin", "Summary View"])
     current_user = app_context["current_user"]
     governance_service = app_context["governance_service"]
+    kpis = app_context["kpi_service"].calculate_snapshot(app_context)
 
     if current_user and current_user.role == "manufacturer" and current_user.manufacturer_code:
         orders = app_context["order_query_service"].list_orders(current_user.manufacturer_code)
         procurement = app_context["procurement_query_service"].list_procurement_requests(current_user.manufacturer_code)
         inventory = app_context["inventory_query_service"].list_inventory_snapshot(current_user.manufacturer_code)
-        top_products = Counter()
-        for order in orders:
-            for item in order.get("items", []):
-                top_products[item.get("product_name", item.get("product_id", ""))] += int(item.get("qty", 0))
         render_metric_grid(
             [
                 render_metric_card("Order Volume", str(len(orders)), "OPEN"),
@@ -43,13 +38,13 @@ def render_analytics_dashboard(app_context: dict) -> None:
         overview_tab, marketplace_tab, mandi_tab, finance_tab = st.tabs(["Overview", "Marketplace", "Mandi Network", "Finance"])
         with overview_tab:
             render_section_intro("Manufacturer Analytics", "This view stays limited to the current manufacturer workspace.")
-            st.dataframe([{"product": k, "ordered_qty": v} for k, v in top_products.most_common(10)], use_container_width=True)
+            st.dataframe(inventory.get("items", []), use_container_width=True)
         with marketplace_tab:
-            st.info("Marketplace analytics are shown through your marketplace listings and public orders.")
+            st.dataframe(app_context["public_order_service"].list_orders_for_seller(current_user.manufacturer_code), use_container_width=True)
         with mandi_tab:
             st.dataframe(procurement, use_container_width=True)
         with finance_tab:
-            st.info("Finance analytics stay summary-only on this screen.")
+            st.dataframe(app_context["ledger_service"].list_ledger_entries(current_user.manufacturer_code), use_container_width=True)
         return
 
     manufacturers = governance_service.list_manufacturers()
@@ -59,8 +54,8 @@ def render_analytics_dashboard(app_context: dict) -> None:
     render_metric_grid(
         [
             render_metric_card("Active Manufacturers", str(active_manufacturers), "SUCCESS"),
-            render_metric_card("Blocked Or Inactive", str(blocked_manufacturers), "WARNING"),
-            render_metric_card("Product Registry", str(len(products)), "OPEN"),
+            render_metric_card("Marketplace Revenue Today", str(kpis["marketplace"]["revenue_today"]), "OPEN"),
+            render_metric_card("Platform Health", str(kpis["health_scores"]["platform"]), "SUCCESS" if kpis["health_scores"]["platform"] >= 70 else "WARNING"),
         ]
     )
     render_metric_button_row(
@@ -75,10 +70,32 @@ def render_analytics_dashboard(app_context: dict) -> None:
     overview_tab, marketplace_tab, mandi_tab, finance_tab = st.tabs(["Overview", "Marketplace", "Mandi Network", "Finance"])
     with overview_tab:
         render_section_intro("Platform Analytics", "Admin analytics exclude private buyer identities and invoice data.")
-        st.dataframe(manufacturers, use_container_width=True)
+        st.dataframe(
+            [
+                {"metric": "Orders Today", "value": kpis["marketplace"]["orders_today"]},
+                {"metric": "Mandi Active Orders", "value": kpis["mandi"]["active_orders"]},
+                {"metric": "Outstanding Ledger", "value": kpis["finance"]["outstanding_ledger"]},
+                {"metric": "Worker Response Rate", "value": kpis["workforce"]["worker_response_rate"]},
+            ],
+            use_container_width=True,
+        )
     with marketplace_tab:
-        st.dataframe([item for item in products if item.get("approved_visibility") == "PUBLIC"], use_container_width=True)
+        public_rows = [item for item in products if item.get("approved_visibility") == "PUBLIC"]
+        st.dataframe(public_rows, use_container_width=True)
+        top_products = kpis.get("tops", {}).get("products", [])
+        if top_products:
+            st.bar_chart({item["name"]: item["qty"] for item in top_products})
     with mandi_tab:
-        st.dataframe(products, use_container_width=True)
+        st.dataframe(app_context["governance_service"].list_supply_orders(), use_container_width=True)
+        top_materials = kpis.get("tops", {}).get("raw_materials", [])
+        if top_materials:
+            st.bar_chart({item["raw_material_id"]: item["count"] for item in top_materials})
     with finance_tab:
-        st.info("Finance analytics remain summary-first here. Platform commission details stay on the dedicated commission page.")
+        st.dataframe(
+            [
+                {"metric": "Outstanding Ledger", "value": kpis["finance"]["outstanding_ledger"]},
+                {"metric": "Overdue %", "value": kpis["finance"]["overdue_percent"]},
+                {"metric": "Commission Pending", "value": kpis["finance"]["commission_pending"]},
+            ],
+            use_container_width=True,
+        )

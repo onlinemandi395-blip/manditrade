@@ -32,6 +32,7 @@ class IdAllocatorService:
         "public_order": "PUBORD",
         "public_payment": "PUBPAY",
         "payment": "PAY",
+        "alert": "ALERT",
     }
 
     def __init__(self, counters_path: Path, file_lock_service: FileLockService) -> None:
