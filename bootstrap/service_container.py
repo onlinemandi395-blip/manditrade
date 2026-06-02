@@ -232,40 +232,13 @@ def build_app_context() -> dict:
         json_service=drive_service.json_service,
         id_allocator_service=id_allocator_service,
     )
-    cart_service = CartService(
-        carts_root=APP_RUNTIME_DIR / "carts",
-        safe_drive_write_service=safe_drive_write_service,
-        json_service=drive_service.json_service,
-        id_allocator_service=id_allocator_service,
-        product_catalog_service=product_catalog_service,
-        governance_service=governance_service,
-        procurement_transaction_service=procurement_transaction_service,
-    )
     public_cart_service = PublicCartService(
         public_buyer_service=public_buyer_service,
         product_catalog_service=product_catalog_service,
         safe_drive_write_service=safe_drive_write_service,
         json_service=drive_service.json_service,
         id_allocator_service=id_allocator_service,
-        cart_service=cart_service,
     )
-    public_order_service = PublicOrderService(
-        public_orders_root=public_orders_root,
-        public_payments_root=public_payments_root,
-        public_buyer_service=public_buyer_service,
-        public_cart_service=public_cart_service,
-        product_catalog_service=product_catalog_service,
-        dual_inventory_service=dual_inventory_service,
-        notification_center_service=notification_center_service,
-        gmail_service=gmail_service,
-        governance_service=governance_service,
-        safe_drive_write_service=safe_drive_write_service,
-        json_service=drive_service.json_service,
-        id_allocator_service=id_allocator_service,
-        pricing_service=pricing_service,
-        config=system_config.get("public_payment", {}),
-    )
-    cart_service.public_order_service = public_order_service
     worker_service = WorkerService(
         governance_root=GOVERNANCE_DIR,
         safe_drive_write_service=safe_drive_write_service,
@@ -312,6 +285,33 @@ def build_app_context() -> dict:
         governance_service=governance_service,
         pricing_service=pricing_service,
     )
+    cart_service = CartService(
+        carts_root=APP_RUNTIME_DIR / "carts",
+        safe_drive_write_service=safe_drive_write_service,
+        json_service=drive_service.json_service,
+        id_allocator_service=id_allocator_service,
+        product_catalog_service=product_catalog_service,
+        governance_service=governance_service,
+        procurement_transaction_service=procurement_transaction_service,
+    )
+    public_cart_service.cart_service = cart_service
+    public_order_service = PublicOrderService(
+        public_orders_root=public_orders_root,
+        public_payments_root=public_payments_root,
+        public_buyer_service=public_buyer_service,
+        public_cart_service=public_cart_service,
+        product_catalog_service=product_catalog_service,
+        dual_inventory_service=dual_inventory_service,
+        notification_center_service=notification_center_service,
+        gmail_service=gmail_service,
+        governance_service=governance_service,
+        safe_drive_write_service=safe_drive_write_service,
+        json_service=drive_service.json_service,
+        id_allocator_service=id_allocator_service,
+        pricing_service=pricing_service,
+        config=system_config.get("public_payment", {}),
+    )
+    cart_service.public_order_service = public_order_service
     order_transaction_service = OrderTransactionService(
         drive_service=drive_service,
         safe_drive_write_service=safe_drive_write_service,
