@@ -27,6 +27,10 @@ class NotificationCenterService:
         message: str,
         source_type: str,
         source_id: str,
+        source_route: str = "",
+        thumbnail_url: str = "",
+        severity: str = "",
+        recipient_role: str = "",
     ) -> dict[str, Any]:
         path = self.domain_paths.notifications_path(manufacturer_code)
         if not path.exists():
@@ -40,6 +44,11 @@ class NotificationCenterService:
             "message": message,
             "source_type": source_type,
             "source_id": source_id,
+            "source_route": source_route,
+            "deep_link": source_route,
+            "thumbnail_url": thumbnail_url,
+            "severity": severity or priority,
+            "recipient_role": recipient_role,
             "read": False,
             "resolved": False,
             "remind_later_at": "",
@@ -89,6 +98,10 @@ class NotificationCenterService:
         message: str,
         source_type: str,
         source_id: str,
+        source_route: str = "",
+        thumbnail_url: str = "",
+        severity: str = "",
+        recipient_role: str = "",
     ) -> dict[str, Any]:
         path = self.public_notifications_path(public_buyer_id)
         if not path.exists():
@@ -102,6 +115,11 @@ class NotificationCenterService:
             "message": message,
             "source_type": source_type,
             "source_id": source_id,
+            "source_route": source_route,
+            "deep_link": source_route,
+            "thumbnail_url": thumbnail_url,
+            "severity": severity or priority,
+            "recipient_role": recipient_role,
             "read": False,
             "resolved": False,
             "remind_later_at": "",

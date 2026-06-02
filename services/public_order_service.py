@@ -23,6 +23,8 @@ class PublicOrderService:
         id_allocator_service,
         pricing_service=None,
         config: dict[str, Any] | None = None,
+        trust_badge_service=None,
+        event_notification_service=None,
     ) -> None:
         self.public_orders_root = public_orders_root
         self.public_payments_root = public_payments_root
@@ -38,6 +40,8 @@ class PublicOrderService:
         self.id_allocator_service = id_allocator_service
         self.pricing_service = pricing_service
         self.config = config or {}
+        self.trust_badge_service = trust_badge_service
+        self.event_notification_service = event_notification_service
 
     def list_orders_for_buyer(self, public_buyer_id: str) -> list[dict[str, Any]]:
         return [item for item in self.list_all_orders() if item.get("public_buyer_id") == public_buyer_id]
@@ -76,6 +80,10 @@ class PublicOrderService:
             "payment_status": "PENDING",
             "payment_reference": "",
             "payment_screenshot_placeholder": "",
+            "payment_proof_url": "",
+            "payment_proof_uploaded_at": "",
+            "payment_verified_by": "",
+            "payment_verified_at": "",
             "payment_receiver": seller_id,
             "status": "PAYMENT_PENDING",
             "assigned_seller_manufacturer_id": seller_id,
@@ -99,10 +107,18 @@ class PublicOrderService:
                 "driver_name": "",
                 "driver_mobile": "",
                 "vehicle_number": "",
+                "dispatch_time": "",
+                "expected_delivery": "",
                 "dispatch_note": "",
+                "delivery_note": "",
                 "proof_url": "",
+                "proof_image_url": "",
                 "delivered_at": "",
             },
+            "status_history": [
+                {"status": "PAYMENT_PENDING", "at": datetime.now(UTC).isoformat(), "actor": buyer.get("email", "")}
+            ],
+            "ratings": [],
             "created_at": datetime.now(UTC).isoformat(),
             "updated_at": datetime.now(UTC).isoformat(),
         }
@@ -117,12 +133,27 @@ class PublicOrderService:
             message="Your marketplace order was created. Complete full upfront payment to proceed.",
             source_type="PUBLIC_ORDER",
             source_id=order["public_order_id"],
+            source_route="Marketplace Orders",
+            thumbnail_url=str((items[0] if items else {}).get("thumbnail_url", "")),
+            severity="MEDIUM",
         )
         self.gmail_service.enqueue_message(
             buyer.get("email", ""),
             f"Payment instructions for {order['public_order_id']}",
             self.build_payment_instruction_text(order),
             "public_order_created",
+        )
+        self._emit_event(
+            "MARKETPLACE_ORDER_CREATED",
+            entity_type="PUBLIC_ORDER",
+            entity_id=order["public_order_id"],
+            title="Marketplace order created",
+            message=f"Marketplace order {order['public_order_id']} was created.",
+            public_buyer_id=public_buyer_id,
+            public_buyer_email=buyer.get("email", ""),
+            manufacturer_code=seller_id,
+            manufacturer_email=((self.governance_service.get_manufacturer(seller_id) or {}).get("owner_email", "")),
+            thumbnail_url=str((items[0] if items else {}).get("thumbnail_url", "")),
         )
         self.public_cart_service.clear_cart(public_buyer_id)
         self._audit(
@@ -148,6 +179,8 @@ class PublicOrderService:
         def mutator(payload: dict[str, Any]) -> dict[str, Any]:
             payload["payment_reference"] = reference
             payload["payment_screenshot_placeholder"] = screenshot_placeholder.strip()
+            payload["payment_proof_url"] = screenshot_placeholder.strip()
+            payload["payment_proof_uploaded_at"] = datetime.now(UTC).isoformat()
             payload["payment_status"] = "SUBMITTED"
             payload["updated_at"] = datetime.now(UTC).isoformat()
             return payload
@@ -165,7 +198,22 @@ class PublicOrderService:
                 message=f"Buyer submitted payment reference for {public_order_id}.",
                 source_type="PUBLIC_ORDER",
                 source_id=public_order_id,
+                source_route="Marketplace Orders",
+                thumbnail_url=str((updated.get("items") or [{}])[0].get("thumbnail_url", "")),
+                severity="HIGH",
             )
+        self._emit_event(
+            "PAYMENT_SUBMITTED",
+            entity_type="PUBLIC_ORDER",
+            entity_id=public_order_id,
+            title="Payment submitted",
+            message=f"Payment was submitted for {public_order_id}.",
+            public_buyer_id=updated.get("public_buyer_id", ""),
+            public_buyer_email=updated.get("buyer_email", ""),
+            manufacturer_code=seller_id,
+            manufacturer_email=((self.governance_service.get_manufacturer(seller_id) or {}).get("owner_email", "")),
+            thumbnail_url=str((updated.get("items") or [{}])[0].get("thumbnail_url", "")),
+        )
         self._record_payment_event(public_order_id, "PAYMENT_SUBMITTED", {"payment_reference": reference})
         self._audit(
             action="PUBLIC_PAYMENT_SUBMITTED",
@@ -187,6 +235,7 @@ class PublicOrderService:
                 payload["payment_status"] = "FAILED"
                 payload["status"] = "PAYMENT_PENDING"
                 payload["seller_note"] = note.strip()
+                payload["status_history"] = list(payload.get("status_history", [])) + [{"status": "PAYMENT_PENDING", "at": datetime.now(UTC).isoformat(), "actor": getattr(verifier_user, "email", "")}]
                 payload["updated_at"] = datetime.now(UTC).isoformat()
                 return payload
             self.safe_drive_write_service.mutate_json(path, reject_mutator)
@@ -210,6 +259,9 @@ class PublicOrderService:
             payload["inventory_reserved"] = True
             payload["commission_status"] = "DUE"
             payload["seller_note"] = note.strip()
+            payload["payment_verified_by"] = getattr(verifier_user, "email", "")
+            payload["payment_verified_at"] = datetime.now(UTC).isoformat()
+            payload["status_history"] = list(payload.get("status_history", [])) + [{"status": "PAID", "at": datetime.now(UTC).isoformat(), "actor": getattr(verifier_user, "email", "")}]
             payload["updated_at"] = datetime.now(UTC).isoformat()
             return payload
 
@@ -224,12 +276,27 @@ class PublicOrderService:
             message=f"Your payment for {public_order_id} was verified.",
             source_type="PUBLIC_ORDER",
             source_id=public_order_id,
+            source_route="Marketplace Orders",
+            thumbnail_url=str((updated.get("items") or [{}])[0].get("thumbnail_url", "")),
+            severity="MEDIUM",
         )
         self.gmail_service.enqueue_message(
             updated.get("buyer_email", ""),
             f"Payment received for {public_order_id}",
             f"Payment for your public order {public_order_id} was verified successfully.",
             "public_payment_verified",
+        )
+        self._emit_event(
+            "PAYMENT_VERIFIED",
+            entity_type="PUBLIC_ORDER",
+            entity_id=public_order_id,
+            title="Payment verified",
+            message=f"Payment was verified for {public_order_id}.",
+            public_buyer_id=updated.get("public_buyer_id", ""),
+            public_buyer_email=updated.get("buyer_email", ""),
+            manufacturer_code=updated.get("assigned_seller_manufacturer_id", ""),
+            manufacturer_email=((self.governance_service.get_manufacturer(updated.get("assigned_seller_manufacturer_id", "")) or {}).get("owner_email", "")),
+            thumbnail_url=str((updated.get("items") or [{}])[0].get("thumbnail_url", "")),
         )
         self._record_payment_event(public_order_id, "PAYMENT_VERIFIED", {"note": note.strip()})
         self._audit(
@@ -308,6 +375,7 @@ class PublicOrderService:
         dispatch_note: str = "",
         proof_url: str = "",
         delivery_status: str = "",
+        expected_delivery: str = "",
     ) -> dict[str, Any]:
         order = self.get_order(public_order_id)
         self._ensure_seller_access(order, actor)
@@ -322,8 +390,12 @@ class PublicOrderService:
                     "driver_name": driver_name or payload["logistics"].get("driver_name", ""),
                     "driver_mobile": driver_mobile or payload["logistics"].get("driver_mobile", ""),
                     "vehicle_number": vehicle_number or payload["logistics"].get("vehicle_number", ""),
+                    "dispatch_time": datetime.now(UTC).isoformat() if delivery_status.upper() == "DISPATCHED" and not payload["logistics"].get("dispatch_time") else payload["logistics"].get("dispatch_time", ""),
+                    "expected_delivery": expected_delivery or payload["logistics"].get("expected_delivery", ""),
                     "dispatch_note": dispatch_note or payload["logistics"].get("dispatch_note", ""),
+                    "delivery_note": dispatch_note or payload["logistics"].get("delivery_note", ""),
                     "proof_url": proof_url or payload["logistics"].get("proof_url", ""),
+                    "proof_image_url": proof_url or payload["logistics"].get("proof_image_url", ""),
                     "delivery_status": delivery_status or payload["logistics"].get("delivery_status", ""),
                 }
             )
@@ -338,6 +410,18 @@ class PublicOrderService:
             role=getattr(actor, "role", ""),
             entity_id=public_order_id,
             details={"delivery_status": updated.get("logistics", {}).get("delivery_status", ""), "vehicle_number": updated.get("logistics", {}).get("vehicle_number", "")},
+        )
+        self._emit_event(
+            "LOGISTICS_UPDATED",
+            entity_type="PUBLIC_ORDER",
+            entity_id=public_order_id,
+            title="Logistics updated",
+            message=f"Logistics updated for {public_order_id}.",
+            public_buyer_id=updated.get("public_buyer_id", ""),
+            public_buyer_email=updated.get("buyer_email", ""),
+            manufacturer_code=updated.get("assigned_seller_manufacturer_id", ""),
+            manufacturer_email=((self.governance_service.get_manufacturer(updated.get("assigned_seller_manufacturer_id", "")) or {}).get("owner_email", "")),
+            thumbnail_url=str((updated.get("items") or [{}])[0].get("thumbnail_url", "")),
         )
         return updated
 
@@ -357,6 +441,25 @@ class PublicOrderService:
             f"UPI ID: {upi_id or 'To be shared by seller'}\n"
             f"Instructions: {instructions}"
         )
+
+    def submit_feedback(self, public_order_id: str, *, rating: int, feedback: str, submitted_by: str) -> dict[str, Any]:
+        order = self.get_order(public_order_id)
+        path = self._order_path(order["public_order_id"], order["created_at"])
+        feedback_row = {
+            "rating": max(1, min(int(rating or 0), 5)),
+            "feedback": feedback.strip(),
+            "submitted_by": submitted_by,
+            "created_at": datetime.now(UTC).isoformat(),
+        }
+
+        def mutator(payload: dict[str, Any]) -> dict[str, Any]:
+            payload.setdefault("ratings", [])
+            payload["ratings"].append(feedback_row)
+            payload["updated_at"] = datetime.now(UTC).isoformat()
+            return payload
+
+        self.safe_drive_write_service.mutate_json(path, mutator)
+        return self.get_order(public_order_id)
 
     def _payment_config(self) -> dict[str, Any]:
         return {
@@ -384,10 +487,13 @@ class PublicOrderService:
 
         def mutator(payload: dict[str, Any]) -> dict[str, Any]:
             payload["status"] = next_status
+            payload.setdefault("status_history", [])
+            payload["status_history"].append({"status": next_status, "at": datetime.now(UTC).isoformat(), "actor": "system"})
             if next_status == "DISPATCHED":
                 payload.setdefault("logistics", {})
                 payload["logistics"]["logistics_owner"] = "platform_admin"
                 payload["logistics"]["delivery_status"] = "DISPATCHED"
+                payload["logistics"]["dispatch_time"] = datetime.now(UTC).isoformat()
             if next_status == "DELIVERED":
                 payload.setdefault("logistics", {})
                 payload["logistics"]["logistics_owner"] = "platform_admin"
@@ -408,6 +514,9 @@ class PublicOrderService:
             message=message,
             source_type="PUBLIC_ORDER",
             source_id=public_order_id,
+            source_route="Marketplace Orders",
+            thumbnail_url=str((updated.get("items") or [{}])[0].get("thumbnail_url", "")),
+            severity="MEDIUM",
         )
         self.gmail_service.enqueue_message(updated.get("buyer_email", ""), buyer_email_subject, buyer_email_body, notification_type.lower())
         self._audit(
@@ -416,6 +525,18 @@ class PublicOrderService:
             role="system",
             entity_id=public_order_id,
             details={"status": updated.get("status", ""), "delivery_status": updated.get("logistics", {}).get("delivery_status", "")},
+        )
+        self._emit_event(
+            "ORDER_DISPATCHED" if next_status == "DISPATCHED" else "DELIVERY_COMPLETED" if next_status == "DELIVERED" else "STATUS_CHANGED",
+            entity_type="PUBLIC_ORDER",
+            entity_id=public_order_id,
+            title=f"Order {next_status.replace('_', ' ').title()}",
+            message=message,
+            public_buyer_id=updated.get("public_buyer_id", ""),
+            public_buyer_email=updated.get("buyer_email", ""),
+            manufacturer_code=updated.get("assigned_seller_manufacturer_id", ""),
+            manufacturer_email=((self.governance_service.get_manufacturer(updated.get("assigned_seller_manufacturer_id", "")) or {}).get("owner_email", "")),
+            thumbnail_url=str((updated.get("items") or [{}])[0].get("thumbnail_url", "")),
         )
         return updated
 
@@ -461,3 +582,13 @@ class PublicOrderService:
             entity_id=entity_id,
             details=details,
         )
+
+    def trust_badges_for_order(self, order: dict[str, Any]) -> list[str]:
+        if not self.trust_badge_service:
+            return []
+        return self.trust_badge_service.badges_for_marketplace_order(order)
+
+    def _emit_event(self, event_type: str, **payload: Any) -> None:
+        if not self.event_notification_service:
+            return
+        self.event_notification_service.emit(event_type, payload)

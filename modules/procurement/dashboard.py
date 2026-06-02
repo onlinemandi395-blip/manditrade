@@ -5,7 +5,7 @@ from typing import Any
 import streamlit as st
 
 from components.filter_bar import render_filter_bar
-from components.order_timeline import render_order_timeline_component
+from components.order_detail_view import build_order_detail_payload, render_order_detail_view
 from components.product_card import render_product_card
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
@@ -165,35 +165,44 @@ def _render_supply_order_detail(
         supply_ledger_entries=supply_ledger_entries,
         mandi_ledger_entries=mandi_ledger_entries,
     )
+    material = materials_by_id.get(str(order.get("raw_material_id") or ""), {})
     render_section_intro("Mandi Order Detail", "Raw Materials belong to the admin/mahajan supply layer. Products remain the manufacturer selling layer.")
     render_status_chip("Current Status", MANDI_TIMELINE_LABELS.get(detail["current_status"], detail["current_status"]))
     render_status_chip("Next Action", detail["next_action"])
-    render_order_timeline_component(order.get("status", ""), steps=MANDI_TIMELINE_STEPS, labels=MANDI_TIMELINE_LABELS)
-    col1, col2 = st.columns(2)
-    with col1:
-        st.json(
-            {
-                "order_id": detail["order_id"],
-                "manufacturer": detail["manufacturer"],
-                "mahajan": detail["mahajan"],
-                "raw_material_items": detail["raw_material_items"],
-                "current_status": detail["current_status"],
-                "next_action": detail["next_action"],
-            },
-            expanded=False,
-        )
-    with col2:
-        st.json(
-            {
+    render_order_detail_view(
+        build_order_detail_payload(
+            order,
+            order_id_key="mandi_order_id",
+            status=str(order.get("status", "")),
+            items=[
+                {
+                    "name": material.get("name", order.get("raw_material_id", "Raw Material")),
+                    "qty": order.get("qty", 0),
+                    "unit": order.get("unit", ""),
+                    "unit_price": order.get("manufacturer_unit_price", order.get("mahajan_unit_price", 0)),
+                    "subtotal": float(order.get("manufacturer_unit_price", order.get("mahajan_unit_price", 0)) or 0) * float(order.get("qty", 0) or 0),
+                    "thumbnail_url": material.get("thumbnail_url", ""),
+                    "image_url": material.get("image_url", ""),
+                }
+            ],
+            timeline_steps=MANDI_TIMELINE_STEPS,
+            timeline_labels=MANDI_TIMELINE_LABELS,
+            status_history=list(order.get("internal_status_history", [])),
+            logistics=dict(order.get("logistics", {})),
+            payment={
+                "payment_receiver": order.get("payment_receiver", ""),
+                "payment_proof_url": order.get("payment_proof_url", ""),
+                "payment_verified_by": order.get("payment_verified_by", ""),
+                "payment_verified_at": order.get("payment_verified_at", ""),
+                "ledger_status": detail["ledger_status"],
                 "mahajan_price": detail["mahajan_price"],
                 "manufacturer_price": detail["manufacturer_price"],
                 "admin_earning": detail["admin_earning"],
-                "ledger_status": detail["ledger_status"],
             },
-            expanded=False,
+            next_action=detail["next_action"],
+            trust_badges=[],
         )
-    st.caption("Timeline")
-    st.write(" -> ".join(detail["timeline"]))
+    )
 
 
 def _render_mandi_order_filters(page_key: str, orders: list[dict[str, Any]]) -> None:
@@ -261,7 +270,8 @@ def _render_logistics_console(*, order: dict[str, Any], service, user) -> None:
         driver_name = col1.text_input("Transporter / Driver", value=str(logistics.get("driver_name", "")))
         driver_mobile = col2.text_input("Driver Mobile", value=str(logistics.get("driver_mobile", "")))
         vehicle_number = col1.text_input("Vehicle Number", value=str(logistics.get("vehicle_number", "")))
-        proof_url = col2.text_input("Proof Placeholder", value=str(logistics.get("proof_url", "")))
+        expected_delivery = col2.text_input("Expected Delivery", value=str(logistics.get("expected_delivery", "")))
+        proof_url = col1.text_input("Proof Image URL", value=str(logistics.get("proof_image_url", logistics.get("proof_url", ""))))
         dispatch_note = st.text_area("Dispatch Note", value=str(logistics.get("dispatch_note", "")))
         submitted = st.form_submit_button("Save Logistics Update")
     if submitted:
@@ -275,6 +285,7 @@ def _render_logistics_console(*, order: dict[str, Any], service, user) -> None:
             dispatch_note=dispatch_note,
             proof_url=proof_url,
             delivery_status=delivery_status,
+            expected_delivery=expected_delivery,
         )
         st.success("Logistics updated.")
         st.rerun()

@@ -17,6 +17,7 @@ def render_marketplace_dashboard(app_context: dict) -> None:
     role = user.role if user else "public_browse"
     products = app_context["product_catalog_service"].list_products(include_pending=False, viewer_role="public_buyer")
     image_service = app_context.get("image_service")
+    favorites_service = app_context.get("favorites_service")
     render_page_header(
         "Marketplace",
         "Instant-pay public shopping stays separate from the manufacturer-facing MandiPlace and raw-material supply workflows.",
@@ -131,6 +132,18 @@ def render_marketplace_dashboard(app_context: dict) -> None:
                 else:
                     st.success("Product added to public cart.")
                     st.rerun()
+            if favorites_service and st.button("Save To Favorites", use_container_width=True):
+                favorites_service.save_favorite(
+                    "public_buyer",
+                    buyer["public_buyer_id"],
+                    item_type="PRODUCT",
+                    item_id=selected_product_id,
+                    title=str(selected.get("name", "Product")),
+                    subtitle=str(selected.get("category", "General")),
+                    image_url=str(image.get("src", "")),
+                )
+                st.success("Saved to favorites.")
+                st.rerun()
     with cart_tab:
         cart = cart_service.get_cart(buyer["public_buyer_id"])
         if not cart.get("items"):
@@ -148,3 +161,6 @@ def render_marketplace_dashboard(app_context: dict) -> None:
                     st.success(f"Public order created: {order['public_order_id']}")
                     st.code(order_service.build_payment_instruction_text(order))
                     st.rerun()
+        if favorites_service:
+            favorites = favorites_service.list_favorites("public_buyer", buyer["public_buyer_id"])
+            st.caption(f"Saved Products: {len(favorites)}")

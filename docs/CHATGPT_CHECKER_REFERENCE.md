@@ -1,6 +1,6 @@
 # MandiTrade Checker Reference
 
-Generated from the current repository state on 2026-06-02 after the product images + thumbnail shopping cart UX pass.
+Generated from the current repository state on 2026-06-02 after the storage migration readiness pass.
 
 ## Final Role Model
 
@@ -62,6 +62,78 @@ Generated from the current repository state on 2026-06-02 after the product imag
   - sidebar navigation memory
   - deep links
   - operational search state
+
+## Drive JSON Folder Model Status
+
+- Canonical Drive-oriented path design now exists in:
+  - [services/drive_path_service.py](/c:/2026/manditrade/manditrade/services/drive_path_service.py)
+- Current centralized path coverage includes:
+  - registry paths
+  - catalog paths
+  - monthly order partitions
+  - notification queue/history/dead-letter paths
+  - audit paths
+  - media folders
+- The hardening pass is compatibility-safe:
+  - path centralization is live in code
+  - full physical live-data cutover is still deferred until migration is executed and validated
+
+## Storage Migration Status
+
+- Storage migration orchestration now exists in:
+  - [services/storage_migration_service.py](/c:/2026/manditrade/manditrade/services/storage_migration_service.py)
+- Current migration support includes:
+  - legacy path discovery
+  - dry-run and execute modes
+  - canonical-path writes through safe write service
+  - duplicate-safe merge behavior
+  - entity normalization
+  - migration report generation
+- Main operator script:
+  - [scripts/migrate_storage_to_canonical.py](/c:/2026/manditrade/manditrade/scripts/migrate_storage_to_canonical.py)
+
+## Canonical Validation Status
+
+- Canonical storage validation now exists in:
+  - [services/canonical_storage_validation_service.py](/c:/2026/manditrade/manditrade/services/canonical_storage_validation_service.py)
+  - [scripts/validate_canonical_storage.py](/c:/2026/manditrade/manditrade/scripts/validate_canonical_storage.py)
+- Validation currently checks:
+  - canonical folder presence
+  - required JSON readability
+  - legacy-vs-canonical gap warnings
+  - queue/media/schema readiness at a lightweight level
+
+## Storage Mode Status
+
+- Storage mode toggle is now present in:
+  - [configs/system_config.json](/c:/2026/manditrade/manditrade/configs/system_config.json)
+- Current mode fields:
+  - `storage.mode`
+  - `storage.allow_legacy_fallback`
+- Default remains:
+  - `compatibility`
+- Canonical mode switching is now path-layer aware in:
+  - [services/drive_path_service.py](/c:/2026/manditrade/manditrade/services/drive_path_service.py)
+
+## System Health Migration Status
+
+- Admin migration panel is now available in:
+  - [modules/system/health_dashboard.py](/c:/2026/manditrade/manditrade/modules/system/health_dashboard.py)
+- Current panel shows:
+  - current storage mode
+  - latest migration report
+  - canonical validation result
+  - dry-run trigger
+  - validation trigger
+
+## Path Service Status
+
+- Existing manufacturer workspace path logic remains in:
+  - [services/domain_paths_service.py](/c:/2026/manditrade/manditrade/services/domain_paths_service.py)
+- It now cooperates with the centralized Drive path layer for:
+  - registry lookups
+  - catalog lookups
+  - notification-channel paths
 
 ## Cache Layer Status
 
@@ -125,6 +197,64 @@ Generated from the current repository state on 2026-06-02 after the product imag
   - `platform_admin`
   - `manufacturer`
   - `mahajan`
+
+## Event Notification Status
+
+- Central event-to-notification orchestration now exists in:
+  - [services/event_notification_service.py](/c:/2026/manditrade/manditrade/services/event_notification_service.py)
+- Current routed event coverage includes:
+  - product approval request / approval / rejection
+  - raw material create / update
+  - marketplace order create
+  - payment submitted / verified
+  - supply order created / assigned / confirmed
+  - logistics updates
+  - job create / application updates
+  - archive events
+
+## Gmail Queue Status
+
+- Gmail notifications now queue first through:
+  - [services/gmail_service.py](/c:/2026/manditrade/manditrade/services/gmail_service.py)
+- Current flow is:
+  - event emitted
+  - in-app notification written if routed
+  - email queued
+  - queue processor writes history on send simulation/live send
+  - repeated failures land in dead letter
+- Current queue storage coverage includes:
+  - queue
+  - history
+  - retry state
+  - failed dead-letter handling
+
+## In-App Notification Routing Status
+
+- In-app notification entities now carry richer routing fields including:
+  - `source_route`
+  - `deep_link`
+  - `recipient_role`
+  - `severity`
+- Main implementation remains in:
+  - [services/notification_center_service.py](/c:/2026/manditrade/manditrade/services/notification_center_service.py)
+  - [modules/notifications/dashboard.py](/c:/2026/manditrade/manditrade/modules/notifications/dashboard.py)
+- Platform admin notification console now exposes:
+  - In-App
+  - Email Queue
+  - Email History
+  - Dead Letter
+  - Rules
+
+## CRUD Hook Coverage Status
+
+- Event hooks are now explicitly wired into major domains:
+  - [services/governance_service.py](/c:/2026/manditrade/manditrade/services/governance_service.py)
+  - [services/product_catalog_service.py](/c:/2026/manditrade/manditrade/services/product_catalog_service.py)
+  - [services/public_order_service.py](/c:/2026/manditrade/manditrade/services/public_order_service.py)
+  - [services/procurement_transaction_service.py](/c:/2026/manditrade/manditrade/services/procurement_transaction_service.py)
+  - [services/job_service.py](/c:/2026/manditrade/manditrade/services/job_service.py)
+- Notification failure is now isolated from core business commit:
+  - queue and dead-letter failures do not roll back the underlying business write
 
 ## KPI Engine Status
 
@@ -275,6 +405,79 @@ Generated from the current repository state on 2026-06-02 after the product imag
   - add-to-cart action
 - Public buyer pricing remains restricted to marketplace pricing only.
 
+## Order Detail UX Status
+
+- Shared order detail renderer now exists in:
+  - [components/order_detail_view.py](/c:/2026/manditrade/manditrade/components/order_detail_view.py)
+- Rich detail rendering is now wired into:
+  - [modules/public_orders/dashboard.py](/c:/2026/manditrade/manditrade/modules/public_orders/dashboard.py)
+  - [modules/procurement/dashboard.py](/c:/2026/manditrade/manditrade/modules/procurement/dashboard.py)
+- Current detail view coverage includes:
+  - order ID
+  - items with thumbnails
+  - quantity and subtotal visibility
+  - logistics snapshot
+  - payment snapshot
+  - notes
+  - timeline with actor and timestamp context
+
+## Payment Proof Status
+
+- Marketplace orders now persist:
+  - `payment_proof_url`
+  - `payment_proof_uploaded_at`
+  - `payment_verified_by`
+  - `payment_verified_at`
+- Supply / mandi orders now persist the same metadata in:
+  - [services/procurement_transaction_service.py](/c:/2026/manditrade/manditrade/services/procurement_transaction_service.py)
+- Public order proof submission and verification remain in:
+  - [services/public_order_service.py](/c:/2026/manditrade/manditrade/services/public_order_service.py)
+
+## Favorites Status
+
+- Lightweight favorites support now exists in:
+  - [services/favorites_service.py](/c:/2026/manditrade/manditrade/services/favorites_service.py)
+- Public marketplace buyers can now save products from:
+  - [modules/marketplace/dashboard.py](/c:/2026/manditrade/manditrade/modules/marketplace/dashboard.py)
+
+## Ratings Status
+
+- Marketplace product feedback now persists on public orders in:
+  - [services/public_order_service.py](/c:/2026/manditrade/manditrade/services/public_order_service.py)
+- Supply-experience ratings now persist on mandi / supply orders in:
+  - [services/procurement_transaction_service.py](/c:/2026/manditrade/manditrade/services/procurement_transaction_service.py)
+
+## Trust Badge Status
+
+- Rule-based trust badge calculation now exists in:
+  - [services/trust_badge_service.py](/c:/2026/manditrade/manditrade/services/trust_badge_service.py)
+- Current trust signals include:
+  - payment verified
+  - fast dispatch
+  - top rated product
+  - reliable mahajan
+  - trusted supply partner
+
+## Reorder Status
+
+- Repeat-order prefilling now works through the shared cart layer:
+  - [services/cart_service.py](/c:/2026/manditrade/manditrade/services/cart_service.py)
+  - [services/public_cart_service.py](/c:/2026/manditrade/manditrade/services/public_cart_service.py)
+- Public buyer order history now supports repeat-cart behavior from:
+  - [modules/public_orders/dashboard.py](/c:/2026/manditrade/manditrade/modules/public_orders/dashboard.py)
+
+## Notification UX Status
+
+- Notifications now support richer metadata fields:
+  - `source_route`
+  - `thumbnail_url`
+  - `severity`
+  - `recipient_role`
+  - `deep_link`
+- Main implementation remains in:
+  - [services/notification_center_service.py](/c:/2026/manditrade/manditrade/services/notification_center_service.py)
+  - [modules/notifications/dashboard.py](/c:/2026/manditrade/manditrade/modules/notifications/dashboard.py)
+
 ## Environment Validation Status
 
 - Release env validation script now runs and writes reports to:
@@ -403,7 +606,7 @@ Generated from the current repository state on 2026-06-02 after the product imag
 ## Tests Result
 
 - `python -m pytest tests/ -q`
-  - Passed: `206`
+  - Passed: `227`
   - Skipped: `5`
 - `python -m compileall app.py modules services utils components schemas bootstrap scripts`
   - Passed
@@ -425,6 +628,8 @@ Generated from the current repository state on 2026-06-02 after the product imag
 
 - Release readiness is still blocked by cloud OAuth/admin email configuration, so this is not yet a pilot `GO`.
 - Card-based shopping is now live on the main marketplace and manufacturer request surfaces, but some lower-traffic admin/supervisory tables still remain table-first rather than card-first by design.
+- Favorites are currently wired into the marketplace flow first; manufacturer-side saved-item UX can be expanded further on additional shopping surfaces later.
+- Canonical pathing, migration tooling, and validation are now in place, but production cutover still depends on an operator-reviewed execute run plus explicit `storage.mode=canonical` switch.
 - Alerts and recommendations are intentionally rule-based and deterministic; there is still no forecasting depth or adaptive scoring beyond current heuristics.
 - Pagination is implemented on the current highest-volume operational pages, but a few legacy / low-traffic screens still use direct table rendering and can be migrated later.
 - Operational search currently routes to page-level detail surfaces, not a universal modal detail shell.

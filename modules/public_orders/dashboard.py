@@ -3,20 +3,22 @@ from __future__ import annotations
 import streamlit as st
 
 from components.filter_bar import render_filter_bar
-from components.order_timeline import render_order_timeline_component
+from components.order_detail_view import build_order_detail_payload, render_order_detail_view
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
 from components.ui_shell import render_metric_card, render_page_header
+from utils.deep_links import build_deep_link_target
 from utils.export_utils import export_rows_to_csv_bytes, export_rows_to_json_bytes
 from utils.page_ui import render_empty_state, render_metric_button_row, render_status_chip
 
 
-PUBLIC_ORDER_TIMELINE_STEPS = ["PAYMENT_PENDING", "PAID", "CONFIRMED", "DISPATCHED", "DELIVERED"]
+PUBLIC_ORDER_TIMELINE_STEPS = ["PAYMENT_PENDING", "PAID", "CONFIRMED", "DISPATCHED", "OUT_FOR_DELIVERY", "DELIVERED"]
 PUBLIC_ORDER_TIMELINE_LABELS = {
     "PAYMENT_PENDING": "Payment Pending",
     "PAID": "Payment Verified",
-    "CONFIRMED": "Confirmed",
+    "CONFIRMED": "Packing",
     "DISPATCHED": "Dispatched",
+    "OUT_FOR_DELIVERY": "Out For Delivery",
     "DELIVERED": "Delivered",
 }
 
@@ -31,15 +33,44 @@ def _default_selected_order(orders: list[dict], session_key: str) -> str | None:
 
 
 def _render_order_detail(order: dict) -> None:
-    render_status_chip("Current Status", order.get("status", ""))
-    render_status_chip("Payment Status", order.get("payment_status", ""))
-    render_order_timeline_component(order.get("status", ""), steps=PUBLIC_ORDER_TIMELINE_STEPS, labels=PUBLIC_ORDER_TIMELINE_LABELS)
-    st.dataframe([order.get("logistics", {})], use_container_width=True)
+    detail = build_order_detail_payload(
+        order,
+        order_id_key="public_order_id",
+        status=str(order.get("status", "")),
+        items=[
+            {
+                "name": item.get("product_name", item.get("product_id", "Product")),
+                "qty": item.get("qty", 0),
+                "unit": item.get("unit", ""),
+                "unit_price": item.get("marketplace_price", item.get("price", 0)),
+                "subtotal": float(item.get("marketplace_price", item.get("price", 0)) or 0) * float(item.get("qty", 0) or 0),
+                "thumbnail_url": item.get("thumbnail_url", ""),
+                "image_url": item.get("image_url", ""),
+            }
+            for item in order.get("items", [])
+        ],
+        timeline_steps=PUBLIC_ORDER_TIMELINE_STEPS,
+        timeline_labels=PUBLIC_ORDER_TIMELINE_LABELS,
+        status_history=list(order.get("status_history", [])),
+        logistics=dict(order.get("logistics", {})),
+        payment={
+            "payment_status": order.get("payment_status", ""),
+            "payment_receiver": order.get("payment_receiver", ""),
+            "payment_reference": order.get("payment_reference", ""),
+            "payment_proof_url": order.get("payment_proof_url", ""),
+            "payment_verified_by": order.get("payment_verified_by", ""),
+            "payment_verified_at": order.get("payment_verified_at", ""),
+        },
+        trust_badges=[],
+        next_action=build_deep_link_target("PUBLIC_ORDER", str(order.get("public_order_id", ""))).get("route", ""),
+    )
+    render_order_detail_view(detail)
 
 
 def render_public_orders_dashboard(app_context: dict, *, buyer_mode: bool = False) -> None:
     user = app_context["current_user"]
     service = app_context["public_order_service"]
+    trust_badge_service = app_context.get("trust_badge_service")
     page_key = "marketplace_orders_buyer" if buyer_mode else "marketplace_orders_seller"
     title = "My Orders" if buyer_mode else "Public Orders"
     subtitle = (
@@ -108,7 +139,7 @@ def render_public_orders_dashboard(app_context: dict, *, buyer_mode: bool = Fals
             if selected.get("status") == "PAYMENT_PENDING":
                 st.code(service.build_payment_instruction_text(selected))
                 payment_reference = st.text_input("Payment Reference / UTR", key=f"buyer_ref_{selected_id}")
-                screenshot_placeholder = st.text_input("Optional Screenshot Placeholder", key=f"buyer_shot_{selected_id}")
+                screenshot_placeholder = st.text_input("Payment Proof URL", key=f"buyer_shot_{selected_id}")
                 if st.button("Submit Payment Reference", use_container_width=True, key=f"submit_public_payment_{selected_id}"):
                     try:
                         service.submit_payment_reference(selected_id, buyer["public_buyer_id"], payment_reference=payment_reference, screenshot_placeholder=screenshot_placeholder)
@@ -119,6 +150,13 @@ def render_public_orders_dashboard(app_context: dict, *, buyer_mode: bool = Fals
                         st.rerun()
             else:
                 st.info("No payment action pending for the selected order.")
+            if selected.get("status") == "DELIVERED":
+                rating = st.slider("Rate Product", min_value=1, max_value=5, value=5, key=f"buyer_rating_{selected_id}")
+                feedback = st.text_area("Feedback", key=f"buyer_feedback_{selected_id}")
+                if st.button("Submit Rating", use_container_width=True, key=f"submit_rating_{selected_id}"):
+                    service.submit_feedback(selected_id, rating=rating, feedback=feedback, submitted_by=user.email)
+                    st.success("Thanks for the feedback.")
+                    st.rerun()
         with delivery_tab:
             if selected.get("status") == "DISPATCHED" and st.button("Confirm Delivery", use_container_width=True, key=f"confirm_public_delivery_{selected_id}"):
                 try:
@@ -128,7 +166,16 @@ def render_public_orders_dashboard(app_context: dict, *, buyer_mode: bool = Fals
                 else:
                     st.success("Public order marked as delivered.")
                     st.rerun()
-            else:
+            if st.button("Repeat This Order", use_container_width=True, key=f"repeat_public_order_{selected_id}"):
+                for item in selected.get("items", []):
+                    service.public_cart_service.add_item(
+                        buyer["public_buyer_id"],
+                        product_id=str(item.get("product_id", "")),
+                        qty=int(item.get("qty", 1) or 1),
+                    )
+                st.success("Cart prefilled from previous order.")
+                st.rerun()
+            if selected.get("status") != "DISPATCHED":
                 render_empty_state("No delivery confirmation action pending for the selected order.")
         return
 
@@ -184,6 +231,9 @@ def render_public_orders_dashboard(app_context: dict, *, buyer_mode: bool = Fals
         else:
             render_empty_state("No Marketplace Orders Yet")
     with payments_tab:
+        proof_url = selected.get("payment_proof_url", "") or selected.get("payment_screenshot_placeholder", "")
+        if proof_url:
+            st.caption(f"Payment Proof: {proof_url}")
         if selected.get("payment_status") == "SUBMITTED":
             col1, col2 = st.columns(2)
             if col1.button("Verify Payment", use_container_width=True, key=f"verify_public_payment_{selected_id}"):
@@ -214,7 +264,8 @@ def render_public_orders_dashboard(app_context: dict, *, buyer_mode: bool = Fals
                 driver_name = col1.text_input("Driver Name", value=str(selected.get("logistics", {}).get("driver_name", "")))
                 driver_mobile = col2.text_input("Driver Mobile", value=str(selected.get("logistics", {}).get("driver_mobile", "")))
                 vehicle_number = col1.text_input("Vehicle Number", value=str(selected.get("logistics", {}).get("vehicle_number", "")))
-                proof_url = col2.text_input("Proof Placeholder", value=str(selected.get("logistics", {}).get("proof_url", "")))
+                proof_url = col2.text_input("Proof Image URL", value=str(selected.get("logistics", {}).get("proof_image_url", selected.get('logistics', {}).get("proof_url", ""))))
+                expected_delivery = col1.text_input("Expected Delivery", value=str(selected.get("logistics", {}).get("expected_delivery", "")))
                 dispatch_note = st.text_area("Dispatch Note", value=str(selected.get("logistics", {}).get("dispatch_note", "")))
                 save_logistics = st.form_submit_button("Save Logistics Update")
             if save_logistics:
@@ -228,6 +279,7 @@ def render_public_orders_dashboard(app_context: dict, *, buyer_mode: bool = Fals
                     dispatch_note=dispatch_note,
                     proof_url=proof_url,
                     delivery_status=delivery_status,
+                    expected_delivery=expected_delivery,
                 )
                 st.success("Logistics updated.")
                 st.rerun()
@@ -249,3 +301,6 @@ def render_public_orders_dashboard(app_context: dict, *, buyer_mode: bool = Fals
                 st.rerun()
         if selected.get("status") not in {"PAID", "CONFIRMED"}:
             st.caption("No dispatch transition is pending for the selected order.")
+        badges = trust_badge_service.badges_for_marketplace_order(selected) if trust_badge_service else []
+        if badges:
+            st.caption("Trust Badges: " + " | ".join(badges))

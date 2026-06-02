@@ -36,6 +36,7 @@ class ProcurementTransactionService:
         domain_paths_service,
         governance_service=None,
         pricing_service=None,
+        event_notification_service=None,
     ) -> None:
         self.drive_service = drive_service
         self.safe_drive_write_service = safe_drive_write_service
@@ -53,6 +54,7 @@ class ProcurementTransactionService:
         self.domain_paths = domain_paths_service
         self.governance_service = governance_service
         self.pricing_service = pricing_service
+        self.event_notification_service = event_notification_service
 
     def _default_logistics(self) -> dict[str, Any]:
         return {
@@ -62,8 +64,12 @@ class ProcurementTransactionService:
             "driver_name": "",
             "driver_mobile": "",
             "vehicle_number": "",
+            "dispatch_time": "",
+            "expected_delivery": "",
             "dispatch_note": "",
+            "delivery_note": "",
             "proof_url": "",
+            "proof_image_url": "",
             "delivered_at": "",
         }
 
@@ -172,13 +178,27 @@ class ProcurementTransactionService:
             "notes": notes,
             "status": "REQUESTED_BY_MANUFACTURER",
             "payment_receiver": "",
+            "payment_proof_url": "",
+            "payment_proof_uploaded_at": "",
+            "payment_verified_by": "",
+            "payment_verified_at": "",
             "logistics": self._default_logistics(),
             "internal_status_history": [
                 {"status": "REQUESTED_BY_MANUFACTURER", "at": datetime.now(UTC).isoformat(), "actor": requested_by}
             ],
+            "ratings": [],
         }
         created = self.governance_service.upsert_supply_order(order)
         self._audit("SUPPLY_REQUEST_CREATED", requested_by, "manufacturer", created["mandi_order_id"], {"status": created.get("status", ""), "raw_material_id": raw_material_id})
+        self._emit_event(
+            "MANDI_ORDER_CREATED",
+            entity_type="MANDI_ORDER",
+            entity_id=created["mandi_order_id"],
+            title="Mandi order created",
+            message=f"Mandi order {created['mandi_order_id']} was created.",
+            manufacturer_code=manufacturer_code,
+            manufacturer_email=requested_by,
+        )
         return created
 
     def assign_supply_to_mahajan(self, *, mandi_order_id: str, mahajan_id: str, admin_email: str) -> dict[str, Any]:
@@ -194,6 +214,16 @@ class ProcurementTransactionService:
         order["internal_status_history"].append({"status": "SENT_TO_MAHAJAN", "at": datetime.now(UTC).isoformat(), "actor": admin_email})
         updated = self.governance_service.upsert_supply_order(order)
         self._audit("SUPPLY_ASSIGNED", admin_email, "platform_admin", mandi_order_id, {"mahajan_id": mahajan_id, "status": updated.get("status", "")})
+        self._emit_event(
+            "SUPPLY_ORDER_ASSIGNED",
+            entity_type="SUPPLY_ORDER",
+            entity_id=mandi_order_id,
+            title="Supply order assigned",
+            message=f"Supply order {mandi_order_id} was assigned to mahajan.",
+            manufacturer_code=updated.get("manufacturer_id", ""),
+            mahajan_id=mahajan_id,
+            admin_email=admin_email,
+        )
         return updated
 
     def quote_supply_order(self, *, mandi_order_id: str, mahajan_id: str, mahajan_unit_price: float, mahajan_email: str, notes: str = "") -> dict[str, Any]:
@@ -305,6 +335,16 @@ class ProcurementTransactionService:
         )
         updated = self.governance_service.upsert_supply_order(order)
         self._audit("SUPPLY_CONFIRMED", actor_email, "manufacturer", mandi_order_id, {"status": updated.get("status", "")})
+        self._emit_event(
+            "SUPPLY_ORDER_CONFIRMED",
+            entity_type="SUPPLY_ORDER",
+            entity_id=mandi_order_id,
+            title="Supply order confirmed",
+            message=f"Supply order {mandi_order_id} was confirmed.",
+            manufacturer_code=manufacturer_code,
+            manufacturer_email=actor_email,
+            mahajan_id=updated.get("mahajan_id", ""),
+        )
         return updated
 
     def dispatch_supply_order(self, *, mandi_order_id: str, mahajan_id: str, actor_email: str) -> dict[str, Any]:
@@ -318,6 +358,7 @@ class ProcurementTransactionService:
         order["status"] = "MAHAJAN_DISPATCHED"
         order.setdefault("logistics", self._default_logistics())
         order["logistics"]["delivery_status"] = "DISPATCHED"
+        order["logistics"]["dispatch_time"] = datetime.now(UTC).isoformat()
         order.setdefault("internal_status_history", []).append({"status": "MAHAJAN_DISPATCHED", "at": datetime.now(UTC).isoformat(), "actor": actor_email})
         updated = self.governance_service.upsert_supply_order(order)
         self._audit("SUPPLY_DISPATCHED", actor_email, "mahajan", mandi_order_id, {"status": updated.get("status", ""), "delivery_status": updated.get("logistics", {}).get("delivery_status", "")})
@@ -382,6 +423,7 @@ class ProcurementTransactionService:
         dispatch_note: str = "",
         proof_url: str = "",
         delivery_status: str = "",
+        expected_delivery: str = "",
     ) -> dict[str, Any]:
         if not self.governance_service:
             raise ValueError("Governance service not configured for supply requests.")
@@ -396,8 +438,12 @@ class ProcurementTransactionService:
                 "driver_name": driver_name or logistics.get("driver_name", ""),
                 "driver_mobile": driver_mobile or logistics.get("driver_mobile", ""),
                 "vehicle_number": vehicle_number or logistics.get("vehicle_number", ""),
+                "dispatch_time": datetime.now(UTC).isoformat() if delivery_status.upper() == "DISPATCHED" and not logistics.get("dispatch_time") else logistics.get("dispatch_time", ""),
+                "expected_delivery": expected_delivery or logistics.get("expected_delivery", ""),
                 "dispatch_note": dispatch_note or logistics.get("dispatch_note", ""),
+                "delivery_note": dispatch_note or logistics.get("delivery_note", ""),
                 "proof_url": proof_url or logistics.get("proof_url", ""),
+                "proof_image_url": proof_url or logistics.get("proof_image_url", ""),
                 "delivery_status": delivery_status or logistics.get("delivery_status", ""),
             }
         )
@@ -405,6 +451,69 @@ class ProcurementTransactionService:
         order.setdefault("internal_status_history", []).append({"status": "LOGISTICS_UPDATED", "at": datetime.now(UTC).isoformat(), "actor": actor_email})
         updated = self.governance_service.upsert_supply_order(order)
         self._audit("SUPPLY_LOGISTICS_UPDATED", actor_email, "platform_admin", mandi_order_id, {"delivery_status": updated.get("logistics", {}).get("delivery_status", ""), "vehicle_number": updated.get("logistics", {}).get("vehicle_number", "")})
+        self._emit_event(
+            "LOGISTICS_UPDATED",
+            entity_type="SUPPLY_ORDER",
+            entity_id=mandi_order_id,
+            title="Supply logistics updated",
+            message=f"Logistics updated for supply order {mandi_order_id}.",
+            manufacturer_code=updated.get("manufacturer_id", ""),
+            mahajan_id=updated.get("mahajan_id", ""),
+        )
+        return updated
+
+    def attach_payment_proof(self, *, mandi_order_id: str, actor_email: str, proof_url: str) -> dict[str, Any]:
+        if not self.governance_service:
+            raise ValueError("Governance service not configured for supply requests.")
+        order = self.governance_service.get_supply_order(mandi_order_id)
+        if not order:
+            raise ValueError("Supply order not found.")
+        order["payment_proof_url"] = proof_url.strip()
+        order["payment_proof_uploaded_at"] = datetime.now(UTC).isoformat()
+        updated = self.governance_service.upsert_supply_order(order)
+        self._audit("SUPPLY_PAYMENT_PROOF_ATTACHED", actor_email, "system", mandi_order_id, {"payment_proof_url": updated.get("payment_proof_url", "")})
+        return updated
+
+    def verify_payment_proof(self, *, mandi_order_id: str, verifier_email: str) -> dict[str, Any]:
+        if not self.governance_service:
+            raise ValueError("Governance service not configured for supply requests.")
+        order = self.governance_service.get_supply_order(mandi_order_id)
+        if not order:
+            raise ValueError("Supply order not found.")
+        order["payment_verified_by"] = verifier_email
+        order["payment_verified_at"] = datetime.now(UTC).isoformat()
+        updated = self.governance_service.upsert_supply_order(order)
+        self._audit("SUPPLY_PAYMENT_PROOF_VERIFIED", verifier_email, "platform_admin", mandi_order_id, {"payment_verified_at": updated.get("payment_verified_at", "")})
+        self._emit_event(
+            "PAYMENT_VERIFIED",
+            entity_type="SUPPLY_ORDER",
+            entity_id=mandi_order_id,
+            title="Supply payment verified",
+            message=f"Payment was verified for supply order {mandi_order_id}.",
+            manufacturer_code=updated.get("manufacturer_id", ""),
+            mahajan_id=updated.get("mahajan_id", ""),
+            admin_email=verifier_email,
+        )
+        return updated
+
+    def submit_feedback(self, *, mandi_order_id: str, rating: int, feedback: str, submitted_by: str) -> dict[str, Any]:
+        if not self.governance_service:
+            raise ValueError("Governance service not configured for supply requests.")
+        order = self.governance_service.get_supply_order(mandi_order_id)
+        if not order:
+            raise ValueError("Supply order not found.")
+        ratings = list(order.get("ratings", []))
+        ratings.append(
+            {
+                "rating": max(1, min(int(rating or 0), 5)),
+                "feedback": feedback.strip(),
+                "submitted_by": submitted_by,
+                "created_at": datetime.now(UTC).isoformat(),
+            }
+        )
+        order["ratings"] = ratings
+        updated = self.governance_service.upsert_supply_order(order)
+        self._audit("SUPPLY_FEEDBACK_SUBMITTED", submitted_by, "manufacturer", mandi_order_id, {"rating": ratings[-1]["rating"]})
         return updated
 
     def respond_to_rfq(self, current_user, rfq_owner_code: str, rfq_id: str, available_items: list[dict[str, Any]], supplier_terms: dict[str, Any]) -> dict[str, Any]:
@@ -531,3 +640,8 @@ class ProcurementTransactionService:
             entity_id=entity_id,
             details=details,
         )
+
+    def _emit_event(self, event_type: str, **payload: Any) -> None:
+        if not self.event_notification_service:
+            return
+        self.event_notification_service.emit(event_type, payload)

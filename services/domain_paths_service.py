@@ -4,8 +4,9 @@ from pathlib import Path
 
 
 class DomainPathsService:
-    def __init__(self, drive_service) -> None:
+    def __init__(self, drive_service, drive_path_service=None) -> None:
         self.drive_service = drive_service
+        self.drive_path_service = drive_path_service
 
     def inventory_path(self, manufacturer_code: str) -> Path:
         return self.private_self_inventory_path(manufacturer_code)
@@ -42,3 +43,18 @@ class DomainPathsService:
 
     def confirmations_path(self, manufacturer_code: str) -> Path:
         return self.drive_service.get_manufacturer_paths(manufacturer_code).shared_zone / "trade_confirmations.json"
+
+    def registry_path(self, entity: str) -> Path:
+        if not self.drive_path_service:
+            raise ValueError("Drive path service not configured.")
+        return self.drive_path_service.get_registry_path(entity)
+
+    def catalog_path(self, entity: str) -> Path:
+        if not self.drive_path_service:
+            raise ValueError("Drive path service not configured.")
+        return self.drive_path_service.get_catalog_path(entity)
+
+    def notification_channel_path(self, channel: str, year_month: str | None = None) -> Path:
+        if not self.drive_path_service:
+            raise ValueError("Drive path service not configured.")
+        return self.drive_path_service.get_notification_path(channel, year_month)

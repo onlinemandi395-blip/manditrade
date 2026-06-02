@@ -13,7 +13,7 @@ def render_health_dashboard(app_context: dict) -> None:
         "Inspect runtime readiness, recovery, diagnostics, dead letters, and deployment posture from one admin-only operational surface.",
         ["Admin Only", "Diagnostics", "Recovery"],
         role="Platform Admin",
-        metrics=[("Drive Mode", app_context["drive_service"].describe_runtime_mode()), ("Gmail", "Runtime trigger")],
+        metrics=[("Drive Mode", app_context["drive_service"].describe_runtime_mode()), ("Storage Mode", app_context["system_config"]["storage"].get("mode", "compatibility")), ("Gmail", "Runtime trigger")],
         kicker="Digital Manpur Runtime Deck",
     )
     lock_files = list((app_context["runtime_paths"]["base"] / "locks").glob("*.json"))
@@ -61,7 +61,7 @@ def render_health_dashboard(app_context: dict) -> None:
     connected_accounts_summary = app_context["connected_accounts_service"].summarize_connections(
         [item.get("manufacturer_code", "") for item in app_context["governance_service"].list_manufacturers() if item.get("manufacturer_code")]
     )
-    overview_tab, diagnostics_tab, recovery_tab, events_tab = st.tabs(["Overview", "Diagnostics", "Recovery", "Events"])
+    overview_tab, diagnostics_tab, recovery_tab, migration_tab, events_tab = st.tabs(["Overview", "Diagnostics", "Recovery", "Migration", "Events"])
     with overview_tab:
         st.json(deployment_snapshot)
         st.markdown("### Google Runtime")
@@ -189,6 +189,35 @@ def render_health_dashboard(app_context: dict) -> None:
             st.json(app_context["alert_engine"].generate_alerts(app_context), expanded=False)
         if col4.button("Repair Snapshots", use_container_width=True):
             st.json(app_context["automation_tasks"].run_daily_tasks(app_context), expanded=False)
+
+    with migration_tab:
+        st.markdown("### Storage Migration")
+        st.json(
+            {
+                "storage_mode": app_context["system_config"]["storage"].get("mode", "compatibility"),
+                "allow_legacy_fallback": app_context["system_config"]["storage"].get("allow_legacy_fallback", True),
+                "canonical_root": str(app_context["drive_path_service"].db_root),
+            }
+        )
+        migration_reports_dir = app_context["runtime_paths"]["base"] / "migration_reports"
+        latest_report = {}
+        latest_validation = {}
+        latest_report_path = migration_reports_dir / "latest_migration_report.json"
+        if latest_report_path.exists():
+            import json
+            latest_report = json.loads(latest_report_path.read_text(encoding="utf-8"))
+        if st.button("Dry Run Storage Migration", use_container_width=True):
+            latest_report = app_context["storage_migration_service"].run(mode="dry_run")
+            st.success("Dry-run migration report generated.")
+        if st.button("Validate Canonical Storage", use_container_width=True):
+            latest_validation = app_context["canonical_storage_validation_service"].validate()
+            st.success("Canonical validation completed.")
+        validation_result = latest_validation or app_context["canonical_storage_validation_service"].validate()
+        st.markdown("### Latest Migration Report")
+        st.json(latest_report, expanded=False)
+        st.markdown("### Canonical Validation")
+        st.json(validation_result, expanded=False)
+        st.info("Legacy files remain untouched. Switch `storage.mode` to `canonical` only after dry-run and validation review.")
 
     with events_tab:
         search_value = st.text_input("Search locks / events / stress summaries", key="health_events_search")

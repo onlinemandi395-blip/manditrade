@@ -38,6 +38,15 @@ Open these areas in order:
 - Confirm `runtime/backups/` and `runtime/version_history/` are writable.
 - If needed, use recovery utilities to rebuild indexes and refresh snapshots.
 
+### Storage Migration
+
+- Keep `storage.mode=compatibility` until migration is validated.
+- Run `python scripts/migrate_storage_to_canonical.py --dry-run` first.
+- Review `runtime/migration_reports/latest_migration_report.json`.
+- Run `python scripts/validate_canonical_storage.py`.
+- Only then run execute mode and consider switching to `storage.mode=canonical`.
+- Do not delete legacy data during the same change window.
+
 ### Gmail Failure
 
 - Confirm `notification_mode=live`.

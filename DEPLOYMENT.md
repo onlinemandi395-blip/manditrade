@@ -93,6 +93,32 @@ Before release, check `System Health` for:
 - recovery tools
 - search index rebuild
 - KPI and alert regeneration
+- storage mode
+- latest migration report
+- canonical storage validation
+
+## Storage Migration
+
+Always run migration in dry-run mode first:
+
+```bash
+python scripts/migrate_storage_to_canonical.py --dry-run
+python scripts/validate_canonical_storage.py
+```
+
+After review, execute:
+
+```bash
+python scripts/migrate_storage_to_canonical.py --execute
+```
+
+Then switch:
+
+```text
+system_config.json -> storage.mode = canonical
+```
+
+Keep legacy files intact until canonical validation is acceptable and operator review is complete.
 
 ## Release Gate
 

@@ -29,6 +29,7 @@ class IdAllocatorService:
         "application": "APP",
         "public_buyer": "PB",
         "cart": "CART",
+        "favorite": "FAV",
         "public_order": "PUBORD",
         "public_payment": "PUBPAY",
         "payment": "PAY",

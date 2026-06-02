@@ -27,6 +27,8 @@ def render_notifications_dashboard(app_context: dict) -> None:
         kicker="Digital Manpur Signal Feed",
     )
     notifications: list[dict] = []
+    gmail_service = app_context.get("gmail_service")
+    notification_rules = app_context.get("notification_rules", {})
     if user:
         notification_service = app_context["notification_center_service"]
         if user.role == "public_buyer":
@@ -77,7 +79,11 @@ def render_notifications_dashboard(app_context: dict) -> None:
         "Delivery Surface",
         render_mobile_record_card({"Mode": "Live", "Trigger": "Sent during actions"}),
     )
-    unread_tab, all_tab, resolved_tab, settings_tab = st.tabs(["Unread", "All", "Resolved", "Settings"])
+    if user and user.role == "platform_admin":
+        unread_tab, all_tab, resolved_tab, queue_tab, history_tab, dead_letter_tab, settings_tab = st.tabs(["Unread", "All", "Resolved", "Email Queue", "Email History", "Dead Letter", "Rules"])
+    else:
+        unread_tab, all_tab, resolved_tab, settings_tab = st.tabs(["Unread", "All", "Resolved", "Settings"])
+        queue_tab = history_tab = dead_letter_tab = None
     active_filter = get_active_filter(page_key).lower()
     with unread_tab:
         if user and (user.manufacturer_code or user.role in {"platform_admin", "public_buyer"}):
@@ -95,12 +101,13 @@ def render_notifications_dashboard(app_context: dict) -> None:
                 f"""
                 <article class="mt-glass-card mt-notification-card {'mt-notification-card--unread' if not item.get('read', False) else ''} {'mt-notification-card--resolved' if item.get('resolved', False) else ''}">
                   <div class="mt-notification-card__meta">
-                    <div class="mt-chip-row">
-                      <span class="mt-badge mt-badge-{escape(str(item.get('priority', 'OPEN')).lower().replace('_', '-'))}">{escape(str(item.get('priority', 'OPEN')))}</span>
+                  <div class="mt-chip-row">
+                      <span class="mt-badge mt-badge-{escape(str(item.get('severity', item.get('priority', 'OPEN'))).lower().replace('_', '-'))}">{escape(str(item.get('severity', item.get('priority', 'OPEN'))))}</span>
                       <span class="mt-chip">{escape(str(item.get('source_type', 'SYSTEM')))}</span>
                     </div>
                     <span class="mt-chip">{escape(str(item.get('type', 'ALERT')))}</span>
                   </div>
+                  {f"<p class='mt-notification-card__message'>{escape(str(item.get('thumbnail_url', '')))}</p>" if item.get('thumbnail_url') else ""}
                   <h3>{escape(str(item.get('title', 'Notification')))}</h3>
                   <p class="mt-notification-card__message">{escape(str(item.get('message', '')))}</p>
                 </article>
@@ -151,8 +158,37 @@ def render_notifications_dashboard(app_context: dict) -> None:
             render_paginated_table(page_key="notifications_resolved", rows=resolved_rows, search_fields=["notification_id", "title"], status_field="priority")
         else:
             render_empty_state("No resolved notifications yet.")
+    if queue_tab is not None:
+        with queue_tab:
+            queue_rows = gmail_service.read_queue() if gmail_service else []
+            if queue_rows:
+                render_paginated_table(page_key="gmail_queue", rows=queue_rows, search_fields=["email_id", "recipient_email", "event_type"], status_field="status")
+                selected_id = st.selectbox("Queued Email", [item["email_id"] for item in queue_rows], key="gmail_queue_select")
+                if st.button("Retry Selected Email", use_container_width=True, key="gmail_retry_selected"):
+                    gmail_service.retry_failed(selected_id)
+                    st.success("Email moved back to retry state.")
+                    st.rerun()
+            else:
+                render_empty_state("No queued emails right now.")
+    if history_tab is not None:
+        with history_tab:
+            history_rows = gmail_service.list_history() if gmail_service else []
+            if history_rows:
+                render_paginated_table(page_key="gmail_history", rows=history_rows, search_fields=["email_id", "recipient_email", "event_type"], status_field="status")
+            else:
+                render_empty_state("No email history written yet.")
+    if dead_letter_tab is not None:
+        with dead_letter_tab:
+            dead_letters = gmail_service.list_failed_dead_letters() if gmail_service else []
+            if dead_letters:
+                render_paginated_table(page_key="gmail_dead_letters", rows=dead_letters, search_fields=["entry_id", "category", "correlation_id"], status_field="category")
+            else:
+                render_empty_state("No failed notifications in dead letter.")
     with settings_tab:
         render_section_intro("Notification Controls", "Use these lightweight controls to keep the feed clean without exposing runtime internals.")
+        if user and user.role == "platform_admin":
+            st.caption("Notification Rules")
+            st.json(notification_rules, expanded=False)
         if notifications:
             selected_id = st.selectbox("Select Notification", [item["notification_id"] for item in notifications], key="notif_select")
             selected_item = next(item for item in notifications if item["notification_id"] == selected_id)

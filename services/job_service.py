@@ -15,6 +15,7 @@ class JobService:
         notification_center_service=None,
         ledger_service=None,
         gmail_service=None,
+        event_notification_service=None,
     ) -> None:
         self.governance_root = governance_root
         self.safe_drive_write_service = safe_drive_write_service
@@ -23,6 +24,7 @@ class JobService:
         self.notification_center_service = notification_center_service
         self.ledger_service = ledger_service
         self.gmail_service = gmail_service
+        self.event_notification_service = event_notification_service
 
     @property
     def jobs_path(self) -> Path:
@@ -97,6 +99,15 @@ class JobService:
             "created_at": datetime.now(UTC).isoformat(),
         }
         self.safe_drive_write_service.append_record(self.jobs_path, "jobs", job)
+        self._emit_event(
+            "JOB_CREATED",
+            entity_type="JOB",
+            entity_id=job["job_id"],
+            title="Job created",
+            message=f"Job {job['title']} was created.",
+            manufacturer_code=manufacturer_id,
+            manufacturer_email=manufacturer_contact_email.strip().lower(),
+        )
         return job
 
     def apply_to_job(self, *, job_id: str, worker_id: str, worker_note: str, worker_contact_email: str = "") -> dict[str, Any]:
@@ -140,6 +151,17 @@ class JobService:
                 f"Worker {worker_id} applied to job {job['job_id']}. Note: {worker_note.strip() or 'No note provided.'}",
                 "job_application_received",
             )
+        self._emit_event(
+            "JOB_APPLICATION_RECEIVED",
+            entity_type="JOB",
+            entity_id=job_id,
+            title="Job application received",
+            message=f"Worker {worker_id} applied for {job['title']}.",
+            manufacturer_code=job["manufacturer_id"],
+            manufacturer_email=job.get("manufacturer_contact_email", ""),
+            worker_id=worker_id,
+            worker_email=worker_contact_email.strip().lower(),
+        )
         return application
 
     def update_application_status(self, *, job_id: str, application_id: str, next_status: str) -> dict[str, Any]:
@@ -183,6 +205,16 @@ class JobService:
                 source_type="JOB",
                 source_id=job_id,
             )
+        self._emit_event(
+            "JOB_APPLICATION_UPDATE",
+            entity_type="JOB",
+            entity_id=job_id,
+            title="Job application updated",
+            message=f"Application {application_id} moved to {next_status}.",
+            manufacturer_code=job["manufacturer_id"],
+            worker_id=application.get("worker_id", ""),
+            worker_email=application.get("worker_contact_email", ""),
+        )
         return application
 
     def update_job_lifecycle(self, *, job_id: str, lifecycle_status: str) -> dict[str, Any]:
@@ -207,6 +239,15 @@ class JobService:
         if updated is None:
             raise ValueError(f"Job not found: {job_id}")
         self.safe_drive_write_service.replace_document(self.jobs_path, payload)
+        self._emit_event(
+            "ARCHIVED" if next_status == "ARCHIVED" else "STATUS_CHANGED",
+            entity_type="JOB",
+            entity_id=job_id,
+            title="Job lifecycle updated",
+            message=f"Job {job_id} moved to {next_status}.",
+            manufacturer_code=updated.get("manufacturer_id", ""),
+            manufacturer_email=updated.get("manufacturer_contact_email", ""),
+        )
         return updated
 
     def complete_job(self, *, job_id: str, application_id: str, manufacturer_id: str, worker_id: str, unpaid_amount: float = 0.0, note: str = "") -> dict[str, Any]:
@@ -223,3 +264,8 @@ class JobService:
                 note=note or "Worker payment pending after job completion.",
             )
         return application
+
+    def _emit_event(self, event_type: str, **payload: Any) -> None:
+        if not self.event_notification_service:
+            return
+        self.event_notification_service.emit(event_type, payload)

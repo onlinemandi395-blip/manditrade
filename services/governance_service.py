@@ -9,11 +9,12 @@ from services.json_service import JsonService
 
 
 class GovernanceService:
-    def __init__(self, governance_root: Path, safe_drive_write_service, audit_service=None) -> None:
+    def __init__(self, governance_root: Path, safe_drive_write_service, audit_service=None, event_notification_service=None) -> None:
         self.governance_root = governance_root
         self.json_service = JsonService()
         self.safe_drive_write_service = safe_drive_write_service
         self.audit_service = audit_service
+        self.event_notification_service = event_notification_service
 
     @property
     def products_path(self) -> Path:
@@ -143,6 +144,15 @@ class GovernanceService:
         payload.setdefault("schema_version", "1.0")
         self.safe_drive_write_service.replace_document(self.manufacturers_path, payload, schema_name="manufacturers")
         self._audit("UPSERT_MANUFACTURER", "manufacturer", manufacturer_code, {"status": str((existing or manufacturer).get("status", ""))})
+        self._emit_event(
+            "MANUFACTURER_UPDATED" if existing else "MANUFACTURER_CREATED",
+            entity_type="MANUFACTURER",
+            entity_id=manufacturer_code,
+            title="Manufacturer saved",
+            message=f"Manufacturer {manufacturer_code} was {'updated' if existing else 'created'}.",
+            manufacturer_code=manufacturer_code,
+            manufacturer_email=str((existing or manufacturer).get("owner_email", "")).strip().lower(),
+        )
 
     def get_manufacturer(self, manufacturer_code: str) -> dict[str, Any] | None:
         self.ensure_files()
@@ -288,6 +298,14 @@ class GovernanceService:
         payload.setdefault("schema_version", "1.0")
         self.safe_drive_write_service.replace_document(self.mahajans_path, payload)
         self._audit("UPSERT_MAHAJAN", "mahajan", mahajan_id, {"status": normalized.get("status", "")})
+        self._emit_event(
+            "MAHAJAN_ONBOARDED" if not existing else "STATUS_CHANGED",
+            entity_type="MAHAJAN",
+            entity_id=mahajan_id,
+            title="Mahajan saved",
+            message=f"Mahajan {mahajan_id} was {'onboarded' if not existing else 'updated'}.",
+            mahajan_id=mahajan_id,
+        )
         return normalized
 
     def delete_mahajan(self, mahajan_id: str) -> bool:
@@ -356,6 +374,14 @@ class GovernanceService:
         payload.setdefault("schema_version", "1.0")
         self.safe_drive_write_service.replace_document(self.raw_materials_path, payload)
         self._audit("UPSERT_RAW_MATERIAL", "raw_material", material_id, {"status": normalized.get("status", ""), "mahajan_id": normalized.get("mahajan_id", "")})
+        self._emit_event(
+            "RAW_MATERIAL_UPDATED" if existing else "RAW_MATERIAL_CREATED",
+            entity_type="RAW_MATERIAL",
+            entity_id=material_id,
+            title="Raw material saved",
+            message=f"Raw material {normalized.get('name', material_id)} was {'updated' if existing else 'created'}.",
+            mahajan_id=normalized.get("mahajan_id", ""),
+        )
         return normalized
 
     def list_supply_orders(self) -> list[dict[str, Any]]:
@@ -427,6 +453,13 @@ class GovernanceService:
         payload.setdefault("schema_version", "1.0")
         self.safe_drive_write_service.replace_document(path, payload)
         self._audit(f"ARCHIVE_{entity_type.upper()}", entity_type, entity_id, {"status": "ARCHIVED"})
+        self._emit_event(
+            "ARCHIVED",
+            entity_type=entity_type.upper(),
+            entity_id=entity_id,
+            title=f"{entity_type.title()} archived",
+            message=f"{entity_type.title()} {entity_id} was archived.",
+        )
         return True
 
     def _audit(self, action: str, entity_type: str, entity_id: str, details: dict[str, Any]) -> None:
@@ -440,3 +473,8 @@ class GovernanceService:
             entity_id=entity_id,
             details=details,
         )
+
+    def _emit_event(self, event_type: str, **payload: Any) -> None:
+        if not self.event_notification_service:
+            return
+        self.event_notification_service.emit(event_type, payload)

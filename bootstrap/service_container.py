@@ -12,21 +12,25 @@ from services.audit_service import AuditService
 from services.auth_service import AuthService
 from services.bootstrap_service import BootstrapService
 from services.cache_service import CacheService
+from services.canonical_storage_validation_service import CanonicalStorageValidationService
 from services.catalog_service import CatalogService
 from services.config_service import ConfigService
 from services.connected_accounts_service import ConnectedAccountsService
 from services.delivery_service import DeliveryService
 from services.dead_letter_service import DeadLetterService
 from services.domain_paths_service import DomainPathsService
+from services.drive_path_service import DrivePathService
 from services.drive_service import DriveService
 from services.dual_inventory_service import DualInventoryService
 from services.encryption_service import EncryptionService
 from services.event_bus import EventBus
 from services.event_dispatcher import EventDispatcher
+from services.event_notification_service import EventNotificationService
 from services.file_lock_service import FileLockService
 from services.gmail_service import GmailService
 from services.google_runtime_diagnostic_service import GoogleRuntimeDiagnosticService
 from services.governance_service import GovernanceService
+from services.favorites_service import FavoritesService
 from services.id_allocator_service import IdAllocatorService
 from services.image_service import ImageService
 from services.job_service import JobService
@@ -58,11 +62,13 @@ from services.schema_validation_service import SchemaValidationService
 from services.security_service import SecurityService
 from services.session_state_service import SessionStateService
 from services.startup_recovery_service import StartupRecoveryService
+from services.storage_migration_service import StorageMigrationService
 from services.token_rotation_service import TokenRotationService
 from services.trade_confirmation_service import TradeConfirmationService
+from services.trust_badge_service import TrustBadgeService
 from services.worker_service import WorkerService
 from utils.config_loader import load_config
-from utils.paths import APP_RUNTIME_DIR, BASE_DIR, GOVERNANCE_DIR, MANUFACTURERS_DIR, RUNTIME_BACKUPS_DIR, RUNTIME_DEAD_LETTER_DIR, RUNTIME_LOGS_DIR, RUNTIME_METRICS_DIR, RUNTIME_RECOVERY_DIR, RUNTIME_TOKENS_DIR, RUNTIME_VERSION_HISTORY_DIR
+from utils.paths import APP_RUNTIME_DIR, BASE_DIR, DATA_DIR, GOVERNANCE_DIR, MANUFACTURERS_DIR, RUNTIME_BACKUPS_DIR, RUNTIME_DEAD_LETTER_DIR, RUNTIME_LOGS_DIR, RUNTIME_METRICS_DIR, RUNTIME_RECOVERY_DIR, RUNTIME_TOKENS_DIR, RUNTIME_VERSION_HISTORY_DIR
 
 
 def build_app_context() -> dict:
@@ -72,10 +78,14 @@ def build_app_context() -> dict:
     oauth_config = load_config("oauth_config.json")
     feature_flags = load_config("feature_flags.json")
     subscription_plans = load_config("subscription_plans.json")
+    notification_rules = load_config("notification_rules.json")
     system_config.setdefault("ledger_reminders", {"enabled": True, "upcoming_days_before": 3, "final_reminder_after_days": 15, "max_reminders_per_due": 4})
     system_config.setdefault("public_access", {"auto_onboard_unknown_google_users": True})
     system_config.setdefault("oauth", {"login_navigation_mode": "new_tab"})
     system_config.setdefault("ui", {"show_debug_text": False})
+    system_config.setdefault("storage", {})
+    system_config["storage"].setdefault("mode", "compatibility")
+    system_config["storage"].setdefault("allow_legacy_fallback", True)
     system_config.setdefault(
         "public_payment",
         {
@@ -150,11 +160,13 @@ def build_app_context() -> dict:
         notification_mode=system_config["notifications"].get("notification_mode", "mock"),
         auth_service=auth_service,
         security_service=security_service,
+        id_allocator_service=id_allocator_service,
     )
     token_rotation_service = TokenRotationService(auth_service=auth_service)
     cache_service = CacheService()
     session_state_service = SessionStateService()
     image_service = ImageService()
+    trust_badge_service = TrustBadgeService()
     event_bus = EventBus()
     event_dispatcher = EventDispatcher(APP_RUNTIME_DIR / "events", id_allocator_service=id_allocator_service, dead_letter_service=dead_letter_service, logging_service=logging_service, runtime_metrics_service=runtime_metrics_service)
     safe_drive_write_service = SafeDriveWriteService(
@@ -186,6 +198,18 @@ def build_app_context() -> dict:
         safe_drive_write_service=safe_drive_write_service,
     )
     catalog_service = CatalogService(governance_root=GOVERNANCE_DIR)
+    public_buyers_root = BASE_DIR / "data" / "public_buyers"
+    drive_path_service = DrivePathService(
+        db_root=DATA_DIR / "MANDITRADE_DB",
+        runtime_root=APP_RUNTIME_DIR,
+        governance_root=GOVERNANCE_DIR,
+        manufacturers_root=MANUFACTURERS_DIR,
+        public_buyers_root=public_buyers_root,
+        storage_mode=system_config["storage"].get("mode", "compatibility"),
+        allow_legacy_fallback=bool(system_config["storage"].get("allow_legacy_fallback", True)),
+    )
+    gmail_service.drive_path_service = drive_path_service
+    gmail_service.queue_path = drive_path_service.get_notification_path("email_queue")
     manufacturer_onboarding_service = ManufacturerOnboardingService(
         drive_service=drive_service,
         governance_service=governance_service,
@@ -193,13 +217,18 @@ def build_app_context() -> dict:
         json_service=drive_service.json_service,
         id_allocator_service=id_allocator_service,
     )
-    domain_paths_service = DomainPathsService(drive_service=drive_service)
+    domain_paths_service = DomainPathsService(drive_service=drive_service, drive_path_service=drive_path_service)
     dual_inventory_service = DualInventoryService(safe_drive_write_service=safe_drive_write_service, json_service=drive_service.json_service, domain_paths_service=domain_paths_service)
     trade_confirmation_service = TradeConfirmationService(safe_drive_write_service=safe_drive_write_service, json_service=drive_service.json_service, id_allocator_service=id_allocator_service, domain_paths_service=domain_paths_service)
     ledger_service = LedgerService(safe_drive_write_service=safe_drive_write_service, json_service=drive_service.json_service, id_allocator_service=id_allocator_service, domain_paths_service=domain_paths_service)
-    public_buyers_root = BASE_DIR / "data" / "public_buyers"
     public_orders_root = BASE_DIR / "data" / "public_orders"
     public_payments_root = BASE_DIR / "data" / "public_payments"
+    favorites_service = FavoritesService(
+        favorites_root=APP_RUNTIME_DIR / "favorites",
+        safe_drive_write_service=safe_drive_write_service,
+        json_service=drive_service.json_service,
+        id_allocator_service=id_allocator_service,
+    )
     notification_center_service = NotificationCenterService(
         safe_drive_write_service=safe_drive_write_service,
         json_service=drive_service.json_service,
@@ -217,6 +246,37 @@ def build_app_context() -> dict:
     kpi_service = KPIService(snapshot_path=APP_RUNTIME_DIR / "kpis" / "latest.json", safe_drive_write_service=safe_drive_write_service)
     recommendation_service = RecommendationService(recommendations_path=APP_RUNTIME_DIR / "recommendations" / "latest.json", safe_drive_write_service=safe_drive_write_service)
     operational_search_service = OperationalSearchService(index_path=APP_RUNTIME_DIR / "search_index" / "latest.json", safe_drive_write_service=safe_drive_write_service)
+    public_buyer_service = PublicBuyerService(
+        public_buyers_root=public_buyers_root,
+        safe_drive_write_service=safe_drive_write_service,
+        json_service=drive_service.json_service,
+        id_allocator_service=id_allocator_service,
+    )
+    event_notification_service = EventNotificationService(
+        notification_center_service=notification_center_service,
+        gmail_service=gmail_service,
+        governance_service=governance_service,
+        public_buyer_service=public_buyer_service,
+        notification_rules=notification_rules,
+    )
+    governance_service.event_notification_service = event_notification_service
+    storage_migration_service = StorageMigrationService(
+        drive_path_service=drive_path_service,
+        safe_drive_write_service=safe_drive_write_service,
+        json_service=drive_service.json_service,
+        id_allocator_service=id_allocator_service,
+        governance_root=GOVERNANCE_DIR,
+        public_buyers_root=public_buyers_root,
+        public_orders_root=public_orders_root,
+        public_payments_root=public_payments_root,
+        runtime_root=APP_RUNTIME_DIR,
+    )
+    canonical_storage_validation_service = CanonicalStorageValidationService(
+        drive_path_service=drive_path_service,
+        json_service=drive_service.json_service,
+        governance_root=GOVERNANCE_DIR,
+        public_buyers_root=public_buyers_root,
+    )
     product_catalog_service = ProductCatalogService(
         governance_service=governance_service,
         id_allocator_service=id_allocator_service,
@@ -225,12 +285,7 @@ def build_app_context() -> dict:
         admin_email=security_service.get_admin_email(),
         pricing_service=pricing_service,
         image_service=image_service,
-    )
-    public_buyer_service = PublicBuyerService(
-        public_buyers_root=public_buyers_root,
-        safe_drive_write_service=safe_drive_write_service,
-        json_service=drive_service.json_service,
-        id_allocator_service=id_allocator_service,
+        event_notification_service=event_notification_service,
     )
     public_cart_service = PublicCartService(
         public_buyer_service=public_buyer_service,
@@ -253,6 +308,7 @@ def build_app_context() -> dict:
         notification_center_service=notification_center_service,
         ledger_service=ledger_service,
         gmail_service=gmail_service,
+        event_notification_service=event_notification_service,
     )
     access_portal_service = AccessPortalService(
         governance_root=GOVERNANCE_DIR,
@@ -284,6 +340,7 @@ def build_app_context() -> dict:
         domain_paths_service=domain_paths_service,
         governance_service=governance_service,
         pricing_service=pricing_service,
+        event_notification_service=event_notification_service,
     )
     cart_service = CartService(
         carts_root=APP_RUNTIME_DIR / "carts",
@@ -310,6 +367,8 @@ def build_app_context() -> dict:
         id_allocator_service=id_allocator_service,
         pricing_service=pricing_service,
         config=system_config.get("public_payment", {}),
+        trust_badge_service=trust_badge_service,
+        event_notification_service=event_notification_service,
     )
     cart_service.public_order_service = public_order_service
     order_transaction_service = OrderTransactionService(
@@ -415,7 +474,11 @@ def build_app_context() -> dict:
         "oauth_config": oauth_config,
         "feature_flags": feature_flags,
         "subscription_plans": subscription_plans,
+        "notification_rules": notification_rules,
         "drive_service": drive_service,
+        "drive_path_service": drive_path_service,
+        "storage_migration_service": storage_migration_service,
+        "canonical_storage_validation_service": canonical_storage_validation_service,
         "auth_service": auth_service,
         "encryption_service": encryption_service,
         "security_service": security_service,
@@ -432,10 +495,13 @@ def build_app_context() -> dict:
         "rollback_service": rollback_service,
         "event_dispatcher": event_dispatcher,
         "event_bus": event_bus,
+        "event_notification_service": event_notification_service,
         "procurement_transaction_service": procurement_transaction_service,
         "order_transaction_service": order_transaction_service,
         "cache_service": cache_service,
         "image_service": image_service,
+        "favorites_service": favorites_service,
+        "trust_badge_service": trust_badge_service,
         "cart_service": cart_service,
         "session_state_service": session_state_service,
         "dead_letter_service": dead_letter_service,

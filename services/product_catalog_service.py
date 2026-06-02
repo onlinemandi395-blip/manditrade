@@ -5,7 +5,7 @@ from typing import Any
 
 
 class ProductCatalogService:
-    def __init__(self, governance_service, id_allocator_service, notification_center_service=None, gmail_service=None, admin_email: str | None = None, pricing_service=None, image_service=None) -> None:
+    def __init__(self, governance_service, id_allocator_service, notification_center_service=None, gmail_service=None, admin_email: str | None = None, pricing_service=None, image_service=None, event_notification_service=None) -> None:
         self.governance_service = governance_service
         self.id_allocator_service = id_allocator_service
         self.notification_center_service = notification_center_service
@@ -13,6 +13,7 @@ class ProductCatalogService:
         self.admin_email = (admin_email or "").strip().lower()
         self.pricing_service = pricing_service
         self.image_service = image_service
+        self.event_notification_service = event_notification_service
 
     def list_products(self, *, include_pending: bool = True, viewer_role: str | None = None, viewer_code: str | None = None) -> list[dict[str, Any]]:
         products = self.governance_service.list_products()
@@ -108,6 +109,17 @@ class ProductCatalogService:
             "visible": False,
         }
         self.governance_service.upsert_product(product)
+        self._emit_event(
+            "PRODUCT_APPROVAL_REQUESTED",
+            entity_type="PRODUCT_PROPOSAL",
+            entity_id=product["product_id"],
+            title="Product approval requested",
+            message=f"{product['name']} is waiting for admin approval.",
+            manufacturer_code=created_by,
+            manufacturer_email=created_by_email.strip().lower(),
+            admin_email=self.admin_email,
+            thumbnail_url=product.get("thumbnail_url", ""),
+        )
         return product
 
     def approve_product(
@@ -167,6 +179,17 @@ class ProductCatalogService:
             }
         )
         self.governance_service.upsert_product(product)
+        self._emit_event(
+            "PRODUCT_APPROVED",
+            entity_type="PRODUCT_PROPOSAL",
+            entity_id=product_id,
+            title="Product approved",
+            message=f"{product.get('name', product_id)} was approved.",
+            manufacturer_code=product.get("created_by_manufacturer_id", ""),
+            manufacturer_email=product.get("created_by_email", ""),
+            admin_email=self.admin_email,
+            thumbnail_url=product.get("thumbnail_url", ""),
+        )
         return product
 
     def reject_product(self, *, product_id: str, approved_by: str, admin_note: str = "") -> dict[str, Any]:
@@ -182,6 +205,17 @@ class ProductCatalogService:
             }
         )
         self.governance_service.upsert_product(product)
+        self._emit_event(
+            "PRODUCT_REJECTED",
+            entity_type="PRODUCT_PROPOSAL",
+            entity_id=product_id,
+            title="Product rejected",
+            message=f"{product.get('name', product_id)} was rejected.",
+            manufacturer_code=product.get("created_by_manufacturer_id", ""),
+            manufacturer_email=product.get("created_by_email", ""),
+            admin_email=self.admin_email,
+            thumbnail_url=product.get("thumbnail_url", ""),
+        )
         return product
 
     def update_product(self, *, product_id: str, updates: dict[str, Any], updated_by: str) -> dict[str, Any]:
@@ -214,10 +248,29 @@ class ProductCatalogService:
         product["updated_at"] = datetime.now(UTC).isoformat()
         product["approved_by"] = updated_by or product.get("approved_by", "")
         self.governance_service.upsert_product(product)
+        self._emit_event(
+            "PRODUCT_UPDATED",
+            entity_type="PRODUCT",
+            entity_id=product_id,
+            title="Product updated",
+            message=f"{product.get('name', product_id)} was updated.",
+            manufacturer_code=product.get("created_by_manufacturer_id", ""),
+            manufacturer_email=product.get("created_by_email", ""),
+            thumbnail_url=product.get("thumbnail_url", ""),
+        )
         return product
 
     def delete_product(self, *, product_id: str) -> bool:
-        return self.governance_service.delete_product(product_id)
+        deleted = self.governance_service.delete_product(product_id)
+        if deleted:
+            self._emit_event(
+                "ARCHIVED",
+                entity_type="PRODUCT",
+                entity_id=product_id,
+                title="Product archived",
+                message=f"Product {product_id} was archived.",
+            )
+        return deleted
 
     def add_product_comment(self, product_id: str, author_user, message: str) -> dict[str, Any]:
         product = self._get_product(product_id)
@@ -334,6 +387,19 @@ class ProductCatalogService:
             raise PermissionError("Only the proposing manufacturer can access proposal comments.")
 
     def _notify_comment_event(self, product: dict[str, Any], author_user, comment: dict[str, Any]) -> None:
+        if self.event_notification_service:
+            self._emit_event(
+                "STATUS_CHANGED",
+                entity_type="PRODUCT_PROPOSAL",
+                entity_id=product["product_id"],
+                title="Product proposal comment",
+                message=comment["message"],
+                manufacturer_code=product.get("created_by_manufacturer_id", ""),
+                manufacturer_email=product.get("created_by_email", ""),
+                admin_email=self.admin_email,
+                thumbnail_url=product.get("thumbnail_url", ""),
+            )
+            return
         if not self.notification_center_service:
             return
         author_role = comment["author_role"]
@@ -398,3 +464,8 @@ class ProductCatalogService:
         if viewer_role == "public_buyer" or not viewer_role:
             return visibility == "PUBLIC" and bool(item.get("available_for_public_sale", False))
         return True
+
+    def _emit_event(self, event_type: str, **payload: Any) -> None:
+        if not self.event_notification_service:
+            return
+        self.event_notification_service.emit(event_type, payload)
