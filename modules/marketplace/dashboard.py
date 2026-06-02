@@ -5,6 +5,7 @@ from html import escape
 import streamlit as st
 
 from components.html_renderer import render_html
+from components.product_card import render_product_card
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
 from components.ui_shell import render_metric_card, render_page_header, render_showcase_strip
@@ -15,6 +16,7 @@ def render_marketplace_dashboard(app_context: dict) -> None:
     user = app_context["current_user"]
     role = user.role if user else "public_browse"
     products = app_context["product_catalog_service"].list_products(include_pending=False, viewer_role="public_buyer")
+    image_service = app_context.get("image_service")
     render_page_header(
         "Marketplace",
         "Instant-pay public shopping stays separate from the manufacturer-facing MandiPlace and raw-material supply workflows.",
@@ -53,24 +55,25 @@ def render_marketplace_dashboard(app_context: dict) -> None:
         )
     ]
     render_section_intro("Public Catalog", "Browse public products, compare pricing, and place upfront-pay orders from one simple marketplace view.")
-    preview_cards = "".join(
-        f"""
-        <article class="mt-product-card">
-          <div class="mt-product-card__image"></div>
-          <h3>{escape(str(item.get('name', 'Product')))}</h3>
-          <p>{escape(str(item.get('description', '') or 'Public marketplace catalog product.'))}</p>
-          <div class="mt-chip-row">
-            <span class="mt-price-chip">Price: {escape(str(item.get('approved_marketplace_price', item.get('marketplace_price', item.get('price', 0)))))}</span>
-            <span class="mt-chip">{escape(str(item.get('category', 'General')))}</span>
-            <span class="mt-chip">MOQ: {escape(str(item.get('minimum_order_qty', 1)))}</span>
-          </div>
-        </article>
-        """
-        for item in filtered[:6]
-    )
-    if preview_cards:
-        render_html(f"<section class='mt-grid mt-grid--actions'>{preview_cards}</section>")
-    st.dataframe(filtered, use_container_width=True)
+    st.markdown("<div class='mt-card-grid'>", unsafe_allow_html=True)
+    for index, item in enumerate(filtered[:8]):
+        image = image_service.get_display_image(item, label=str(item.get("name", "Product"))) if image_service else {"src": "", "alt": str(item.get("name", "Product")), "status": "NONE"}
+        clicked = render_product_card(
+            item=item,
+            variant="MARKETPLACE_PRODUCT",
+            image=image,
+            title=str(item.get("name", "Product")),
+            subtitle=str(item.get("category", "General")),
+            price_label="Marketplace",
+            price_value=str(item.get("approved_marketplace_price", item.get("marketplace_price", item.get("price", 0)))),
+            availability_label=f"MOQ {item.get('minimum_order_qty', 1)}",
+            visibility_label="PUBLIC",
+            action_label="View Details",
+            action_key=f"marketplace_view_{item.get('product_id', index)}",
+        )
+        if clicked:
+            st.session_state["marketplace_selected_product"] = item.get("product_id", "")
+    st.markdown("</div>", unsafe_allow_html=True)
 
     if not user:
         st.info("Sign in from the sidebar to continue.")
@@ -94,8 +97,26 @@ def render_marketplace_dashboard(app_context: dict) -> None:
         if not filtered:
             st.info("No public products match the current search/filter.")
         else:
-            selected_product_id = st.selectbox("Select Product", [item["product_id"] for item in filtered], format_func=lambda pid: next(item["name"] for item in filtered if item["product_id"] == pid))
+            selected_product_id = str(st.session_state.get("marketplace_selected_product") or filtered[0]["product_id"])
+            if not any(item["product_id"] == selected_product_id for item in filtered):
+                selected_product_id = filtered[0]["product_id"]
+            selected_product_id = st.selectbox("Selected Product", [item["product_id"] for item in filtered], format_func=lambda pid: next(item["name"] for item in filtered if item["product_id"] == pid), index=[item["product_id"] for item in filtered].index(selected_product_id))
             selected = next(item for item in filtered if item["product_id"] == selected_product_id)
+            image = image_service.get_display_image(selected, label=str(selected.get("name", "Product"))) if image_service else {"src": "", "alt": str(selected.get("name", "Product")), "status": "NONE"}
+            render_html(
+                f"""
+                <article class="mt-product-card">
+                  <div class="mt-product-thumbnail" style="background-image:url('{escape(image['src'])}');" role="img" aria-label="{escape(image['alt'])}"></div>
+                  <h3>{escape(str(selected.get('name', 'Product')))}</h3>
+                  <p>{escape(str(selected.get('description', '') or 'Public marketplace catalog product.'))}</p>
+                  <div class="mt-chip-row">
+                    <span class="mt-price-chip">Marketplace: {escape(str(selected.get('approved_marketplace_price', selected.get('marketplace_price', selected.get('price', 0)))))}</span>
+                    <span class="mt-chip">{escape(str(selected.get('category', 'General')))}</span>
+                    <span class="mt-availability-chip">MOQ {escape(str(selected.get('minimum_order_qty', 1)))}</span>
+                  </div>
+                </article>
+                """
+            )
             qty = st.number_input(
                 "Quantity",
                 min_value=max(int(selected.get("minimum_order_qty", 1) or 1), 1),
@@ -112,10 +133,11 @@ def render_marketplace_dashboard(app_context: dict) -> None:
                     st.rerun()
     with cart_tab:
         cart = cart_service.get_cart(buyer["public_buyer_id"])
-        st.json(cart, expanded=False)
         if not cart.get("items"):
             st.info("Your public cart is empty.")
         else:
+            st.dataframe(cart.get("items", []), use_container_width=True)
+            st.caption(f"Subtotal: {cart.get('subtotal', 0)}")
             st.info("Public checkout uses approved MRP only and requires 100% upfront payment.")
             if st.button("Create Public Order", use_container_width=True):
                 try:

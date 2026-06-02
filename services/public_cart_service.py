@@ -5,12 +5,13 @@ from typing import Any
 
 
 class PublicCartService:
-    def __init__(self, public_buyer_service, product_catalog_service, safe_drive_write_service, json_service, id_allocator_service) -> None:
+    def __init__(self, public_buyer_service, product_catalog_service, safe_drive_write_service, json_service, id_allocator_service, cart_service=None) -> None:
         self.public_buyer_service = public_buyer_service
         self.product_catalog_service = product_catalog_service
         self.safe_drive_write_service = safe_drive_write_service
         self.json_service = json_service
         self.id_allocator_service = id_allocator_service
+        self.cart_service = cart_service
 
     def _default_cart(self, public_buyer_id: str) -> dict[str, Any]:
         return {
@@ -26,6 +27,8 @@ class PublicCartService:
         }
 
     def get_cart(self, public_buyer_id: str) -> dict[str, Any]:
+        if self.cart_service:
+            return self.cart_service.get_cart("public_buyer", public_buyer_id, "MARKETPLACE")
         path = self.public_buyer_service.cart_path(public_buyer_id)
         if not path.exists():
             cart = self._default_cart(public_buyer_id)
@@ -34,6 +37,8 @@ class PublicCartService:
         return self.json_service.read_json(path, self._default_cart(public_buyer_id))
 
     def add_item(self, public_buyer_id: str, *, product_id: str, qty: int) -> dict[str, Any]:
+        if self.cart_service:
+            return self.cart_service.add_item("public_buyer", public_buyer_id, cart_type="MARKETPLACE", item_id=product_id, qty=qty)
         product = self.product_catalog_service.get_product(product_id)
         self._ensure_public_product(product)
         requested_qty = max(int(qty or 0), int(product.get("minimum_order_qty", 1) or 1))
@@ -82,6 +87,8 @@ class PublicCartService:
         return self.get_cart(public_buyer_id)
 
     def clear_cart(self, public_buyer_id: str) -> dict[str, Any]:
+        if self.cart_service:
+            return self.cart_service.clear_cart("public_buyer", public_buyer_id, cart_type="MARKETPLACE")
         cart = self._default_cart(public_buyer_id)
         self.safe_drive_write_service.replace_document(self.public_buyer_service.cart_path(public_buyer_id), cart)
         return cart

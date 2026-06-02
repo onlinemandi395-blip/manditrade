@@ -5,13 +5,14 @@ from typing import Any
 
 
 class ProductCatalogService:
-    def __init__(self, governance_service, id_allocator_service, notification_center_service=None, gmail_service=None, admin_email: str | None = None, pricing_service=None) -> None:
+    def __init__(self, governance_service, id_allocator_service, notification_center_service=None, gmail_service=None, admin_email: str | None = None, pricing_service=None, image_service=None) -> None:
         self.governance_service = governance_service
         self.id_allocator_service = id_allocator_service
         self.notification_center_service = notification_center_service
         self.gmail_service = gmail_service
         self.admin_email = (admin_email or "").strip().lower()
         self.pricing_service = pricing_service
+        self.image_service = image_service
 
     def list_products(self, *, include_pending: bool = True, viewer_role: str | None = None, viewer_code: str | None = None) -> list[dict[str, Any]]:
         products = self.governance_service.list_products()
@@ -52,11 +53,22 @@ class ProductCatalogService:
         available_for_public_sale: bool = False,
         available_for_mandi_network: bool = True,
         image_url: str = "",
+        image_file_ref: str = "",
+        thumbnail_url: str = "",
+        image_alt_text: str = "",
+        image_status: str = "",
         created_by_email: str = "",
     ) -> dict[str, Any]:
         created_at = datetime.now(UTC).isoformat()
         client_price = float(suggested_client_price if suggested_client_price is not None else suggested_mrp or 0)
         marketplace_price = float(suggested_marketplace_price if suggested_marketplace_price is not None else client_price)
+        image_metadata = self.image_service.normalize_image_metadata(
+            image_url=image_url,
+            image_file_ref=image_file_ref,
+            thumbnail_url=thumbnail_url,
+            image_alt_text=image_alt_text or name,
+            image_status=image_status,
+        ) if self.image_service else {"image_url": image_url.strip()}
         product = {
             "product_id": self.id_allocator_service.allocate("product"),
             "name": name.strip(),
@@ -76,7 +88,7 @@ class ProductCatalogService:
             "minimum_order_qty": max(int(minimum_order_qty or 1), 1),
             "available_for_public_sale": bool(available_for_public_sale),
             "available_for_mandi_network": bool(available_for_mandi_network),
-            "image_url": image_url.strip(),
+            **image_metadata,
             "mandi_price": 0.0,
             "client_price": 0.0,
             "marketplace_price": 0.0,
@@ -179,11 +191,13 @@ class ProductCatalogService:
             "suggested_mandi_price", "suggested_client_price", "suggested_marketplace_price", "suggested_mrp",
             "approved_mandi_price", "approved_client_price", "approved_marketplace_price", "approved_mrp",
             "visibility_request", "approved_visibility", "minimum_order_qty", "available_for_public_sale",
-            "available_for_mandi_network", "image_url", "public_seller_manufacturer_id", "visible", "admin_note", "status",
+            "available_for_mandi_network", "image_url", "image_file_ref", "thumbnail_url", "image_alt_text", "image_status", "public_seller_manufacturer_id", "visible", "admin_note", "status",
         }
         for key, value in updates.items():
             if key in allowed_fields:
                 product[key] = value
+        if self.image_service:
+            product.update(self.image_service.normalize_image_metadata(product))
         if updates.get("approved_mandi_price") is not None:
             product["mandi_price"] = float(updates["approved_mandi_price"])
         if updates.get("approved_client_price") is not None:
@@ -295,6 +309,8 @@ class ProductCatalogService:
         item["suggested_marketplace_price"] = float(item.get("suggested_marketplace_price", item["suggested_client_price"]) or 0)
         item["approved_client_price"] = float(item.get("approved_client_price", item.get("approved_mrp", client_price)) or 0) if item.get("status") == "ACTIVE" else item.get("approved_client_price")
         item["approved_marketplace_price"] = float(item.get("approved_marketplace_price", marketplace_price) or 0) if item.get("status") == "ACTIVE" else item.get("approved_marketplace_price")
+        if self.image_service:
+            item.update(self.image_service.normalize_image_metadata(item, image_alt_text=str(item.get("image_alt_text") or item.get("name") or "Product")))
         return item
 
     def _normalized_role(self, role: str) -> str:

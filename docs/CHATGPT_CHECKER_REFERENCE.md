@@ -1,6 +1,6 @@
 # MandiTrade Checker Reference
 
-Generated from the current repository state on 2026-06-02 after the pilot release packaging + production-readiness pass.
+Generated from the current repository state on 2026-06-02 after the product images + thumbnail shopping cart UX pass.
 
 ## Final Role Model
 
@@ -218,6 +218,63 @@ Generated from the current repository state on 2026-06-02 after the pilot releas
   - [scripts/cleanup_test_data.py](/c:/2026/manditrade/manditrade/scripts/cleanup_test_data.py)
   - [scripts/create_release_snapshot.py](/c:/2026/manditrade/manditrade/scripts/create_release_snapshot.py)
 
+## Product Images Status
+
+- Shared image handling now exists in:
+  - [services/image_service.py](/c:/2026/manditrade/manditrade/services/image_service.py)
+- Products now support normalized image metadata:
+  - `image_url`
+  - `image_file_ref`
+  - `thumbnail_url`
+  - `image_alt_text`
+  - `image_status`
+- Product image support is wired through:
+  - [services/product_catalog_service.py](/c:/2026/manditrade/manditrade/services/product_catalog_service.py)
+  - [modules/products/dashboard.py](/c:/2026/manditrade/manditrade/modules/products/dashboard.py)
+- Missing or broken images now fall back to a deterministic placeholder image instead of a dead image surface.
+
+## Raw Material Images Status
+
+- Raw material image metadata is now stored in:
+  - [services/governance_service.py](/c:/2026/manditrade/manditrade/services/governance_service.py)
+- Raw material image inputs are now available in:
+  - [modules/raw_materials/dashboard.py](/c:/2026/manditrade/manditrade/modules/raw_materials/dashboard.py)
+  - [modules/suta_mandi/dashboard.py](/c:/2026/manditrade/manditrade/modules/suta_mandi/dashboard.py)
+  - [modules/procurement/dashboard.py](/c:/2026/manditrade/manditrade/modules/procurement/dashboard.py)
+
+## Cart UX Status
+
+- Shared cart logic now exists in:
+  - [services/cart_service.py](/c:/2026/manditrade/manditrade/services/cart_service.py)
+- Compatibility wrapper for public buyers remains in:
+  - [services/public_cart_service.py](/c:/2026/manditrade/manditrade/services/public_cart_service.py)
+- Current checkout routing is:
+  - `MARKETPLACE`
+    - public buyer -> marketplace order
+  - `MANDIPLACE`
+    - manufacturer -> admin-routed mandi supply request
+  - `SUTA_MANDI`
+    - manufacturer -> admin-routed suta supply request
+- Direct manufacturer-to-mahajan bypass is still blocked.
+
+## Thumbnail Shopping Status
+
+- Shared thumbnail card component now exists in:
+  - [components/product_card.py](/c:/2026/manditrade/manditrade/components/product_card.py)
+- Card-based shopping or request surfaces now appear in:
+  - [modules/marketplace/dashboard.py](/c:/2026/manditrade/manditrade/modules/marketplace/dashboard.py)
+  - [modules/products/dashboard.py](/c:/2026/manditrade/manditrade/modules/products/dashboard.py)
+  - [modules/raw_materials/dashboard.py](/c:/2026/manditrade/manditrade/modules/raw_materials/dashboard.py)
+  - [modules/suta_mandi/dashboard.py](/c:/2026/manditrade/manditrade/modules/suta_mandi/dashboard.py)
+  - [modules/procurement/dashboard.py](/c:/2026/manditrade/manditrade/modules/procurement/dashboard.py)
+- Marketplace detail selection now shows:
+  - larger image area
+  - description
+  - role-safe price
+  - quantity selector
+  - add-to-cart action
+- Public buyer pricing remains restricted to marketplace pricing only.
+
 ## Environment Validation Status
 
 - Release env validation script now runs and writes reports to:
@@ -346,7 +403,7 @@ Generated from the current repository state on 2026-06-02 after the pilot releas
 ## Tests Result
 
 - `python -m pytest tests/ -q`
-  - Passed: `197`
+  - Passed: `206`
   - Skipped: `5`
 - `python -m compileall app.py modules services utils components schemas bootstrap scripts`
   - Passed
@@ -367,6 +424,7 @@ Generated from the current repository state on 2026-06-02 after the pilot releas
 ## Remaining Blockers
 
 - Release readiness is still blocked by cloud OAuth/admin email configuration, so this is not yet a pilot `GO`.
+- Card-based shopping is now live on the main marketplace and manufacturer request surfaces, but some lower-traffic admin/supervisory tables still remain table-first rather than card-first by design.
 - Alerts and recommendations are intentionally rule-based and deterministic; there is still no forecasting depth or adaptive scoring beyond current heuristics.
 - Pagination is implemented on the current highest-volume operational pages, but a few legacy / low-traffic screens still use direct table rendering and can be migrated later.
 - Operational search currently routes to page-level detail surfaces, not a universal modal detail shell.

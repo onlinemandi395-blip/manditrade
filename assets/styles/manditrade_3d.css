@@ -840,13 +840,21 @@ div[data-baseweb="tab-border"] {
   transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
 }
 
+.mt-card-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin: 16px 0 20px 0;
+}
+
 .mt-product-card:hover {
   transform: translateY(-5px);
   box-shadow: var(--shadow-deep);
   border-color: rgba(56,189,248,0.18);
 }
 
-.mt-product-card__image {
+.mt-product-card__image,
+.mt-product-thumbnail {
   height: 120px;
   margin-bottom: 14px;
   border-radius: 20px;
@@ -855,6 +863,9 @@ div[data-baseweb="tab-border"] {
     radial-gradient(circle at 24% 24%, rgba(56,193,114,0.18), transparent 28%),
     radial-gradient(circle at 76% 20%, rgba(245,158,11,0.18), transparent 24%),
     linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.01));
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
 }
 
 .mt-price-chip {
@@ -866,6 +877,21 @@ div[data-baseweb="tab-border"] {
   border: 1px solid rgba(255,255,255,0.08);
   color: #f8fafc;
   font-weight: 700;
+}
+
+.mt-availability-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: var(--radius-pill);
+  background: rgba(56, 193, 114, 0.12);
+  border: 1px solid rgba(56, 193, 114, 0.22);
+  color: #c7f5d8;
+  font-weight: 700;
+}
+
+.mt-card-action {
+  margin-top: 10px;
 }
 
 .mt-button-chip {
@@ -1146,6 +1172,9 @@ div[data-baseweb="tab-border"] {
   .mt-grid--metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  .mt-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
   .mt-grid--actions,
   .mt-grid--stack {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1167,7 +1196,8 @@ div[data-baseweb="tab-border"] {
   .mt-grid--metrics,
   .mt-grid--actions,
   .mt-grid--stack,
-  .mt-hero__metrics {
+  .mt-hero__metrics,
+  .mt-card-grid {
     grid-template-columns: 1fr;
   }
   .stApp::after {

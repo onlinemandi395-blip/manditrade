@@ -6,6 +6,7 @@ import streamlit as st
 
 from components.filter_bar import render_filter_bar
 from components.order_timeline import render_order_timeline_component
+from components.product_card import render_product_card
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
 from components.ui_shell import render_metric_card, render_page_header
@@ -298,6 +299,8 @@ def render_procurement_dashboard(app_context: dict) -> None:
     all_mahajans = governance_service.list_mahajans()
     materials_by_id = _index_by(all_materials, "raw_material_id")
     mahajans_by_id = _index_by(all_mahajans, "mahajan_id")
+    cart_service = app_context.get("cart_service")
+    image_service = app_context.get("image_service")
 
     if user.role == "platform_admin":
         orders = service.list_supply_orders()
@@ -510,6 +513,34 @@ def render_procurement_dashboard(app_context: dict) -> None:
             if not materials:
                 st.info("No raw materials are available yet. Ask admin to onboard a mahajan supply catalog first.")
             else:
+                preview_cards = materials[:4]
+                if preview_cards:
+                    columns = st.columns(min(len(preview_cards), 4))
+                    for index, item in enumerate(preview_cards):
+                        with columns[index % len(columns)]:
+                            image = image_service.get_display_image(item, label=str(item.get("name", "Raw Material"))) if image_service else {"src": "", "alt": str(item.get("name", "Raw Material")), "status": "NONE"}
+                            if render_product_card(
+                                item=item,
+                                variant="MANDIPLACE_PRODUCT",
+                                image=image,
+                                title=str(item.get("name", item.get("raw_material_id", "Raw Material"))),
+                                subtitle=str(item.get("category", "RAW_MATERIAL")),
+                                price_label="Supply",
+                                price_value=str(item.get("supply_price", 0)),
+                                availability_label=f"Qty {item.get('available_qty', 0)}",
+                                visibility_label=str(item.get("status", "ACTIVE")),
+                                action_label="Add To Request Cart",
+                                action_key=f"mandi_add_{item.get('raw_material_id', index)}",
+                            ):
+                                cart_service.add_item(
+                                    "manufacturer",
+                                    user.manufacturer_code or "",
+                                    cart_type="MANDIPLACE",
+                                    item_id=str(item.get("raw_material_id", "")),
+                                    qty=1,
+                                )
+                                st.success("Added to MandiPlace request cart.")
+                                st.rerun()
                 with st.form("manufacturer_supply_request"):
                     raw_material_id = st.selectbox("Raw Material", [item["raw_material_id"] for item in materials], format_func=lambda item_id: f"{item_id} | {materials_by_id.get(item_id, {}).get('name', 'Raw Material')}")
                     qty = st.number_input("Qty", min_value=1.0, step=1.0, value=1.0)
@@ -517,16 +548,29 @@ def render_procurement_dashboard(app_context: dict) -> None:
                     notes = st.text_area("Requirement Note")
                     submitted = st.form_submit_button("Create Mandi Request")
                 if submitted and raw_material_id:
-                    service.create_supply_request(
-                        manufacturer_code=user.manufacturer_code or "",
-                        raw_material_id=raw_material_id,
-                        qty=qty,
-                        unit=unit,
-                        requested_by=user.email,
-                        notes=notes,
-                    )
-                    st.success("Mandi supply request created for admin review.")
-                    st.rerun()
+                    if cart_service:
+                        cart_service.add_item(
+                            "manufacturer",
+                            user.manufacturer_code or "",
+                            cart_type="MANDIPLACE",
+                            item_id=raw_material_id,
+                            qty=int(qty),
+                            metadata={"notes": notes},
+                        )
+                        st.success("Mandi request item added to cart.")
+                        st.rerun()
+                request_cart = cart_service.get_cart("manufacturer", user.manufacturer_code or "", "MANDIPLACE") if cart_service else {"items": []}
+                if request_cart.get("items"):
+                    st.dataframe(request_cart.get("items", []), use_container_width=True)
+                    if st.button("Checkout Mandi Request Cart", use_container_width=True, key="mandi_checkout"):
+                        created = cart_service.checkout(
+                            "manufacturer",
+                            user.manufacturer_code or "",
+                            cart_type="MANDIPLACE",
+                            checkout_context={"manufacturer_code": user.manufacturer_code or "", "requester_email": user.email},
+                        )
+                        st.success(f"Created {len(created)} admin-routed mandi request(s).")
+                        st.rerun()
         with responses_tab:
             priced = [item for item in orders if item.get("status") == "ADMIN_PRICE_SET"]
             st.dataframe(priced, use_container_width=True)

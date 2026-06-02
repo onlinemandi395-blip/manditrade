@@ -28,6 +28,7 @@ from services.gmail_service import GmailService
 from services.google_runtime_diagnostic_service import GoogleRuntimeDiagnosticService
 from services.governance_service import GovernanceService
 from services.id_allocator_service import IdAllocatorService
+from services.image_service import ImageService
 from services.job_service import JobService
 from services.ledger_reminder_service import LedgerReminderService
 from services.ledger_service import LedgerService
@@ -40,6 +41,7 @@ from services.order_state_service import OrderStateService
 from services.order_transaction_service import OrderTransactionService
 from services.procurement_transaction_service import ProcurementTransactionService
 from services.product_catalog_service import ProductCatalogService
+from services.cart_service import CartService
 from services.public_buyer_service import PublicBuyerService
 from services.public_cart_service import PublicCartService
 from services.public_order_service import PublicOrderService
@@ -152,6 +154,7 @@ def build_app_context() -> dict:
     token_rotation_service = TokenRotationService(auth_service=auth_service)
     cache_service = CacheService()
     session_state_service = SessionStateService()
+    image_service = ImageService()
     event_bus = EventBus()
     event_dispatcher = EventDispatcher(APP_RUNTIME_DIR / "events", id_allocator_service=id_allocator_service, dead_letter_service=dead_letter_service, logging_service=logging_service, runtime_metrics_service=runtime_metrics_service)
     safe_drive_write_service = SafeDriveWriteService(
@@ -221,6 +224,7 @@ def build_app_context() -> dict:
         gmail_service=gmail_service,
         admin_email=security_service.get_admin_email(),
         pricing_service=pricing_service,
+        image_service=image_service,
     )
     public_buyer_service = PublicBuyerService(
         public_buyers_root=public_buyers_root,
@@ -228,12 +232,22 @@ def build_app_context() -> dict:
         json_service=drive_service.json_service,
         id_allocator_service=id_allocator_service,
     )
+    cart_service = CartService(
+        carts_root=APP_RUNTIME_DIR / "carts",
+        safe_drive_write_service=safe_drive_write_service,
+        json_service=drive_service.json_service,
+        id_allocator_service=id_allocator_service,
+        product_catalog_service=product_catalog_service,
+        governance_service=governance_service,
+        procurement_transaction_service=procurement_transaction_service,
+    )
     public_cart_service = PublicCartService(
         public_buyer_service=public_buyer_service,
         product_catalog_service=product_catalog_service,
         safe_drive_write_service=safe_drive_write_service,
         json_service=drive_service.json_service,
         id_allocator_service=id_allocator_service,
+        cart_service=cart_service,
     )
     public_order_service = PublicOrderService(
         public_orders_root=public_orders_root,
@@ -251,6 +265,7 @@ def build_app_context() -> dict:
         pricing_service=pricing_service,
         config=system_config.get("public_payment", {}),
     )
+    cart_service.public_order_service = public_order_service
     worker_service = WorkerService(
         governance_root=GOVERNANCE_DIR,
         safe_drive_write_service=safe_drive_write_service,
@@ -420,6 +435,8 @@ def build_app_context() -> dict:
         "procurement_transaction_service": procurement_transaction_service,
         "order_transaction_service": order_transaction_service,
         "cache_service": cache_service,
+        "image_service": image_service,
+        "cart_service": cart_service,
         "session_state_service": session_state_service,
         "dead_letter_service": dead_letter_service,
         "runtime_metrics_service": runtime_metrics_service,

@@ -5,6 +5,7 @@ from typing import Any
 import streamlit as st
 
 from components.filter_bar import render_filter_bar
+from components.product_card import render_product_card
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
 from components.ui_shell import render_metric_card, render_page_header
@@ -45,6 +46,8 @@ def render_suta_mandi_dashboard(app_context: dict) -> None:
     suta_materials = list_suta_materials(all_materials)
     orders = procurement_service.list_supply_orders(manufacturer_code=user.manufacturer_code)
     suta_orders = [item for item in orders if is_suta_material(next((mat for mat in all_materials if mat.get("raw_material_id") == item.get("raw_material_id")), {}))]
+    cart_service = app_context.get("cart_service")
+    image_service = app_context.get("image_service")
 
     render_metric_grid(
         [
@@ -91,11 +94,40 @@ def render_suta_mandi_dashboard(app_context: dict) -> None:
                 for item in suta_materials
             ]
             filtered_rows = render_filter_bar(page_key="suta_catalog", rows=catalog_rows, search_fields=["raw_material_id", "name", "mahajan_id"], status_field="status", price_field="supply_price", search_placeholder="Search suta by ID, name, or mahajan")
+            preview_cards = filtered_rows[:4]
+            if preview_cards:
+                card_columns = st.columns(min(len(preview_cards), 4))
+                for index, item in enumerate(preview_cards):
+                    with card_columns[index % len(card_columns)]:
+                        image = image_service.get_display_image(item, label=str(item.get("name", "Suta"))) if image_service else {"src": "", "alt": str(item.get("name", "Suta")), "status": "NONE"}
+                        if render_product_card(
+                            item=item,
+                            variant="SUTA_MANDI",
+                            image=image,
+                            title=str(item.get("name", "Suta")),
+                            subtitle=str(item.get("category", "SUTA")),
+                            price_label="Supply",
+                            price_value=str(item.get("supply_price", 0)),
+                            availability_label=f"Qty {item.get('available_qty', 0)}",
+                            visibility_label=str(item.get("status", "ACTIVE")),
+                            action_label="Add To Request Cart",
+                            action_key=f"suta_add_{item.get('raw_material_id', index)}",
+                        ):
+                            cart_service.add_item(
+                                "manufacturer",
+                                user.manufacturer_code or "",
+                                cart_type="SUTA_MANDI",
+                                item_id=str(item.get("raw_material_id", "")),
+                                qty=1,
+                            )
+                            st.success("Added to Suta Mandi request cart.")
+                            st.rerun()
             csv_col, json_col = st.columns(2)
             csv_col.download_button("Export CSV", export_rows_to_csv_bytes(filtered_rows), file_name="suta-mandi.csv", mime="text/csv", use_container_width=True)
             json_col.download_button("Export JSON", export_rows_to_json_bytes(filtered_rows), file_name="suta-mandi.json", mime="application/json", use_container_width=True)
             st.dataframe(filtered_rows, use_container_width=True)
     with request_tab:
+        request_cart = cart_service.get_cart("manufacturer", user.manufacturer_code or "", "SUTA_MANDI") if cart_service else {"items": []}
         if not suta_materials:
             st.info("No suta material is ready for requests right now.")
         else:
@@ -111,16 +143,28 @@ def render_suta_mandi_dashboard(app_context: dict) -> None:
                 notes = st.text_area("Requirement Note", placeholder="Count, blend, color, twist, cone details, or packing instructions")
                 submitted = st.form_submit_button("Create Suta Request")
             if submitted:
-                procurement_service.create_supply_request(
-                    manufacturer_code=user.manufacturer_code,
-                    raw_material_id=raw_material_id,
-                    qty=qty,
-                    unit=unit,
-                    requested_by=user.email,
-                    notes=notes,
-                )
-                st.success("Suta mandi request sent for admin review.")
-                st.rerun()
+                if cart_service:
+                    cart_service.add_item(
+                        "manufacturer",
+                        user.manufacturer_code or "",
+                        cart_type="SUTA_MANDI",
+                        item_id=raw_material_id,
+                        qty=int(qty),
+                        metadata={"notes": notes},
+                    )
+                    st.success("Suta item added to request cart.")
+                    st.rerun()
+            if request_cart.get("items"):
+                st.dataframe(request_cart.get("items", []), use_container_width=True)
+                if st.button("Checkout Suta Request Cart", use_container_width=True, key="suta_checkout"):
+                    created = cart_service.checkout(
+                        "manufacturer",
+                        user.manufacturer_code or "",
+                        cart_type="SUTA_MANDI",
+                        checkout_context={"manufacturer_code": user.manufacturer_code or "", "requester_email": user.email},
+                    )
+                    st.success(f"Created {len(created)} admin-routed suta request(s).")
+                    st.rerun()
     with orders_tab:
         render_section_intro("My Suta Orders", "Only your manufacturer suta orders appear here. Final supply still moves through admin-managed mandi flow.")
         if suta_orders:

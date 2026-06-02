@@ -7,6 +7,7 @@ import streamlit as st
 from components.filter_bar import render_filter_bar
 from components.html_renderer import render_html
 from components.paginated_table import render_paginated_table
+from components.product_card import render_product_card
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
 from components.ui_shell import render_dual_panel, render_metric_card, render_mobile_record_card, render_page_header, render_showcase_strip
@@ -24,6 +25,7 @@ def render_products_dashboard(app_context: dict) -> None:
         viewer_role=viewer_role,
         viewer_code=viewer_code,
     )
+    image_service = app_context.get("image_service")
     render_page_header(
         "Products",
         "Govern finished products for catalog selling, approvals, and pricing. Raw-material supply belongs on the Raw Materials and Mandi Orders pages.",
@@ -61,30 +63,28 @@ def render_products_dashboard(app_context: dict) -> None:
         "Onboarding Flow",
         render_mobile_record_card({"Propose": "Manufacturer/Admin", "Approve": "Platform Admin"}),
     )
-    product_preview = "".join(
-        f"""
-        <article class="mt-product-card">
-          <div class="mt-product-card__image"></div>
-          <h3>{escape(str(item.get('name', item.get('product_id', 'Product'))))}</h3>
-          <p>{escape(str(item.get('description', 'Governed catalog product with pricing and visibility controls.') or 'Governed catalog product with pricing and visibility controls.'))}</p>
-          <div class="mt-chip-row">
-            <span class="mt-price-chip">Mandi: {escape(str(item.get('approved_mandi_price', item.get('suggested_mandi_price', item.get('mandi_price', 0)))))}</span>
-            <span class="mt-price-chip">Marketplace: {escape(str(item.get('approved_marketplace_price', item.get('suggested_marketplace_price', item.get('marketplace_price', item.get('mrp', 0))))))}</span>
-            <span class="mt-price-chip">Raw Supply: {escape(str(item.get('raw_material_price', item.get('supply_price', 0))))}</span>
-          </div>
-          <div class="mt-chip-row">
-            <span class="mt-chip">{escape(str(item.get('approved_visibility', item.get('visibility_request', 'MANDI_NETWORK'))))}</span>
-            <span class="mt-chip">{escape(str(item.get('status', 'ACTIVE')))}</span>
-          </div>
-        </article>
-        """
-        for item in products[:3]
-    )
     overview_tab, activity_tab, thread_tab = st.tabs(["Overview", "Activity", "Proposal Threads"])
     with overview_tab:
         render_section_intro("Finished Product Catalog", "Manufacturers can propose finished products here. Raw materials and supplier quotes stay in the admin-managed supply workflow.")
-        if product_preview:
-            render_html(f"<section class='mt-grid mt-grid--actions'>{product_preview}</section>")
+        preview_products = products[:3]
+        if preview_products:
+            card_columns = st.columns(min(len(preview_products), 3))
+            for index, item in enumerate(preview_products):
+                with card_columns[index % len(card_columns)]:
+                    image = image_service.get_display_image(item, label=str(item.get("name", "Product"))) if image_service else {"src": "", "alt": str(item.get("name", "Product")), "status": "NONE"}
+                    render_product_card(
+                        item=item,
+                        variant="MARKETPLACE_PRODUCT",
+                        image=image,
+                        title=str(item.get("name", item.get("product_id", "Product"))),
+                        subtitle=str(item.get("category", "General")),
+                        price_label="Marketplace",
+                        price_value=str(item.get("approved_marketplace_price", item.get("suggested_marketplace_price", item.get("marketplace_price", item.get("mrp", 0))))),
+                        availability_label=str(item.get("status", "ACTIVE")),
+                        visibility_label=str(item.get("approved_visibility", item.get("visibility_request", "MANDI_NETWORK"))),
+                        action_label="View Product",
+                        action_key=f"products_preview_{item.get('product_id', index)}",
+                    )
         filtered_products = render_filter_bar(page_key="products_catalog", rows=products, search_fields=["product_id", "name", "category", "created_by_manufacturer_id"], status_field="status", date_field="updated_at", price_field="approved_marketplace_price", search_placeholder="Search by product ID or name")
         if filtered_products:
             csv_col, json_col = st.columns(2)
@@ -121,9 +121,12 @@ def render_products_dashboard(app_context: dict) -> None:
                     public_seller_manufacturer_id = col2.text_input("Public Seller Manufacturer ID", value=selected.get("public_seller_manufacturer_id", selected.get("created_by_manufacturer_id", "")))
                     visible = col1.checkbox("Visible to Active Catalog?", value=bool(selected.get("visible", True)))
                     image_url = st.text_input("Product Image URL", value=selected.get("image_url", ""))
+                    image_alt_text = st.text_input("Image Alt Text", value=selected.get("image_alt_text", selected.get("name", "")))
+                    uploaded_image = st.file_uploader("Optional Product Image Upload", type=["jpg", "jpeg", "png"], key=f"product_upload_{selected_id}")
                     admin_note = st.text_area("Admin Note", value=selected.get("admin_note", ""), height=100)
                     update_submit = st.form_submit_button("Save Product Updates")
                 if update_submit:
+                    image_file_ref = image_service.save_uploaded_image_if_supported(uploaded_image, folder="products") if image_service and uploaded_image else selected.get("image_file_ref", "")
                     product_catalog_service.update_product(
                         product_id=selected_id,
                         updated_by="PLATFORM_ADMIN",
@@ -143,6 +146,8 @@ def render_products_dashboard(app_context: dict) -> None:
                             "public_seller_manufacturer_id": public_seller_manufacturer_id,
                             "visible": visible,
                             "image_url": image_url,
+                            "image_file_ref": image_file_ref,
+                            "image_alt_text": image_alt_text,
                             "admin_note": admin_note,
                         },
                     )
@@ -171,9 +176,12 @@ def render_products_dashboard(app_context: dict) -> None:
             available_for_public_sale = col1.checkbox("Available For Public Sale?")
             available_for_mandi_network = col2.checkbox("Available For Mandi Network?", value=True)
             image_url = st.text_input("Product Image URL", placeholder="Optional image URL")
+            image_alt_text = st.text_input("Image Alt Text", placeholder="Short image description")
+            uploaded_image = st.file_uploader("Optional Product Image Upload", type=["jpg", "jpeg", "png"], key="propose_product_upload")
             submitted = st.form_submit_button("Propose Product")
         if submitted and name and category and unit:
             created_by = user.manufacturer_code or ""
+            image_file_ref = image_service.save_uploaded_image_if_supported(uploaded_image, folder="products") if image_service and uploaded_image else ""
             app_context["product_catalog_service"].propose_product(
                 created_by=created_by,
                 created_by_email=user.email,
@@ -189,6 +197,8 @@ def render_products_dashboard(app_context: dict) -> None:
                 available_for_public_sale=available_for_public_sale,
                 available_for_mandi_network=available_for_mandi_network,
                 image_url=image_url,
+                image_file_ref=image_file_ref,
+                image_alt_text=image_alt_text,
             )
             st.success("Product proposal saved with PROPOSED status.")
             st.rerun()
