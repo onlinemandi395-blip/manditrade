@@ -230,8 +230,8 @@ class OrderTransactionService:
                         user_id=manufacturer_code,
                         notification_type="RFQ_CREATED",
                         priority="HIGH",
-                        title="RFQ Created",
-                        message="Inventory shortage moved into mandi RFQ.",
+                        title="Mandi Sourcing Request Created",
+                        message="Inventory shortage moved into a mandi sourcing request.",
                         source_type="RFQ",
                         source_id=rfq["rfq_id"],
                     )

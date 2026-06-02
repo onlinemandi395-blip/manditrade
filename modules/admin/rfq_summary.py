@@ -56,14 +56,14 @@ def render_rfq_summary_dashboard(app_context: dict) -> None:
             )
         total_trade_value += manufacturer_trade_value
 
-    render_page_header("RFQ Summary", "Read-only SuperAdmin view of mandi RFQ activity with aggregate trade values and no private negotiation detail.", ["SuperAdmin", "RFQ Summary"])
+    render_page_header("Mandi Orders Summary", "Read-only SuperAdmin view of mandi sourcing activity with aggregate trade values and no private negotiation detail.", ["SuperAdmin", "Mandi Orders Summary"])
     render_metric_grid(
         [
-            render_metric_card("Total RFQs", str(total_rfqs), "OPEN"),
-            render_metric_card("Open RFQs", str(open_count), "PENDING"),
-            render_metric_card("Responded RFQs", str(responded_count), "WARNING"),
-            render_metric_card("Completed RFQs", str(completed_count), "SUCCESS"),
+            render_metric_card("Total Requests", str(total_rfqs), "OPEN"),
+            render_metric_card("Open Requests", str(open_count), "PENDING"),
+            render_metric_card("Responded Requests", str(responded_count), "WARNING"),
+            render_metric_card("Completed Requests", str(completed_count), "SUCCESS"),
         ]
     )
-    render_section_intro("Aggregate RFQ Activity", f"Total mandi trade value tracked through RFQ responses: INR {round(total_trade_value, 2)}.")
+    render_section_intro("Aggregate Mandi Activity", f"Total mandi trade value tracked through sourcing responses: INR {round(total_trade_value, 2)}.")
     st.dataframe(rows, use_container_width=True)

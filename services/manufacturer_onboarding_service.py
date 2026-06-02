@@ -31,12 +31,12 @@ class ManufacturerOnboardingService:
             f"2. Share your manufacturer code with admin: {code}\n"
             f"3. Share your first-time manufacturer onboarding secret with admin: {secret}\n"
             f"4. Ask admin to map your Google account to this manufacturer workspace.\n"
-            f"5. After account mapping, start with Products, Inventory, Clients, and Mandi RFQ.\n\n"
+            f"5. After account mapping, start with Products, Inventory, Marketplace Orders, and Mandi Orders.\n\n"
             f"Admin checklist:\n"
             f"- Verify Google email matches expected owner email.\n"
             f"- Confirm secret matches the onboarding packet.\n"
             f"- Ensure manufacturer status stays ACTIVE.\n"
-            f"- Share post-onboarding navigation: Products, Inventory, Client Orders, Mandi RFQ, Ledger / Khata."
+            f"- Share post-onboarding navigation: Products, Inventory, Marketplace Orders, Mandi Orders, Ledger / Khata."
         )
 
     def create_manufacturer(

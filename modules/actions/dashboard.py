@@ -14,7 +14,7 @@ def render_actions_dashboard(app_context: dict) -> None:
     page_key = "actions"
     render_page_header(
         "My Actions",
-        "A single action inbox for approvals, RFQs, dispatch, payments, and worker follow-ups.",
+        "A single action inbox for approvals, mandi sourcing, dispatch, payments, and worker follow-ups.",
         ["Action Center", "Role Aware"],
         role=user.role.replace("_", " ").title() if user else "Access Required",
         metrics=[("Priority View", "Operational first"), ("Signal Type", "Actionable queues")],
@@ -52,7 +52,7 @@ def render_actions_dashboard(app_context: dict) -> None:
     render_html(
         """
         <div class="mt-surface-note mt-command-glow">
-          High-priority queues glow first by design here: overdue payments, unresolved proposals, RFQ replies,
+          High-priority queues glow first by design here: overdue payments, unresolved proposals, sourcing replies,
           and dispatch bottlenecks should be cleared before lower-signal housekeeping.
         </div>
         """

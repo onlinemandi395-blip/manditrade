@@ -80,7 +80,7 @@ def render_admin_dashboard(app_context: dict, section: str = "Dashboard") -> Non
         render_section_intro("Platform Commission", "Commission supervision is limited to aggregate marketplace order values and manufacturer-level balances, never raw counterparty details.")
         st.dataframe(rows, use_container_width=True)
     elif section in {"RFQ", "Mandi Network"}:
-        render_section_intro("RFQ Summary", "Cross-manufacturer mandi supervision stays aggregate and operational, without exposing private negotiation threads or supplier records.")
+        render_section_intro("Mandi Orders Summary", "Cross-manufacturer mandi supervision stays aggregate and operational, without exposing private negotiation threads or supplier records.")
         st.dataframe(rows, use_container_width=True)
     elif section == "Mandi Orders":
         render_section_intro("Mandi Orders", "Supervision of manufacturer-to-manufacturer order activity stays aggregate and network-focused.")

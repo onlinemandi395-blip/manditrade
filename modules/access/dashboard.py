@@ -26,7 +26,7 @@ def render_login_page(app_context: dict) -> None:
     )
     render_showcase_strip(
         [
-            ("Manufacturers", "Inventory + RFQ + Jobs", "SUCCESS"),
+            ("Manufacturers", "Inventory + Mandi Orders + Jobs", "SUCCESS"),
             ("Mahajans", "Raw materials + supply orders", "OPEN"),
             ("Public Buyers", "Instant pay shopping", "SUCCESS"),
         ]

@@ -73,9 +73,9 @@ class ProcurementTransactionService:
             qty = int(item.get("qty", 0) or 0)
             unit_price = float(item.get("offered_unit_price", item.get("unit_price", 0)) or 0)
             if qty <= 0:
-                raise ValueError("RFQ response quantity must be greater than zero.")
+                raise ValueError("Sourcing response quantity must be greater than zero.")
             if unit_price <= 0:
-                raise ValueError("RFQ response offered unit price is required and must be greater than zero.")
+                raise ValueError("Sourcing response offered unit price is required and must be greater than zero.")
             normalized.append(
                 {
                     **item,
@@ -433,9 +433,9 @@ class ProcurementTransactionService:
                 payload.setdefault("responses", [])
                 rfq = next((item for item in payload["rfqs"] if item.get("rfq_id") == rfq_id), None)
                 if rfq is None:
-                    raise ValueError(f"RFQ not found: {rfq_id}")
+                    raise ValueError(f"Sourcing request not found: {rfq_id}")
                 if rfq.get("status") != "OPEN":
-                    raise ValueError("RFQ is not open for responses.")
+                    raise ValueError("Sourcing request is not open for responses.")
                 rfq["status"] = "RESPONDED"
                 payload["responses"].append(response)
                 return payload
@@ -446,8 +446,8 @@ class ProcurementTransactionService:
                 user_id=rfq_owner_code,
                 notification_type="RFQ_ACCEPTED",
                 priority="HIGH",
-                title="RFQ Accepted",
-                message="A supplier accepted your mandi RFQ.",
+                title="Mandi Sourcing Response Received",
+                message="A supplier responded to your mandi sourcing request.",
                 source_type="RFQ",
                 source_id=rfq_id,
             )
@@ -472,10 +472,10 @@ class ProcurementTransactionService:
             rfq = next((item for item in payload.get("rfqs", []) if item.get("rfq_id") == rfq_id), None)
             response = next((item for item in payload.get("responses", []) if item.get("response_id") == response_id), None)
             if rfq is None or response is None:
-                raise ValueError("RFQ response not found.")
+                raise ValueError("Sourcing response not found.")
             total_amount = round(sum(float(item.get("total_price", 0) or 0) for item in response.get("available_items", [])), 2)
             if total_amount <= 0:
-                raise ValueError("Buyer cannot accept an RFQ response without valid priced items.")
+                raise ValueError("Buyer cannot accept a sourcing response without valid priced items.")
             rfq["status"] = "BUYER_CONFIRMED"
             response["status"] = "BUYER_CONFIRMED"
             self.safe_drive_write_service.replace_document(rfq_path, payload)

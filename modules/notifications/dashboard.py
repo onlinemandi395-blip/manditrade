@@ -20,7 +20,7 @@ def render_notifications_dashboard(app_context: dict) -> None:
     page_key = "notifications"
     render_page_header(
         "Notifications",
-        "Stay on top of orders, dispatch, payments, RFQs, and important updates in one place.",
+        "Stay on top of orders, dispatch, payments, mandi sourcing, and important updates in one place.",
         ["Notification Center", "Email Updates"],
         role=user.role.replace("_", " ").title() if user else "Role Aware",
         metrics=[("Email Updates", "Active"), ("Unread Focus", "Action-led")],
@@ -68,7 +68,7 @@ def render_notifications_dashboard(app_context: dict) -> None:
         [
             ("Unread Alerts", str(len([item for item in notifications if not item.get("read", False)])), "HIGH_PRIORITY"),
             ("Trigger Style", "Immediate", "SUCCESS"),
-            ("Live Feed", "Dispatch + RFQ + Jobs", "OPEN"),
+            ("Live Feed", "Dispatch + Sourcing + Jobs", "OPEN"),
         ]
     )
     render_dual_panel(

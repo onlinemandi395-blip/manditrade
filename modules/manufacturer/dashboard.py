@@ -18,7 +18,7 @@ from utils.page_ui import render_metric_button_row, set_active_tab_from_metric
 def render_manufacturer_dashboard(app_context: dict) -> None:
     user = app_context["current_user"]
     page_key = "manufacturer_dashboard"
-    render_page_header("Manufacturer Dashboard", "Digital Bharat Mandi + Khata + RFQ + Inventory + Jobs Network in one operating view.", ["Dual Inventory", "Jobs Network", "Khata"])
+    render_page_header("Manufacturer Dashboard", "Digital Bharat Mandi + Khata + sourcing + inventory + jobs in one operating view.", ["Dual Inventory", "Jobs Network", "Khata"])
     if not user or not user.manufacturer_code:
         st.info("Sign in as a manufacturer to view workspace details.")
         return
@@ -35,7 +35,7 @@ def render_manufacturer_dashboard(app_context: dict) -> None:
             render_metric_card("Self Inventory", str(self_available), "SUCCESS"),
             render_metric_card("Mandi Inventory", str(mandi_available), "OPEN"),
             render_metric_card("MandiPlace Orders", str(len(orders)), "PENDING"),
-            render_metric_card("Open RFQs", str(len([item for item in rfqs if item.get("status") == "OPEN"])), "WARNING"),
+            render_metric_card("Open Sourcing Requests", str(len([item for item in rfqs if item.get("status") == "OPEN"])), "WARNING"),
             render_metric_card("Active Jobs", str(len([item for item in jobs if item.get("status") != "COMPLETED"])), "HIGH_PRIORITY"),
         ]
     )
@@ -70,7 +70,7 @@ def render_manufacturer_dashboard(app_context: dict) -> None:
         "".join(
             [
                 render_mobile_record_card({"Self Inventory": self_available, "Mandi Inventory": mandi_available}),
-                render_mobile_record_card({"Orders": len(orders), "Open RFQs": len([item for item in rfqs if item.get("status") == "OPEN"])}),
+                render_mobile_record_card({"Orders": len(orders), "Open Requests": len([item for item in rfqs if item.get("status") == "OPEN"])}),
             ]
         ),
         "Jobs Snapshot",

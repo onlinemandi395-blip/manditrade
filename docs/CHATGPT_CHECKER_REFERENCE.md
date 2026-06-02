@@ -1,6 +1,6 @@
 # MandiTrade Checker Reference
 
-Generated from the current repository state on 2026-06-02 after the performance + scalability + state-management hardening pass.
+Generated from the current repository state on 2026-06-02 after the pilot release packaging + production-readiness pass.
 
 ## Final Role Model
 
@@ -207,6 +207,73 @@ Generated from the current repository state on 2026-06-02 after the performance 
   - regenerate alerts
   - repair snapshots
 
+## Release Packaging Status
+
+- Release packaging docs now exist at:
+  - [PILOT_RELEASE_CHECKLIST.md](/c:/2026/manditrade/manditrade/PILOT_RELEASE_CHECKLIST.md)
+  - [PILOT_OPERATOR_GUIDE.md](/c:/2026/manditrade/manditrade/PILOT_OPERATOR_GUIDE.md)
+  - [DEPLOYMENT.md](/c:/2026/manditrade/manditrade/DEPLOYMENT.md)
+- Release utility scripts now exist at:
+  - [scripts/validate_release_env.py](/c:/2026/manditrade/manditrade/scripts/validate_release_env.py)
+  - [scripts/cleanup_test_data.py](/c:/2026/manditrade/manditrade/scripts/cleanup_test_data.py)
+  - [scripts/create_release_snapshot.py](/c:/2026/manditrade/manditrade/scripts/create_release_snapshot.py)
+
+## Environment Validation Status
+
+- Release env validation script now runs and writes reports to:
+  - `runtime/release_reports/`
+- Latest validation result:
+  - `FAIL`
+- Current release blockers from the latest script run:
+  - staging cloud runtime is still using a localhost OAuth redirect URI
+  - admin sender email still uses a `.local` placeholder
+- Latest report file:
+  - `runtime/release_reports/latest_release_env.json`
+
+## Cleanup Script Status
+
+- Test-data cleanup script now supports:
+  - `python scripts/cleanup_test_data.py --dry-run`
+  - `python scripts/cleanup_test_data.py --execute`
+- Current dry-run result against seeded runtime data:
+  - `8` files would be rewritten
+  - `23` files would be archived
+  - `20` tagged demo/test records would be removed
+- Cleanup archive target:
+  - `runtime/release_cleanup/`
+
+## Release Snapshot Status
+
+- Release snapshot script now writes to:
+  - `runtime/release_snapshots/`
+- Latest snapshot result:
+  - recommendation: `NO_GO`
+- Current snapshot is blocking release because:
+  - latest environment validation is failing
+- Latest snapshot file:
+  - `runtime/release_snapshots/release_snapshot_20260602_154730.json`
+
+## Operator Guide Status
+
+- Pilot operator guide now exists in:
+  - [PILOT_OPERATOR_GUIDE.md](/c:/2026/manditrade/manditrade/PILOT_OPERATOR_GUIDE.md)
+- Current coverage includes:
+  - daily checks
+  - incident handling
+  - severity model
+  - release gate command sequence
+
+## Smoke Test Status
+
+- Release smoke coverage now exists in:
+  - [tests/test_release_smoke.py](/c:/2026/manditrade/manditrade/tests/test_release_smoke.py)
+- Current smoke coverage verifies:
+  - all nav routes dispatch for each live role
+  - unauthorized routes stay blocked
+  - pre-login nav is `Dashboard` only
+  - sidebar login surface exists
+  - duplicate login copy is not present
+
 ## Audit Intelligence Status
 
 - Structured governance logs remain in:
@@ -279,15 +346,27 @@ Generated from the current repository state on 2026-06-02 after the performance 
 ## Tests Result
 
 - `python -m pytest tests/ -q`
-  - Passed: `193`
+  - Passed: `197`
   - Skipped: `5`
 - `python -m compileall app.py modules services utils components schemas bootstrap scripts`
   - Passed
 - `python -c "import app; print('app import ok')"`
   - Passed
 
+## GO / NO-GO
+
+- Current recommendation: `NO_GO`
+- Reason:
+  - app behavior, smoke tests, compile, and import are clean
+  - pilot release environment is still blocked by cloud OAuth redirect and admin sender email configuration
+- Release can move to `GO` after:
+  - non-localhost cloud redirect URI is configured
+  - real admin sender email replaces the `.local` placeholder
+  - `python scripts/validate_release_env.py` returns `PASS`
+
 ## Remaining Blockers
 
+- Release readiness is still blocked by cloud OAuth/admin email configuration, so this is not yet a pilot `GO`.
 - Alerts and recommendations are intentionally rule-based and deterministic; there is still no forecasting depth or adaptive scoring beyond current heuristics.
 - Pagination is implemented on the current highest-volume operational pages, but a few legacy / low-traffic screens still use direct table rendering and can be migrated later.
 - Operational search currently routes to page-level detail surfaces, not a universal modal detail shell.
