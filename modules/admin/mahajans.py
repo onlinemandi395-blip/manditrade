@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import streamlit as st
 
+from components.filter_bar import render_filter_bar
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
 from components.ui_shell import render_metric_card, render_page_header
+from utils.export_utils import export_rows_to_csv_bytes, export_rows_to_json_bytes
+from utils.page_ui import render_empty_state
 
 
 def _format_mahajan_summary(mahajan: dict, supply_orders: list[dict]) -> dict:
@@ -52,15 +55,19 @@ def render_mahajans_dashboard(app_context: dict) -> None:
     with overview_tab:
         render_section_intro("Mahajan Onboarding", "Mahajan is the admin-managed upstream supplier role. Manufacturers do not directly deal with mahajans.")
         if summaries:
-            st.dataframe(summaries, use_container_width=True)
+            filtered_summaries = render_filter_bar(page_key="mahajan_overview", rows=summaries, search_fields=["mahajan_id", "business_name", "owner_name", "email"], status_field="status", date_field="updated_at")
+            st.dataframe(filtered_summaries, use_container_width=True)
         else:
-            st.info("No mahajans registered yet.")
+            render_empty_state("No mahajans registered yet.")
     with registry_tab:
         render_section_intro("Supplier Registry", "Track supplier master data along with linked mandi-order load before editing or deleting records.")
         if summaries:
+            csv_col, json_col = st.columns(2)
+            csv_col.download_button("Export CSV", export_rows_to_csv_bytes(summaries), file_name="mahajans.csv", mime="text/csv", use_container_width=True)
+            json_col.download_button("Export JSON", export_rows_to_json_bytes(summaries), file_name="mahajans.json", mime="application/json", use_container_width=True)
             st.dataframe(summaries, use_container_width=True)
         else:
-            st.info("No mahajan registry data available yet.")
+            render_empty_state("No mahajan registry data available yet.")
     with create_tab:
         with st.form("create_mahajan"):
             mahajan_id = st.text_input("Mahajan ID", value=f"MAH{len(mahajans) + 1:03d}")
@@ -70,7 +77,7 @@ def render_mahajans_dashboard(app_context: dict) -> None:
             mobile = st.text_input("Mobile")
             city = st.text_input("City")
             notes = st.text_area("Notes")
-            status = st.selectbox("Status", ["INVITED", "ACTIVE", "INACTIVE"], index=0)
+            status = st.selectbox("Status", ["INVITED", "ACTIVE", "INACTIVE", "ARCHIVED"], index=0)
             submitted = st.form_submit_button("Create Mahajan")
         if submitted:
             try:
@@ -113,8 +120,8 @@ def render_mahajans_dashboard(app_context: dict) -> None:
             notes = st.text_area("Notes", value=selected.get("notes", ""))
             status = st.selectbox(
                 "Status",
-                ["INVITED", "ACTIVE", "INACTIVE"],
-                index=["INVITED", "ACTIVE", "INACTIVE"].index(selected.get("status", "INVITED")) if selected.get("status", "INVITED") in {"INVITED", "ACTIVE", "INACTIVE"} else 0,
+                ["INVITED", "ACTIVE", "INACTIVE", "ARCHIVED"],
+                index=["INVITED", "ACTIVE", "INACTIVE", "ARCHIVED"].index(selected.get("status", "INVITED")) if selected.get("status", "INVITED") in {"INVITED", "ACTIVE", "INACTIVE", "ARCHIVED"} else 0,
             )
             saved = st.form_submit_button("Update Mahajan")
         if saved:
@@ -147,7 +154,7 @@ def render_mahajans_dashboard(app_context: dict) -> None:
                 except Exception as exc:  # noqa: BLE001
                     st.error(str(exc))
                 else:
-                    st.warning("Mahajan deleted.")
+                    st.warning("Mahajan archived.")
                     st.rerun()
         with helper_col:
             st.info("Safe delete removes the supplier master record only after dependencies are cleared.")

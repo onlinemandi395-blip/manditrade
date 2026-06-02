@@ -9,10 +9,11 @@ from services.json_service import JsonService
 
 
 class GovernanceService:
-    def __init__(self, governance_root: Path, safe_drive_write_service) -> None:
+    def __init__(self, governance_root: Path, safe_drive_write_service, audit_service=None) -> None:
         self.governance_root = governance_root
         self.json_service = JsonService()
         self.safe_drive_write_service = safe_drive_write_service
+        self.audit_service = audit_service
 
     @property
     def products_path(self) -> Path:
@@ -105,21 +106,17 @@ class GovernanceService:
         payload["products"] = products
         payload.setdefault("schema_version", "1.0")
         self.safe_drive_write_service.replace_document(self.products_path, payload, schema_name="products")
+        self._audit("UPSERT_PRODUCT", "product", str(product_key), {"status": str((existing or product).get("status", ""))})
 
     def delete_product(self, product_id: str) -> bool:
-        self.ensure_files()
-        payload = self.json_service.read_json(self.products_path, {"products": []})
-        original_count = len(payload.get("products", []))
-        payload["products"] = [
-            item
-            for item in payload.get("products", [])
-            if (item.get("product_id") or item.get("product_code")) != product_id
-        ]
-        if len(payload["products"]) == original_count:
-            return False
-        payload.setdefault("schema_version", "1.0")
-        self.safe_drive_write_service.replace_document(self.products_path, payload, schema_name="products")
-        return True
+        return self._archive_record(
+            path=self.products_path,
+            list_key="products",
+            matcher=lambda item: (item.get("product_id") or item.get("product_code")) == product_id,
+            entity_type="product",
+            entity_id=product_id,
+            extra_updates={"visible": False},
+        )
 
     def list_manufacturers(self) -> list[dict[str, Any]]:
         self.ensure_files()
@@ -145,6 +142,7 @@ class GovernanceService:
         payload["manufacturers"] = manufacturers
         payload.setdefault("schema_version", "1.0")
         self.safe_drive_write_service.replace_document(self.manufacturers_path, payload, schema_name="manufacturers")
+        self._audit("UPSERT_MANUFACTURER", "manufacturer", manufacturer_code, {"status": str((existing or manufacturer).get("status", ""))})
 
     def get_manufacturer(self, manufacturer_code: str) -> dict[str, Any] | None:
         self.ensure_files()
@@ -168,15 +166,13 @@ class GovernanceService:
         return updated
 
     def delete_manufacturer(self, manufacturer_code: str) -> bool:
-        self.ensure_files()
-        payload = self.json_service.read_json(self.manufacturers_path, {"manufacturers": []})
-        original_count = len(payload.get("manufacturers", []))
-        payload["manufacturers"] = [item for item in payload.get("manufacturers", []) if item.get("manufacturer_code") != manufacturer_code]
-        if len(payload["manufacturers"]) == original_count:
-            return False
-        payload.setdefault("schema_version", "1.0")
-        self.safe_drive_write_service.replace_document(self.manufacturers_path, payload, schema_name="manufacturers")
-        return True
+        return self._archive_record(
+            path=self.manufacturers_path,
+            list_key="manufacturers",
+            matcher=lambda item: item.get("manufacturer_code") == manufacturer_code,
+            entity_type="manufacturer",
+            entity_id=manufacturer_code,
+        )
 
     def update_manufacturer_status(self, manufacturer_code: str, status: str, subscription_plan: str | None = None) -> None:
         self.ensure_files()
@@ -291,6 +287,7 @@ class GovernanceService:
             payload.setdefault("mahajans", []).append(normalized)
         payload.setdefault("schema_version", "1.0")
         self.safe_drive_write_service.replace_document(self.mahajans_path, payload)
+        self._audit("UPSERT_MAHAJAN", "mahajan", mahajan_id, {"status": normalized.get("status", "")})
         return normalized
 
     def delete_mahajan(self, mahajan_id: str) -> bool:
@@ -311,11 +308,13 @@ class GovernanceService:
         ]
         if live_orders:
             raise ValueError("Delete blocked: active mandi supply orders are still linked to this mahajan.")
-        payload = self.json_service.read_json(self.mahajans_path, {"mahajans": []})
-        payload["mahajans"] = [item for item in payload.get("mahajans", []) if item.get("mahajan_id") != mahajan_key]
-        payload.setdefault("schema_version", "1.0")
-        self.safe_drive_write_service.replace_document(self.mahajans_path, payload)
-        return True
+        return self._archive_record(
+            path=self.mahajans_path,
+            list_key="mahajans",
+            matcher=lambda item: item.get("mahajan_id") == mahajan_key,
+            entity_type="mahajan",
+            entity_id=mahajan_key,
+        )
 
     def list_raw_materials(self, *, mahajan_id: str | None = None) -> list[dict[str, Any]]:
         self.ensure_files()
@@ -350,6 +349,7 @@ class GovernanceService:
             payload.setdefault("raw_materials", []).append(normalized)
         payload.setdefault("schema_version", "1.0")
         self.safe_drive_write_service.replace_document(self.raw_materials_path, payload)
+        self._audit("UPSERT_RAW_MATERIAL", "raw_material", material_id, {"status": normalized.get("status", ""), "mahajan_id": normalized.get("mahajan_id", "")})
         return normalized
 
     def list_supply_orders(self) -> list[dict[str, Any]]:
@@ -379,6 +379,7 @@ class GovernanceService:
             payload.setdefault("supply_orders", []).append(normalized)
         payload.setdefault("schema_version", "1.0")
         self.safe_drive_write_service.replace_document(self.supply_orders_path, payload)
+        self._audit("UPSERT_SUPPLY_ORDER", "supply_order", order_id, {"status": normalized.get("status", ""), "mahajan_id": normalized.get("mahajan_id", ""), "manufacturer_id": normalized.get("manufacturer_id", "")})
         return normalized
 
     def list_supply_ledger_entries(self) -> list[dict[str, Any]]:
@@ -391,4 +392,45 @@ class GovernanceService:
         payload.setdefault("entries", []).append(entry)
         payload.setdefault("schema_version", "1.0")
         self.safe_drive_write_service.replace_document(self.supply_ledgers_path, payload)
+        self._audit("CREATE_SUPPLY_LEDGER_ENTRY", "supply_ledger", str(entry.get("entry_id", "")), {"mandi_order_id": entry.get("mandi_order_id", ""), "status": entry.get("status", "")})
         return entry
+
+    def _archive_record(
+        self,
+        *,
+        path: Path,
+        list_key: str,
+        matcher,
+        entity_type: str,
+        entity_id: str,
+        extra_updates: dict[str, Any] | None = None,
+    ) -> bool:
+        self.ensure_files()
+        payload = self.json_service.read_json(path, {list_key: []})
+        updated = False
+        for item in payload.get(list_key, []):
+            if matcher(item):
+                item["status"] = "ARCHIVED"
+                item["updated_at"] = datetime.now(UTC).isoformat()
+                for key, value in (extra_updates or {}).items():
+                    item[key] = value
+                updated = True
+                break
+        if not updated:
+            return False
+        payload.setdefault("schema_version", "1.0")
+        self.safe_drive_write_service.replace_document(path, payload)
+        self._audit(f"ARCHIVE_{entity_type.upper()}", entity_type, entity_id, {"status": "ARCHIVED"})
+        return True
+
+    def _audit(self, action: str, entity_type: str, entity_id: str, details: dict[str, Any]) -> None:
+        if not self.audit_service:
+            return
+        self.audit_service.log_governance_event(
+            actor="system",
+            role="system",
+            action=action,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            details=details,
+        )

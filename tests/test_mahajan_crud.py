@@ -38,7 +38,7 @@ def test_mahajan_crud_create_update_delete_without_dependencies(tmp_path):
 
     deleted = governance.delete_mahajan("MAH001")
     assert deleted is True
-    assert governance.get_mahajan("MAH001") is None
+    assert governance.get_mahajan("MAH001")["status"] == "ARCHIVED"
 
 
 def test_mahajan_delete_blocked_when_raw_materials_exist(tmp_path):

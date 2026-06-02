@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import streamlit as st
 
+from components.filter_bar import render_filter_bar
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
 from components.ui_shell import render_3d_panel, render_dual_panel, render_metric_card, render_mobile_record_card, render_page_header, render_showcase_strip
+from utils.export_utils import export_rows_to_csv_bytes, export_rows_to_json_bytes
+from utils.page_ui import render_empty_state
 
 
 def render_jobs_dashboard(app_context: dict) -> None:
@@ -37,9 +40,13 @@ def render_jobs_dashboard(app_context: dict) -> None:
 
     with overview_tab:
         if jobs:
-            render_3d_panel("".join(render_mobile_record_card(item) for item in jobs[:5]), "Open Jobs Feed")
+            filtered_jobs = render_filter_bar(page_key="jobs_overview", rows=jobs, search_fields=["job_id", "title", "manufacturer_id"], status_field="status", date_field="created_at", price_field="pay_amount", search_placeholder="Search by job ID or title")
+            render_3d_panel("".join(render_mobile_record_card(item) for item in filtered_jobs[:5]), "Open Jobs Feed")
+            csv_col, json_col = st.columns(2)
+            csv_col.download_button("Export CSV", export_rows_to_csv_bytes(filtered_jobs), file_name="jobs.csv", mime="text/csv", use_container_width=True)
+            json_col.download_button("Export JSON", export_rows_to_json_bytes(filtered_jobs), file_name="jobs.json", mime="application/json", use_container_width=True)
         else:
-            st.info("No open jobs are listed right now.")
+            render_empty_state("No open jobs are listed right now.")
     if user and user.role in {"manufacturer", "admin_as_manufacturer", "platform_admin"} and user.manufacturer_code:
         with create_or_apply_tab:
             with st.form("create_job_post"):
@@ -89,7 +96,7 @@ def render_jobs_dashboard(app_context: dict) -> None:
                     st.success("Application updated.")
                     st.rerun()
             else:
-                st.info("No job applications have been received yet.")
+                render_empty_state("No job applications have been received yet.")
     else:
         worker = worker_service.get_worker_by_email(user.email) if user else None
         with create_or_apply_tab:
@@ -103,11 +110,11 @@ def render_jobs_dashboard(app_context: dict) -> None:
                         st.success("Application submitted.")
                         st.rerun()
             else:
-                st.info("Create or enable a worker profile to apply for mandi jobs.")
+                render_empty_state("Create or enable a worker profile to apply for mandi jobs.")
         with applications_tab:
             if worker:
                 worker_applications = job_service.list_applications(worker_id=worker["worker_id"])
                 if worker_applications:
                     st.dataframe(worker_applications, use_container_width=True)
                 else:
-                    st.info("No applications submitted yet.")
+                    render_empty_state("No applications submitted yet.")

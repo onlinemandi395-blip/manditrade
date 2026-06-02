@@ -4,11 +4,13 @@ from html import escape
 
 import streamlit as st
 
+from components.filter_bar import render_filter_bar
 from components.html_renderer import render_html
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
 from components.ui_shell import render_dual_panel, render_metric_card, render_mobile_record_card, render_page_header, render_showcase_strip
-from utils.page_ui import render_metric_button_row
+from utils.export_utils import export_rows_to_csv_bytes, export_rows_to_json_bytes
+from utils.page_ui import render_empty_state, render_metric_button_row
 
 
 def render_products_dashboard(app_context: dict) -> None:
@@ -82,7 +84,14 @@ def render_products_dashboard(app_context: dict) -> None:
         render_section_intro("Finished Product Catalog", "Manufacturers can propose finished products here. Raw materials and supplier quotes stay in the admin-managed supply workflow.")
         if product_preview:
             render_html(f"<section class='mt-grid mt-grid--actions'>{product_preview}</section>")
-        st.dataframe(products, use_container_width=True)
+        filtered_products = render_filter_bar(page_key="products_catalog", rows=products, search_fields=["product_id", "name", "category", "created_by_manufacturer_id"], status_field="status", date_field="updated_at", price_field="approved_marketplace_price", search_placeholder="Search by product ID or name")
+        if filtered_products:
+            csv_col, json_col = st.columns(2)
+            csv_col.download_button("Export CSV", export_rows_to_csv_bytes(filtered_products), file_name="products.csv", mime="text/csv", use_container_width=True)
+            json_col.download_button("Export JSON", export_rows_to_json_bytes(filtered_products), file_name="products.json", mime="application/json", use_container_width=True)
+            st.dataframe(filtered_products, use_container_width=True)
+        else:
+            render_empty_state("No finished products are visible for this view yet.")
     if not user:
         return
     if user.role == "platform_admin":
@@ -138,9 +147,9 @@ def render_products_dashboard(app_context: dict) -> None:
                     )
                     st.success("Approved product updated.")
                     st.rerun()
-                if st.button("Delete Selected Product", use_container_width=True):
+                if st.button("Archive Selected Product", use_container_width=True):
                     product_catalog_service.delete_product(product_id=selected_id)
-                    st.warning(f"{selected_id} deleted from catalog.")
+                    st.warning(f"{selected_id} archived from catalog.")
                     st.rerun()
         return
     if user.role not in {"manufacturer", "admin_as_manufacturer"}:
@@ -191,7 +200,7 @@ def render_products_dashboard(app_context: dict) -> None:
     ]
     with thread_tab:
         if not own_proposals:
-            st.info("No proposed products need your follow-up right now.")
+            render_empty_state("No proposed products need your follow-up right now.")
             return
 
         st.markdown("### My Proposed Products")

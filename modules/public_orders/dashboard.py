@@ -2,10 +2,39 @@ from __future__ import annotations
 
 import streamlit as st
 
+from components.filter_bar import render_filter_bar
+from components.order_timeline import render_order_timeline_component
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
 from components.ui_shell import render_metric_card, render_page_header
-from utils.page_ui import render_metric_button_row
+from utils.export_utils import export_rows_to_csv_bytes, export_rows_to_json_bytes
+from utils.page_ui import render_empty_state, render_metric_button_row, render_status_chip
+
+
+PUBLIC_ORDER_TIMELINE_STEPS = ["PAYMENT_PENDING", "PAID", "CONFIRMED", "DISPATCHED", "DELIVERED"]
+PUBLIC_ORDER_TIMELINE_LABELS = {
+    "PAYMENT_PENDING": "Payment Pending",
+    "PAID": "Payment Verified",
+    "CONFIRMED": "Confirmed",
+    "DISPATCHED": "Dispatched",
+    "DELIVERED": "Delivered",
+}
+
+
+def _default_selected_order(orders: list[dict], session_key: str) -> str | None:
+    if not orders:
+        return None
+    deep_link_id = str(st.session_state.get(session_key, "") or "").strip()
+    if deep_link_id and any(item.get("public_order_id") == deep_link_id for item in orders):
+        return deep_link_id
+    return orders[0]["public_order_id"]
+
+
+def _render_order_detail(order: dict) -> None:
+    render_status_chip("Current Status", order.get("status", ""))
+    render_status_chip("Payment Status", order.get("payment_status", ""))
+    render_order_timeline_component(order.get("status", ""), steps=PUBLIC_ORDER_TIMELINE_STEPS, labels=PUBLIC_ORDER_TIMELINE_LABELS)
+    st.dataframe([order.get("logistics", {})], use_container_width=True)
 
 
 def render_public_orders_dashboard(app_context: dict, *, buyer_mode: bool = False) -> None:
@@ -50,15 +79,31 @@ def render_public_orders_dashboard(app_context: dict, *, buyer_mode: bool = Fals
         )
         render_section_intro("Public Order Flow", "Public orders do not create ledger entries. Full payment comes first, then seller verification, confirmation, and dispatch.")
         if not orders:
-            st.info("No public marketplace orders found yet.")
+            render_empty_state("No Marketplace Orders Yet")
             return
         overview_tab, orders_tab, payments_tab, delivery_tab = st.tabs(["Overview", "Orders", "Payments", "Delivery"])
-        selected_id = st.selectbox("My Order", [item["public_order_id"] for item in orders])
+        default_id = _default_selected_order(orders, "deep_link::marketplace_orders")
+        selected_id = st.selectbox("My Order", [item["public_order_id"] for item in orders], index=[item["public_order_id"] for item in orders].index(default_id) if default_id else 0)
         selected = next(item for item in orders if item["public_order_id"] == selected_id)
         with overview_tab:
-            st.json(selected, expanded=False)
+            _render_order_detail(selected)
         with orders_tab:
-            st.dataframe(orders, use_container_width=True)
+            filtered_orders = render_filter_bar(
+                page_key=f"{page_key}_orders",
+                rows=orders,
+                search_fields=["public_order_id", "assigned_seller_manufacturer_id", "buyer_email"],
+                status_field="status",
+                date_field="updated_at",
+                price_field="total_amount",
+                search_placeholder="Search by order ID or seller",
+            )
+            if filtered_orders:
+                csv_col, json_col = st.columns(2)
+                csv_col.download_button("Export CSV", export_rows_to_csv_bytes(filtered_orders), file_name="marketplace-orders.csv", mime="text/csv", use_container_width=True)
+                json_col.download_button("Export JSON", export_rows_to_json_bytes(filtered_orders), file_name="marketplace-orders.json", mime="application/json", use_container_width=True)
+                st.dataframe(filtered_orders, use_container_width=True)
+            else:
+                render_empty_state("No Marketplace Orders Yet")
         with payments_tab:
             if selected.get("status") == "PAYMENT_PENDING":
                 st.code(service.build_payment_instruction_text(selected))
@@ -84,7 +129,7 @@ def render_public_orders_dashboard(app_context: dict, *, buyer_mode: bool = Fals
                     st.success("Public order marked as delivered.")
                     st.rerun()
             else:
-                st.info("No delivery confirmation action pending for the selected order.")
+                render_empty_state("No delivery confirmation action pending for the selected order.")
         return
 
     if user.role == "platform_admin":
@@ -112,16 +157,32 @@ def render_public_orders_dashboard(app_context: dict, *, buyer_mode: bool = Fals
     )
     render_section_intro("Seller Fulfilment", "Public orders consume seller self inventory after payment verification. They do not use mandi inventory automatically.")
     if not orders:
-        st.info("No public orders are assigned to this view.")
+        render_empty_state("No Marketplace Orders Yet")
         return
     overview_tab, orders_tab, payments_tab, delivery_tab = st.tabs(["Overview", "Orders", "Payments", "Delivery"])
-    selected_id = st.selectbox("Public Order", [item["public_order_id"] for item in orders])
+    default_id = _default_selected_order(orders, "deep_link::marketplace_orders")
+    selected_id = st.selectbox("Public Order", [item["public_order_id"] for item in orders], index=[item["public_order_id"] for item in orders].index(default_id) if default_id else 0)
     selected = next(item for item in orders if item["public_order_id"] == selected_id)
     note = st.text_area("Seller/Admin Note", key=f"public_order_note_{selected_id}")
     with overview_tab:
-        st.json(selected, expanded=False)
+        _render_order_detail(selected)
     with orders_tab:
-        st.dataframe(orders, use_container_width=True)
+        filtered_orders = render_filter_bar(
+            page_key=f"{page_key}_seller_orders",
+            rows=orders,
+            search_fields=["public_order_id", "assigned_seller_manufacturer_id", "buyer_email"],
+            status_field="status",
+            date_field="updated_at",
+            price_field="total_amount",
+            search_placeholder="Search by order ID or buyer",
+        )
+        if filtered_orders:
+            csv_col, json_col = st.columns(2)
+            csv_col.download_button("Export CSV", export_rows_to_csv_bytes(filtered_orders), file_name="marketplace-orders-seller.csv", mime="text/csv", use_container_width=True)
+            json_col.download_button("Export JSON", export_rows_to_json_bytes(filtered_orders), file_name="marketplace-orders-seller.json", mime="application/json", use_container_width=True)
+            st.dataframe(filtered_orders, use_container_width=True)
+        else:
+            render_empty_state("No Marketplace Orders Yet")
     with payments_tab:
         if selected.get("payment_status") == "SUBMITTED":
             col1, col2 = st.columns(2)
@@ -142,8 +203,34 @@ def render_public_orders_dashboard(app_context: dict, *, buyer_mode: bool = Fals
                     st.warning("Payment rejected and order returned to payment pending.")
                     st.rerun()
         else:
-            st.info("No payment verification action pending for the selected order.")
+            render_empty_state("No payment verification action pending for the selected order.")
     with delivery_tab:
+        st.dataframe([selected.get("logistics", {})], use_container_width=True)
+        if user.role == "platform_admin":
+            with st.form(f"public_logistics_{selected_id}"):
+                col1, col2 = st.columns(2)
+                transport_mode = col1.text_input("Transport Mode", value=str(selected.get("logistics", {}).get("transport_mode", "")))
+                delivery_status = col2.text_input("Delivery Status", value=str(selected.get("logistics", {}).get("delivery_status", "")))
+                driver_name = col1.text_input("Driver Name", value=str(selected.get("logistics", {}).get("driver_name", "")))
+                driver_mobile = col2.text_input("Driver Mobile", value=str(selected.get("logistics", {}).get("driver_mobile", "")))
+                vehicle_number = col1.text_input("Vehicle Number", value=str(selected.get("logistics", {}).get("vehicle_number", "")))
+                proof_url = col2.text_input("Proof Placeholder", value=str(selected.get("logistics", {}).get("proof_url", "")))
+                dispatch_note = st.text_area("Dispatch Note", value=str(selected.get("logistics", {}).get("dispatch_note", "")))
+                save_logistics = st.form_submit_button("Save Logistics Update")
+            if save_logistics:
+                service.update_logistics(
+                    selected_id,
+                    actor=user,
+                    transport_mode=transport_mode,
+                    driver_name=driver_name,
+                    driver_mobile=driver_mobile,
+                    vehicle_number=vehicle_number,
+                    dispatch_note=dispatch_note,
+                    proof_url=proof_url,
+                    delivery_status=delivery_status,
+                )
+                st.success("Logistics updated.")
+                st.rerun()
         if selected.get("status") == "PAID" and st.button("Confirm Public Order", use_container_width=True, key=f"confirm_public_order_{selected_id}"):
             try:
                 service.confirm_order(selected_id, user)
@@ -160,3 +247,5 @@ def render_public_orders_dashboard(app_context: dict, *, buyer_mode: bool = Fals
             else:
                 st.success("Public order dispatched.")
                 st.rerun()
+        if selected.get("status") not in {"PAID", "CONFIRMED"}:
+            st.caption("No dispatch transition is pending for the selected order.")

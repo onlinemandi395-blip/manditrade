@@ -22,6 +22,9 @@ class AuditStub:
     def log_event(self, *_args, **_kwargs):
         return None
 
+    def log_governance_event(self, *_args, **_kwargs):
+        return None
+
 
 @dataclass
 class GmailStub:

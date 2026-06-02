@@ -4,9 +4,12 @@ from typing import Any
 
 import streamlit as st
 
+from components.filter_bar import render_filter_bar
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
 from components.ui_shell import render_metric_card, render_page_header
+from utils.export_utils import export_rows_to_csv_bytes, export_rows_to_json_bytes
+from utils.page_ui import render_empty_state
 from utils.page_ui import render_metric_button_row
 
 
@@ -66,26 +69,32 @@ def render_suta_mandi_dashboard(app_context: dict) -> None:
             "Suta Supply Market",
             "Manufacturers can browse suta varieties here and raise admin-managed mandi requests. Mahajans supply the raw material, while admin controls routing and pricing.",
         )
-        st.dataframe(suta_materials, use_container_width=True)
+        if suta_materials:
+            st.dataframe(suta_materials, use_container_width=True)
+        else:
+            render_empty_state("No suta materials are listed yet.")
     with catalog_tab:
         if not suta_materials:
-            st.info("No suta raw materials are listed yet. Ask admin or mahajan to onboard suta supply in Raw Materials.")
+            render_empty_state("No suta raw materials are listed yet. Ask admin or mahajan to onboard suta supply in Raw Materials.")
         else:
-            st.dataframe(
-                [
-                    {
-                        "raw_material_id": item.get("raw_material_id", ""),
-                        "name": item.get("name", ""),
-                        "category": item.get("category", ""),
-                        "unit": item.get("unit", ""),
-                        "available_qty": item.get("available_qty", 0),
-                        "supply_price": item.get("supply_price", 0),
-                        "mahajan_id": item.get("mahajan_id", ""),
-                    }
-                    for item in suta_materials
-                ],
-                use_container_width=True,
-            )
+            catalog_rows = [
+                {
+                    "raw_material_id": item.get("raw_material_id", ""),
+                    "name": item.get("name", ""),
+                    "category": item.get("category", ""),
+                    "unit": item.get("unit", ""),
+                    "available_qty": item.get("available_qty", 0),
+                    "supply_price": item.get("supply_price", 0),
+                    "mahajan_id": item.get("mahajan_id", ""),
+                    "status": item.get("status", ""),
+                }
+                for item in suta_materials
+            ]
+            filtered_rows = render_filter_bar(page_key="suta_catalog", rows=catalog_rows, search_fields=["raw_material_id", "name", "mahajan_id"], status_field="status", price_field="supply_price", search_placeholder="Search suta by ID, name, or mahajan")
+            csv_col, json_col = st.columns(2)
+            csv_col.download_button("Export CSV", export_rows_to_csv_bytes(filtered_rows), file_name="suta-mandi.csv", mime="text/csv", use_container_width=True)
+            json_col.download_button("Export JSON", export_rows_to_json_bytes(filtered_rows), file_name="suta-mandi.json", mime="application/json", use_container_width=True)
+            st.dataframe(filtered_rows, use_container_width=True)
     with request_tab:
         if not suta_materials:
             st.info("No suta material is ready for requests right now.")
@@ -117,4 +126,4 @@ def render_suta_mandi_dashboard(app_context: dict) -> None:
         if suta_orders:
             st.dataframe(suta_orders, use_container_width=True)
         else:
-            st.info("No suta mandi orders found for this manufacturer yet.")
+            render_empty_state("No suta mandi orders found for this manufacturer yet.")

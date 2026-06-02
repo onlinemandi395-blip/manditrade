@@ -20,9 +20,9 @@ def render_workers_dashboard(app_context: dict) -> None:
     )
     overview_tab, profile_tab, pool_tab = st.tabs(["Overview", "My Worker Profile", "Worker Pool"])
     with overview_tab:
-        render_section_intro("Worker Profiles", "Manufacturers can browse worker availability. Clients can opt into worker mode for local job discovery.")
+        render_section_intro("Worker Profiles", "Manufacturers can browse worker availability, and workers can maintain their own public job profile.")
 
-    can_manage = bool(user and user.role in {"manufacturer", "admin_as_manufacturer", "platform_admin", "client", "worker"})
+    can_manage = bool(user and user.role in {"manufacturer", "admin_as_manufacturer", "platform_admin", "worker"})
     with profile_tab:
         if can_manage and user:
             existing = worker_service.get_worker_by_email(user.email) or {}

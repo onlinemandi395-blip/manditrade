@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import streamlit as st
 
+from components.filter_bar import render_filter_bar
 from components.html_renderer import render_html
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
 from components.ui_shell import render_3d_panel, render_metric_card, render_mobile_record_card, render_page_header
-from utils.page_ui import render_metric_button_row
+from utils.export_utils import export_rows_to_csv_bytes, export_rows_to_json_bytes
+from utils.page_ui import render_empty_state, render_metric_button_row
 
 
 def render_ledger_dashboard(app_context: dict) -> None:
@@ -73,9 +75,16 @@ def render_ledger_dashboard(app_context: dict) -> None:
         if ledgers:
             render_3d_panel("".join(render_mobile_record_card(item) for item in ledgers[:4]), "Latest Ledger Relationships", tone="subtle")
         else:
-            st.info("No ledger relationships found yet.")
+            render_empty_state("No ledger relationships found yet.")
     with entries_tab:
-        st.dataframe(ledgers, use_container_width=True)
+        filtered_ledgers = render_filter_bar(page_key="ledger_entries", rows=ledgers, search_fields=["ledger_id", "party_a", "party_b"], status_field="status", date_field="updated_at")
+        if filtered_ledgers:
+            csv_col, json_col = st.columns(2)
+            csv_col.download_button("Export CSV", export_rows_to_csv_bytes(filtered_ledgers), file_name="ledger.csv", mime="text/csv", use_container_width=True)
+            json_col.download_button("Export JSON", export_rows_to_json_bytes(filtered_ledgers), file_name="ledger.json", mime="application/json", use_container_width=True)
+            st.dataframe(filtered_ledgers, use_container_width=True)
+        else:
+            render_empty_state("No ledger relationships found yet.")
     with due_tab:
         overdue_rows = []
         if user.role in {"mahajan", "platform_admin"}:
@@ -88,7 +97,7 @@ def render_ledger_dashboard(app_context: dict) -> None:
         if overdue_rows:
             st.dataframe(overdue_rows, use_container_width=True)
         else:
-            st.info("No due or overdue ledger entries right now.")
+            render_empty_state("No due or overdue ledger entries right now.")
     with payments_tab:
         if user.role in {"mahajan", "platform_admin"}:
             st.info("Supply-ledger payment settlement remains supervisory on this screen.")
@@ -99,7 +108,7 @@ def render_ledger_dashboard(app_context: dict) -> None:
             for entry in ledger.get("entries", []):
                 payable_rows.append({"ledger_id": ledger.get("ledger_id"), **entry})
         if not payable_rows:
-            st.info("No ledger payments are available yet.")
+            render_empty_state("No ledger payments are available yet.")
         else:
             selected_entry = st.selectbox("Ledger Entry", [item["entry_id"] for item in payable_rows])
             amount = st.number_input("Payment Amount", min_value=0.0, step=1.0, value=0.0)

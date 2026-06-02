@@ -201,7 +201,7 @@ def render_route(section: str, app_context: dict) -> None:
         render_manufacturers_dashboard(app_context)
     elif section == "Inventory Summary":
         render_inventory_summary_dashboard(app_context)
-    elif section in {"Clients Preview", "Ledger Summary", "Commission Summary"}:
+    elif section in {"B2B Preview", "Ledger Summary", "Commission Summary"}:
         render_admin_dashboard(app_context, section=section)
     elif section == "Onboarding":
         render_manufacturer_onboarding(app_context)

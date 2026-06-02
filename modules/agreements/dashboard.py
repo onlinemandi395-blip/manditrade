@@ -9,7 +9,7 @@ def render_agreements_dashboard(app_context: dict) -> None:
     st.subheader("Agreements")
     current_user = app_context["current_user"]
     if not current_user or not current_user.manufacturer_code:
-        st.info("Sign in with a manufacturer or linked client session to view agreements.")
+        st.info("Sign in with a manufacturer-linked session to view agreements.")
         return
     json_service = JsonService()
     paths = app_context["drive_service"].get_manufacturer_paths(current_user.manufacturer_code)

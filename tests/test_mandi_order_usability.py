@@ -45,7 +45,7 @@ def test_role_specific_mandi_actions_are_scoped():
     assert get_supply_order_role_actions("mahajan", mahajan_dispatch) == ["Dispatch Order"]
     assert get_supply_order_role_actions("manufacturer", manufacturer_confirm) == ["Confirm Admin Price"]
     assert get_supply_order_role_actions("manufacturer", manufacturer_receive) == ["Mark Received"]
-    assert get_supply_order_role_actions("client", manufacturer_receive) == []
+    assert get_supply_order_role_actions("public_buyer", manufacturer_receive) == []
 
 
 def test_dashboard_cards_filter_supply_orders_by_status():
@@ -113,12 +113,11 @@ def test_mandi_order_rbac_still_blocks_wrong_roles():
     app_context = {"security_service": SimpleNamespace(is_admin_identity=lambda _user: False)}
     manufacturer = SimpleNamespace(role="manufacturer")
     mahajan = SimpleNamespace(role="mahajan")
-    client = SimpleNamespace(role="client")
+    public_buyer = SimpleNamespace(role="public_buyer")
     public_buyer = SimpleNamespace(role="public_buyer")
 
     assert can_access_route(manufacturer, "Mandi Orders", app_context) is True
     assert can_access_route(mahajan, "Mandi Orders", app_context) is True
-    assert can_access_route(client, "Mandi Orders", app_context) is False
     assert can_access_route(public_buyer, "Mandi Orders", app_context) is False
 
 

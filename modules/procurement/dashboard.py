@@ -4,11 +4,14 @@ from typing import Any
 
 import streamlit as st
 
+from components.filter_bar import render_filter_bar
 from components.order_timeline import render_order_timeline_component
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
 from components.ui_shell import render_metric_card, render_page_header
-from utils.page_ui import get_active_filter, render_metric_button_row, render_status_chip
+from utils.deep_links import build_deep_link_target
+from utils.export_utils import export_rows_to_csv_bytes, export_rows_to_json_bytes
+from utils.page_ui import get_active_filter, render_empty_state, render_metric_button_row, render_status_chip
 
 MANDI_TIMELINE_STEPS = [
     "REQUESTED_BY_MANUFACTURER",
@@ -214,10 +217,66 @@ def _render_orders_table(page_key: str, orders: list[dict[str, Any]]) -> list[di
     filter_label = MANDI_ORDER_FILTERS.get(active_filter, {}).get("label", "All Orders")
     st.caption(f"Orders filter: {filter_label}")
     visible_orders = filtered_orders if active_filter else orders
-    st.dataframe(visible_orders, use_container_width=True)
+    visible_orders = render_filter_bar(
+        page_key=f"{page_key}_table",
+        rows=visible_orders,
+        search_fields=["mandi_order_id", "manufacturer_id", "mahajan_id", "raw_material_id", "notes"],
+        status_field="status",
+        date_field="updated_at",
+        price_field="manufacturer_unit_price",
+        search_placeholder="Search by order ID, manufacturer, mahajan, or raw material",
+    )
+    if visible_orders:
+        col1, col2 = st.columns(2)
+        col1.download_button("Export Orders CSV", export_rows_to_csv_bytes(visible_orders), file_name="mandi-orders.csv", mime="text/csv", use_container_width=True)
+        col2.download_button("Export Orders JSON", export_rows_to_json_bytes(visible_orders), file_name="mandi-orders.json", mime="application/json", use_container_width=True)
+        st.dataframe(visible_orders, use_container_width=True)
+    else:
+        render_empty_state("No mandi orders match the selected filters.")
     if active_filter and not filtered_orders:
-        st.info("No mandi orders match the selected dashboard card right now.")
+        st.caption("Metric filter is active but no current orders fall into that bucket.")
     return visible_orders
+
+
+def _get_default_order_id(orders: list[dict[str, Any]], session_key: str) -> str | None:
+    if not orders:
+        return None
+    requested_id = str(st.session_state.get(session_key, "") or "").strip()
+    if requested_id and any(item.get("mandi_order_id") == requested_id for item in orders):
+        return requested_id
+    return orders[0]["mandi_order_id"]
+
+
+def _render_logistics_console(*, order: dict[str, Any], service, user) -> None:
+    logistics = dict(order.get("logistics") or {})
+    render_section_intro("Logistics Console", "Admin keeps dispatch visibility readable with transporter, vehicle, proof placeholder, and delivery notes in one place.")
+    st.dataframe([logistics], use_container_width=True)
+    if user.role != "platform_admin":
+        return
+    with st.form(f"logistics_{order.get('mandi_order_id', '')}"):
+        col1, col2 = st.columns(2)
+        transport_mode = col1.text_input("Transport Mode", value=str(logistics.get("transport_mode", "")))
+        delivery_status = col2.text_input("Delivery Status", value=str(logistics.get("delivery_status", "")))
+        driver_name = col1.text_input("Transporter / Driver", value=str(logistics.get("driver_name", "")))
+        driver_mobile = col2.text_input("Driver Mobile", value=str(logistics.get("driver_mobile", "")))
+        vehicle_number = col1.text_input("Vehicle Number", value=str(logistics.get("vehicle_number", "")))
+        proof_url = col2.text_input("Proof Placeholder", value=str(logistics.get("proof_url", "")))
+        dispatch_note = st.text_area("Dispatch Note", value=str(logistics.get("dispatch_note", "")))
+        submitted = st.form_submit_button("Save Logistics Update")
+    if submitted:
+        service.update_supply_logistics(
+            mandi_order_id=order.get("mandi_order_id", ""),
+            actor_email=user.email,
+            transport_mode=transport_mode,
+            driver_name=driver_name,
+            driver_mobile=driver_mobile,
+            vehicle_number=vehicle_number,
+            dispatch_note=dispatch_note,
+            proof_url=proof_url,
+            delivery_status=delivery_status,
+        )
+        st.success("Logistics updated.")
+        st.rerun()
 
 
 def render_procurement_dashboard(app_context: dict) -> None:
@@ -255,7 +314,8 @@ def render_procurement_dashboard(app_context: dict) -> None:
         with overview_tab:
             render_section_intro("Admin Supply Control", "Admin controls the full mandi supply lane: manufacturer demand, mahajan assignment, downstream pricing, ledger creation, and final closure.")
             if orders:
-                selected_id = st.selectbox("Review Mandi Order", [item["mandi_order_id"] for item in orders], key="admin_mandi_detail")
+                default_id = _get_default_order_id(orders, "deep_link::mandi_orders")
+                selected_id = st.selectbox("Review Mandi Order", [item["mandi_order_id"] for item in orders], key="admin_mandi_detail", index=[item["mandi_order_id"] for item in orders].index(default_id) if default_id else 0)
                 selected = next(item for item in orders if item["mandi_order_id"] == selected_id)
                 _render_supply_order_detail(
                     selected,
@@ -265,6 +325,9 @@ def render_procurement_dashboard(app_context: dict) -> None:
                     supply_ledger_entries=governance_service.list_supply_ledger_entries(),
                     mandi_ledger_entries=_get_mandi_ledger_entries(service, selected.get("manufacturer_id", "")),
                 )
+                _render_logistics_console(order=selected, service=service, user=user)
+            else:
+                render_empty_state("No mandi orders are available yet.")
             st.dataframe(orders, use_container_width=True)
         with requests_tab:
             pending = [item for item in orders if item.get("status") in {"REQUESTED_BY_MANUFACTURER", "ADMIN_REVIEWING"}]
@@ -305,7 +368,8 @@ def render_procurement_dashboard(app_context: dict) -> None:
         with orders_tab:
             visible_orders = _render_orders_table(page_key, orders)
             if visible_orders:
-                selected_id = st.selectbox("Mandi Order Detail", [item["mandi_order_id"] for item in visible_orders], key="admin_order_ops")
+                default_id = _get_default_order_id(visible_orders, "deep_link::mandi_orders")
+                selected_id = st.selectbox("Mandi Order Detail", [item["mandi_order_id"] for item in visible_orders], key="admin_order_ops", index=[item["mandi_order_id"] for item in visible_orders].index(default_id) if default_id else 0)
                 selected = next(item for item in visible_orders if item["mandi_order_id"] == selected_id)
                 _render_supply_order_detail(
                     selected,
@@ -315,6 +379,7 @@ def render_procurement_dashboard(app_context: dict) -> None:
                     supply_ledger_entries=governance_service.list_supply_ledger_entries(),
                     mandi_ledger_entries=_get_mandi_ledger_entries(service, selected.get("manufacturer_id", "")),
                 )
+                _render_logistics_console(order=selected, service=service, user=user)
                 col1, col2 = st.columns(2)
                 with col1:
                     if selected.get("status") == "MANUFACTURER_RECEIVED" and st.button("Close Order", use_container_width=True, key=f"close_{selected_id}"):
@@ -351,7 +416,8 @@ def render_procurement_dashboard(app_context: dict) -> None:
         with overview_tab:
             render_section_intro("Mahajan Supply Orders", "Mahajan works only on raw-material supply assigned by admin. Finished product selling stays outside this page.")
             if orders:
-                selected_id = st.selectbox("Review Assigned Supply Order", [item["mandi_order_id"] for item in orders], key="mahajan_mandi_detail")
+                default_id = _get_default_order_id(orders, "deep_link::mandi_orders")
+                selected_id = st.selectbox("Review Assigned Supply Order", [item["mandi_order_id"] for item in orders], key="mahajan_mandi_detail", index=[item["mandi_order_id"] for item in orders].index(default_id) if default_id else 0)
                 selected = next(item for item in orders if item["mandi_order_id"] == selected_id)
                 _render_supply_order_detail(
                     selected,
@@ -361,6 +427,7 @@ def render_procurement_dashboard(app_context: dict) -> None:
                     supply_ledger_entries=governance_service.list_supply_ledger_entries(),
                     mandi_ledger_entries=[],
                 )
+                st.caption(f"Deep link target: {build_deep_link_target('SUPPLY_ORDER', selected_id)['route']}")
             st.dataframe(orders, use_container_width=True)
         with requests_tab:
             awaiting = [item for item in orders if item.get("status") == "SENT_TO_MAHAJAN"]
@@ -389,7 +456,8 @@ def render_procurement_dashboard(app_context: dict) -> None:
             visible_orders = _render_orders_table(page_key, orders)
             dispatchable = [item for item in visible_orders if item.get("status") == "MANUFACTURER_CONFIRMED"]
             if visible_orders:
-                selected_id = st.selectbox("Assigned Order Detail", [item["mandi_order_id"] for item in visible_orders], key="mahajan_order_ops")
+                default_id = _get_default_order_id(visible_orders, "deep_link::mandi_orders")
+                selected_id = st.selectbox("Assigned Order Detail", [item["mandi_order_id"] for item in visible_orders], key="mahajan_order_ops", index=[item["mandi_order_id"] for item in visible_orders].index(default_id) if default_id else 0)
                 selected = next(item for item in visible_orders if item["mandi_order_id"] == selected_id)
                 _render_supply_order_detail(
                     selected,
@@ -425,7 +493,8 @@ def render_procurement_dashboard(app_context: dict) -> None:
         with overview_tab:
             render_section_intro("Admin-Controlled Raw Material Supply", "Request raw materials here. Finished products that you sell through Marketplace or MandiPlace stay on the Products page.")
             if orders:
-                selected_id = st.selectbox("Review My Mandi Order", [item["mandi_order_id"] for item in orders], key="manufacturer_mandi_detail")
+                default_id = _get_default_order_id(orders, "deep_link::mandi_orders")
+                selected_id = st.selectbox("Review My Mandi Order", [item["mandi_order_id"] for item in orders], key="manufacturer_mandi_detail", index=[item["mandi_order_id"] for item in orders].index(default_id) if default_id else 0)
                 selected = next(item for item in orders if item["mandi_order_id"] == selected_id)
                 _render_supply_order_detail(
                     selected,
@@ -435,6 +504,7 @@ def render_procurement_dashboard(app_context: dict) -> None:
                     supply_ledger_entries=governance_service.list_supply_ledger_entries(),
                     mandi_ledger_entries=_get_mandi_ledger_entries(service, user.manufacturer_code or ""),
                 )
+                _render_logistics_console(order=selected, service=service, user=user)
             st.dataframe(orders, use_container_width=True)
         with requests_tab:
             if not materials:
@@ -471,7 +541,8 @@ def render_procurement_dashboard(app_context: dict) -> None:
         with orders_tab:
             visible_orders = _render_orders_table(page_key, orders)
             if visible_orders:
-                selected_id = st.selectbox("My Order Detail", [item["mandi_order_id"] for item in visible_orders], key="manufacturer_order_ops")
+                default_id = _get_default_order_id(visible_orders, "deep_link::mandi_orders")
+                selected_id = st.selectbox("My Order Detail", [item["mandi_order_id"] for item in visible_orders], key="manufacturer_order_ops", index=[item["mandi_order_id"] for item in visible_orders].index(default_id) if default_id else 0)
                 selected = next(item for item in visible_orders if item["mandi_order_id"] == selected_id)
                 _render_supply_order_detail(
                     selected,
@@ -481,6 +552,7 @@ def render_procurement_dashboard(app_context: dict) -> None:
                     supply_ledger_entries=governance_service.list_supply_ledger_entries(),
                     mandi_ledger_entries=_get_mandi_ledger_entries(service, user.manufacturer_code or ""),
                 )
+                _render_logistics_console(order=selected, service=service, user=user)
             receivable = [item for item in visible_orders if item.get("status") == "MAHAJAN_DISPATCHED"]
             if receivable:
                 selected_receive = st.selectbox("Receive Supply Order", [item["mandi_order_id"] for item in receivable], key="manufacturer_receive_supply")

@@ -4,6 +4,8 @@ from typing import Iterable
 
 import streamlit as st
 
+from utils.status_styles import get_status_style
+
 
 def render_page_hero(*, title: str, subtitle: str, role_label: str = "", description: str = "") -> None:
     st.subheader(title)
@@ -75,4 +77,15 @@ def render_empty_state(message: str, *, action_label: str = "", action_key: str 
 
 
 def render_status_chip(label: str, value: str) -> None:
-    st.caption(f"{label}: {value}")
+    style = get_status_style(value)
+    st.markdown(
+        f"""
+        <div style="display:inline-flex;align-items:center;gap:0.5rem;margin:0.2rem 0 0.55rem 0;">
+          <span style="font-size:0.8rem;color:#475569;">{label}:</span>
+          <span style="padding:0.25rem 0.55rem;border-radius:999px;background:{style['background']};color:{style['color']};font-size:0.78rem;font-weight:700;">
+            {value}
+          </span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )

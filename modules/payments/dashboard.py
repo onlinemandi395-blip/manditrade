@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import streamlit as st
 
+from components.filter_bar import render_filter_bar
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
 from components.ui_shell import render_metric_card, render_page_header
-from utils.page_ui import render_metric_button_row
+from utils.export_utils import export_rows_to_csv_bytes, export_rows_to_json_bytes
+from utils.page_ui import render_empty_state, render_metric_button_row
 
 
 def render_payments_dashboard(app_context: dict) -> None:
@@ -43,19 +45,31 @@ def render_payments_dashboard(app_context: dict) -> None:
                 for item in app_context["governance_service"].list_supply_ledger_entries()
                 if item.get("mahajan_id") == (mahajan or {}).get("mahajan_id")
             ]
-            st.dataframe(entries, use_container_width=True)
+            filtered_entries = render_filter_bar(page_key="payments_mahajan", rows=entries, search_fields=["entry_id", "mandi_order_id", "mahajan_id"], status_field="status", date_field="created_at", price_field="amount_due_to_mahajan")
+            if filtered_entries:
+                st.dataframe(filtered_entries, use_container_width=True)
+            else:
+                render_empty_state("No supplier payments are pending.")
             return
         if user.role == "platform_admin":
-            st.dataframe(app_context["governance_service"].list_supply_ledger_entries(), use_container_width=True)
+            entries = app_context["governance_service"].list_supply_ledger_entries()
+            filtered_entries = render_filter_bar(page_key="payments_admin", rows=entries, search_fields=["entry_id", "mandi_order_id", "mahajan_id", "manufacturer_id"], status_field="status", date_field="created_at", price_field="amount_due_to_mahajan")
+            if filtered_entries:
+                csv_col, json_col = st.columns(2)
+                csv_col.download_button("Export CSV", export_rows_to_csv_bytes(filtered_entries), file_name="payments.csv", mime="text/csv", use_container_width=True)
+                json_col.download_button("Export JSON", export_rows_to_json_bytes(filtered_entries), file_name="payments.json", mime="application/json", use_container_width=True)
+                st.dataframe(filtered_entries, use_container_width=True)
+            else:
+                render_empty_state("No supplier payments are pending.")
             return
         if manufacturer_code:
             st.info("Pending verification and reminder-sensitive items are handled through ledger and order workflows.")
         else:
-            st.info("No manufacturer-linked pending payment workflow is available for this session.")
+            render_empty_state("No manufacturer-linked pending payment workflow is available for this session.")
         if reminder_ready and st.button("Send Ledger Reminders Now", use_container_width=True):
             triggered = app_context["ledger_reminder_service"].run_for_manufacturer(user.manufacturer_code, user.email)
             st.success(f"Triggered {triggered} reminder emails.")
     with verified_tab:
-        st.info("Verified payment history is surfaced in role-specific order and ledger views.")
+        render_empty_state("Verified payment history is surfaced in role-specific order and ledger views.")
     with disputed_tab:
-        st.info("Failed or disputed payments remain review-only until a dedicated dispute workflow is introduced.")
+        render_empty_state("Failed or disputed payments remain review-only until a dedicated dispute workflow is introduced.")

@@ -125,6 +125,13 @@ class PublicOrderService:
             "public_order_created",
         )
         self.public_cart_service.clear_cart(public_buyer_id)
+        self._audit(
+            action="PUBLIC_ORDER_CREATED",
+            actor=buyer.get("email", ""),
+            role="public_buyer",
+            entity_id=order["public_order_id"],
+            details={"status": order["status"], "payment_status": order["payment_status"]},
+        )
         return order
 
     def submit_payment_reference(self, public_order_id: str, public_buyer_id: str, *, payment_reference: str, screenshot_placeholder: str = "") -> dict[str, Any]:
@@ -160,6 +167,13 @@ class PublicOrderService:
                 source_id=public_order_id,
             )
         self._record_payment_event(public_order_id, "PAYMENT_SUBMITTED", {"payment_reference": reference})
+        self._audit(
+            action="PUBLIC_PAYMENT_SUBMITTED",
+            actor=updated.get("buyer_email", ""),
+            role="public_buyer",
+            entity_id=public_order_id,
+            details={"payment_status": updated.get("payment_status", ""), "status": updated.get("status", "")},
+        )
         return updated
 
     def verify_payment(self, public_order_id: str, verifier_user, *, approved: bool, note: str = "") -> dict[str, Any]:
@@ -177,7 +191,15 @@ class PublicOrderService:
                 return payload
             self.safe_drive_write_service.mutate_json(path, reject_mutator)
             self._record_payment_event(public_order_id, "PAYMENT_REJECTED", {"note": note.strip()})
-            return self.get_order(public_order_id)
+            updated = self.get_order(public_order_id)
+            self._audit(
+                action="PUBLIC_PAYMENT_REJECTED",
+                actor=getattr(verifier_user, "email", ""),
+                role=getattr(verifier_user, "role", ""),
+                entity_id=public_order_id,
+                details={"payment_status": updated.get("payment_status", ""), "status": updated.get("status", ""), "note": note.strip()},
+            )
+            return updated
 
         reserve_items = [{"product_id": item["product_id"], "qty": int(item["qty"])} for item in order.get("items", [])]
         self.dual_inventory_service.reserve_self_inventory(order["assigned_seller_manufacturer_id"], reserve_items)
@@ -210,6 +232,13 @@ class PublicOrderService:
             "public_payment_verified",
         )
         self._record_payment_event(public_order_id, "PAYMENT_VERIFIED", {"note": note.strip()})
+        self._audit(
+            action="PUBLIC_PAYMENT_VERIFIED",
+            actor=getattr(verifier_user, "email", ""),
+            role=getattr(verifier_user, "role", ""),
+            entity_id=public_order_id,
+            details={"payment_status": updated.get("payment_status", ""), "status": updated.get("status", ""), "note": note.strip()},
+        )
         return updated
 
     def confirm_order(self, public_order_id: str, seller_user) -> dict[str, Any]:
@@ -266,6 +295,51 @@ class PublicOrderService:
             if order.get("public_order_id") == public_order_id:
                 return order
         raise ValueError(f"Public order not found: {public_order_id}")
+
+    def update_logistics(
+        self,
+        public_order_id: str,
+        *,
+        actor,
+        transport_mode: str = "",
+        driver_name: str = "",
+        driver_mobile: str = "",
+        vehicle_number: str = "",
+        dispatch_note: str = "",
+        proof_url: str = "",
+        delivery_status: str = "",
+    ) -> dict[str, Any]:
+        order = self.get_order(public_order_id)
+        self._ensure_seller_access(order, actor)
+        path = self._order_path(order["public_order_id"], order["created_at"])
+
+        def mutator(payload: dict[str, Any]) -> dict[str, Any]:
+            payload.setdefault("logistics", {})
+            payload["logistics"].update(
+                {
+                    "logistics_owner": "platform_admin",
+                    "transport_mode": transport_mode or payload["logistics"].get("transport_mode", ""),
+                    "driver_name": driver_name or payload["logistics"].get("driver_name", ""),
+                    "driver_mobile": driver_mobile or payload["logistics"].get("driver_mobile", ""),
+                    "vehicle_number": vehicle_number or payload["logistics"].get("vehicle_number", ""),
+                    "dispatch_note": dispatch_note or payload["logistics"].get("dispatch_note", ""),
+                    "proof_url": proof_url or payload["logistics"].get("proof_url", ""),
+                    "delivery_status": delivery_status or payload["logistics"].get("delivery_status", ""),
+                }
+            )
+            payload["updated_at"] = datetime.now(UTC).isoformat()
+            return payload
+
+        self.safe_drive_write_service.mutate_json(path, mutator)
+        updated = self.get_order(public_order_id)
+        self._audit(
+            action="PUBLIC_LOGISTICS_UPDATED",
+            actor=getattr(actor, "email", ""),
+            role=getattr(actor, "role", ""),
+            entity_id=public_order_id,
+            details={"delivery_status": updated.get("logistics", {}).get("delivery_status", ""), "vehicle_number": updated.get("logistics", {}).get("vehicle_number", "")},
+        )
+        return updated
 
     def build_payment_instruction_text(self, order: dict[str, Any]) -> str:
         config = self._payment_config()
@@ -336,6 +410,13 @@ class PublicOrderService:
             source_id=public_order_id,
         )
         self.gmail_service.enqueue_message(updated.get("buyer_email", ""), buyer_email_subject, buyer_email_body, notification_type.lower())
+        self._audit(
+            action=f"PUBLIC_ORDER_{next_status}",
+            actor="system",
+            role="system",
+            entity_id=public_order_id,
+            details={"status": updated.get("status", ""), "delivery_status": updated.get("logistics", {}).get("delivery_status", "")},
+        )
         return updated
 
     def _ensure_seller_access(self, order: dict[str, Any], acting_user) -> None:
@@ -367,4 +448,16 @@ class PublicOrderService:
                 "payload": payload,
                 "created_at": datetime.now(UTC).isoformat(),
             },
+        )
+
+    def _audit(self, *, action: str, actor: str, role: str, entity_id: str, details: dict[str, Any]) -> None:
+        if not getattr(self.governance_service, "audit_service", None):
+            return
+        self.governance_service.audit_service.log_governance_event(
+            actor=actor or "system",
+            role=role or "system",
+            action=action,
+            entity_type="public_order",
+            entity_id=entity_id,
+            details=details,
         )

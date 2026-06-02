@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import streamlit as st
 
+from components.filter_bar import render_filter_bar
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
 from components.ui_shell import render_metric_card, render_page_header
 from services.master_data_service import MasterDataService
+from utils.export_utils import export_rows_to_csv_bytes, export_rows_to_json_bytes
+from utils.page_ui import render_empty_state
 
 BUSINESS_TYPES = [
     "Manufacturer",
@@ -115,7 +118,7 @@ def _render_manufacturer_details_form(*, prefix: str, defaults: dict, include_st
         status_col, _spacer = st.columns(2)
         selected_status = "ACTIVE"
         if include_status:
-            selected_status = status_col.selectbox("Lifecycle Status", ["ACTIVE", "INACTIVE", "BLOCKED"], index=_option_index(["ACTIVE", "INACTIVE", "BLOCKED"], status))
+            selected_status = status_col.selectbox("Lifecycle Status", ["ACTIVE", "INACTIVE", "ARCHIVED", "BLOCKED"], index=_option_index(["ACTIVE", "INACTIVE", "ARCHIVED", "BLOCKED"], status))
         business_description = st.text_area("Business Description", value=defaults.get("business_description", ""), height=120)
         submitted = st.form_submit_button(submit_label)
 
@@ -178,9 +181,16 @@ def render_manufacturers_dashboard(app_context: dict) -> None:
     )
     overview_tab, create_tab, manage_tab, packet_tab = st.tabs(["Overview", "Create", "Manage", "Onboarding Packet"])
     with overview_tab:
-        render_section_intro("Registry CRUD", "Create new manufacturers here, update full business details, and remove registry entries when needed.")
+        render_section_intro("Registry CRUD", "Create new manufacturers here, update full business details, and archive registry entries when needed.")
         st.markdown("### Registered Manufacturers")
-        st.dataframe(manufacturers, use_container_width=True)
+        filtered_manufacturers = render_filter_bar(page_key="manufacturers_registry", rows=manufacturers, search_fields=["manufacturer_code", "business_name", "owner_name", "owner_email"], status_field="status", date_field="updated_at")
+        if filtered_manufacturers:
+            csv_col, json_col = st.columns(2)
+            csv_col.download_button("Export CSV", export_rows_to_csv_bytes(filtered_manufacturers), file_name="manufacturers.csv", mime="text/csv", use_container_width=True)
+            json_col.download_button("Export JSON", export_rows_to_json_bytes(filtered_manufacturers), file_name="manufacturers.json", mime="application/json", use_container_width=True)
+            st.dataframe(filtered_manufacturers, use_container_width=True)
+        else:
+            render_empty_state("No manufacturers are registered yet.")
     with create_tab:
         st.markdown("### Create Manufacturer")
         generated_code = onboarding_service.generate_next_manufacturer_code()
@@ -260,7 +270,7 @@ def render_manufacturers_dashboard(app_context: dict) -> None:
             st.rerun()
         if col_b.button("Delete Manufacturer Registry Entry", use_container_width=True):
             onboarding_service.delete_manufacturer(selected_code, remove_workspace=False)
-            st.success(f"{selected_code} removed from registry.")
+            st.success(f"{selected_code} archived from registry.")
             st.rerun()
 
     with packet_tab:

@@ -156,7 +156,7 @@ def build_app_context() -> dict:
     rollback_service = RollbackService(safe_drive_write_service=safe_drive_write_service, logging_service=logging_service)
     drive_service.safe_drive_write_service = safe_drive_write_service
     gmail_service.safe_drive_write_service = safe_drive_write_service
-    governance_service = GovernanceService(governance_root=GOVERNANCE_DIR, safe_drive_write_service=safe_drive_write_service)
+    governance_service = GovernanceService(governance_root=GOVERNANCE_DIR, safe_drive_write_service=safe_drive_write_service, audit_service=audit_service)
     governance_service.ensure_files()
     oauth_callback_service = OAuthCallbackService(
         auth_service=auth_service,

@@ -20,7 +20,6 @@ def test_operational_pages_use_tabs_and_metric_buttons():
         Path("modules/notifications/dashboard.py"),
         Path("modules/profile/dashboard.py"),
         Path("modules/manufacturer/dashboard.py"),
-        Path("modules/client/dashboard.py"),
         Path("modules/mahajan/dashboard.py"),
         Path("modules/payments/dashboard.py"),
         Path("modules/ledger/dashboard.py"),

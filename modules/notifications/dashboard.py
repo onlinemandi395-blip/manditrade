@@ -5,10 +5,13 @@ from html import escape
 import streamlit as st
 
 from components.html_renderer import render_html
+from components.filter_bar import render_filter_bar
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
 from components.ui_shell import render_3d_panel, render_dual_panel, render_metric_card, render_mobile_record_card, render_page_header, render_showcase_strip
-from utils.page_ui import get_active_filter, render_metric_button_row
+from utils.deep_links import activate_deep_link, build_deep_link_target
+from utils.export_utils import export_rows_to_csv_bytes, export_rows_to_json_bytes
+from utils.page_ui import get_active_filter, render_empty_state, render_metric_button_row
 
 
 def render_notifications_dashboard(app_context: dict) -> None:
@@ -79,6 +82,14 @@ def render_notifications_dashboard(app_context: dict) -> None:
         if user and (user.manufacturer_code or user.role in {"platform_admin", "public_buyer"}):
             render_section_intro("In-App", "Role-relevant alerts stay visible here until read, resolved, or snoozed.")
             unread_rows = [item for item in notifications if not item.get("read", False)]
+            unread_rows = render_filter_bar(
+                page_key=f"{page_key}_unread",
+                rows=unread_rows,
+                search_fields=["notification_id", "title", "message", "type", "source_id"],
+                status_field="priority",
+                date_field="created_at",
+                search_placeholder="Search by notification ID or entity ID",
+            )
             preview_cards = "".join(
                 f"""
                 <article class="mt-glass-card mt-notification-card {'mt-notification-card--unread' if not item.get('read', False) else ''} {'mt-notification-card--resolved' if item.get('resolved', False) else ''}">
@@ -98,29 +109,52 @@ def render_notifications_dashboard(app_context: dict) -> None:
             if unread_rows:
                 render_html(f"<section class='mt-card-stack'>{preview_cards}</section>")
                 render_3d_panel("".join(render_mobile_record_card(item) for item in unread_rows[:5]), "Latest Alerts", tone="subtle")
+                st.download_button("Download Unread CSV", export_rows_to_csv_bytes(unread_rows), file_name="notifications-unread.csv", mime="text/csv", use_container_width=True)
+            else:
+                render_empty_state("No notifications need attention right now.")
             st.dataframe(unread_rows, use_container_width=True)
             if unread_rows:
                 selected_unread = st.selectbox("Manage Unread Notification", [item["notification_id"] for item in unread_rows], key="notif_unread_select")
-                if st.button("Mark Read", key="notif_mark_read", use_container_width=True):
+                selected_item = next(item for item in unread_rows if item["notification_id"] == selected_unread)
+                col1, col2 = st.columns(2)
+                if col1.button("Mark Read", key="notif_mark_read", use_container_width=True):
                     _update_notification_status(app_context, user, selected_unread, mark_read=True)
                     st.success("Notification marked read.")
+                    st.rerun()
+                if col2.button("Open Related Record", key="notif_open_link", use_container_width=True):
+                    activate_deep_link(build_deep_link_target(selected_item.get("source_type", ""), selected_item.get("source_id", "")))
                     st.rerun()
             if active_filter == "unread":
                 st.caption("Metric filter applied: unread")
         else:
-            st.info("No role-specific alerts are available for this session.")
+            render_empty_state("No role-specific alerts are available for this session.")
     with all_tab:
-        st.dataframe(notifications, use_container_width=True)
+        filtered_notifications = render_filter_bar(
+            page_key=f"{page_key}_all",
+            rows=notifications,
+            search_fields=["notification_id", "title", "message", "type", "source_id"],
+            status_field="priority",
+            date_field="created_at",
+            search_placeholder="Search by notification ID, type, or entity ID",
+        )
+        if filtered_notifications:
+            csv_col, json_col = st.columns(2)
+            csv_col.download_button("Export CSV", export_rows_to_csv_bytes(filtered_notifications), file_name="notifications.csv", mime="text/csv", use_container_width=True)
+            json_col.download_button("Export JSON", export_rows_to_json_bytes(filtered_notifications), file_name="notifications.json", mime="application/json", use_container_width=True)
+            st.dataframe(filtered_notifications, use_container_width=True)
+        else:
+            render_empty_state("No notifications match the current filters.")
     with resolved_tab:
         resolved_rows = [item for item in notifications if item.get("resolved", False)]
         if resolved_rows:
             st.dataframe(resolved_rows, use_container_width=True)
         else:
-            st.info("No resolved notifications yet.")
+            render_empty_state("No resolved notifications yet.")
     with settings_tab:
         render_section_intro("Notification Controls", "Use these lightweight controls to keep the feed clean without exposing runtime internals.")
         if notifications:
             selected_id = st.selectbox("Select Notification", [item["notification_id"] for item in notifications], key="notif_select")
+            selected_item = next(item for item in notifications if item["notification_id"] == selected_id)
             col1, col2 = st.columns(2)
             if col1.button("Mark Resolved", use_container_width=True, key="notif_resolve"):
                 _update_notification_status(app_context, user, selected_id, resolved=True)
@@ -129,6 +163,9 @@ def render_notifications_dashboard(app_context: dict) -> None:
             if col2.button("Remind Tomorrow", use_container_width=True, key="notif_remind"):
                 _update_notification_status(app_context, user, selected_id, remind_later_at="tomorrow")
                 st.success("Reminder deferred.")
+                st.rerun()
+            if st.button("Open Notification Target", use_container_width=True, key="notif_open_target"):
+                activate_deep_link(build_deep_link_target(selected_item.get("source_type", ""), selected_item.get("source_id", "")))
                 st.rerun()
         st.info("If an email update does not arrive, please contact support.")
 

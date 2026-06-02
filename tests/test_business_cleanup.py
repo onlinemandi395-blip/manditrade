@@ -217,10 +217,12 @@ def test_platform_admin_can_delete_product(tmp_path):
         unit="kg",
     )
     assert product_catalog.delete_product(product_id=product["product_id"]) is True
-    assert all(item["product_id"] != product["product_id"] for item in governance.list_products())
+    archived = next(item for item in governance.list_products() if item["product_id"] == product["product_id"])
+    assert archived["status"] == "ARCHIVED"
+    assert archived["visible"] is False
 
 
-def test_clients_only_see_active_products(tmp_path):
+def test_public_buyers_only_see_active_public_products(tmp_path):
     _governance, _onboarding, product_catalog, _notification_center, _gmail_service = _build_stack(tmp_path)
     proposed = product_catalog.propose_product(
         created_by="MANU101",
@@ -235,6 +237,7 @@ def test_clients_only_see_active_products(tmp_path):
         name="Wheat",
         category="Grain",
         unit="kg",
+        available_for_public_sale=True,
     )
     product_catalog.approve_product(
         product_id=active["product_id"],
@@ -245,11 +248,11 @@ def test_clients_only_see_active_products(tmp_path):
         unit="kg",
         approved_visibility="PUBLIC",
     )
-    visible_to_client = product_catalog.list_products(include_pending=False, viewer_role="client")
-    assert [item["product_id"] for item in visible_to_client] == [active["product_id"]]
-    assert all(item["status"] == "ACTIVE" for item in visible_to_client)
-    assert proposed["product_id"] not in [item["product_id"] for item in visible_to_client]
-    assert "comments" not in visible_to_client[0]
+    visible_to_public_buyer = product_catalog.list_products(include_pending=False, viewer_role="public_buyer")
+    assert [item["product_id"] for item in visible_to_public_buyer] == [active["product_id"]]
+    assert all(item["status"] == "ACTIVE" for item in visible_to_public_buyer)
+    assert proposed["product_id"] not in [item["product_id"] for item in visible_to_public_buyer]
+    assert "comments" not in visible_to_public_buyer[0]
 
 
 def test_manufacturer_and_admin_can_see_proposed_products_in_expected_scopes(tmp_path):
@@ -317,7 +320,7 @@ def test_manufacturer_can_reply_to_own_product_proposal_and_admin_gets_notificat
     assert gmail_service.sent[-1]["notification_type"] == "product_proposal_replied"
 
 
-def test_unrelated_manufacturer_and_client_cannot_see_or_comment_product_proposal(tmp_path):
+def test_unrelated_manufacturer_and_public_buyer_cannot_see_or_comment_product_proposal(tmp_path):
     _governance, _onboarding, product_catalog, _notification_center, _gmail_service = _build_stack(tmp_path)
     product = product_catalog.propose_product(
         created_by="MANU101",
@@ -327,13 +330,13 @@ def test_unrelated_manufacturer_and_client_cannot_see_or_comment_product_proposa
         unit="kg",
     )
     unrelated_manufacturer = SimpleNamespace(role="manufacturer", email="other@example.com", manufacturer_code="MANU202")
-    client_user = SimpleNamespace(role="client", email="buyer@example.com", manufacturer_code="MANU101")
+    public_buyer_user = SimpleNamespace(role="public_buyer", email="buyer@example.com", manufacturer_code=None)
     with pytest.raises(PermissionError):
         product_catalog.list_product_comments(product["product_id"], unrelated_manufacturer)
     with pytest.raises(PermissionError):
         product_catalog.add_product_comment(product["product_id"], unrelated_manufacturer, "I can see this?")
     with pytest.raises(PermissionError):
-        product_catalog.list_product_comments(product["product_id"], client_user)
+        product_catalog.list_product_comments(product["product_id"], public_buyer_user)
 
 
 def test_comment_thread_read_tracking_and_clarification_resolution(tmp_path):
