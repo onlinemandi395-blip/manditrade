@@ -33,7 +33,7 @@ def render_rfq_dashboard(app_context: dict) -> None:
     )
     overview_tab, requests_tab, responses_tab = st.tabs(["Overview", "RFQ Requests", "Responses"])
     with overview_tab:
-        render_section_intro("Open RFQs", "Use mandi network only for shortages while keeping self inventory reserved for your own clients.")
+        render_section_intro("Open RFQs", "Use mandi network only for shortages while keeping self inventory reserved for your own manufacturer-selling lane.")
         render_html(
             """
             <div class="mt-grid mt-grid--panels">

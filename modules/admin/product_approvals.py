@@ -29,7 +29,7 @@ def render_product_approvals_dashboard(app_context: dict) -> None:
             render_metric_card("Rejected Products", str(len([item for item in products if item.get('status') == 'REJECTED'])), "WARNING"),
         ]
     )
-    render_section_intro("Approval Queue", "Platform admin captures final mandi, client, and marketplace pricing before activation.")
+    render_section_intro("Approval Queue", "Platform admin captures final mandi, B2B, and marketplace pricing before activation.")
     if proposed_products:
         preview = "".join(
             render_mobile_record_card(
@@ -56,7 +56,7 @@ def render_product_approvals_dashboard(app_context: dict) -> None:
             "name": selected.get("name", ""),
             "description": selected.get("description", ""),
             "suggested_mandi_price": selected.get("suggested_mandi_price", 0),
-            "suggested_client_price": selected.get("suggested_client_price", selected.get("suggested_mrp", 0)),
+            "suggested_b2b_price": selected.get("suggested_client_price", selected.get("suggested_mrp", 0)),
             "suggested_marketplace_price": selected.get("suggested_marketplace_price", selected.get("suggested_mrp", 0)),
             "visibility_request": selected.get("visibility_request", "MANDI_NETWORK"),
             "minimum_order_qty": selected.get("minimum_order_qty", 1),
@@ -88,15 +88,17 @@ def render_product_approvals_dashboard(app_context: dict) -> None:
 
     col1, col2 = st.columns(2)
     mandi_price = col1.number_input("Approved Mandi Price", min_value=0.0, step=1.0, value=float(selected.get("suggested_mandi_price", selected.get("mandi_price", 0)) or 0))
-    client_price = col2.number_input("Approved Client Price", min_value=0.0, step=1.0, value=float(selected.get("suggested_client_price", selected.get("client_price", selected.get("mrp", 0))) or 0))
+    client_price = col2.number_input("Approved B2B Price", min_value=0.0, step=1.0, value=float(selected.get("suggested_client_price", selected.get("client_price", selected.get("mrp", 0))) or 0))
     marketplace_price = col1.number_input("Approved Marketplace Price", min_value=0.0, step=1.0, value=float(selected.get("suggested_marketplace_price", selected.get("marketplace_price", selected.get("mrp", 0))) or 0))
     category = col1.text_input("Category", value=selected.get("category", ""))
     unit = col2.text_input("Unit", value=selected.get("unit", "kg"))
     approved_visibility = st.selectbox(
         "Approved Visibility",
-        ["PUBLIC", "PRIVATE_CLIENT", "MANDI_NETWORK"],
-        index=["PUBLIC", "PRIVATE_CLIENT", "MANDI_NETWORK"].index(selected.get("visibility_request", "MANDI_NETWORK"))
-        if selected.get("visibility_request", "MANDI_NETWORK") in {"PUBLIC", "PRIVATE_CLIENT", "MANDI_NETWORK"}
+        ["PUBLIC", "B2B", "MANDI_NETWORK"],
+        index=["PUBLIC", "B2B", "MANDI_NETWORK"].index(
+            "B2B" if selected.get("visibility_request", "MANDI_NETWORK") == "PRIVATE_CLIENT" else selected.get("visibility_request", "MANDI_NETWORK")
+        )
+        if ("B2B" if selected.get("visibility_request", "MANDI_NETWORK") == "PRIVATE_CLIENT" else selected.get("visibility_request", "MANDI_NETWORK")) in {"PUBLIC", "B2B", "MANDI_NETWORK"}
         else 2,
     )
     public_seller_manufacturer_id = st.text_input(
@@ -120,7 +122,7 @@ def render_product_approvals_dashboard(app_context: dict) -> None:
                 approved_marketplace_price=marketplace_price,
                 category=category,
                 unit=unit,
-                approved_visibility=approved_visibility,
+                approved_visibility="PRIVATE_CLIENT" if approved_visibility == "B2B" else approved_visibility,
                 visible=True,
                 admin_note=admin_note,
             )

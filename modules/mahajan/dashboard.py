@@ -37,7 +37,7 @@ def render_mahajan_dashboard(app_context: dict) -> None:
     with overview_tab:
         render_section_intro(
             "Mahajan Role",
-            "This workspace is reserved for the admin supply channel. Marketplace management, manufacturers, and client networks remain hidden for this role.",
+            "This workspace is reserved for the admin supply channel. Marketplace management and manufacturer-selling workspaces remain hidden for this role.",
         )
         st.info("Mahajan access is active. Supply views remain scoped to your admin-linked workflow.")
     with catalog_tab:

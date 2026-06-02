@@ -42,7 +42,7 @@ def render_inventory_management(app_context: dict) -> None:
     )
     overview_tab, add_tab, transfer_tab = st.tabs(["Overview", "Add / Update Item", "Transfer Controls"])
     with overview_tab:
-        render_section_intro("Transfer Controls", "Self inventory stays private for client orders until you explicitly push it into mandi inventory.")
+        render_section_intro("Transfer Controls", "Self inventory stays in your manufacturer-selling lane until you explicitly push it into mandi inventory.")
         render_html(
             """
             <div class="mt-surface-note">

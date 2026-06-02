@@ -423,7 +423,7 @@ def render_procurement_dashboard(app_context: dict) -> None:
         _render_mandi_order_filters(page_key, orders)
         overview_tab, requests_tab, responses_tab, orders_tab = st.tabs(["Overview", "Requests", "Responses", "Orders"])
         with overview_tab:
-            render_section_intro("Admin-Controlled Raw Material Supply", "Request raw materials here. Finished products that you sell to clients or marketplace buyers stay on the Products page.")
+            render_section_intro("Admin-Controlled Raw Material Supply", "Request raw materials here. Finished products that you sell through Marketplace or MandiPlace stay on the Products page.")
             if orders:
                 selected_id = st.selectbox("Review My Mandi Order", [item["mandi_order_id"] for item in orders], key="manufacturer_mandi_detail")
                 selected = next(item for item in orders if item["mandi_order_id"] == selected_id)

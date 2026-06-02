@@ -59,7 +59,7 @@ def render_ledger_dashboard(app_context: dict) -> None:
             {"label": "Payments", "value": "Add Payment", "tab_name": "Payments"},
         ],
     )
-    render_section_intro("Khata Snapshot", "Both mandi trade and client supply dues stay visible here without turning the product into full accounting software. Partial payments reduce balance without making admin the payment receiver.")
+    render_section_intro("Khata Snapshot", "Both marketplace and mandi dues stay visible here without turning the product into full accounting software. Partial payments reduce balance without making admin the payment receiver.")
     render_html(
         """
         <div class="mt-surface-note">

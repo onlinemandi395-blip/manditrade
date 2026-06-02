@@ -7,7 +7,7 @@ def render_pricing_dashboard(app_context: dict) -> None:
     st.caption("Governed pricing preview controlled by admin policy.")
 
     pricing_service = app_context["pricing_service"]
-    client_price = st.number_input("Client Price", min_value=0.0, value=145.0, step=1.0)
+    client_price = st.number_input("B2B Price", min_value=0.0, value=145.0, step=1.0)
     marketplace_price = st.number_input("Marketplace Price", min_value=0.0, value=160.0, step=1.0)
     mandi_price = st.number_input("Mandi Price", min_value=0.0, value=120.0, step=1.0)
     subscription = st.selectbox("Subscription", ["basic", "premium", "premium_plus"], index=0)

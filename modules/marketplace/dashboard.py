@@ -17,7 +17,7 @@ def render_marketplace_dashboard(app_context: dict) -> None:
     products = app_context["product_catalog_service"].list_products(include_pending=False, viewer_role="public_buyer")
     render_page_header(
         "Marketplace",
-        "Instant-pay public shopping stays separate from the private proposal-and-khata workflow used by manufacturer clients.",
+        "Instant-pay public shopping stays separate from the manufacturer-facing MandiPlace and raw-material supply workflows.",
         ["Public Catalog", "Instant Pay", "Public Visibility Only"],
         role=role.replace("_", " ").title(),
         metrics=[("Visible Products", str(len(products))), ("Checkout Model", "100% upfront")],
@@ -34,7 +34,7 @@ def render_marketplace_dashboard(app_context: dict) -> None:
     render_showcase_strip(
         [
             ("Public Buyers", "MRP only", "SUCCESS"),
-            ("Private Clients", "Proposal flow retained", "OPEN"),
+            ("MandiPlace Buyers", "B2B lane separate", "OPEN"),
             ("Manufacturers", "Preview + fulfilment", "PENDING"),
         ]
     )

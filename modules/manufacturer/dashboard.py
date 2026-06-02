@@ -34,7 +34,7 @@ def render_manufacturer_dashboard(app_context: dict) -> None:
         [
             render_metric_card("Self Inventory", str(self_available), "SUCCESS"),
             render_metric_card("Mandi Inventory", str(mandi_available), "OPEN"),
-            render_metric_card("Client Orders", str(len(orders)), "PENDING"),
+            render_metric_card("MandiPlace Orders", str(len(orders)), "PENDING"),
             render_metric_card("Open RFQs", str(len([item for item in rfqs if item.get("status") == "OPEN"])), "WARNING"),
             render_metric_card("Active Jobs", str(len([item for item in jobs if item.get("status") != "COMPLETED"])), "HIGH_PRIORITY"),
         ]
@@ -64,7 +64,7 @@ def render_manufacturer_dashboard(app_context: dict) -> None:
         ]
     )
 
-    render_section_intro("Recent Ledgers", "Keep an eye on client and mandi balances before they become overdue.")
+    render_section_intro("Recent Ledgers", "Keep an eye on B2B and mandi balances before they become overdue.")
     render_dual_panel(
         "Operating Snapshot",
         "".join(

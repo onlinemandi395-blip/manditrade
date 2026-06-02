@@ -74,7 +74,7 @@ def render_analytics_dashboard(app_context: dict) -> None:
     )
     overview_tab, marketplace_tab, mandi_tab, finance_tab = st.tabs(["Overview", "Marketplace", "Mandi Network", "Finance"])
     with overview_tab:
-        render_section_intro("Platform Analytics", "Admin analytics exclude private client identities and invoice data.")
+        render_section_intro("Platform Analytics", "Admin analytics exclude private buyer identities and invoice data.")
         st.dataframe(manufacturers, use_container_width=True)
     with marketplace_tab:
         st.dataframe([item for item in products if item.get("approved_visibility") == "PUBLIC"], use_container_width=True)
