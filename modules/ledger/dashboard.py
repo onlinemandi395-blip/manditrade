@@ -30,18 +30,18 @@ def render_ledger_dashboard(app_context: dict) -> None:
             for item in app_context["governance_service"].list_supply_ledger_entries()
             if item.get("mahajan_id") == (mahajan or {}).get("mahajan_id")
         ]
-        pending_entries = len([item for item in ledgers if item.get("status") == "PENDING"])
+        pending_entries = len([item for item in ledgers if item.get("status") in {"PENDING", "PARTIAL", "OVERDUE"}])
         overdue_entries = 0
     elif user.role == "platform_admin":
         ledgers = app_context["governance_service"].list_supply_ledger_entries()
-        pending_entries = len([item for item in ledgers if item.get("status") == "PENDING"])
+        pending_entries = len([item for item in ledgers if item.get("status") in {"PENDING", "PARTIAL", "OVERDUE"}])
         overdue_entries = 0
     else:
         if not user.manufacturer_code:
             st.info("Manufacturer-linked session required.")
             return
         ledgers = app_context["ledger_service"].list_ledgers_for_role(user.manufacturer_code, user.role)
-        pending_entries = sum(1 for ledger in ledgers for entry in ledger.get("entries", []) if entry.get("status") == "PENDING")
+        pending_entries = sum(1 for ledger in ledgers for entry in ledger.get("entries", []) if entry.get("status") in {"PENDING", "PARTIAL", "OVERDUE"})
         overdue_entries = sum(1 for ledger in ledgers for entry in ledger.get("entries", []) if entry.get("status") == "OVERDUE")
     render_metric_grid(
         [
@@ -59,7 +59,7 @@ def render_ledger_dashboard(app_context: dict) -> None:
             {"label": "Payments", "value": "Add Payment", "tab_name": "Payments"},
         ],
     )
-    render_section_intro("Khata Snapshot", "Both mandi trade and client supply dues stay visible here without turning the product into full accounting software.")
+    render_section_intro("Khata Snapshot", "Both mandi trade and client supply dues stay visible here without turning the product into full accounting software. Partial payments reduce balance without making admin the payment receiver.")
     render_html(
         """
         <div class="mt-surface-note">
@@ -83,7 +83,7 @@ def render_ledger_dashboard(app_context: dict) -> None:
         else:
             for ledger in ledgers:
                 for entry in ledger.get("entries", []):
-                    if entry.get("status") in {"PENDING", "OVERDUE"}:
+                    if entry.get("status") in {"PENDING", "PARTIAL", "OVERDUE"}:
                         overdue_rows.append({"ledger_id": ledger.get("ledger_id"), **entry})
         if overdue_rows:
             st.dataframe(overdue_rows, use_container_width=True)

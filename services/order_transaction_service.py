@@ -39,6 +39,7 @@ class OrderTransactionService:
         domain_paths_service,
         pricing_service=None,
         procurement_transaction_service=None,
+        client_service=None,
     ) -> None:
         self.drive_service = drive_service
         self.safe_drive_write_service = safe_drive_write_service
@@ -58,6 +59,20 @@ class OrderTransactionService:
         self.domain_paths = domain_paths_service
         self.pricing_service = pricing_service
         self.procurement_transaction_service = procurement_transaction_service
+        self.client_service = client_service
+
+    def _default_logistics(self) -> dict[str, Any]:
+        return {
+            "logistics_owner": "platform_admin",
+            "delivery_status": "",
+            "transport_mode": "",
+            "driver_name": "",
+            "driver_mobile": "",
+            "vehicle_number": "",
+            "dispatch_note": "",
+            "proof_url": "",
+            "delivered_at": "",
+        }
 
     def _journal_path(self, transaction_id: str) -> Path:
         return self.transactions_root / f"{transaction_id}.json"
@@ -187,6 +202,8 @@ class OrderTransactionService:
             "status_history": [],
             "transaction_id": transaction_id,
             "commission_breakdown": commission_rows,
+            "payment_receiver": manufacturer_code,
+            "logistics": self._default_logistics(),
         }
         try:
             self._register_target(context, self.domain_paths.private_self_inventory_path(manufacturer_code))
@@ -258,6 +275,22 @@ class OrderTransactionService:
             self._save_order(current_user.manufacturer_code, order, projection_path)
             ledger_amount = sum(float(item.get("qty", 0)) * float(item.get("client_price", item.get("mrp", 0))) for item in order.get("items", []))
             proposal = order.get("payment_proposal", {})
+            if proposal.get("ledger_days", 0):
+                allow_override = bool(proposal.get("manufacturer_credit_override"))
+                if self.client_service and hasattr(self.client_service, "can_place_credit_order"):
+                    try:
+                        allowed, credit_summary = self.client_service.can_place_credit_order(
+                            current_user.manufacturer_code,
+                            order["client_id"],
+                            proposed_order_amount=ledger_amount,
+                            ledger_service=self.ledger_service,
+                            allow_override=allow_override,
+                        )
+                    except ValueError:
+                        allowed, credit_summary = True, {}
+                    order["credit_snapshot"] = credit_summary
+                    if not allowed:
+                        raise ValueError("Client credit limit exceeded for this khata order.")
             upfront = round(ledger_amount * float(proposal.get("upfront_percentage", 0)) / 100, 2)
             self.ledger_service.create_entry(
                 current_user.manufacturer_code,
@@ -274,8 +307,11 @@ class OrderTransactionService:
                     "sale_price": ledger_amount,
                     "gross_profit": sum(float(item.get("qty", 0)) * (float(item.get("client_price", item.get("mrp", 0))) - float(item.get("mandi_price", 0))) for item in order.get("items", [])),
                     "commission_breakdown": order.get("commission_breakdown", {}),
+                    "order_id": order_id,
+                    "payment_receiver": current_user.manufacturer_code,
                 },
             )
+            self._save_order(current_user.manufacturer_code, order, projection_path)
             context.state = "COMMITTED"
             self._write_journal(context)
         except Exception as exc:  # noqa: BLE001
@@ -301,6 +337,17 @@ class OrderTransactionService:
                 raise ValueError("Order must be CONFIRMED before dispatch.")
             dispatch = self.delivery_service.build_dispatch_record(order_id, vehicle_number, driver_name, transporter_name)
             order["dispatch"] = dispatch
+            order.setdefault("logistics", self._default_logistics())
+            order["logistics"].update(
+                {
+                    "logistics_owner": "platform_admin",
+                    "delivery_status": "DISPATCHED",
+                    "transport_mode": transporter_name,
+                    "driver_name": driver_name,
+                    "vehicle_number": vehicle_number,
+                    "dispatch_note": dispatch.get("dispatch_note", ""),
+                }
+            )
             order = self.order_state_service.transition(order, "DISPATCHED", current_user.email, reason="Shipment dispatched")
             self._save_order(current_user.manufacturer_code, order, projection_path)
             context.state = "COMMITTED"
@@ -327,6 +374,9 @@ class OrderTransactionService:
             if order.get("status") != "DISPATCHED":
                 raise ValueError("Order must be DISPATCHED before delivery confirmation.")
             order = self.delivery_service.confirm_delivery(order, current_user.email, comments=comments, proof_path=None)
+            order.setdefault("logistics", self._default_logistics())
+            order["logistics"]["delivery_status"] = "DELIVERED"
+            order["logistics"]["delivered_at"] = datetime.now(UTC).isoformat()
             order = self.order_state_service.transition(order, "DELIVERED", current_user.email, reason="Delivery confirmed")
             self.dual_inventory_service.finalize_reserved(current_user.manufacturer_code, order.get("items", []), bucket="self_inventory")
             self._save_order(current_user.manufacturer_code, order, projection_path)

@@ -76,6 +76,7 @@ class PublicOrderService:
             "payment_status": "PENDING",
             "payment_reference": "",
             "payment_screenshot_placeholder": "",
+            "payment_receiver": seller_id,
             "status": "PAYMENT_PENDING",
             "assigned_seller_manufacturer_id": seller_id,
             "inventory_reserved": False,
@@ -90,6 +91,18 @@ class PublicOrderService:
                 )
                 for item in items
             ] if self.pricing_service else [],
+            "commission_status": "CALCULATED",
+            "logistics": {
+                "logistics_owner": "platform_admin",
+                "delivery_status": "",
+                "transport_mode": "",
+                "driver_name": "",
+                "driver_mobile": "",
+                "vehicle_number": "",
+                "dispatch_note": "",
+                "proof_url": "",
+                "delivered_at": "",
+            },
             "created_at": datetime.now(UTC).isoformat(),
             "updated_at": datetime.now(UTC).isoformat(),
         }
@@ -173,6 +186,7 @@ class PublicOrderService:
             payload["payment_status"] = "VERIFIED"
             payload["status"] = "PAID"
             payload["inventory_reserved"] = True
+            payload["commission_status"] = "DUE"
             payload["seller_note"] = note.strip()
             payload["updated_at"] = datetime.now(UTC).isoformat()
             return payload
@@ -296,6 +310,15 @@ class PublicOrderService:
 
         def mutator(payload: dict[str, Any]) -> dict[str, Any]:
             payload["status"] = next_status
+            if next_status == "DISPATCHED":
+                payload.setdefault("logistics", {})
+                payload["logistics"]["logistics_owner"] = "platform_admin"
+                payload["logistics"]["delivery_status"] = "DISPATCHED"
+            if next_status == "DELIVERED":
+                payload.setdefault("logistics", {})
+                payload["logistics"]["logistics_owner"] = "platform_admin"
+                payload["logistics"]["delivery_status"] = "DELIVERED"
+                payload["logistics"]["delivered_at"] = datetime.now(UTC).isoformat()
             payload["updated_at"] = datetime.now(UTC).isoformat()
             return payload
 

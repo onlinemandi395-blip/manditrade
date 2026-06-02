@@ -54,6 +54,19 @@ class ProcurementTransactionService:
         self.governance_service = governance_service
         self.pricing_service = pricing_service
 
+    def _default_logistics(self) -> dict[str, Any]:
+        return {
+            "logistics_owner": "platform_admin",
+            "delivery_status": "",
+            "transport_mode": "",
+            "driver_name": "",
+            "driver_mobile": "",
+            "vehicle_number": "",
+            "dispatch_note": "",
+            "proof_url": "",
+            "delivered_at": "",
+        }
+
     def _validate_available_items(self, available_items: list[dict[str, Any]]) -> list[dict[str, Any]]:
         normalized: list[dict[str, Any]] = []
         for item in available_items:
@@ -151,11 +164,15 @@ class ProcurementTransactionService:
             "raw_material_id": raw_material_id,
             "manufacturer_id": manufacturer_code,
             "mahajan_id": "",
+            "supplier_type": "",
+            "route_type": "ADMIN_ROUTED",
             "qty": float(qty or 0),
             "unit": unit,
             "requested_by": requested_by,
             "notes": notes,
             "status": "REQUESTED_BY_MANUFACTURER",
+            "payment_receiver": "",
+            "logistics": self._default_logistics(),
             "internal_status_history": [
                 {"status": "REQUESTED_BY_MANUFACTURER", "at": datetime.now(UTC).isoformat(), "actor": requested_by}
             ],
@@ -169,6 +186,7 @@ class ProcurementTransactionService:
         if not order:
             raise ValueError("Supply order not found.")
         order["mahajan_id"] = mahajan_id
+        order["supplier_type"] = "MAHAJAN"
         order["status"] = "SENT_TO_MAHAJAN"
         order.setdefault("internal_status_history", []).append({"status": "ADMIN_REVIEWING", "at": datetime.now(UTC).isoformat(), "actor": admin_email})
         order["internal_status_history"].append({"status": "SENT_TO_MAHAJAN", "at": datetime.now(UTC).isoformat(), "actor": admin_email})
@@ -183,9 +201,11 @@ class ProcurementTransactionService:
         if order.get("mahajan_id") and order.get("mahajan_id") != mahajan_id:
             raise PermissionError("Mahajan cannot quote another mahajan's supply order.")
         order["mahajan_id"] = mahajan_id
+        order["supplier_type"] = "MAHAJAN"
         order["mahajan_unit_price"] = round(float(mahajan_unit_price or 0), 2)
         order["mahajan_notes"] = notes
         order["status"] = "MAHAJAN_QUOTED"
+        order["payment_receiver"] = mahajan_id
         order.setdefault("internal_status_history", []).append({"status": "MAHAJAN_QUOTED", "at": datetime.now(UTC).isoformat(), "actor": mahajan_email})
         return self.governance_service.upsert_supply_order(order)
 
@@ -244,14 +264,21 @@ class ProcurementTransactionService:
             order["commission_object"] = commission
         self.ledger_service.create_entry(
             manufacturer_code,
-            party_a="PLATFORM_ADMIN",
-            party_b=manufacturer_code,
+            party_a=manufacturer_code,
+            party_b=order.get("mahajan_id", "") or "ADMIN_ROUTED_SUPPLIER",
             entry_type="MANDI_LEDGER",
             amount=float(commission.get("manufacturer_bill_amount", 0) or 0),
             paid_amount=0,
             ledger_days=7,
             note=f"Admin-managed mandi supply order {mandi_order_id}",
-            metadata={"ledger_scope": "mandi_ledger", "supply_order": mandi_order_id, "commission_object": commission},
+            metadata={
+                "ledger_scope": "mandi_ledger",
+                "supply_order": mandi_order_id,
+                "order_id": mandi_order_id,
+                "commission_object": commission,
+                "payment_receiver": order.get("mahajan_id", "") or "SUPPLIER_DIRECT",
+                "routed_by": "platform_admin",
+            },
         )
         self.governance_service.create_supply_ledger_entry(
             {
@@ -263,6 +290,8 @@ class ProcurementTransactionService:
                 "amount_due_to_mahajan": round(float(commission.get("mahajan_bill_amount", 0) or 0) - float(commission.get("mahajan_transaction_fee", 0) or 0), 2),
                 "mahajan_transaction_fee": float(commission.get("mahajan_transaction_fee", 0) or 0),
                 "status": "PENDING",
+                "payment_receiver": order.get("mahajan_id", ""),
+                "commission_status": "DUE",
                 "created_at": datetime.now(UTC).isoformat(),
             }
         )
@@ -277,6 +306,8 @@ class ProcurementTransactionService:
         if order.get("mahajan_id") != mahajan_id:
             raise PermissionError("Mahajan cannot dispatch another mahajan's order.")
         order["status"] = "MAHAJAN_DISPATCHED"
+        order.setdefault("logistics", self._default_logistics())
+        order["logistics"]["delivery_status"] = "DISPATCHED"
         order.setdefault("internal_status_history", []).append({"status": "MAHAJAN_DISPATCHED", "at": datetime.now(UTC).isoformat(), "actor": actor_email})
         return self.governance_service.upsert_supply_order(order)
 
@@ -289,6 +320,9 @@ class ProcurementTransactionService:
         if order.get("manufacturer_id") != manufacturer_code:
             raise PermissionError("Manufacturer cannot receive another manufacturer's supply order.")
         order["status"] = "MANUFACTURER_RECEIVED"
+        order.setdefault("logistics", self._default_logistics())
+        order["logistics"]["delivery_status"] = "DELIVERED"
+        order["logistics"]["delivered_at"] = datetime.now(UTC).isoformat()
         order.setdefault("internal_status_history", []).append({"status": "MANUFACTURER_RECEIVED", "at": datetime.now(UTC).isoformat(), "actor": actor_email})
         return self.governance_service.upsert_supply_order(order)
 
@@ -316,6 +350,41 @@ class ProcurementTransactionService:
         if reason:
             order["cancellation_reason"] = reason
         order.setdefault("internal_status_history", []).append({"status": "CANCELLED", "at": datetime.now(UTC).isoformat(), "actor": admin_email, "reason": reason})
+        return self.governance_service.upsert_supply_order(order)
+
+    def update_supply_logistics(
+        self,
+        *,
+        mandi_order_id: str,
+        actor_email: str,
+        transport_mode: str = "",
+        driver_name: str = "",
+        driver_mobile: str = "",
+        vehicle_number: str = "",
+        dispatch_note: str = "",
+        proof_url: str = "",
+        delivery_status: str = "",
+    ) -> dict[str, Any]:
+        if not self.governance_service:
+            raise ValueError("Governance service not configured for supply requests.")
+        order = self.governance_service.get_supply_order(mandi_order_id)
+        if not order:
+            raise ValueError("Supply order not found.")
+        logistics = dict(order.get("logistics") or self._default_logistics())
+        logistics.update(
+            {
+                "logistics_owner": "platform_admin",
+                "transport_mode": transport_mode or logistics.get("transport_mode", ""),
+                "driver_name": driver_name or logistics.get("driver_name", ""),
+                "driver_mobile": driver_mobile or logistics.get("driver_mobile", ""),
+                "vehicle_number": vehicle_number or logistics.get("vehicle_number", ""),
+                "dispatch_note": dispatch_note or logistics.get("dispatch_note", ""),
+                "proof_url": proof_url or logistics.get("proof_url", ""),
+                "delivery_status": delivery_status or logistics.get("delivery_status", ""),
+            }
+        )
+        order["logistics"] = logistics
+        order.setdefault("internal_status_history", []).append({"status": "LOGISTICS_UPDATED", "at": datetime.now(UTC).isoformat(), "actor": actor_email})
         return self.governance_service.upsert_supply_order(order)
 
     def respond_to_rfq(self, current_user, rfq_owner_code: str, rfq_id: str, available_items: list[dict[str, Any]], supplier_terms: dict[str, Any]) -> dict[str, Any]:

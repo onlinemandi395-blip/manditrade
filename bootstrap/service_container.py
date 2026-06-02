@@ -308,6 +308,7 @@ def build_app_context() -> dict:
         domain_paths_service=domain_paths_service,
         pricing_service=pricing_service,
         procurement_transaction_service=procurement_transaction_service,
+        client_service=client_service,
     )
     startup_recovery_service = StartupRecoveryService(procurement_transaction_service=procurement_transaction_service, order_transaction_service=order_transaction_service, file_lock_service=file_lock_service, recovery_root=RUNTIME_RECOVERY_DIR, runtime_metrics_service=runtime_metrics_service)
     ledger_reminder_service = LedgerReminderService(gmail_service=gmail_service, ledger_service=ledger_service, safe_drive_write_service=safe_drive_write_service, domain_paths_service=domain_paths_service, json_service=drive_service.json_service, config=system_config)

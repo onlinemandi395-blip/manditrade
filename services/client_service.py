@@ -251,3 +251,46 @@ class ClientService:
             "status_counts": status_counts,
             "invite_status_counts": invite_counts,
         }
+
+    def summarize_credit(self, manufacturer_code: str, client_id: str, ledger_service) -> dict[str, Any]:
+        client = self.get_client(manufacturer_code, client_id)
+        if client is None:
+            raise ValueError(f"Client not found: {client_id}")
+        outstanding = 0.0
+        for ledger in ledger_service.list_ledgers(manufacturer_code):
+            if ledger.get("party_b") != client_id:
+                continue
+            for entry in ledger.get("entries", []):
+                outstanding += float(entry.get("balance_due", 0) or 0)
+        credit_limit = float(client.get("credit_limit", 0) or 0)
+        available_credit = round(max(credit_limit - outstanding, 0), 2)
+        if credit_limit <= 0:
+            status = "OK"
+        elif outstanding > credit_limit:
+            status = "BLOCKED"
+        elif outstanding >= credit_limit * 0.8:
+            status = "NEAR_LIMIT"
+        else:
+            status = "OK"
+        return {
+            "credit_limit": round(credit_limit, 2),
+            "current_outstanding": round(outstanding, 2),
+            "available_credit": available_credit,
+            "credit_status": status,
+        }
+
+    def can_place_credit_order(
+        self,
+        manufacturer_code: str,
+        client_id: str,
+        *,
+        proposed_order_amount: float,
+        ledger_service,
+        allow_override: bool = False,
+    ) -> tuple[bool, dict[str, Any]]:
+        summary = self.summarize_credit(manufacturer_code, client_id, ledger_service)
+        limit = float(summary["credit_limit"])
+        if allow_override or limit <= 0:
+            return True, summary
+        allowed = (float(summary["current_outstanding"]) + float(proposed_order_amount or 0)) <= limit
+        return allowed, summary

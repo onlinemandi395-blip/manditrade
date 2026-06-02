@@ -11,7 +11,7 @@ from utils.page_ui import render_metric_button_row
 def render_payments_dashboard(app_context: dict) -> None:
     user = app_context["current_user"]
     page_key = "payments"
-    render_page_header("Payments", "Send payment reminders and keep follow-up communication organised from one place.", ["Payment Follow-Up", "Email Reminders"])
+    render_page_header("Payments", "Track direct seller/supplier payments and keep follow-up communication organised from one place.", ["Payment Follow-Up", "Email Reminders"])
     if not user:
         st.info("Sign in required.")
         return
@@ -33,7 +33,7 @@ def render_payments_dashboard(app_context: dict) -> None:
     )
     overview_tab, pending_tab, verified_tab, disputed_tab = st.tabs(["Overview", "Pending", "Verified", "Failed/Disputed"])
     with overview_tab:
-        render_section_intro("Reminder Engine", "Send reminders for upcoming, due, overdue, and final follow-ups with a clean payment workflow.")
+        render_section_intro("Direct Payment Model", "Payments go directly to the seller, manufacturer, or supplier. Platform admin supervises commission and status but is not the default payment receiver.")
         st.info("This page stays role-safe: buyers and workers get payment visibility, while reminder triggers stay limited to manufacturer-linked sessions.")
     with pending_tab:
         if user.role == "mahajan":

@@ -4,9 +4,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 
+from services.client_service import ClientService
 from services.delivery_service import DeliveryService
 from services.domain_paths_service import DomainPathsService
 from services.dual_inventory_service import DualInventoryService
+from services.encryption_service import EncryptionService
 from services.event_dispatcher import EventDispatcher
 from services.file_lock_service import FileLockService
 from services.governance_service import GovernanceService
@@ -47,6 +49,14 @@ def build_runtime(tmp_path: Path):
     governance = GovernanceService(tmp_path / "governance", safe_write)
     governance.ensure_files()
     pricing = PricingService({"admin_profit_share_percent": 50, "manufacturer_profit_share_percent": 50, "mahajan_transaction_fee_percent": 1})
+    client_service = ClientService(
+        drive_service=drive,
+        gmail_service=GmailStub(),
+        encryption_service=EncryptionService(secret_seed="test-seed"),
+        safe_drive_write_service=safe_write,
+        id_allocator_service=allocator,
+        logging_service=logging_service,
+    )
     return {
         "json_service": json_service,
         "logging_service": logging_service,
@@ -59,6 +69,7 @@ def build_runtime(tmp_path: Path):
         "domain_paths": domain_paths,
         "governance": governance,
         "pricing": pricing,
+        "client_service": client_service,
     }
 
 
@@ -153,6 +164,7 @@ def build_order_service(runtime: dict, gmail_service=None, event_dispatcher=None
         notification_center_service=notification_center_service,
         domain_paths_service=runtime["domain_paths"],
         procurement_transaction_service=procurement,
+        client_service=runtime["client_service"],
     )
 
 

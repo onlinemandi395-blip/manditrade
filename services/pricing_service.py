@@ -115,6 +115,7 @@ class PricingService:
                 "admin_net_commission": 0.0,
                 "manufacturer_profit_share": 0.0,
                 "subscription_plan": subscription_key,
+                "commission_status": "CALCULATED",
                 "pricing_warning": profit["pricing_warning"] or "Pricing warning: no positive profit available for commission.",
             }
         admin_base = round(profit["gross_profit"] * (self.admin_profit_share_percent / 100), 2)
@@ -129,6 +130,7 @@ class PricingService:
             "admin_net_commission": admin_net,
             "manufacturer_profit_share": manufacturer_share,
             "subscription_plan": subscription_key,
+            "commission_status": "CALCULATED",
         }
 
     def calculate_supply_commission(
@@ -175,4 +177,9 @@ class PricingService:
             "mahajan_fee_percent": supply_fee_percent,
             "mahajan_transaction_fee": mahajan_transaction_fee,
             "admin_total_earning": admin_total_earning,
+            "commission_status": "CALCULATED",
+            "commission_status_history": [
+                {"status": "CALCULATED"},
+            ],
+            "payment_recipient": "SUPPLIER_DIRECT",
         }

@@ -15,6 +15,25 @@ class LedgerService:
         path = self.domain_paths.ledger_path(manufacturer_code)
         return self.json_service.read_json(path, {"schema_version": "2.0", "ledgers": []}).get("ledgers", [])
 
+    def _derive_entry_status(self, *, amount: float, paid_amount: float, due_date: str, dispute: bool = False) -> str:
+        balance_due = round(float(amount) - float(paid_amount), 2)
+        if dispute:
+            return "DISPUTED"
+        if balance_due <= 0:
+            return "PAID"
+        if float(paid_amount) > 0:
+            return "PARTIAL"
+        if due_date and due_date < datetime.now(UTC).date().isoformat():
+            return "OVERDUE"
+        return "PENDING"
+
+    def list_ledger_entries(self, manufacturer_code: str) -> list[dict[str, Any]]:
+        entries: list[dict[str, Any]] = []
+        for ledger in self.list_ledgers(manufacturer_code):
+            for entry in ledger.get("entries", []):
+                entries.append({"ledger_id": ledger.get("ledger_id"), **entry})
+        return entries
+
     def create_entry(
         self,
         manufacturer_code: str,
@@ -32,17 +51,21 @@ class LedgerService:
         if not path.exists():
             self.safe_drive_write_service.replace_document(path, {"schema_version": "2.0", "ledgers": []})
         ledger_id = f"LEDGER-{party_a}-{party_b}"
+        due_date = (datetime.now(UTC) + timedelta(days=int(ledger_days))).date().isoformat()
+        amount_value = round(float(amount), 2)
+        paid_amount_value = round(float(paid_amount), 2)
         entry = {
             "entry_id": self.id_allocator_service.allocate("ledger_entry"),
             "entry_type": entry_type,
-            "amount": round(float(amount), 2),
-            "paid_amount": round(float(paid_amount), 2),
-            "balance_due": round(float(amount) - float(paid_amount), 2),
-            "due_date": (datetime.now(UTC) + timedelta(days=int(ledger_days))).date().isoformat(),
+            "amount": amount_value,
+            "paid_amount": paid_amount_value,
+            "balance_due": round(amount_value - paid_amount_value, 2),
+            "due_date": due_date,
             "note": note,
-            "status": "PAID" if float(amount) <= float(paid_amount) else "PENDING",
+            "status": self._derive_entry_status(amount=amount_value, paid_amount=paid_amount_value, due_date=due_date),
             "created_at": datetime.now(UTC).isoformat(),
             "reminders_sent": [],
+            "payments": [],
             "metadata": metadata or {},
         }
 
@@ -88,9 +111,35 @@ class LedgerService:
                     continue
                 for entry in ledger.get("entries", []):
                     if entry.get("entry_id") == entry_id:
-                        entry["paid_amount"] = round(float(entry.get("paid_amount", 0)) + float(amount), 2)
+                        payment_amount = round(float(amount), 2)
+                        if payment_amount <= 0:
+                            raise ValueError("Payment amount must be greater than zero.")
+                        payment_record = {
+                            "payment_id": self.id_allocator_service.allocate("payment"),
+                            "ledger_id": ledger_id,
+                            "entry_id": entry_id,
+                            "order_id": entry.get("metadata", {}).get("order_id") or entry.get("metadata", {}).get("supply_order") or "",
+                            "amount_due": round(float(entry.get("amount", 0) or 0), 2),
+                            "amount_paid": payment_amount,
+                            "remaining_due": 0.0,
+                            "payment_mode": "OTHER",
+                            "payment_reference": "",
+                            "payment_note": note,
+                            "paid_at": datetime.now(UTC).isoformat(),
+                            "verified_by": "",
+                            "status": "PARTIAL",
+                        }
+                        entry.setdefault("payments", []).append(payment_record)
+                        entry["paid_amount"] = round(float(entry.get("paid_amount", 0)) + payment_amount, 2)
                         entry["balance_due"] = round(float(entry.get("amount", 0)) - float(entry["paid_amount"]), 2)
-                        entry["status"] = "PAID" if entry["balance_due"] <= 0 else "PENDING"
+                        payment_record["remaining_due"] = entry["balance_due"]
+                        payment_record["status"] = "PAID" if entry["balance_due"] <= 0 else "PARTIAL"
+                        entry["status"] = self._derive_entry_status(
+                            amount=float(entry.get("amount", 0) or 0),
+                            paid_amount=float(entry["paid_amount"]),
+                            due_date=str(entry.get("due_date", "")),
+                            dispute=str(entry.get("status", "")).upper() == "DISPUTED",
+                        )
                         entry["adjustment_note"] = note
                         updated = entry
                         return payload
@@ -103,6 +152,7 @@ class LedgerService:
         ledgers = self.list_ledgers(manufacturer_code)
         total_entries = 0
         pending_entries = 0
+        partial_entries = 0
         total_amount = 0.0
         total_balance_due = 0.0
         for ledger in ledgers:
@@ -110,13 +160,17 @@ class LedgerService:
                 total_entries += 1
                 total_amount += float(entry.get("amount", 0) or 0)
                 total_balance_due += float(entry.get("balance_due", 0) or 0)
-                if str(entry.get("status") or "").upper() == "PENDING":
+                status = str(entry.get("status") or "").upper()
+                if status in {"PENDING", "OVERDUE"}:
                     pending_entries += 1
+                if status == "PARTIAL":
+                    partial_entries += 1
         return {
             "manufacturer_code": manufacturer_code,
             "ledger_groups": len(ledgers),
             "total_entries": total_entries,
             "pending_entries": pending_entries,
+            "partial_entries": partial_entries,
             "total_amount": round(total_amount, 2),
             "total_balance_due": round(total_balance_due, 2),
         }
