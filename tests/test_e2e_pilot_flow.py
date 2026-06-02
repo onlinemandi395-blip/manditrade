@@ -1,130 +1,156 @@
 from __future__ import annotations
 
-from pathlib import Path
 from types import SimpleNamespace
 
 from bootstrap.app_bootstrap import resolve_navigation_sections
-from scripts.seed_pilot_flow import seed_pilot_flow
+from tests.helpers.transaction_fixtures import build_procurement_service, build_runtime
+from tests.test_public_marketplace import build_public_stack, seed_public_product
 
 
-def _seed(tmp_path: Path) -> dict:
-    return seed_pilot_flow(tmp_path / "pilot_seed", safe_mode=True)
-
-
-def test_seeded_pilot_flow_consistency(tmp_path):
-    seeded = _seed(tmp_path)
-    summary = seeded["summary"]
-    assert summary["manufacturers"] == ["PILOT_TEST_MANU001", "PILOT_TEST_MANU002"]
-    assert len(summary["clients"]) == 2
-    assert len(summary["products"]) == 3
-    assert summary["private_order_id"].startswith("PILOT_TEST_ORDER_")
-    assert summary["rfq_id"].startswith("PILOT_TEST_RFQ_")
-    assert summary["public_order_id"].startswith("PILOT_TEST_PUBLIC_ORDER_")
-
-
-def test_private_client_rbac_and_pricing_visibility(tmp_path):
-    seeded = _seed(tmp_path)
-    stack = seeded["stack"]
-    product_service = stack["product_service"]
-    order_query_service = stack["order_query_service"]
-    ledger_service = stack["ledger_service"]
-    client_service = stack["client_service"]
-
-    client_products = product_service.list_products(include_pending=False, viewer_role="client")
-    client_orders = order_query_service.list_orders_for_client("PILOT_TEST_MANU001", "pilot_test_client1@example.com")
-    client_ledgers = ledger_service.list_ledgers_for_role("PILOT_TEST_MANU001", "client")
-    manufacturer_client = client_service.get_client_by_email("PILOT_TEST_MANU001", "pilot_test_client1@example.com")
-
-    assert all("mandi_price" not in item for item in client_products)
-    assert all("marketplace_price" not in item for item in client_products)
-    assert all("your_price" in item for item in client_products)
-    assert client_orders
-    assert "mandi_price" not in str(client_orders)
-    assert "marketplace_price" not in str(client_orders)
-    assert "commission_breakdown" not in str(client_ledgers)
-    assert manufacturer_client is not None
-    assert manufacturer_client["owner_name"] == "PILOT_TEST Amit Kumar"
-
-
-def test_public_buyer_rbac_and_public_order_flow(tmp_path):
-    seeded = _seed(tmp_path)
-    stack = seeded["stack"]
-    product_service = stack["product_service"]
-    public_order_service = stack["public_order_service"]
-    public_buyer_service = stack["public_buyer_service"]
-    public_products = product_service.list_products(include_pending=False, viewer_role="public_buyer")
-    buyer = public_buyer_service.get_by_email("pilot_test_public@example.com")
-    orders = public_order_service.list_orders_for_buyer(buyer["public_buyer_id"])
-    public_sections = resolve_navigation_sections(
+def test_public_marketplace_flow_stays_public_buyer_only(tmp_path):
+    stack = build_public_stack(tmp_path)
+    seed_public_product(stack, product_id="PRD-2026-000001", manufacturer_code="MANU101", mrp=500.0)
+    stack["dual_inventory_service"].upsert_inventory_item(
+        "MANU101",
+        product_id="PRD-2026-000001",
+        product_name="Rice",
+        unit="bag",
+        self_available_qty=10,
+        mandi_available_qty=30,
+    )
+    buyer = stack["public_buyer_service"].register_or_get(email="buyer@example.com", full_name="Buyer")
+    stack["public_cart_service"].add_item(buyer["public_buyer_id"], product_id="PRD-2026-000001", qty=1)
+    order = stack["public_order_service"].create_order_from_cart(buyer["public_buyer_id"])
+    stack["public_order_service"].submit_payment_reference(order["public_order_id"], buyer["public_buyer_id"], payment_reference="UTR12345")
+    verified = stack["public_order_service"].verify_payment(
+        order["public_order_id"],
+        SimpleNamespace(role="manufacturer", manufacturer_code="MANU101", email="seller@example.com"),
+        approved=True,
+    )
+    sections = resolve_navigation_sections(
         {
-            "current_user": SimpleNamespace(role="public_buyer", email="pilot_test_public@example.com", manufacturer_code=None),
+            "current_user": SimpleNamespace(role="public_buyer", email="buyer@example.com", manufacturer_code=None),
             "security_service": SimpleNamespace(is_admin_identity=lambda _user: False),
             "worker_service": SimpleNamespace(get_worker_by_email=lambda _email: None),
         }
     )
 
-    assert buyer is not None
-    assert any(item["product_id"] == "PILOT_TEST_PRODUCT_0002" for item in public_products)
-    assert all("marketplace_price" in item or "price" in item for item in public_products)
-    assert all("mandi_price" not in item for item in public_products)
-    assert orders and orders[0]["payment_status"] == "VERIFIED"
-    assert "Inventory" not in public_sections
-    assert "RFQ" not in public_sections
-    assert "Ledger" not in public_sections
-    assert stack["json_service"].read_json(stack["domain_paths"].ledger_path("PILOT_TEST_MANU001"), {"ledgers": []}).get("ledgers")
-    assert not any("PUBLIC_ORDER" in entry.get("entry_type", "") for ledger in stack["ledger_service"].list_ledgers("PILOT_TEST_MANU001") for entry in ledger.get("entries", []))
+    assert verified["status"] == "PAID"
+    assert verified["payment_receiver"] == "MANU101"
+    assert "Inventory" not in sections
+    assert "Mandi Orders" not in sections
+    assert "Raw Materials" not in sections
+    assert stack["json_service"].read_json(stack["domain_paths"].ledger_path("MANU101"), {"ledgers": []}).get("ledgers", []) == []
 
 
-def test_rfq_priced_acceptance_and_inventory_separation(tmp_path):
-    seeded = _seed(tmp_path)
-    stack = seeded["stack"]
-    procurement_service = stack["procurement_service"]
-    rfq_doc = stack["json_service"].read_json(stack["domain_paths"].rfq_path("PILOT_TEST_MANU001"), {})
-    accepted = next(item for item in rfq_doc["responses"] if item["response_id"] == seeded["summary"]["rfq_response_id"])
-    buyer_ledgers = stack["ledger_service"].list_ledgers("PILOT_TEST_MANU001")
-    private_inventory = stack["json_service"].read_json(stack["domain_paths"].private_self_inventory_path("PILOT_TEST_MANU001"), {})
-    shared_inventory = stack["json_service"].read_json(stack["domain_paths"].shared_mandi_inventory_projection_path("PILOT_TEST_MANU001"), {})
+def test_mandi_supply_flow_creates_admin_routed_dual_leg_accounting(tmp_path):
+    runtime = build_runtime(tmp_path)
+    runtime["governance"].register_manufacturer(
+        {
+            "manufacturer_code": "MANU101",
+            "manufacturer_name": "Shree Agro",
+            "business_name": "Shree Agro",
+            "owner_email": "owner@example.com",
+            "city": "Pune",
+            "status": "ACTIVE",
+        }
+    )
+    runtime["governance"].upsert_mahajan(
+        {
+            "mahajan_id": "MAH001",
+            "name": "Supply Partner",
+            "email": "mahajan@example.com",
+            "mobile": "9999999999",
+            "status": "ACTIVE",
+        }
+    )
+    runtime["governance"].upsert_raw_material(
+        {
+            "raw_material_id": "RM001",
+            "mahajan_id": "MAH001",
+            "name": "Cotton Suta",
+            "unit": "kg",
+            "category": "SUTA",
+            "available_qty": 5000,
+            "supply_price": 35,
+            "status": "ACTIVE",
+        }
+    )
+    procurement = build_procurement_service(runtime)
+    order = procurement.create_supply_request(
+        manufacturer_code="MANU101",
+        raw_material_id="RM001",
+        qty=1000,
+        unit="kg",
+        requested_by="owner@example.com",
+    )
+    procurement.assign_supply_to_mahajan(mandi_order_id=order["mandi_order_id"], mahajan_id="MAH001", admin_email="admin@example.com")
+    procurement.quote_supply_order(
+        mandi_order_id=order["mandi_order_id"],
+        mahajan_id="MAH001",
+        mahajan_unit_price=35,
+        mahajan_email="mahajan@example.com",
+    )
+    priced = procurement.set_manufacturer_supply_price(
+        mandi_order_id=order["mandi_order_id"],
+        manufacturer_unit_price=40,
+        admin_email="admin@example.com",
+    )
+    procurement.confirm_supply_order(
+        mandi_order_id=order["mandi_order_id"],
+        manufacturer_code="MANU101",
+        actor_email="owner@example.com",
+    )
+    procurement.dispatch_supply_order(
+        mandi_order_id=order["mandi_order_id"],
+        mahajan_id="MAH001",
+        actor_email="mahajan@example.com",
+    )
+    received = procurement.receive_supply_order(
+        mandi_order_id=order["mandi_order_id"],
+        manufacturer_code="MANU101",
+        actor_email="owner@example.com",
+    )
+    ledgers = procurement.ledger_service.list_ledgers("MANU101")
 
-    assert accepted["available_items"][0]["offered_unit_price"] == 42.0
-    assert accepted["available_items"][0]["total_price"] == 2520.0
-    assert any(entry["amount"] == 2520.0 for ledger in buyer_ledgers for entry in ledger.get("entries", []))
-    assert "self_inventory" in private_inventory["items"][0]
-    assert "self_inventory" not in shared_inventory["items"][0]
-
-    try:
-        procurement_service.respond_to_rfq(
-            SimpleNamespace(manufacturer_code="PILOT_TEST_MANU002", email="pilot_test_beta_owner@example.com", role="manufacturer"),
-            "PILOT_TEST_MANU001",
-            seeded["summary"]["rfq_id"],
-            [{"product_id": "PILOT_TEST_PRODUCT_0003", "qty": 10, "unit": "bag", "offered_unit_price": 0}],
-            {"upfront_percentage": 20, "ledger_days": 7, "freestyle_note": "bad"},
-        )
-        assert False, "Expected zero-price RFQ rejection"
-    except ValueError as exc:
-        assert "offered unit price" in str(exc)
+    assert priced["route_type"] == "ADMIN_ROUTED"
+    assert priced["payment_receiver"] == "MAH001"
+    assert priced["commission_object"]["admin_total_earning"] > 0
+    assert received["status"] == "MANUFACTURER_RECEIVED"
+    assert any(ledger["party_b"] == "MAH001" for ledger in ledgers)
+    assert any(entry["mandi_order_id"] == order["mandi_order_id"] for entry in runtime["governance"].list_supply_ledger_entries())
 
 
-def test_superadmin_privacy_and_summary_artifacts(tmp_path):
-    seeded = _seed(tmp_path)
-    summary = seeded["summary"]
+def test_role_navigation_matches_final_three_network_model():
+    security_service = SimpleNamespace(is_admin_identity=lambda _user: False)
+    worker_service = SimpleNamespace(get_worker_by_email=lambda _email: None)
 
-    assert "PILOT_TEST Amit Kumar" not in str(summary["private_order_projection"])
-    assert "pilot_test_client1@example.com" not in str(summary["private_order_projection"])
-    assert "payment_proposal" not in str(summary["private_order_projection"])
-    assert "PILOT_TEST_MANU001" in str(summary["shared_inventory_projection"])
-    assert all("pilot_test_client" not in str(action) for action in summary["superadmin_actions"])
+    manufacturer_sections = resolve_navigation_sections(
+        {
+            "current_user": SimpleNamespace(role="manufacturer", email="owner@example.com", manufacturer_code="MANU101"),
+            "security_service": security_service,
+            "worker_service": worker_service,
+        }
+    )
+    mahajan_sections = resolve_navigation_sections(
+        {
+            "current_user": SimpleNamespace(role="mahajan", email="mahajan@example.com", manufacturer_code=None),
+            "security_service": security_service,
+            "worker_service": worker_service,
+        }
+    )
+    public_sections = resolve_navigation_sections(
+        {
+            "current_user": SimpleNamespace(role="public_buyer", email="buyer@example.com", manufacturer_code=None),
+            "security_service": security_service,
+            "worker_service": worker_service,
+        }
+    )
 
-
-def test_notifications_actions_and_gmail_runtime_stay_working(tmp_path):
-    seeded = _seed(tmp_path)
-    summary = seeded["summary"]
-    stack = seeded["stack"]
-    manufacturer_notifications = stack["notification_service"].list_notifications("PILOT_TEST_MANU001")
-    public_buyer = stack["public_buyer_service"].get_by_email("pilot_test_public@example.com")
-    public_notifications = stack["notification_service"].list_public_notifications(public_buyer["public_buyer_id"])
-
-    assert manufacturer_notifications
-    assert public_notifications
-    assert any(item["type"] == "VERIFY_PUBLIC_PAYMENT" for item in summary["manufacturer_actions_before_public_verify"])
-    assert any(item["type"] == "COMPLETE_PUBLIC_PAYMENT" for item in summary["public_buyer_actions_before_payment"])
-    assert summary["gmail_messages"]
+    assert "Marketplace" in manufacturer_sections
+    assert "MandiPlace" in manufacturer_sections
+    assert "Supply Requests" in manufacturer_sections
+    assert "Suta Mandi" in manufacturer_sections
+    assert "Raw Materials" in mahajan_sections
+    assert "Supply Orders" in mahajan_sections
+    assert public_sections == ["Dashboard", "My Profile", "Notifications", "My Actions", "Marketplace", "Marketplace Orders", "Jobs"]

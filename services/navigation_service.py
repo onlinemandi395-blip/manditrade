@@ -5,6 +5,7 @@ from typing import Iterable
 
 NAV_ALIAS_MAP: dict[str, str] = {
     "Mandiplace": "Mandi Orders",
+    "MandiPlace": "Mandi Orders",
     "Mandiplace Order": "Mandi Orders",
     "rfq": "Mandi Orders",
     "RFQ": "Mandi Orders",
@@ -16,6 +17,8 @@ NAV_ALIAS_MAP: dict[str, str] = {
     "Payment": "Payments",
     "Manufacturer": "Manufacturers",
     "Product Approval": "Product Approvals",
+    "Supply Requests": "Mandi Orders",
+    "Supply Orders": "Mandi Orders",
 }
 
 
@@ -27,29 +30,24 @@ ROLE_NAVIGATION_MAP: dict[str, list[tuple[str, list[str]]]] = {
         ("Core", ["Dashboard", "My Profile", "Notifications", "My Actions"]),
         ("Ecosystem", ["Manufacturers", "Mahajans", "Products", "Product Approvals"]),
         ("Marketplace", ["Marketplace", "Marketplace Orders"]),
-        ("Mandi Network", ["Mandi Orders"]),
+        ("Mandi Network", ["MandiPlace", "Mandi Orders"]),
+        ("Supply Network", ["Raw Materials", "Supply Orders"]),
         ("Finance", ["Payments", "Ledger", "Platform Commission"]),
         ("Operations", ["Jobs", "System Health", "Analytics"]),
     ],
     "mahajan": [
         ("Core", ["Dashboard", "My Profile", "Notifications", "My Actions"]),
-        ("Supply Network", ["Raw Materials", "Mandi Orders"]),
+        ("Supply Network", ["Raw Materials", "Supply Orders"]),
         ("Finance", ["Payments", "Ledger"]),
         ("Operations", ["Jobs"]),
     ],
     "manufacturer": [
         ("Core", ["Dashboard", "My Profile", "Notifications", "My Actions"]),
         ("Product Operations", ["Products", "Inventory"]),
-        ("Client Network", ["Clients", "Client Orders"]),
         ("Marketplace", ["Marketplace", "Marketplace Orders"]),
-        ("Mandi Network", ["Suta Mandi", "Mandi Orders"]),
+        ("Mandi Network", ["MandiPlace", "Mandi Orders", "Supply Requests", "Suta Mandi"]),
         ("Finance", ["Payments", "Ledger"]),
         ("Operations", ["Jobs"]),
-    ],
-    "client": [
-        ("Core", ["Dashboard", "My Profile", "Notifications", "My Actions"]),
-        ("Business", ["Products", "Client Orders"]),
-        ("Finance", ["Payments", "Ledger"]),
     ],
     "public_buyer": [
         ("Core", ["Dashboard", "My Profile", "Notifications", "My Actions"]),

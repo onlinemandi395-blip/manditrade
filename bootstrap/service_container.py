@@ -11,7 +11,6 @@ from services.auth_service import AuthService
 from services.bootstrap_service import BootstrapService
 from services.cache_service import CacheService
 from services.catalog_service import CatalogService
-from services.client_service import ClientService
 from services.config_service import ConfigService
 from services.connected_accounts_service import ConnectedAccountsService
 from services.delivery_service import DeliveryService
@@ -166,14 +165,6 @@ def build_app_context() -> dict:
         runtime_reports_root=APP_RUNTIME_DIR / "integration_reports",
         runtime_environment=system_config["app"].get("runtime_environment", "local"),
     )
-    client_service = ClientService(
-        drive_service=drive_service,
-        gmail_service=gmail_service,
-        encryption_service=encryption_service,
-        safe_drive_write_service=safe_drive_write_service,
-        id_allocator_service=id_allocator_service,
-        logging_service=logging_service,
-    )
     connected_accounts_service = ConnectedAccountsService(
         drive_service=drive_service,
         security_service=security_service,
@@ -261,7 +252,6 @@ def build_app_context() -> dict:
         governance_root=GOVERNANCE_DIR,
         safe_drive_write_service=safe_drive_write_service,
         governance_service=governance_service,
-        client_service=client_service,
         worker_service=worker_service,
         public_buyer_service=public_buyer_service,
         drive_service=drive_service,
@@ -308,7 +298,6 @@ def build_app_context() -> dict:
         domain_paths_service=domain_paths_service,
         pricing_service=pricing_service,
         procurement_transaction_service=procurement_transaction_service,
-        client_service=client_service,
     )
     startup_recovery_service = StartupRecoveryService(procurement_transaction_service=procurement_transaction_service, order_transaction_service=order_transaction_service, file_lock_service=file_lock_service, recovery_root=RUNTIME_RECOVERY_DIR, runtime_metrics_service=runtime_metrics_service)
     ledger_reminder_service = LedgerReminderService(gmail_service=gmail_service, ledger_service=ledger_service, safe_drive_write_service=safe_drive_write_service, domain_paths_service=domain_paths_service, json_service=drive_service.json_service, config=system_config)
@@ -409,7 +398,6 @@ def build_app_context() -> dict:
         "oauth_callback_service": oauth_callback_service,
         "bootstrap_service": bootstrap_service,
         "startup_recovery_service": startup_recovery_service,
-        "client_service": client_service,
         "connected_accounts_service": connected_accounts_service,
         "catalog_service": catalog_service,
         "product_catalog_service": product_catalog_service,

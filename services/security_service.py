@@ -89,7 +89,7 @@ class SecurityService:
             return user
         effective_role = "platform_admin" if active_context in {"", "platform_admin", "superuser"} else active_context
         manufacturer_code = user.manufacturer_code
-        if active_context in {"manufacturer", "client"}:
+        if active_context == "manufacturer":
             manufacturer_code = self.ADMIN_MANUFACTURER_CODE
         elif active_context in {"public_buyer", "worker", "platform_admin"}:
             manufacturer_code = None

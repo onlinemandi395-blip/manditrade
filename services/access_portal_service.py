@@ -15,7 +15,7 @@ class AccessPortalService:
         governance_root: Path,
         safe_drive_write_service,
         governance_service,
-        client_service,
+        client_service=None,
         worker_service,
         public_buyer_service,
         drive_service,
@@ -97,12 +97,6 @@ class AccessPortalService:
             if validated:
                 status = "READY_FOR_GOOGLE_SIGNIN"
                 validation_message = "Manufacturer onboarding packet validated. Continue with Google sign-in."
-        elif role_key == "client" and manufacturer_key and invite_token.strip():
-            invite = self.client_service.validate_onboarding(manufacturer_key, invite_token.strip(), email_key)
-            validated = invite is not None
-            if validated:
-                status = "READY_FOR_GOOGLE_SIGNIN"
-                validation_message = "Client invitation validated. Continue with Google sign-in."
         elif role_key == "worker":
             validated = True
             status = "READY_FOR_GOOGLE_SIGNIN"
@@ -191,10 +185,6 @@ class AccessPortalService:
                 "worker_id": None,
             }
 
-        client_match = self._find_client_membership(email_key)
-        if client_match:
-            return {"role": "client", "manufacturer_code": client_match["manufacturer_code"], "status": client_match.get("status", "ACTIVE"), "client_id": client_match.get("client_id"), "public_buyer_id": None, "worker_id": None}
-
         mahajan = self.governance_service.get_mahajan_by_email(email_key) if hasattr(self.governance_service, "get_mahajan_by_email") else None
         if mahajan and str(mahajan.get("status", "ACTIVE")).upper() in {"ACTIVE", "INVITED"}:
             return {"role": "mahajan", "manufacturer_code": None, "status": mahajan.get("status", "ACTIVE"), "client_id": None, "public_buyer_id": None, "worker_id": None}
@@ -264,23 +254,6 @@ class AccessPortalService:
                 self._mark_request_status(request["request_id"], "ACTIVE")
                 return {"role": "manufacturer", "manufacturer_code": manufacturer_code, "status": "ACTIVE", "client_id": None, "public_buyer_id": None, "worker_id": None}
 
-        if role == "client" and manufacturer_code and request.get("invite_token"):
-            invite = self.client_service.validate_onboarding(manufacturer_code, request["invite_token"], email)
-            if invite:
-                profile = {
-                    "client_id": invite["client_id"],
-                    "manufacturer_id": manufacturer_code,
-                    "business_name": request.get("business_name") or invite.get("business_name", ""),
-                    "owner_name": request.get("full_name") or display_name or email,
-                    "email": email,
-                    "city": request.get("city", ""),
-                    "credit_limit": 0,
-                    "status": "ACTIVE",
-                }
-                self.client_service.complete_profile(manufacturer_code, profile)
-                self._mark_request_status(request["request_id"], "ACTIVE")
-                return {"role": "client", "manufacturer_code": manufacturer_code, "status": "ACTIVE", "client_id": profile.get("client_id"), "public_buyer_id": None, "worker_id": None}
-
         if role == "worker":
             self.worker_service.upsert_worker(
                 linked_email=email,
@@ -307,20 +280,6 @@ class AccessPortalService:
             return {"role": "public_buyer", "manufacturer_code": None, "status": buyer.get("status", "ACTIVE"), "client_id": None, "public_buyer_id": buyer.get("public_buyer_id"), "worker_id": None}
 
         return {"role": "pending_user", "manufacturer_code": manufacturer_code or None, "status": request.get("status", "PENDING_ADMIN_REVIEW"), "client_id": None, "public_buyer_id": None, "worker_id": None}
-
-    def _find_client_membership(self, email: str) -> dict[str, Any] | None:
-        for manufacturer in self.governance_service.list_manufacturers():
-            manufacturer_code = manufacturer.get("manufacturer_code", "")
-            if not manufacturer_code:
-                continue
-            profiles = self.client_service.list_client_profiles(manufacturer_code)
-            for profile in profiles:
-                if profile.get("email", "").strip().lower() == email:
-                    return {"manufacturer_code": manufacturer_code, "status": profile.get("status", "ACTIVE"), "client_id": profile.get("client_id")}
-            for client in self.client_service.list_clients(manufacturer_code):
-                if client.get("email", "").strip().lower() == email:
-                    return {"manufacturer_code": manufacturer_code, "status": client.get("status", "INVITED"), "client_id": client.get("client_id")}
-        return None
 
     def _mark_request_status(self, request_id: str, status: str) -> None:
         self.ensure_file()

@@ -8,7 +8,6 @@ from bootstrap.app_bootstrap import resolve_navigation_sections
 from services.navigation_service import ROLE_NAVIGATION_MAP
 from services.auth_service import AuthUser
 from services.security_service import SecurityService
-from services.client_service import ClientService
 from services.encryption_service import EncryptionService
 from services.file_lock_service import FileLockService
 from services.governance_service import GovernanceService
@@ -33,17 +32,11 @@ def _build_persistence_stack(tmp_path: Path):
     governance.ensure_files()
     drive = DriveStub(tmp_path / "manufacturers", json_service)
     drive.safe_drive_write_service = safe_write
-    client_service = ClientService(
-        drive_service=drive,
-        gmail_service=GmailStub(),
-        encryption_service=EncryptionService(secret_seed="test-seed"),
-        safe_drive_write_service=safe_write,
-    )
-    return governance, drive, client_service
+    return governance, drive
 
 
 def test_admin_profile_round_trip(tmp_path):
-    governance, _drive, _client_service = _build_persistence_stack(tmp_path)
+    governance, _drive = _build_persistence_stack(tmp_path)
 
     saved = governance.upsert_admin_profile(
         {
@@ -65,44 +58,6 @@ def test_admin_profile_round_trip(tmp_path):
     assert fetched["address"]["city"] == "Pune"
 
 
-def test_client_profile_upsert_persists_delivery_details(tmp_path):
-    _governance, drive, client_service = _build_persistence_stack(tmp_path)
-    drive.initialize_manufacturer_workspace("MANU101", "Shree Agro Traders", owner_email="owner@example.com", city="Pune")
-    client_service.create_invite("MANU101", "buyer@example.com", "Kumar Traders")
-    client_service.complete_profile(
-        "MANU101",
-        {
-            "client_id": "CLIENT101",
-            "manufacturer_id": "MANU101",
-            "business_name": "Kumar Traders",
-            "owner_name": "Amit Kumar",
-            "email": "buyer@example.com",
-        },
-    )
-
-    updated = client_service.upsert_client_profile(
-        "MANU101",
-        "buyer@example.com",
-        {
-            "mobile": "9999999999",
-            "alternate_mobile": "8888888888",
-            "address": {
-                "line1": "Shop 42, Grain Market",
-                "city": "Pune",
-                "state": "Maharashtra",
-                "pin_code": "411001",
-                "landmark": "Near APMC Gate",
-            },
-            "delivery_contact": {"name": "Amit Kumar", "mobile": "9999999999"},
-            "delivery_instructions": "Call before dispatch arrival.",
-        },
-    )
-
-    assert updated["address"]["line1"] == "Shop 42, Grain Market"
-    assert updated["address"]["landmark"] == "Near APMC Gate"
-    assert updated["delivery_instructions"] == "Call before dispatch arrival."
-
-
 def test_navigation_sections_include_my_profile_for_signed_in_roles():
     security_service = SimpleNamespace(is_admin_identity=lambda user: user.role == "platform_admin")
     worker_service = SimpleNamespace(get_worker_by_email=lambda _email: None)
@@ -121,9 +76,9 @@ def test_navigation_sections_include_my_profile_for_signed_in_roles():
             "worker_service": worker_service,
         }
     )
-    client_sections = resolve_navigation_sections(
+    public_buyer_sections = resolve_navigation_sections(
         {
-            "current_user": SimpleNamespace(role="client", email="buyer@example.com", manufacturer_code="MANU101"),
+            "current_user": SimpleNamespace(role="public_buyer", email="buyer@example.com", manufacturer_code=None),
             "security_service": security_service,
             "worker_service": worker_service,
         }
@@ -147,7 +102,10 @@ def test_navigation_sections_include_my_profile_for_signed_in_roles():
         "Product Approvals",
         "Marketplace",
         "Marketplace Orders",
+        "MandiPlace",
         "Mandi Orders",
+        "Raw Materials",
+        "Supply Orders",
         "Payments",
         "Ledger",
         "Platform Commission",
@@ -161,7 +119,7 @@ def test_navigation_sections_include_my_profile_for_signed_in_roles():
         "Notifications",
         "My Actions",
         "Raw Materials",
-        "Mandi Orders",
+        "Supply Orders",
         "Payments",
         "Ledger",
         "Jobs",
@@ -173,25 +131,24 @@ def test_navigation_sections_include_my_profile_for_signed_in_roles():
         "My Actions",
         "Products",
         "Inventory",
-        "Clients",
-        "Client Orders",
         "Marketplace",
         "Marketplace Orders",
-        "Suta Mandi",
+        "MandiPlace",
         "Mandi Orders",
+        "Supply Requests",
+        "Suta Mandi",
         "Payments",
         "Ledger",
         "Jobs",
     ]
-    assert client_sections == [
+    assert public_buyer_sections == [
         "Dashboard",
         "My Profile",
         "Notifications",
         "My Actions",
-        "Products",
-        "Client Orders",
-        "Payments",
-        "Ledger",
+        "Marketplace",
+        "Marketplace Orders",
+        "Jobs",
     ]
 
 
@@ -215,7 +172,10 @@ def test_superuser_navigation_includes_all_context_sections():
         "Product Approvals",
         "Marketplace",
         "Marketplace Orders",
+        "MandiPlace",
         "Mandi Orders",
+        "Raw Materials",
+        "Supply Orders",
         "Payments",
         "Ledger",
         "Platform Commission",
@@ -242,12 +202,12 @@ def test_superuser_navigation_uses_active_context_role_sections():
         "My Actions",
         "Products",
         "Inventory",
-        "Clients",
-        "Client Orders",
         "Marketplace",
         "Marketplace Orders",
-        "Suta Mandi",
+        "MandiPlace",
         "Mandi Orders",
+        "Supply Requests",
+        "Suta Mandi",
         "Payments",
         "Ledger",
         "Jobs",
@@ -325,7 +285,7 @@ def test_role_navigation_map_is_normalized():
     assert "rfq" not in flattened
 
 
-def test_manufacturer_navigation_has_clients_not_manufacturers():
+def test_manufacturer_navigation_has_mandi_and_no_manufacturers():
     security_service = SimpleNamespace(is_admin_identity=lambda _user: False)
     sections = resolve_navigation_sections(
         {
@@ -334,20 +294,21 @@ def test_manufacturer_navigation_has_clients_not_manufacturers():
             "worker_service": SimpleNamespace(get_worker_by_email=lambda _email: None),
         }
     )
-    assert "Clients" in sections
+    assert "MandiPlace" in sections
+    assert "Supply Requests" in sections
     assert "Manufacturers" not in sections
 
 
-def test_superuser_context_can_preview_client_dashboard_without_losing_admin_identity(monkeypatch):
+def test_superuser_context_can_preview_public_buyer_dashboard_without_losing_admin_identity(monkeypatch):
     hits: list[str] = []
     app_context = {
-        "current_user": SimpleNamespace(role="client", base_role="platform_admin", active_context="client", email="admin@example.com", manufacturer_code="ADMIN_MANU"),
-        "session_user": SimpleNamespace(role="platform_admin", base_role="platform_admin", active_context="client", email="admin@example.com", manufacturer_code=None),
+        "current_user": SimpleNamespace(role="public_buyer", base_role="platform_admin", active_context="public_buyer", email="admin@example.com", manufacturer_code=None),
+        "session_user": SimpleNamespace(role="platform_admin", base_role="platform_admin", active_context="public_buyer", email="admin@example.com", manufacturer_code=None),
         "security_service": SimpleNamespace(is_admin_identity=lambda _user: True),
     }
-    monkeypatch.setattr("bootstrap.route_registry.render_client_dashboard", lambda _ctx: hits.append("client"))
+    monkeypatch.setattr("bootstrap.route_registry.render_marketplace_dashboard", lambda _ctx: hits.append("public_buyer"))
     render_route("Dashboard", app_context)
-    assert hits == ["client"]
+    assert hits == ["public_buyer"]
 
 
 def test_unauthenticated_routes_render_global_login_page(monkeypatch):
@@ -364,7 +325,7 @@ def test_unauthenticated_routes_render_global_login_page(monkeypatch):
 
 
 def test_public_buyer_profile_edit_persists_complete_fields(tmp_path):
-    governance, drive, _client_service = _build_persistence_stack(tmp_path)
+    _governance, _drive = _build_persistence_stack(tmp_path)
     json_service = JsonServiceStub()
     safe_write = SafeDriveWriteService(
         json_service=json_service,

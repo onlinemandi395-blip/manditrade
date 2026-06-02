@@ -19,7 +19,6 @@ ADMIN_CONTEXT_OPTIONS = {
     "platform_admin": "Platform Admin",
     "mahajan": "Mahajan",
     "manufacturer": "Manufacturer",
-    "client": "Client",
     "public_buyer": "Public Buyer",
     "worker": "Worker",
 }
@@ -38,7 +37,7 @@ def _resolve_navigation_role(app_context: dict) -> str:
 
     if security_service.is_admin_identity(session_user) and normalized_role == "platform_admin":
         return "platform_admin"
-    if normalized_role in {"mahajan", "manufacturer", "client", "public_buyer", "worker", "pending_user"}:
+    if normalized_role in {"mahajan", "manufacturer", "public_buyer", "worker", "pending_user"}:
         return normalized_role
     return "manufacturer"
 

@@ -106,58 +106,6 @@ def _render_admin_profile_form(current_user, stored: dict | None) -> tuple[bool,
     }
 
 
-def _render_client_profile_form(current_user, profile: dict) -> tuple[bool, dict]:
-    address = _address_value(profile.get("address", {}))
-    delivery_contact = profile.get("delivery_contact", {}) or {}
-    states = MASTER_DATA.get_indian_states_and_union_territories()
-    with st.form("client_profile_form"):
-        col1, col2 = st.columns(2)
-        business_name = col1.text_input("Business Name", value=profile.get("business_name", ""))
-        owner_name = col2.text_input("Owner Name", value=profile.get("owner_name", ""))
-        email_value = col1.text_input("Email", value=current_user.email, disabled=True)
-        mobile = col2.text_input("Mobile Number", value=profile.get("mobile", ""))
-        alternate_mobile = col1.text_input("Alternate Mobile Number", value=profile.get("alternate_mobile", ""))
-        gstin = col2.text_input("GSTIN", value=profile.get("gstin", ""))
-
-        st.markdown("#### Delivery Address")
-        line1 = st.text_input("Full Address", value=address["line1"])
-        line2 = st.text_input("Address Line 2", value=address["line2"])
-        city_col, state_col, pin_col = st.columns(3)
-        city = city_col.text_input("City", value=address["city"])
-        state = state_col.selectbox("State", states, index=states.index(address["state"]) if address["state"] in states else 0)
-        pin_code = pin_col.text_input("PIN Code", value=address["pin_code"])
-        landmark = st.text_input("Landmark", value=address["landmark"])
-
-        st.markdown("#### Delivery Preferences")
-        contact_col1, contact_col2 = st.columns(2)
-        delivery_contact_name = contact_col1.text_input("Delivery Contact Name", value=delivery_contact.get("name", owner_name))
-        delivery_contact_number = contact_col2.text_input("Delivery Contact Number", value=delivery_contact.get("mobile", mobile))
-        delivery_instructions = st.text_area("Delivery Instructions", value=profile.get("delivery_instructions", ""), height=110)
-        submitted = st.form_submit_button("Save Client Profile")
-
-    return submitted, {
-        "business_name": business_name.strip(),
-        "owner_name": owner_name.strip(),
-        "email": email_value.strip().lower(),
-        "mobile": mobile.strip(),
-        "alternate_mobile": alternate_mobile.strip(),
-        "gstin": gstin.strip(),
-        "address": {
-            "line1": line1.strip(),
-            "line2": line2.strip(),
-            "city": city.strip(),
-            "state": state.strip(),
-            "pin_code": pin_code.strip(),
-            "landmark": landmark.strip(),
-        },
-        "delivery_contact": {
-            "name": delivery_contact_name.strip(),
-            "mobile": delivery_contact_number.strip(),
-        },
-        "delivery_instructions": delivery_instructions.strip(),
-    }
-
-
 def _render_worker_profile_form(current_user, worker: dict | None) -> tuple[bool, dict]:
     worker = worker or {}
     selected_types = [item for item in worker.get("preferred_work_type", []) if item in WORK_TYPES]
@@ -326,61 +274,6 @@ def _render_manufacturer_profile(app_context: dict) -> None:
         st.info("Workspace security follows connected-account consent and role-based session controls.")
 
 
-def _render_client_profile(app_context: dict) -> None:
-    current_user = app_context["current_user"]
-    client_service = app_context["client_service"]
-    profile = client_service.get_client_profile_by_email(current_user.manufacturer_code or "", current_user.email)
-    page_key = "profile_client"
-    render_page_header("My Profile", "Keep client business and delivery details updated so orders reach the right place smoothly.", ["Client", "Delivery Profile"])
-    if not current_user.manufacturer_code:
-        st.info("Your client account is not mapped to a manufacturer workspace yet.")
-        return
-    if not profile:
-        st.info("No active client profile is linked to this email yet.")
-        return
-    render_metric_grid(
-        [
-            render_metric_card("Manufacturer", current_user.manufacturer_code, "OPEN"),
-            render_metric_card("Status", profile.get("status", "ACTIVE"), "SUCCESS"),
-            render_metric_card("Delivery City", _address_value(profile.get("address", {})).get("city", "Not set"), "PENDING"),
-        ]
-    )
-    render_metric_button_row(
-        page_key,
-        [
-            {"label": "Profile", "value": profile.get("status", "ACTIVE"), "tab_name": "Profile"},
-            {"label": "Business", "value": profile.get("business_name", ""), "tab_name": "Business Details"},
-            {"label": "Connected", "value": "Assigned", "tab_name": "Connected Accounts"},
-            {"label": "Security", "value": "Role", "tab_name": "Security"},
-        ],
-    )
-    profile_tab, business_tab, connected_tab, security_tab = st.tabs(["Profile", "Business Details", "Connected Accounts", "Security"])
-    with profile_tab:
-        render_section_intro("Client Delivery Profile", "Update billing, mobile, and delivery preferences here for smoother fulfilment.")
-        render_3d_panel(
-            render_mobile_record_card(
-                {
-                    "Business": profile.get("business_name", ""),
-                    "Owner": profile.get("owner_name", ""),
-                    "Email": profile.get("email", ""),
-                    "City": _address_value(profile.get("address", {})).get("city", ""),
-                }
-            ),
-            "Current Client Profile",
-        )
-        submitted, payload = _render_client_profile_form(current_user, profile)
-        if submitted:
-            client_service.upsert_client_profile(current_user.manufacturer_code or "", current_user.email, payload)
-            st.success("Client profile saved.")
-            st.rerun()
-    with business_tab:
-        st.json(profile, expanded=False)
-    with connected_tab:
-        st.info("This client account is assigned to one manufacturer workspace.")
-    with security_tab:
-        st.info("Role-scoped access keeps this profile limited to your own data.")
-
-
 def _render_worker_profile(app_context: dict) -> None:
     current_user = app_context["current_user"]
     worker_service = app_context["worker_service"]
@@ -508,9 +401,9 @@ def render_public_buyer_profile_setup(app_context: dict, *, welcome_mode: bool =
     with profile_tab:
         render_section_intro(
             "Public Delivery Profile",
-            "This profile is used only for public marketplace shopping. It does not unlock ledger, RFQ, or private-client flows."
+            "This profile is used only for public marketplace shopping. It does not unlock ledger, mandi network, or manufacturer workspace flows."
             if not welcome_mode
-            else "Set your delivery basics once before entering Marketplace. This data stays separate from manufacturer private client registries.",
+            else "Set your delivery basics once before entering Marketplace. This data stays separate from manufacturer and mahajan operating workspaces.",
         )
         render_3d_panel(
             render_mobile_record_card(
@@ -538,7 +431,7 @@ def render_public_buyer_profile_setup(app_context: dict, *, welcome_mode: bool =
     with connected_tab:
         st.info("This profile is used only for public marketplace checkout and delivery.")
     with security_tab:
-        st.info("Public buyer access stays separate from private client and ledger flows.")
+        st.info("Public buyer access stays separate from manufacturer, mahajan, and ledger workflows.")
     return service.is_profile_complete(service.get_by_email(current_user.email))
 
 
@@ -569,7 +462,7 @@ def _render_mahajan_profile(app_context: dict) -> None:
     with profile_tab:
         st.info("Mahajan supplier profile is active for this email.")
     with business_tab:
-        st.info("Raw-material business details can be expanded here without exposing marketplace or client data.")
+        st.info("Raw-material business details can be expanded here without exposing marketplace or manufacturer-selling data.")
     with connected_tab:
         st.info("This account stays scoped to the admin supply channel.")
     with security_tab:
@@ -587,9 +480,6 @@ def render_my_profile_dashboard(app_context: dict) -> None:
         return
     if current_user.role in {"manufacturer", "admin_as_manufacturer"}:
         _render_manufacturer_profile(app_context)
-        return
-    if current_user.role == "client":
-        _render_client_profile(app_context)
         return
     if current_user.role == "worker":
         _render_worker_profile(app_context)

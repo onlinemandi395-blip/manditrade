@@ -16,14 +16,12 @@ def _build_supervisory_rows(app_context: dict) -> list[dict]:
     active_products = [item for item in products if item.get("status") == "ACTIVE"]
     public_orders = app_context["public_order_service"].list_all_orders() if app_context.get("public_order_service") else []
     rfq_service = app_context.get("procurement_transaction_service")
-    client_service = app_context.get("client_service")
     order_query_service = app_context.get("order_query_service")
     ledger_service = app_context.get("ledger_service")
 
     rows = []
     for manufacturer in manufacturers:
         manufacturer_code = manufacturer.get("manufacturer_code", "")
-        client_summary = client_service.summarize_clients(manufacturer_code) if client_service else {"total_clients": 0, "active_clients": 0}
         private_order_summary = order_query_service.summarize_orders(manufacturer_code) if order_query_service else {"total_orders": 0, "total_value": 0.0}
         ledger_summary = ledger_service.summarize_ledgers(manufacturer_code) if ledger_service else {"total_entries": 0, "pending_entries": 0, "total_balance_due": 0.0}
         rfq_requests = rfq_service.list_requests(manufacturer_code) if rfq_service else []
@@ -35,8 +33,6 @@ def _build_supervisory_rows(app_context: dict) -> list[dict]:
                 "status": manufacturer.get("status", "ACTIVE"),
                 "subscription_plan": manufacturer.get("subscription_plan", "basic"),
                 "product_categories": ", ".join(manufacturer.get("product_categories", []) or []),
-                "client_count": client_summary["total_clients"],
-                "active_client_count": client_summary["active_clients"],
                 "private_order_count": private_order_summary["total_orders"],
                 "private_order_value": private_order_summary["total_value"],
                 "rfq_request_count": len(rfq_requests),
@@ -78,30 +74,27 @@ def render_admin_dashboard(app_context: dict, section: str = "Dashboard") -> Non
         render_mobile_record_card({"Manufacturers": len(rows), "Actions": sum(int(item.get("count", 0)) for item in actions), "Public Orders": len(public_orders)}),
     )
     if section == "Inventory Summary":
-        render_section_intro("Inventory Summary", "SuperAdmin sees manufacturer-level inventory impact through private-order and RFQ activity summaries only.")
+        render_section_intro("Inventory Summary", "SuperAdmin sees manufacturer-level inventory impact through marketplace and mandi activity summaries only.")
         st.dataframe(rows, use_container_width=True)
     elif section in {"Commission Summary", "Platform Commission"}:
-        render_section_intro("Platform Commission", "Commission supervision is limited to aggregate public order values and manufacturer-level balances, never raw client ledgers.")
+        render_section_intro("Platform Commission", "Commission supervision is limited to aggregate marketplace order values and manufacturer-level balances, never raw counterparty details.")
         st.dataframe(rows, use_container_width=True)
     elif section in {"RFQ", "Mandi Network"}:
-        render_section_intro("RFQ Summary", "Cross-manufacturer RFQ supervision stays aggregate and operational, without exposing private negotiation threads or client records.")
+        render_section_intro("RFQ Summary", "Cross-manufacturer mandi supervision stays aggregate and operational, without exposing private negotiation threads or supplier records.")
         st.dataframe(rows, use_container_width=True)
     elif section == "Mandi Orders":
         render_section_intro("Mandi Orders", "Supervision of manufacturer-to-manufacturer order activity stays aggregate and network-focused.")
         st.dataframe(rows, use_container_width=True)
     elif section == "Payments":
-        render_section_intro("Payments Summary", "Payments supervision shows aggregate manufacturer receivable load and public-order throughput, not private client notes.")
+        render_section_intro("Payments Summary", "Payments supervision shows aggregate manufacturer receivable load and marketplace throughput, not private counterparty notes.")
         st.dataframe(rows, use_container_width=True)
     elif section == "Ledger":
         render_section_intro("Ledger Summary", "Ledger supervision shows pending counts and due totals only. Private notes and proposal detail stay hidden.")
         st.dataframe([{k: row[k] for k in ("manufacturer_code", "ledger_entry_count", "pending_ledger_entries", "ledger_balance_due")} for row in rows], use_container_width=True)
-    elif section == "Client Orders":
-        render_section_intro("Client Orders Summary", "Private client order supervision remains aggregate-only outside the ADMIN_MANU operating context.")
-        st.dataframe([{k: row[k] for k in ("manufacturer_code", "private_order_count", "private_order_value", "rfq_request_count", "rfq_response_count")} for row in rows], use_container_width=True)
     elif section == "Jobs":
         render_section_intro("Jobs Summary", "Platform operations can supervise marketplace and mandi hiring activity without exposing unnecessary private detail.")
         st.dataframe(rows, use_container_width=True)
     else:
-        render_section_intro("Governance Overview", "Dashboard is summary-only in supervisor mode. Switch context to preview manufacturer, client, public-buyer, or worker surfaces while preserving admin authority.")
+        render_section_intro("Governance Overview", "Dashboard is summary-only in supervisor mode. Switch context to preview manufacturer, mahajan, public-buyer, or worker surfaces while preserving admin authority.")
         st.dataframe(rows, use_container_width=True)
-    st.info("SuperAdmin visibility is aggregate-only for manufacturer private business. Raw client names, emails, notes, delivery addresses, and negotiation comments stay hidden.")
+    st.info("SuperAdmin visibility is aggregate-only for manufacturer business. Raw buyer names, supplier notes, delivery addresses, and negotiation comments stay hidden.")

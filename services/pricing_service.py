@@ -70,8 +70,6 @@ class PricingService:
                 "sale_price": self._sale_price(prices, channel),
                 "visible_prices": ["mandi_price", "client_price", "marketplace_price"],
             }
-        if role_key == "client":
-            return {"client_price": prices["client_price"], "sale_price": prices["client_price"], "visible_prices": ["client_price"]}
         if role_key == "public_buyer":
             return {
                 "marketplace_price": prices["marketplace_price"],

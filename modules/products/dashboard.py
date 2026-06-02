@@ -54,7 +54,7 @@ def render_products_dashboard(app_context: dict) -> None:
     )
     render_dual_panel(
         "Pricing Governance",
-        render_mobile_record_card({"Mandi Price": "Base", "Client Price": "Private client", "Marketplace Price": "Public buyer"}),
+        render_mobile_record_card({"Mandi Price": "Manufacturer B2B", "Marketplace Price": "Public buyer", "Supply Price": "Raw material lane"}),
         "Onboarding Flow",
         render_mobile_record_card({"Propose": "Manufacturer/Admin", "Approve": "Platform Admin"}),
     )
@@ -66,8 +66,8 @@ def render_products_dashboard(app_context: dict) -> None:
           <p>{escape(str(item.get('description', 'Governed catalog product with pricing and visibility controls.') or 'Governed catalog product with pricing and visibility controls.'))}</p>
           <div class="mt-chip-row">
             <span class="mt-price-chip">Mandi: {escape(str(item.get('approved_mandi_price', item.get('suggested_mandi_price', item.get('mandi_price', 0)))))}</span>
-            <span class="mt-price-chip">Client: {escape(str(item.get('approved_client_price', item.get('suggested_client_price', item.get('client_price', item.get('mrp', 0))))))}</span>
             <span class="mt-price-chip">Marketplace: {escape(str(item.get('approved_marketplace_price', item.get('suggested_marketplace_price', item.get('marketplace_price', item.get('mrp', 0))))))}</span>
+            <span class="mt-price-chip">Raw Supply: {escape(str(item.get('raw_material_price', item.get('supply_price', 0))))}</span>
           </div>
           <div class="mt-chip-row">
             <span class="mt-chip">{escape(str(item.get('approved_visibility', item.get('visibility_request', 'MANDI_NETWORK'))))}</span>
@@ -101,7 +101,7 @@ def render_products_dashboard(app_context: dict) -> None:
                     updated_unit = col1.text_input("Unit", value=selected.get("unit", "kg"))
                     updated_description = st.text_area("Description", value=selected.get("description", ""), height=100)
                     approved_mandi_price = col1.number_input("Approved Mandi Price", min_value=0.0, step=1.0, value=float(selected.get("approved_mandi_price", selected.get("mandi_price", 0)) or 0))
-                    approved_client_price = col2.number_input("Approved Client Price", min_value=0.0, step=1.0, value=float(selected.get("approved_client_price", selected.get("client_price", selected.get("mrp", 0))) or 0))
+                    approved_client_price = col2.number_input("Approved B2B Price", min_value=0.0, step=1.0, value=float(selected.get("approved_client_price", selected.get("client_price", selected.get("mrp", 0))) or 0))
                     approved_marketplace_price = col1.number_input("Approved Marketplace Price", min_value=0.0, step=1.0, value=float(selected.get("approved_marketplace_price", selected.get("marketplace_price", selected.get("mrp", 0))) or 0))
                     visibility_request = col1.selectbox("Visibility Request", ["PUBLIC", "PRIVATE_CLIENT", "MANDI_NETWORK"], index=["PUBLIC", "PRIVATE_CLIENT", "MANDI_NETWORK"].index(selected.get("visibility_request", "MANDI_NETWORK")) if selected.get("visibility_request", "MANDI_NETWORK") in {"PUBLIC", "PRIVATE_CLIENT", "MANDI_NETWORK"} else 2)
                     approved_visibility = col2.selectbox("Approved Visibility", ["PUBLIC", "PRIVATE_CLIENT", "MANDI_NETWORK"], index=["PUBLIC", "PRIVATE_CLIENT", "MANDI_NETWORK"].index(selected.get("approved_visibility", "PUBLIC")) if selected.get("approved_visibility", "PUBLIC") in {"PUBLIC", "PRIVATE_CLIENT", "MANDI_NETWORK"} else 0)
@@ -154,7 +154,7 @@ def render_products_dashboard(app_context: dict) -> None:
             unit = col1.text_input("Unit", value="kg")
             description = st.text_area("Description", height=100)
             suggested_mandi_price = col1.number_input("Suggested Mandi Price", min_value=0.0, step=1.0)
-            suggested_client_price = col2.number_input("Suggested Client Price", min_value=0.0, step=1.0)
+            suggested_client_price = col2.number_input("Suggested B2B Price", min_value=0.0, step=1.0)
             suggested_marketplace_price = col1.number_input("Suggested Marketplace Price", min_value=0.0, step=1.0)
             visibility_request = col1.selectbox("Product Visibility Request", ["PUBLIC", "PRIVATE_CLIENT", "MANDI_NETWORK"], index=2)
             minimum_order_qty = col2.number_input("Minimum Order Quantity", min_value=1, step=1, value=1)

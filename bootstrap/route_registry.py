@@ -15,8 +15,6 @@ from modules.admin.manufacturers import render_manufacturers_dashboard
 from modules.mahajan.dashboard import render_mahajan_dashboard
 from modules.admin.product_approvals import render_product_approvals_dashboard
 from modules.admin.rfq_summary import render_rfq_summary_dashboard
-from modules.client.dashboard import render_client_dashboard
-from modules.clients.dashboard import render_clients_dashboard
 from modules.inventory.management import render_inventory_management
 from modules.jobs.dashboard import render_jobs_dashboard
 from modules.ledger.dashboard import render_ledger_dashboard
@@ -51,7 +49,10 @@ ROUTE_GROUPS = {
         "Product Approvals",
         "Marketplace",
         "Marketplace Orders",
+        "MandiPlace",
         "Mandi Orders",
+        "Raw Materials",
+        "Supply Orders",
         "Payments",
         "Ledger",
         "Platform Commission",
@@ -60,8 +61,7 @@ ROUTE_GROUPS = {
         "Analytics",
     },
     "mahajan": {"Dashboard", "My Profile", "Notifications", "My Actions", "Raw Materials", "Mandi Orders", "Payments", "Ledger", "Jobs"},
-    "manufacturer": {"Dashboard", "My Profile", "Notifications", "My Actions", "Products", "Inventory", "Clients", "Client Orders", "Marketplace", "Marketplace Orders", "Suta Mandi", "Mandi Orders", "Payments", "Ledger", "Jobs"},
-    "client": {"Dashboard", "My Profile", "Notifications", "My Actions", "Products", "Client Orders", "Payments", "Ledger"},
+    "manufacturer": {"Dashboard", "My Profile", "Notifications", "My Actions", "Products", "Inventory", "Marketplace", "Marketplace Orders", "MandiPlace", "Mandi Orders", "Supply Requests", "Suta Mandi", "Payments", "Ledger", "Jobs"},
     "public_buyer": {"Dashboard", "My Profile", "Notifications", "My Actions", "Marketplace", "Marketplace Orders", "Jobs"},
     "worker": {"Dashboard", "My Profile", "Notifications", "My Actions", "Jobs"},
 }
@@ -113,7 +113,7 @@ def render_dashboard(app_context: dict) -> None:
     elif user.role == "pending_user":
         render_pending_user_dashboard(app_context)
     else:
-        render_client_dashboard(app_context)
+        render_account_status_dashboard(app_context, title="Access Pending", subtitle="This workspace is not mapped to an active commerce role.")
 
 
 def render_route(section: str, app_context: dict) -> None:
@@ -140,6 +140,8 @@ def render_route(section: str, app_context: dict) -> None:
         render_my_profile_dashboard(app_context)
     elif section == "Products":
         render_products_dashboard(app_context)
+    elif section == "MandiPlace":
+        render_procurement_dashboard(app_context)
     elif section == "Suta Mandi":
         render_suta_mandi_dashboard(app_context)
     elif section in {"Marketplace", "Marketplace Preview"}:
@@ -148,7 +150,7 @@ def render_route(section: str, app_context: dict) -> None:
         current_user = app_context.get("current_user")
         if current_user and current_user.role == "public_buyer":
             render_public_orders_dashboard(app_context, buyer_mode=True)
-        elif current_user and current_user.role in {"client", "manufacturer", "admin_as_manufacturer"}:
+        elif current_user and current_user.role in {"manufacturer", "admin_as_manufacturer"}:
             render_orders_dashboard(app_context)
         else:
             render_public_orders_dashboard(app_context, buyer_mode=False)
@@ -160,11 +162,8 @@ def render_route(section: str, app_context: dict) -> None:
             render_orders_dashboard(app_context)
     elif section == "Inventory":
         render_inventory_management(app_context)
-    elif section == "Client Orders":
-        if supervisor_mode:
-            render_admin_dashboard(app_context, section="Client Orders")
-        else:
-            render_orders_dashboard(app_context)
+    elif section in {"Supply Orders", "Supply Requests"}:
+        render_procurement_dashboard(app_context)
     elif section == "Mandi Orders":
         if "procurement_transaction_service" in app_context:
             render_procurement_dashboard(app_context)
@@ -188,8 +187,6 @@ def render_route(section: str, app_context: dict) -> None:
             render_payments_dashboard(app_context)
     elif section == "Dispatch":
         render_dispatch_management(app_context)
-    elif section == "Clients":
-        render_clients_dashboard(app_context)
     elif section == "Mahajans":
         render_mahajans_dashboard(app_context)
     elif section == "Raw Materials":

@@ -4,7 +4,6 @@ from pathlib import Path
 
 from services.access_portal_service import AccessPortalService
 from services.auth_service import AuthService
-from services.client_service import ClientService
 from services.encryption_service import EncryptionService
 from services.file_lock_service import FileLockService
 from services.governance_service import GovernanceService
@@ -46,12 +45,6 @@ def build_access_stack(tmp_path: Path, *, auto_onboard_unknown_google_users: boo
     drive_service.safe_drive_write_service = safe_write
     governance_service = GovernanceService(governance_root, safe_write)
     governance_service.ensure_files()
-    client_service = ClientService(
-        drive_service=drive_service,
-        gmail_service=GmailStub(),
-        encryption_service=EncryptionService(secret_seed="test-seed"),
-        safe_drive_write_service=safe_write,
-    )
     worker_service = WorkerService(governance_root, safe_write, json_service, id_allocator_service=type("Allocator", (), {"allocate": lambda self, domain: "WRK-2026-000001"})())
     public_buyer_service = PublicBuyerService(
         public_buyers_root=tmp_path / "public_buyers",
@@ -73,7 +66,6 @@ def build_access_stack(tmp_path: Path, *, auto_onboard_unknown_google_users: boo
         governance_root=governance_root,
         safe_drive_write_service=safe_write,
         governance_service=governance_service,
-        client_service=client_service,
         worker_service=worker_service,
         public_buyer_service=public_buyer_service,
         drive_service=drive_service,
@@ -81,11 +73,11 @@ def build_access_stack(tmp_path: Path, *, auto_onboard_unknown_google_users: boo
         json_service=json_service,
         auto_onboard_unknown_google_users=auto_onboard_unknown_google_users,
     )
-    return governance_service, drive_service, client_service, worker_service, public_buyer_service, access_portal_service
+    return governance_service, drive_service, worker_service, public_buyer_service, access_portal_service
 
 
 def test_manufacturer_signup_request_validates_onboarding_packet(tmp_path):
-    governance_service, drive_service, _client_service, _worker_service, _public_buyer_service, access_portal_service = build_access_stack(tmp_path)
+    governance_service, drive_service, _worker_service, _public_buyer_service, access_portal_service = build_access_stack(tmp_path)
     drive_service.initialize_manufacturer_workspace("MANU101", "Shree Agro Traders", owner_email="", city="Pune")
     governance_service.register_manufacturer(
         {
@@ -119,43 +111,8 @@ def test_manufacturer_signup_request_validates_onboarding_packet(tmp_path):
     assert resolved["status"] == "ACTIVE"
 
 
-def test_client_signup_request_activates_profile_on_first_google_login(tmp_path):
-    governance_service, drive_service, client_service, _worker_service, _public_buyer_service, access_portal_service = build_access_stack(tmp_path)
-    drive_service.initialize_manufacturer_workspace("MANU101", "Shree Agro Traders", owner_email="owner@example.com", city="Pune")
-    governance_service.register_manufacturer(
-        {
-            "manufacturer_code": "MANU101",
-            "manufacturer_name": "Shree Agro Traders",
-            "owner_email": "owner@example.com",
-            "city": "Pune",
-            "status": "ACTIVE",
-        }
-    )
-    invite = client_service.create_invite("MANU101", "buyer@example.com", "Kumar Traders")
-
-    request = access_portal_service.submit_signup_request(
-        requested_role="client",
-        email="buyer@example.com",
-        full_name="Amit Kumar",
-        manufacturer_code="MANU101",
-        invite_token=invite["onboarding_token"],
-        manufacturer_name="Kumar Traders",
-        city="Pune",
-    )
-    resolved = access_portal_service.resolve_identity(
-        email="buyer@example.com",
-        display_name="Amit Kumar",
-        preferred_role="client",
-        manufacturer_code="MANU101",
-    )
-
-    assert request["status"] == "READY_FOR_GOOGLE_SIGNIN"
-    assert resolved["role"] == "client"
-    assert client_service.list_client_profiles("MANU101")[0]["email"] == "buyer@example.com"
-
-
 def test_worker_signup_request_creates_worker_dashboard_identity(tmp_path):
-    _governance_service, _drive_service, _client_service, worker_service, _public_buyer_service, access_portal_service = build_access_stack(tmp_path)
+    _governance_service, _drive_service, worker_service, _public_buyer_service, access_portal_service = build_access_stack(tmp_path)
 
     request = access_portal_service.submit_signup_request(
         requested_role="worker",
@@ -181,7 +138,7 @@ def test_worker_signup_request_creates_worker_dashboard_identity(tmp_path):
 
 
 def test_public_buyer_signup_creates_public_marketplace_identity(tmp_path):
-    _governance_service, _drive_service, _client_service, _worker_service, public_buyer_service, access_portal_service = build_access_stack(tmp_path)
+    _governance_service, _drive_service, _worker_service, public_buyer_service, access_portal_service = build_access_stack(tmp_path)
 
     request = access_portal_service.submit_signup_request(
         requested_role="public_buyer",
@@ -202,7 +159,16 @@ def test_public_buyer_signup_creates_public_marketplace_identity(tmp_path):
 
 
 def test_mahajan_request_can_be_activated_after_admin_review(tmp_path):
-    _governance_service, _drive_service, _client_service, _worker_service, _public_buyer_service, access_portal_service = build_access_stack(tmp_path)
+    governance_service, _drive_service, _worker_service, _public_buyer_service, access_portal_service = build_access_stack(tmp_path)
+    governance_service.upsert_mahajan(
+        {
+            "mahajan_id": "MHJ-2026-000001",
+            "name": "Supply Partner",
+            "email": "mahajan@example.com",
+            "mobile": "9999999999",
+            "status": "INVITED",
+        }
+    )
 
     request = access_portal_service.submit_signup_request(
         requested_role="mahajan",
@@ -222,7 +188,7 @@ def test_mahajan_request_can_be_activated_after_admin_review(tmp_path):
 
 
 def test_unknown_google_user_defaults_to_public_buyer(tmp_path):
-    _governance_service, _drive_service, _client_service, _worker_service, public_buyer_service, access_portal_service = build_access_stack(tmp_path)
+    _governance_service, _drive_service, _worker_service, public_buyer_service, access_portal_service = build_access_stack(tmp_path)
 
     resolved = access_portal_service.resolve_identity(
         email="newuser@example.com",
@@ -236,7 +202,7 @@ def test_unknown_google_user_defaults_to_public_buyer(tmp_path):
 
 
 def test_unknown_google_user_does_not_become_pending_user_by_default(tmp_path):
-    _governance_service, _drive_service, _client_service, _worker_service, _public_buyer_service, access_portal_service = build_access_stack(tmp_path)
+    _governance_service, _drive_service, _worker_service, _public_buyer_service, access_portal_service = build_access_stack(tmp_path)
     resolved = access_portal_service.resolve_identity(
         email="freshbuyer@example.com",
         display_name="Fresh Buyer",
@@ -246,7 +212,7 @@ def test_unknown_google_user_does_not_become_pending_user_by_default(tmp_path):
 
 
 def test_pending_user_used_when_public_auto_onboarding_disabled(tmp_path):
-    _governance_service, _drive_service, _client_service, _worker_service, _public_buyer_service, access_portal_service = build_access_stack(
+    _governance_service, _drive_service, _worker_service, _public_buyer_service, access_portal_service = build_access_stack(
         tmp_path,
         auto_onboard_unknown_google_users=False,
     )
@@ -259,7 +225,7 @@ def test_pending_user_used_when_public_auto_onboarding_disabled(tmp_path):
 
 
 def test_pending_user_used_for_blocked_request(tmp_path):
-    _governance_service, _drive_service, _client_service, _worker_service, _public_buyer_service, access_portal_service = build_access_stack(tmp_path)
+    _governance_service, _drive_service, _worker_service, _public_buyer_service, access_portal_service = build_access_stack(tmp_path)
     access_portal_service.submit_signup_request(
         requested_role="manufacturer",
         email="blocked@example.com",

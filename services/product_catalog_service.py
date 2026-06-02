@@ -351,15 +351,7 @@ class ProductCatalogService:
             result.pop("comments", None)
             result.pop("clarification_status", None)
             result.pop("admin_note", None)
-        if viewer_role == "client":
-            for key in {
-                "mandi_price", "marketplace_price", "suggested_mandi_price", "suggested_marketplace_price",
-                "approved_mandi_price", "approved_marketplace_price", "approved_client_price",
-                "created_by", "created_by_manufacturer_id", "created_by_email", "public_seller_manufacturer_id", "visible",
-            }:
-                result.pop(key, None)
-            result["your_price"] = result.get("client_price", 0)
-        elif viewer_role == "mahajan":
+        if viewer_role == "mahajan":
             for key in {
                 "client_price", "marketplace_price", "suggested_client_price", "suggested_marketplace_price",
                 "approved_client_price", "approved_marketplace_price", "created_by", "created_by_manufacturer_id",
@@ -387,8 +379,6 @@ class ProductCatalogService:
         if item.get("status") != "ACTIVE":
             return False
         visibility = (item.get("approved_visibility") or item.get("visibility_request") or "PUBLIC").strip().upper()
-        if viewer_role == "client":
-            return visibility in {"PUBLIC", "PRIVATE_CLIENT"}
         if viewer_role == "public_buyer" or not viewer_role:
             return visibility == "PUBLIC" and bool(item.get("available_for_public_sale", False))
         return True

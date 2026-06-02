@@ -31,7 +31,7 @@ class ActionCenterService:
             return self._public_buyer_actions(user.email)
         if role == "worker":
             return self._worker_actions(user.email)
-        return self._client_actions(user.manufacturer_code or "", user.email)
+        return []
 
     def _admin_actions(self) -> list[dict[str, Any]]:
         actions = []
@@ -118,19 +118,6 @@ class ActionCenterService:
                 actions.append({"type": "CONFIRM_ADMIN_SUPPLY_ORDER", "count": awaiting_confirmation})
             if dispatched:
                 actions.append({"type": "RECEIVE_ADMIN_SUPPLY_ORDER", "count": dispatched})
-        return actions
-
-    def _client_actions(self, manufacturer_code: str, client_email: str) -> list[dict[str, Any]]:
-        orders = self.order_query_service.list_orders_for_client(manufacturer_code, client_email)
-        actions = []
-        if any(item.get("status") == "COUNTER_PROPOSED" for item in orders):
-            actions.append({"type": "ACCEPT_COUNTER_PROPOSAL", "count": len([item for item in orders if item.get("status") == "COUNTER_PROPOSED"])})
-        if any(item.get("status") == "DELIVERED" for item in orders):
-            actions.append({"type": "CONFIRM_DELIVERY", "count": len([item for item in orders if item.get("status") == "DELIVERED"])})
-        if self.worker_service and self.job_service:
-            worker = self.worker_service.get_worker_by_email(client_email)
-            if worker and worker.get("available"):
-                actions.append({"type": "RESPOND_TO_JOB", "count": len(self.job_service.list_open_jobs())})
         return actions
 
     def _mahajan_actions(self, email: str) -> list[dict[str, Any]]:

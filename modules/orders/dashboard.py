@@ -9,7 +9,7 @@ from components.ui_shell import render_3d_panel, render_metric_card, render_mobi
 
 def render_orders_dashboard(app_context: dict) -> None:
     user = app_context["current_user"]
-    render_page_header("Client Orders", "Track multi-product orders, payment proposals, and order readiness without agreement PDFs.", ["Multi-Product", "Payment Proposal"])
+    render_page_header("Marketplace Orders", "Track seller-side order flow, payment verification, and readiness across the commerce network.", ["Seller Orders", "Payment Status"])
     if not user or not user.manufacturer_code:
         st.info("Manufacturer-linked session required.")
         return
@@ -23,10 +23,10 @@ def render_orders_dashboard(app_context: dict) -> None:
     )
     overview_tab, orders_tab = st.tabs(["Overview", "Orders Registry"])
     with overview_tab:
-        render_section_intro("Orders Queue", "Use this queue to separate client-ready orders from those that need mandi procurement.")
+        render_section_intro("Orders Queue", "Use this queue to separate ready seller orders from those that still need mandi procurement.")
         if orders:
             render_3d_panel("".join(render_mobile_record_card(item) for item in orders[:4]), "Recent Orders")
         else:
-            st.info("No client orders are available yet.")
+            st.info("No seller orders are available yet.")
     with orders_tab:
         st.dataframe(orders, use_container_width=True)

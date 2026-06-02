@@ -1,123 +1,91 @@
 # MandiTrade Checker Reference
 
-Generated from the current repository state on 2026-06-02 after the final RBAC and commerce rule-freeze pass.
+Generated from the current repository state on 2026-06-02 after the client-system removal and 3-network cleanup pass.
 
-## Final Decision Matrix
+## Final Role Model
 
-- SuperUser context switch: enabled
-- Platform Mode and Admin Manufacturer Mode: separated
-- Platform admin physical inventory: not defaulted
-- Admin role: orchestration, supervision, approvals, logistics, commission visibility
-- Payments: collected directly by seller, manufacturer, or supplier
-- Admin payment receiver behavior: not default
-- Mandi Orders: admin-routed
-- Direct manufacturer-to-mahajan ordering: blocked by model
-- Direct manufacturer-to-manufacturer mandi ordering: not primary route
-- Mandi quote model: one active supplier path at a time
-- Delivery/logistics owner: `platform_admin`
-- Public buyer to client conversion: supported by manufacturer invitation
-- Client credit limit: supported
-- Partial payments: supported
-- Worker role: active and restricted
+- Active roles:
+  - `platform_admin`
+  - `manufacturer`
+  - `mahajan`
+  - `public_buyer`
+  - `worker`
+- Removed from live RBAC:
+  - `client`
 
-## SuperUser Context Switch Status
+## Commerce Network Model
 
-- Effective-role resolution remains centralized in [bootstrap/app_bootstrap.py](/c:/2026/manditrade/manditrade/bootstrap/app_bootstrap.py) and [services/security_service.py](/c:/2026/manditrade/manditrade/services/security_service.py).
-- `platform_admin` context remains governance-only and does not behave like a normal manufacturer workspace.
-- Admin manufacturer context still behaves like a manufacturer workspace and keeps private client/inventory access scoped to the admin manufacturer code only.
-
-## Admin Inventory / Orchestration Status
-
-- No default platform-admin inventory model was added.
-- Order and supply flows now treat admin as orchestrator rather than physical stock owner.
-- Client/private inventory still belongs to manufacturer context only.
-- Raw-material and mandi supply orchestration remains admin-controlled in [services/procurement_transaction_service.py](/c:/2026/manditrade/manditrade/services/procurement_transaction_service.py).
-
-## Payment Recipient Model
-
-- Public marketplace orders now store direct seller payment routing in [services/public_order_service.py](/c:/2026/manditrade/manditrade/services/public_order_service.py).
-- Client orders now store manufacturer payment receiver metadata in [services/order_transaction_service.py](/c:/2026/manditrade/manditrade/services/order_transaction_service.py).
-- Mandi supply ledgers now carry supplier-directed payment metadata in [services/procurement_transaction_service.py](/c:/2026/manditrade/manditrade/services/procurement_transaction_service.py).
-- Payment UI copy in [modules/payments/dashboard.py](/c:/2026/manditrade/manditrade/modules/payments/dashboard.py) now reflects direct seller/supplier collection rather than admin collection.
-
-## Admin Commission Model
-
-- Pricing service now tags commission metadata with explicit commission status defaults in [services/pricing_service.py](/c:/2026/manditrade/manditrade/services/pricing_service.py).
-- Commission summary now aggregates using current commission metadata and surfaces status counts in [modules/admin/commission_summary.py](/c:/2026/manditrade/manditrade/modules/admin/commission_summary.py).
-- Supported modeled statuses now include:
-  - `CALCULATED`
-  - `DUE`
-  - `PAID`
-  - `WAIVED`
-  - `DISPUTED`
-
-## Admin-Routed Mandi Order Status
-
-- Mandi Orders remain user-facing as `Mandi Orders`.
-- Manufacturer requests are persisted as admin-routed supply orders.
-- Mahajan assignment, pricing, downstream confirmation, and close/cancel remain admin-controlled.
-- Current mandi detail pages and workflows remain centered in [modules/procurement/dashboard.py](/c:/2026/manditrade/manditrade/modules/procurement/dashboard.py).
-
-## One-To-One Quote Status
-
-- Each mandi order currently follows one active supplier path at a time.
-- Current implemented supplier path is the mahajan-admin-manufacturer route.
-- Multi-quote supplier competition is still not enabled.
-
-## Admin Logistics Status
-
-- Client orders, public orders, and mandi supply orders now all carry explicit logistics ownership metadata with `logistics_owner = platform_admin`.
-- Mandi logistics update support was added in [services/procurement_transaction_service.py](/c:/2026/manditrade/manditrade/services/procurement_transaction_service.py).
-- Client-order dispatch/delivery persistence now mirrors admin-owned logistics supervision in [services/order_transaction_service.py](/c:/2026/manditrade/manditrade/services/order_transaction_service.py).
-- Public-order transition metadata now carries platform-owned logistics tracking in [services/public_order_service.py](/c:/2026/manditrade/manditrade/services/public_order_service.py).
-
-## Public Buyer To Client Conversion Status
-
-- Public buyer identity remains separate from manufacturer-specific client identity.
-- Manufacturer invitation and client activation continue to work through [services/access_portal_service.py](/c:/2026/manditrade/manditrade/services/access_portal_service.py) and [services/client_service.py](/c:/2026/manditrade/manditrade/services/client_service.py).
-- Public buyer marketplace history remains separate from private client order history.
-
-## Credit Limit Status
-
-- Client records already store `credit_limit` and now have credit summary helpers in [services/client_service.py](/c:/2026/manditrade/manditrade/services/client_service.py).
-- Order confirmation now checks khata-style client credit exposure before confirming a client order when ledger terms are used in [services/order_transaction_service.py](/c:/2026/manditrade/manditrade/services/order_transaction_service.py).
-- Credit summary now supports:
-  - `credit_limit`
-  - `current_outstanding`
-  - `available_credit`
-  - `credit_status`
-
-## Partial Payment Status
-
-- Ledger entries now support:
-  - `PENDING`
-  - `PARTIAL`
-  - `PAID`
-  - `OVERDUE`
-  - `DISPUTED`
-- Payment records now include `payment_id`, paid amount, remaining due, note, and timestamp in [services/ledger_service.py](/c:/2026/manditrade/manditrade/services/ledger_service.py).
-- Ledger dashboard now treats partial balances as active outstanding items in [modules/ledger/dashboard.py](/c:/2026/manditrade/manditrade/modules/ledger/dashboard.py).
-
-## Worker Role Status
-
-- Worker navigation remains active and limited to:
-  - `Dashboard`
-  - `My Profile`
-  - `Notifications`
-  - `My Actions`
-  - `Jobs`
-- Worker payment, ledger, client, inventory, mandi, and commission access remain blocked by route guards and navigation scoping.
+- `Marketplace`
+  - public-buyer shopping lane
+  - seller payout goes directly to manufacturer
+- `MandiPlace`
+  - manufacturer procurement / mandi-order lane
+  - admin-routed supply workflow
+- `Raw Materials`
+  - admin + mahajan supply-management lane
+  - manufacturers participate through admin-routed supply requests
+- `Suta Mandi`
+  - manufacturer-only specialized buying surface for suta / yarn supply
+  - still fulfilled through admin + mahajan routing
 
 ## Navigation Status
 
-- Final role-aware navigation is still centralized in [services/navigation_service.py](/c:/2026/manditrade/manditrade/services/navigation_service.py).
-- Route enforcement remains centralized in [bootstrap/route_registry.py](/c:/2026/manditrade/manditrade/bootstrap/route_registry.py).
-- One extra manufacturer-specific shopping page, `Suta Mandi`, is still present because it was explicitly added later as a specialized manufacturer raw-material market.
+- Navigation source of truth is centralized in [services/navigation_service.py](/c:/2026/manditrade/manditrade/services/navigation_service.py).
+- Route enforcement is centralized in [bootstrap/route_registry.py](/c:/2026/manditrade/manditrade/bootstrap/route_registry.py).
+- Final role-aware navigation now follows this shape:
+  - `platform_admin`
+    - `Dashboard`, `My Profile`, `Notifications`, `My Actions`, `Manufacturers`, `Mahajans`, `Products`, `Product Approvals`, `Marketplace`, `Marketplace Orders`, `MandiPlace`, `Mandi Orders`, `Raw Materials`, `Supply Orders`, `Payments`, `Ledger`, `Platform Commission`, `Jobs`, `System Health`, `Analytics`
+  - `manufacturer`
+    - `Dashboard`, `My Profile`, `Notifications`, `My Actions`, `Products`, `Inventory`, `Marketplace`, `Marketplace Orders`, `MandiPlace`, `Mandi Orders`, `Supply Requests`, `Suta Mandi`, `Payments`, `Ledger`, `Jobs`
+  - `mahajan`
+    - `Dashboard`, `My Profile`, `Notifications`, `My Actions`, `Raw Materials`, `Supply Orders`, `Payments`, `Ledger`, `Jobs`
+  - `public_buyer`
+    - `Dashboard`, `My Profile`, `Notifications`, `My Actions`, `Marketplace`, `Marketplace Orders`, `Jobs`
+  - `worker`
+    - `Dashboard`, `My Profile`, `Notifications`, `My Actions`, `Jobs`
+
+## Access / Identity Status
+
+- Google sign-in identity resolution is handled in [services/access_portal_service.py](/c:/2026/manditrade/manditrade/services/access_portal_service.py).
+- Unknown Google users default to `public_buyer` when public auto-onboarding is enabled.
+- `mahajan` remains admin-reviewed before operational access.
+- SuperUser context switching remains active and effective-role resolution stays centralized in:
+  - [bootstrap/app_bootstrap.py](/c:/2026/manditrade/manditrade/bootstrap/app_bootstrap.py)
+  - [services/security_service.py](/c:/2026/manditrade/manditrade/services/security_service.py)
+
+## Supply / Payment Status
+
+- Mandi supply remains admin-routed in [services/procurement_transaction_service.py](/c:/2026/manditrade/manditrade/services/procurement_transaction_service.py).
+- Direct manufacturer-to-mahajan ordering remains blocked by the live model.
+- Public marketplace payments route directly to seller manufacturers in [services/public_order_service.py](/c:/2026/manditrade/manditrade/services/public_order_service.py).
+- Supply orders route payment to the assigned mahajan and create:
+  - manufacturer-side mandi ledger
+  - governance-level supply ledger
+- Logistics ownership remains `platform_admin` across marketplace and supply flows.
+
+## Product / Price Visibility Status
+
+- Product visibility remains role-scoped in [services/product_catalog_service.py](/c:/2026/manditrade/manditrade/services/product_catalog_service.py).
+- Current effective price visibility:
+  - `manufacturer` / `platform_admin`
+    - mandi, B2B, and marketplace pricing visible
+  - `mahajan`
+    - supply-facing mandi price only
+  - `public_buyer`
+    - marketplace price only
+- Raw material vs finished product separation is now reinforced in:
+  - [modules/raw_materials/dashboard.py](/c:/2026/manditrade/manditrade/modules/raw_materials/dashboard.py)
+  - [modules/products/dashboard.py](/c:/2026/manditrade/manditrade/modules/products/dashboard.py)
+
+## Legacy Compatibility Note
+
+- Some internal data fields and helper services still carry legacy names such as `client_price` for backward-compatible pricing storage.
+- The live navigation, route guards, sign-in resolution, and role-aware UI no longer expose a `client` role.
 
 ## Tests Result
 
 - `python -m pytest tests/ -q`
-  - Passed: `173`
+  - Passed: `165`
   - Skipped: `5`
 - `python -m compileall app.py modules services utils components schemas bootstrap scripts`
   - Passed
@@ -126,6 +94,5 @@ Generated from the current repository state on 2026-06-02 after the final RBAC a
 
 ## Remaining Blockers
 
-- The manufacturer-supplier admin-routed mandi path is not yet fully implemented as a first-class alternative to the mahajan supply path; the current operational route is still mahajan-centric.
-- Commission lifecycle actions such as manual `WAIVED` and `DISPUTED` transitions are modeled in data/status expectations but do not yet have a dedicated admin workflow surface.
-- `Suta Mandi` remains intentionally present as a manufacturer-only specialized raw-material market, which is slightly beyond the frozen base navigation list but consistent with later confirmed product direction.
+- Legacy folders and helper paths related to historical client-era flows still exist in the repo for compatibility, but they are no longer part of live RBAC.
+- Some docs outside this checker reference still mention the previous client/private-order architecture and may need a separate content cleanup pass.

@@ -27,11 +27,11 @@ def render_login_page(app_context: dict) -> None:
     render_showcase_strip(
         [
             ("Manufacturers", "Inventory + RFQ + Jobs", "SUCCESS"),
-            ("Clients", "Orders + Khata visibility", "OPEN"),
+            ("Mahajans", "Raw materials + supply orders", "OPEN"),
             ("Public Buyers", "Instant pay shopping", "SUCCESS"),
         ]
     )
-    render_section_intro("Platform Overview", "Manufacturers, clients, workers, public buyers, and SuperUser all enter through one Google sign-in. The correct workspace loads automatically after authentication.")
+    render_section_intro("Platform Overview", "Manufacturers, mahajans, workers, public buyers, and SuperUser all enter through one Google sign-in. The correct workspace loads automatically after authentication.")
     render_html(
         """
         <section class="mt-login-layout">
@@ -48,7 +48,7 @@ def render_login_page(app_context: dict) -> None:
                 <span class="mt-login-story__node">Mandi Orders</span>
                 <span class="mt-login-story__node">Khata Visibility</span>
                 <span class="mt-login-story__node">Manufacturer Control</span>
-                <span class="mt-login-story__node">Client Routing</span>
+                <span class="mt-login-story__node">Supply Routing</span>
               </div>
             </div>
           </article>
@@ -57,8 +57,8 @@ def render_login_page(app_context: dict) -> None:
               <p class="mt-kicker">After Sign-In</p>
               <h3>One public landing, multiple role-aware workspaces</h3>
               <p>
-                Public buyers reach Marketplace after sign-in. Manufacturers unlock inventory, clients manage proposal orders,
-                and mandi-order plus khata workflows stay role-scoped after authentication.
+                Public buyers reach Marketplace after sign-in. Manufacturers unlock selling and mandi sourcing,
+                mahajans handle supply execution, and role-scoped payments plus ledger workflows stay controlled after authentication.
               </p>
             </div>
           </article>
