@@ -291,13 +291,14 @@ def _get_default_order_id(orders: list[dict[str, Any]], session_key: str) -> str
     return orders[0]["mandi_order_id"]
 
 
-def _render_logistics_console(*, order: dict[str, Any], service, user) -> None:
+def _render_logistics_console(*, order: dict[str, Any], service, user, form_scope: str = "default") -> None:
     logistics = dict(order.get("logistics") or {})
     render_section_intro("Logistics Console", "Admin keeps dispatch visibility readable with transporter, vehicle, proof placeholder, and delivery notes in one place.")
     st.dataframe([logistics], use_container_width=True)
     if user.role != "platform_admin":
         return
-    with st.form(f"logistics_{order.get('mandi_order_id', '')}"):
+    form_key = f"logistics_{form_scope}_{order.get('mandi_order_id', '')}"
+    with st.form(form_key):
         col1, col2 = st.columns(2)
         transport_mode = col1.text_input("Transport Mode", value=str(logistics.get("transport_mode", "")))
         delivery_status = col2.text_input("Delivery Status", value=str(logistics.get("delivery_status", "")))
@@ -664,7 +665,7 @@ def render_procurement_dashboard(app_context: dict) -> None:
                     supply_ledger_entries=governance_service.list_supply_ledger_entries(),
                     mandi_ledger_entries=_get_mandi_ledger_entries(service, selected.get("manufacturer_id", "")),
                 )
-                _render_logistics_console(order=selected, service=service, user=user)
+                _render_logistics_console(order=selected, service=service, user=user, form_scope="admin_overview")
             else:
                 render_empty_state("No mandi orders are available yet.")
             st.dataframe(orders, use_container_width=True)
@@ -718,7 +719,7 @@ def render_procurement_dashboard(app_context: dict) -> None:
                     supply_ledger_entries=governance_service.list_supply_ledger_entries(),
                     mandi_ledger_entries=_get_mandi_ledger_entries(service, selected.get("manufacturer_id", "")),
                 )
-                _render_logistics_console(order=selected, service=service, user=user)
+                _render_logistics_console(order=selected, service=service, user=user, form_scope="admin_orders")
                 col1, col2 = st.columns(2)
                 with col1:
                     if selected.get("status") == "MANUFACTURER_RECEIVED" and st.button("Close Order", use_container_width=True, key=f"close_{selected_id}"):
@@ -843,7 +844,7 @@ def render_procurement_dashboard(app_context: dict) -> None:
                     supply_ledger_entries=governance_service.list_supply_ledger_entries(),
                     mandi_ledger_entries=_get_mandi_ledger_entries(service, user.manufacturer_code or ""),
                 )
-                _render_logistics_console(order=selected, service=service, user=user)
+                _render_logistics_console(order=selected, service=service, user=user, form_scope="manufacturer_overview")
             st.dataframe(orders, use_container_width=True)
         with requests_tab:
             if not materials:
@@ -934,7 +935,7 @@ def render_procurement_dashboard(app_context: dict) -> None:
                     supply_ledger_entries=governance_service.list_supply_ledger_entries(),
                     mandi_ledger_entries=_get_mandi_ledger_entries(service, user.manufacturer_code or ""),
                 )
-                _render_logistics_console(order=selected, service=service, user=user)
+                _render_logistics_console(order=selected, service=service, user=user, form_scope="manufacturer_orders")
             receivable = [item for item in visible_orders if item.get("status") == "MAHAJAN_DISPATCHED"]
             if receivable:
                 selected_receive = st.selectbox("Receive Supply Order", [item["mandi_order_id"] for item in receivable], key="manufacturer_receive_supply")
