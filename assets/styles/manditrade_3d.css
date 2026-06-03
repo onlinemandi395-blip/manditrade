@@ -129,9 +129,9 @@ body,
   position: relative;
   overflow-x: hidden;
   overflow-y: auto;
-  padding-left: 10px;
-  padding-right: 10px;
-  width: clamp(13.5rem, 16vw, 17rem);
+  padding-left: 12px;
+  padding-right: 12px;
+  width: clamp(16.5rem, 18vw, 18.75rem);
 }
 
 [data-testid="stSidebar"] > div:first-child::before {
@@ -232,9 +232,10 @@ body,
 }
 
 [data-testid="stSidebar"] .stRadio > div[role="radiogroup"] label p,
-h1, h2, h3, h4, h5, h6, p, li, label, span, div {
-  color: inherit;
-}
+[data-testid="stSidebar"] .stRadio > div[role="radiogroup"] label span,
+[data-testid="stSidebar"] .stRadio > div[role="radiogroup"] label div {
+    color: inherit;
+  }
 
 [data-testid="stSidebar"] .stRadio > div[role="radiogroup"] label > div:first-child {
   min-width: 24px;
@@ -989,15 +990,17 @@ div[data-baseweb="tab-border"] {
 }
 
 [data-testid="stSidebar"] .stButton > button {
-  min-height: 68px;
-  border-radius: 20px !important;
-  padding: 0.5rem 0.35rem !important;
-  justify-content: center;
-  font-size: 1.55rem;
-  font-weight: 800;
+  min-height: 58px;
+  border-radius: 18px !important;
+  padding: 0.8rem 0.95rem !important;
+  justify-content: flex-start;
+  text-align: left;
+  font-size: 1.02rem;
+  font-weight: 700;
   font-family: "Segoe UI", system-ui, sans-serif;
   line-height: 1.2;
   letter-spacing: 0.01em;
+  white-space: normal;
   background:
     linear-gradient(165deg, rgba(255,255,255,0.12), rgba(255,255,255,0.02) 42%, rgba(0,0,0,0.12)),
     linear-gradient(135deg, rgba(56,193,114,0.28), rgba(56,189,248,0.22) 50%, rgba(245,158,11,0.26)) !important;
@@ -1010,7 +1013,7 @@ div[data-baseweb="tab-border"] {
   text-shadow:
     0 1px 0 rgba(0, 0, 0, 0.22),
     0 0 10px rgba(255,255,255,0.04);
-  aspect-ratio: 1 / 1;
+  aspect-ratio: auto;
 }
 
 [data-testid="stSidebar"] .stButton > button[kind="primary"] {
@@ -1027,12 +1030,20 @@ div[data-baseweb="tab-border"] {
 }
 
 [data-testid="stSidebar"] .stButton > button:hover {
-  transform: translateY(-3px) scale(1.03);
+  transform: translateY(-3px);
   box-shadow:
     0 26px 42px rgba(0, 0, 0, 0.30),
     0 0 26px rgba(56,189,248,0.12),
     inset 0 1px 0 rgba(255,255,255,0.16),
     inset 0 -12px 20px rgba(8, 19, 31, 0.28);
+}
+
+[data-testid="stSidebar"] .stButton > button p {
+  margin: 0;
+  width: 100%;
+  color: #edf4fb;
+  font-weight: 700;
+  text-align: left;
 }
 
 .mt-public-marketplace-toolbar {

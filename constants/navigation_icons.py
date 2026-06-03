@@ -2,34 +2,34 @@ from __future__ import annotations
 
 
 NAV_ICON_MAP: dict[str, str] = {
-    "Dashboard": "⌂",
-    "My Profile": "◉",
-    "Notifications": "✦",
-    "My Actions": "➤",
-    "Manufacturers": "▣",
-    "Mahajans": "✳",
-    "Products": "◫",
-    "Product Approvals": "✓",
-    "Marketplace": "◆",
-    "Marketplace Orders": "◪",
-    "MandiPlace": "◈",
-    "Mandi Orders": "⇄",
-    "Raw Materials": "▤",
-    "Supply Orders": "▷",
-    "Supply Requests": "◌",
-    "Suta Mandi": "◍",
-    "Payments": "◇",
-    "Ledger": "▥",
-    "Platform Commission": "◎",
-    "Jobs": "✣",
-    "System Health": "✚",
-    "Analytics": "△",
-    "Operations Center": "⌘",
-    "Finance Operations": "◬",
-    "Packaging Services": "□",
-    "Courier Services": "↗",
-    "Logistics": "⊞",
-    "Inventory": "▦",
+    "Dashboard": "\u2302",
+    "My Profile": "\u25c9",
+    "Notifications": "\u2736",
+    "My Actions": "\u27a4",
+    "Manufacturers": "\u25a3",
+    "Mahajans": "\u2733",
+    "Products": "\u25ab",
+    "Product Approvals": "\u2713",
+    "Marketplace": "\u25c6",
+    "Marketplace Orders": "\u25ea",
+    "MandiPlace": "\u25c8",
+    "Mandi Orders": "\u21c4",
+    "Raw Materials": "\u25a4",
+    "Supply Orders": "\u25b7",
+    "Supply Requests": "\u25cc",
+    "Suta Mandi": "\u25cd",
+    "Payments": "\u25c7",
+    "Ledger": "\u25a5",
+    "Platform Commission": "\u25ce",
+    "Jobs": "\u2723",
+    "System Health": "\u271a",
+    "Analytics": "\u25b3",
+    "Operations Center": "\u2318",
+    "Finance Operations": "\u25ec",
+    "Packaging Services": "\u25a1",
+    "Courier Services": "\u2197",
+    "Logistics": "\u229e",
+    "Inventory": "\u25a6",
 }
 
 NAV_ICON_ALIASES: dict[str, str] = {
@@ -48,7 +48,7 @@ NAV_ICON_ALIASES: dict[str, str] = {
     "Platform Commision": "Platform Commission",
 }
 
-NAV_ICON_FALLBACK = "•"
+NAV_ICON_FALLBACK = "\u2022"
 
 
 def normalize_nav_label(label: str) -> str:
