@@ -38,6 +38,8 @@ class ProcurementTransactionService:
         pricing_service=None,
         event_notification_service=None,
         product_catalog_service=None,
+        settlement_service=None,
+        invoice_service=None,
     ) -> None:
         self.drive_service = drive_service
         self.safe_drive_write_service = safe_drive_write_service
@@ -57,6 +59,8 @@ class ProcurementTransactionService:
         self.pricing_service = pricing_service
         self.event_notification_service = event_notification_service
         self.product_catalog_service = product_catalog_service
+        self.settlement_service = settlement_service
+        self.invoice_service = invoice_service
 
     def _default_logistics(self) -> dict[str, Any]:
         return {
@@ -623,6 +627,44 @@ class ProcurementTransactionService:
                 },
             )
         updated = self.governance_service.upsert_mandiplace_order(order)
+        if self.settlement_service:
+            self.settlement_service.ensure_transaction(
+                transaction_type="MANDIPLACE",
+                related_order_id=mandiplace_order_id,
+                payer_role="manufacturer",
+                payer_id=manufacturer_code,
+                payee_role="manufacturer",
+                payee_id=order.get("supplier_manufacturer_id", "") or "ADMIN_ROUTED_SUPPLIER",
+                gross_amount=float(breakdown.get("goods_amount", 0) or 0),
+                commission_amount=float(breakdown.get("admin_commission", 0) or 0),
+                packaging_amount=float(breakdown.get("packaging_cost", 0) or 0),
+                courier_amount=float(breakdown.get("courier_cost", 0) or 0),
+                net_amount=float(breakdown.get("final_payable", 0) or 0),
+                status="PENDING",
+                due_date=(datetime.now(UTC).date()).isoformat(),
+                created_by=actor_email,
+                metadata={"mandiplace_order_id": mandiplace_order_id, "cost_breakdown": breakdown},
+            )
+            if self.invoice_service:
+                self.invoice_service.generate_invoice(
+                    invoice_type="MANDI_INVOICE",
+                    related_order_id=mandiplace_order_id,
+                    bill_from={"manufacturer_code": order.get("supplier_manufacturer_id", ""), "name": order.get("supplier_manufacturer_id", "")},
+                    bill_to={"manufacturer_code": manufacturer_code, "name": manufacturer_code},
+                    items=[
+                        {
+                            "name": item.get("name", ""),
+                            "qty": item.get("qty", 0),
+                            "unit": item.get("unit", ""),
+                            "unit_price": order.get("manufacturer_unit_price", 0),
+                        }
+                        for item in order.get("items", [])
+                    ],
+                    subtotal=float(breakdown.get("goods_amount", 0) or 0),
+                    packaging_amount=float(breakdown.get("packaging_cost", 0) or 0),
+                    courier_amount=float(breakdown.get("courier_cost", 0) or 0),
+                    commission_amount=float(breakdown.get("admin_commission", 0) or 0),
+                )
         return updated
 
     def dispatch_mandiplace_order(self, *, mandiplace_order_id: str, supplier_manufacturer_id: str, actor_email: str) -> dict[str, Any]:
@@ -894,6 +936,40 @@ class ProcurementTransactionService:
             }
         )
         updated = self.governance_service.upsert_supply_order(order)
+        if self.settlement_service:
+            self.settlement_service.ensure_transaction(
+                transaction_type="SUPPLY",
+                related_order_id=mandi_order_id,
+                payer_role="manufacturer",
+                payer_id=manufacturer_code,
+                payee_role="mahajan",
+                payee_id=order.get("mahajan_id", "") or "ADMIN_ROUTED_SUPPLIER",
+                gross_amount=float(commission.get("manufacturer_bill_amount", 0) or 0),
+                commission_amount=float(commission.get("admin_total_earning", 0) or 0),
+                net_amount=float(commission.get("manufacturer_bill_amount", 0) or 0),
+                status="PENDING",
+                due_date=(datetime.now(UTC).date()).isoformat(),
+                created_by=actor_email,
+                metadata={"mandi_order_id": mandi_order_id, "commission_object": commission},
+            )
+            if self.invoice_service:
+                material = self.governance_service.get_supply_order(mandi_order_id) or {}
+                self.invoice_service.generate_invoice(
+                    invoice_type="SUPPLY_INVOICE",
+                    related_order_id=mandi_order_id,
+                    bill_from={"mahajan_id": order.get("mahajan_id", ""), "name": order.get("mahajan_id", "")},
+                    bill_to={"manufacturer_code": manufacturer_code, "name": manufacturer_code},
+                    items=[
+                        {
+                            "name": material.get("raw_material_id", ""),
+                            "qty": material.get("qty", 0),
+                            "unit": material.get("unit", ""),
+                            "unit_price": commission.get("manufacturer_unit_price", 0),
+                        }
+                    ],
+                    subtotal=float(commission.get("manufacturer_bill_amount", 0) or 0),
+                    commission_amount=float(commission.get("admin_total_earning", 0) or 0),
+                )
         self._audit("SUPPLY_CONFIRMED", actor_email, "manufacturer", mandi_order_id, {"status": updated.get("status", "")})
         self._emit_event(
             "SUPPLY_ORDER_CONFIRMED",
@@ -1043,6 +1119,21 @@ class ProcurementTransactionService:
         order["payment_verified_by"] = verifier_email
         order["payment_verified_at"] = datetime.now(UTC).isoformat()
         updated = self.governance_service.upsert_supply_order(order)
+        if self.settlement_service:
+            transaction = next(
+                (item for item in self.settlement_service.list_transactions() if item.get("related_order_id") == mandi_order_id and item.get("transaction_type") == "SUPPLY"),
+                None,
+            )
+            if transaction:
+                self.settlement_service.record_payment(
+                    financial_transaction_id=transaction["financial_transaction_id"],
+                    amount=float(transaction.get("gross_amount", 0) or 0),
+                    actor_id=verifier_email,
+                    payment_reference=str(order.get("payment_reference", "")),
+                    payment_proof_url=str(order.get("payment_proof_url", "")),
+                    verified=True,
+                    note="Supply payment proof verified",
+                )
         self._audit("SUPPLY_PAYMENT_PROOF_VERIFIED", verifier_email, "platform_admin", mandi_order_id, {"payment_verified_at": updated.get("payment_verified_at", "")})
         self._emit_event(
             "PAYMENT_VERIFIED",

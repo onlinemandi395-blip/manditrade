@@ -56,6 +56,14 @@ class GovernanceService:
     def courier_services_path(self) -> Path:
         return self.governance_root / "courier_services.json"
 
+    @property
+    def financial_transactions_path(self) -> Path:
+        return self.governance_root / "financial_transactions.json"
+
+    @property
+    def disputes_path(self) -> Path:
+        return self.governance_root / "disputes.json"
+
     def ensure_files(self) -> None:
         if not self.products_path.exists():
             self.safe_drive_write_service.replace_document(
@@ -108,6 +116,16 @@ class GovernanceService:
             self.safe_drive_write_service.replace_document(
                 self.courier_services_path,
                 {"schema_version": "1.0", "services": []},
+            )
+        if not self.financial_transactions_path.exists():
+            self.safe_drive_write_service.replace_document(
+                self.financial_transactions_path,
+                {"schema_version": "1.0", "transactions": []},
+            )
+        if not self.disputes_path.exists():
+            self.safe_drive_write_service.replace_document(
+                self.disputes_path,
+                {"schema_version": "1.0", "disputes": []},
             )
 
     def list_products(self) -> list[dict[str, Any]]:
@@ -385,6 +403,7 @@ class GovernanceService:
             "available_qty": int(item.get("available_qty") if item.get("available_qty") is not None else (existing or {}).get("available_qty", 0) or 0),
             "supply_price": round(float(item.get("supply_price") if item.get("supply_price") is not None else (existing or {}).get("supply_price", 0) or 0), 2),
             "description": str(item.get("description") or (existing or {}).get("description") or "").strip(),
+            "tax_profile": dict(item.get("tax_profile") or (existing or {}).get("tax_profile") or {}),
             "image_url": str(item.get("image_url") or (existing or {}).get("image_url") or "").strip(),
             "image_file_ref": str(item.get("image_file_ref") or (existing or {}).get("image_file_ref") or "").strip(),
             "thumbnail_url": str(item.get("thumbnail_url") or (existing or {}).get("thumbnail_url") or "").strip(),
@@ -480,6 +499,7 @@ class GovernanceService:
             "price_per_unit": round(float(service.get("price_per_unit") if service.get("price_per_unit") is not None else (existing or {}).get("price_per_unit", 0) or 0), 2),
             "minimum_charge": round(float(service.get("minimum_charge") if service.get("minimum_charge") is not None else (existing or {}).get("minimum_charge", 0) or 0), 2),
             "applicable_product_categories": list(service.get("applicable_product_categories") or (existing or {}).get("applicable_product_categories") or []),
+            "tax_profile": dict(service.get("tax_profile") or (existing or {}).get("tax_profile") or {}),
             "status": str(service.get("status") or (existing or {}).get("status") or "ACTIVE").strip().upper(),
             "created_at": (existing or {}).get("created_at") or now,
             "updated_at": now,
@@ -530,6 +550,7 @@ class GovernanceService:
             "supported_locations": list(service.get("supported_locations") or (existing or {}).get("supported_locations") or []),
             "contact_name": str(service.get("contact_name") or (existing or {}).get("contact_name") or "").strip(),
             "contact_mobile": str(service.get("contact_mobile") or (existing or {}).get("contact_mobile") or "").strip(),
+            "tax_profile": dict(service.get("tax_profile") or (existing or {}).get("tax_profile") or {}),
             "status": str(service.get("status") or (existing or {}).get("status") or "ACTIVE").strip().upper(),
             "created_at": (existing or {}).get("created_at") or now,
             "updated_at": now,
@@ -588,6 +609,87 @@ class GovernanceService:
                 "status": normalized.get("status", ""),
                 "requesting_manufacturer_id": normalized.get("requesting_manufacturer_id", ""),
                 "supplier_manufacturer_id": normalized.get("supplier_manufacturer_id", ""),
+            },
+        )
+        return normalized
+
+    def list_financial_transactions(self) -> list[dict[str, Any]]:
+        self.ensure_files()
+        return self.json_service.read_json(self.financial_transactions_path, {"transactions": []}).get("transactions", [])
+
+    def get_financial_transaction(self, financial_transaction_id: str) -> dict[str, Any] | None:
+        self.ensure_files()
+        key = str(financial_transaction_id or "").strip().upper()
+        return next((item for item in self.list_financial_transactions() if item.get("financial_transaction_id") == key), None)
+
+    def upsert_financial_transaction(self, transaction: dict[str, Any]) -> dict[str, Any]:
+        self.ensure_files()
+        payload = self.json_service.read_json(self.financial_transactions_path, {"transactions": []})
+        transaction_id = str(transaction.get("financial_transaction_id") or "").strip().upper()
+        if not transaction_id:
+            raise ValueError("Financial transaction ID is required.")
+        now = datetime.now(UTC).isoformat()
+        existing = next((row for row in payload.get("transactions", []) if row.get("financial_transaction_id") == transaction_id), None)
+        normalized = dict(existing or {})
+        normalized.update(transaction)
+        normalized["financial_transaction_id"] = transaction_id
+        normalized["updated_at"] = now
+        normalized["created_at"] = normalized.get("created_at") or now
+        normalized["version"] = int(normalized.get("version", 1) or 1)
+        if existing:
+            existing.update(normalized)
+        else:
+            payload.setdefault("transactions", []).append(normalized)
+        payload.setdefault("schema_version", "1.0")
+        self.safe_drive_write_service.replace_document(self.financial_transactions_path, payload)
+        self._audit(
+            "UPSERT_FINANCIAL_TRANSACTION",
+            "financial_transaction",
+            transaction_id,
+            {
+                "status": normalized.get("status", ""),
+                "transaction_type": normalized.get("transaction_type", ""),
+                "related_order_id": normalized.get("related_order_id", ""),
+            },
+        )
+        return normalized
+
+    def list_disputes(self) -> list[dict[str, Any]]:
+        self.ensure_files()
+        return self.json_service.read_json(self.disputes_path, {"disputes": []}).get("disputes", [])
+
+    def get_dispute(self, dispute_id: str) -> dict[str, Any] | None:
+        self.ensure_files()
+        key = str(dispute_id or "").strip().upper()
+        return next((item for item in self.list_disputes() if item.get("dispute_id") == key), None)
+
+    def upsert_dispute(self, dispute: dict[str, Any]) -> dict[str, Any]:
+        self.ensure_files()
+        payload = self.json_service.read_json(self.disputes_path, {"disputes": []})
+        dispute_id = str(dispute.get("dispute_id") or "").strip().upper()
+        if not dispute_id:
+            raise ValueError("Dispute ID is required.")
+        now = datetime.now(UTC).isoformat()
+        existing = next((row for row in payload.get("disputes", []) if row.get("dispute_id") == dispute_id), None)
+        normalized = dict(existing or {})
+        normalized.update(dispute)
+        normalized["dispute_id"] = dispute_id
+        normalized["updated_at"] = now
+        normalized["created_at"] = normalized.get("created_at") or now
+        normalized["version"] = int(normalized.get("version", 1) or 1)
+        if existing:
+            existing.update(normalized)
+        else:
+            payload.setdefault("disputes", []).append(normalized)
+        payload.setdefault("schema_version", "1.0")
+        self.safe_drive_write_service.replace_document(self.disputes_path, payload)
+        self._audit(
+            "UPSERT_DISPUTE",
+            "dispute",
+            dispute_id,
+            {
+                "status": normalized.get("status", ""),
+                "related_transaction_id": normalized.get("related_transaction_id", ""),
             },
         )
         return normalized

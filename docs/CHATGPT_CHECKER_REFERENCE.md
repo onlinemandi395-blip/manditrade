@@ -1,6 +1,6 @@
 # MandiTrade Checker Reference
 
-Generated from the current repository state on 2026-06-03 after the admin-routed manufacturer MandiPlace procurement and packaging/courier services pass.
+Generated from the current repository state on 2026-06-03 after the financial operating system layer pass.
 
 ## Final Role Model
 
@@ -121,6 +121,92 @@ Generated from the current repository state on 2026-06-03 after the admin-routed
 - Main implementation:
   - [services/procurement_transaction_service.py](/c:/2026/manditrade/manditrade/services/procurement_transaction_service.py)
   - [services/ledger_service.py](/c:/2026/manditrade/manditrade/services/ledger_service.py)
+
+## Financial Operating Model Status
+
+- Unified finance transaction tracking now exists in:
+  - [services/settlement_service.py](/c:/2026/manditrade/manditrade/services/settlement_service.py)
+  - [services/governance_service.py](/c:/2026/manditrade/manditrade/services/governance_service.py)
+- Current transaction coverage includes:
+  - `MARKETPLACE`
+  - `MANDIPLACE`
+  - `SUPPLY`
+- Tracked fields now include:
+  - payer / payee roles
+  - gross amount
+  - commission amount
+  - packaging amount
+  - courier amount
+  - outstanding balance
+  - partial-payment history
+  - payment proof references
+  - due / overdue / disputed state
+
+## Settlement Status
+
+- Settlement orchestration now supports:
+  - transaction creation on marketplace checkout
+  - transaction creation on MandiPlace confirmation
+  - transaction creation on mandi supply confirmation
+  - partial payment updates
+  - outstanding balance calculation
+  - overdue marking
+  - finance export generation
+- Main implementation:
+  - [services/settlement_service.py](/c:/2026/manditrade/manditrade/services/settlement_service.py)
+  - [services/public_order_service.py](/c:/2026/manditrade/manditrade/services/public_order_service.py)
+  - [services/procurement_transaction_service.py](/c:/2026/manditrade/manditrade/services/procurement_transaction_service.py)
+
+## Invoice Status
+
+- JSON-first invoice generation now exists in:
+  - [services/invoice_service.py](/c:/2026/manditrade/manditrade/services/invoice_service.py)
+- Current invoice support includes:
+  - marketplace invoice generation after payment verification
+  - supply invoice generation after confirmation
+  - MandiPlace invoice generation after confirmation
+  - lightweight printable HTML output alongside JSON
+
+## Tax Readiness Status
+
+- Lightweight tax persistence is now compatibility-safe for:
+  - products
+  - raw materials
+  - packaging services
+  - courier services
+- Current storage support is via `tax_profile` metadata in:
+  - [services/governance_service.py](/c:/2026/manditrade/manditrade/services/governance_service.py)
+
+## Dispute Status
+
+- Finance dispute handling now exists in:
+  - [services/dispute_service.py](/c:/2026/manditrade/manditrade/services/dispute_service.py)
+- Current support includes:
+  - dispute creation
+  - dispute resolution / rejection
+  - linked financial transaction state update to `DISPUTED`
+
+## Finance Dashboard Status
+
+- Admin finance console now exists in:
+  - [modules/admin/finance_operations.py](/c:/2026/manditrade/manditrade/modules/admin/finance_operations.py)
+- Current admin finance tabs include:
+  - Transactions
+  - Invoices
+  - Overdue
+  - Disputes
+  - Reconciliation
+- Role-aware finance visibility is also extended in:
+  - [modules/payments/dashboard.py](/c:/2026/manditrade/manditrade/modules/payments/dashboard.py)
+  - [modules/analytics/dashboard.py](/c:/2026/manditrade/manditrade/modules/analytics/dashboard.py)
+
+## Finance Notification Status
+
+- Overdue, payment verification, dispute, and invoice-related notifications now flow through:
+  - [services/event_notification_service.py](/c:/2026/manditrade/manditrade/services/event_notification_service.py)
+- Notification delivery remains:
+  - in-app first
+  - Gmail queued, never direct from UI modules
 
 ## State Management Status
 
@@ -630,6 +716,61 @@ Generated from the current repository state on 2026-06-03 after the admin-routed
   - rollback to compatibility mode
   - release gate command sequence
 
+## Cleanup Audit Status
+
+- Cleanup audit now exists in:
+  - [docs/CODEBASE_CLEANUP_AUDIT.md](/c:/2026/manditrade/manditrade/docs/CODEBASE_CLEANUP_AUDIT.md)
+- Current audit output classifies:
+  - safe removals
+  - compatibility-required legacy layers
+  - refactor candidates
+  - naming inconsistencies
+- This pass intentionally removed only:
+  - empty dead `modules/client/__init__.py`
+  - empty dead `modules/clients/__init__.py`
+  - one unused route-registry import
+
+## Architecture Index Status
+
+- Architecture source-of-truth index now exists in:
+  - [docs/ARCHITECTURE_INDEX.md](/c:/2026/manditrade/manditrade/docs/ARCHITECTURE_INDEX.md)
+- Current documented areas include:
+  - role model
+  - commerce networks
+  - storage model
+  - order/supply flows
+  - finance flows
+  - logistics flows
+  - migration model
+
+## Role / Status Constants Status
+
+- Canonical role constants now exist in:
+  - [constants/roles.py](/c:/2026/manditrade/manditrade/constants/roles.py)
+- Core payment/dispute status constants now exist in:
+  - [constants/statuses.py](/c:/2026/manditrade/manditrade/constants/statuses.py)
+- Current adoption is intentionally selective and starts in:
+  - [services/security_service.py](/c:/2026/manditrade/manditrade/services/security_service.py)
+  - [services/navigation_service.py](/c:/2026/manditrade/manditrade/services/navigation_service.py)
+  - [bootstrap/app_bootstrap.py](/c:/2026/manditrade/manditrade/bootstrap/app_bootstrap.py)
+  - [bootstrap/route_registry.py](/c:/2026/manditrade/manditrade/bootstrap/route_registry.py)
+  - [services/settlement_service.py](/c:/2026/manditrade/manditrade/services/settlement_service.py)
+  - [services/dispute_service.py](/c:/2026/manditrade/manditrade/services/dispute_service.py)
+
+## Health-Check Status
+
+- Static cleanup health-check script now exists in:
+  - [scripts/codebase_health_check.py](/c:/2026/manditrade/manditrade/scripts/codebase_health_check.py)
+- Current report output includes:
+  - oversized files
+  - unused imports
+  - duplicate route names
+  - hardcoded role string candidates
+  - direct JSON write bypass candidates
+  - missing-test hints
+- Latest report path:
+  - `runtime/health_reports/latest_codebase_health.json`
+
 ## Smoke Test Status
 
 - Release smoke coverage now exists in:
@@ -713,7 +854,7 @@ Generated from the current repository state on 2026-06-03 after the admin-routed
 ## Tests Result
 
 - `python -m pytest tests/ -q`
-  - Passed: `239`
+  - Passed: `247`
   - Skipped: `5`
 - `python -m compileall app.py modules services utils components schemas bootstrap scripts`
   - Passed
@@ -738,6 +879,8 @@ Generated from the current repository state on 2026-06-03 after the admin-routed
 - Favorites are currently wired into the marketplace flow first; manufacturer-side saved-item UX can be expanded further on additional shopping surfaces later.
 - Canonical pathing, rehearsal tooling, validation, and cutover guards are now in place, but production cutover still depends on an operator-reviewed execute run plus explicit `storage.mode=canonical` switch after readiness says `READY`.
 - MandiPlace manufacturer procurement is now routed through admin with packaging and courier support, but packaging/courier charges are still modeled for admin-led settlement rather than a fuller configurable recipient matrix.
+- The finance layer is operational and JSON-first, but it is not yet a fully normalized accounting or statutory-compliance system.
+- GST/tax fields are metadata-ready, but there is still no filing-grade tax workflow.
 - Alerts and recommendations are intentionally rule-based and deterministic; there is still no forecasting depth or adaptive scoring beyond current heuristics.
 - Pagination is implemented on the current highest-volume operational pages, but a few legacy / low-traffic screens still use direct table rendering and can be migrated later.
 - Operational search currently routes to page-level detail surfaces, not a universal modal detail shell.

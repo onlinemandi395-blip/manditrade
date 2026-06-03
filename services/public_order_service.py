@@ -25,6 +25,8 @@ class PublicOrderService:
         config: dict[str, Any] | None = None,
         trust_badge_service=None,
         event_notification_service=None,
+        settlement_service=None,
+        invoice_service=None,
     ) -> None:
         self.public_orders_root = public_orders_root
         self.public_payments_root = public_payments_root
@@ -42,6 +44,8 @@ class PublicOrderService:
         self.config = config or {}
         self.trust_badge_service = trust_badge_service
         self.event_notification_service = event_notification_service
+        self.settlement_service = settlement_service
+        self.invoice_service = invoice_service
 
     def list_orders_for_buyer(self, public_buyer_id: str) -> list[dict[str, Any]]:
         return [item for item in self.list_all_orders() if item.get("public_buyer_id") == public_buyer_id]
@@ -123,6 +127,22 @@ class PublicOrderService:
             "updated_at": datetime.now(UTC).isoformat(),
         }
         self.safe_drive_write_service.replace_document(self._order_path(order["public_order_id"], order["created_at"]), order)
+        if self.settlement_service:
+            self.settlement_service.ensure_transaction(
+                transaction_type="MARKETPLACE",
+                related_order_id=order["public_order_id"],
+                payer_role="public_buyer",
+                payer_id=public_buyer_id,
+                payee_role="manufacturer",
+                payee_id=seller_id,
+                gross_amount=float(order.get("total_amount", 0) or 0),
+                commission_amount=sum(float(item.get("admin_net_commission", item.get("admin_commission", 0)) or 0) for item in order.get("commission_breakdown", []) or []),
+                net_amount=float(order.get("total_amount", 0) or 0),
+                payment_mode=order.get("payment_mode", "UPI_MANUAL"),
+                status="PENDING",
+                created_by=buyer.get("email", "system"),
+                metadata={"public_order_id": order["public_order_id"]},
+            )
         self._record_payment_event(order["public_order_id"], "ORDER_CREATED", {"status": "PAYMENT_PENDING", "amount": order["total_amount"]})
         self.notification_center_service.create_public_notification(
             public_buyer_id,
@@ -187,6 +207,18 @@ class PublicOrderService:
 
         self.safe_drive_write_service.mutate_json(path, mutator)
         updated = self.get_order(public_order_id)
+        if self.settlement_service:
+            transaction = next(
+                (item for item in self.settlement_service.list_transactions() if item.get("related_order_id") == public_order_id and item.get("transaction_type") == "MARKETPLACE"),
+                None,
+            )
+            if transaction:
+                self.settlement_service.attach_payment_proof(
+                    financial_transaction_id=transaction["financial_transaction_id"],
+                    proof_url=updated.get("payment_proof_url", ""),
+                    payment_reference=reference,
+                    actor_id=updated.get("buyer_email", ""),
+                )
         seller_id = updated.get("assigned_seller_manufacturer_id", "")
         if seller_id:
             self.notification_center_service.create_notification(
@@ -267,6 +299,41 @@ class PublicOrderService:
 
         self.safe_drive_write_service.mutate_json(path, mutator)
         updated = self.get_order(public_order_id)
+        if self.settlement_service:
+            transaction = next(
+                (item for item in self.settlement_service.list_transactions() if item.get("related_order_id") == public_order_id and item.get("transaction_type") == "MARKETPLACE"),
+                None,
+            )
+            if transaction:
+                self.settlement_service.record_payment(
+                    financial_transaction_id=transaction["financial_transaction_id"],
+                    amount=float(updated.get("total_amount", 0) or 0),
+                    actor_id=getattr(verifier_user, "email", ""),
+                    payment_reference=updated.get("payment_reference", ""),
+                    payment_mode=updated.get("payment_mode", "UPI_MANUAL"),
+                    payment_proof_url=updated.get("payment_proof_url", ""),
+                    verified=True,
+                    note=note,
+                )
+                if self.invoice_service:
+                    seller = self.governance_service.get_manufacturer(updated.get("assigned_seller_manufacturer_id", "")) or {}
+                    self.invoice_service.generate_invoice(
+                        invoice_type="MARKETPLACE_INVOICE",
+                        related_order_id=public_order_id,
+                        bill_from={"manufacturer_code": updated.get("assigned_seller_manufacturer_id", ""), "name": seller.get("business_name", "")},
+                        bill_to={"public_buyer_id": updated.get("public_buyer_id", ""), "email": updated.get("buyer_email", "")},
+                        items=[
+                            {
+                                "name": item.get("name", item.get("product_name", "")),
+                                "qty": item.get("qty", 0),
+                                "unit": item.get("unit", ""),
+                                "unit_price": item.get("marketplace_price", 0),
+                            }
+                            for item in updated.get("items", [])
+                        ],
+                        subtotal=float(updated.get("total_amount", 0) or 0),
+                        commission_amount=sum(float(item.get("admin_net_commission", item.get("admin_commission", 0)) or 0) for item in updated.get("commission_breakdown", []) or []),
+                    )
         self.notification_center_service.create_public_notification(
             updated["public_buyer_id"],
             user_id=updated.get("buyer_email", ""),

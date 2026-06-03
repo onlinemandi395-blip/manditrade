@@ -8,6 +8,7 @@ from dataclasses import replace
 
 import streamlit as st
 
+from constants.roles import ADMIN_BASE_ROLES, ROLE_ADMIN_AS_MANUFACTURER, ROLE_PLATFORM_ADMIN, ROLE_PUBLIC_BUYER, ROLE_WORKER, normalize_runtime_role
 from services.auth_service import AuthService, AuthUser
 from services.encryption_service import EncryptionService
 from services.json_service import JsonService
@@ -58,7 +59,7 @@ class SecurityService:
             return False
         expected_email = (self.get_admin_email() or "").strip().lower()
         return bool(
-            self.get_base_role(user) in {"admin", "platform_admin", "superuser"}
+            self.get_base_role(user) in ADMIN_BASE_ROLES
             or (expected_email and user.email.strip().lower() == expected_email)
         )
 
@@ -73,9 +74,9 @@ class SecurityService:
         base_role = self.get_base_role(user)
         active_context = str(getattr(user, "active_context", None) or "").strip().lower()
         if self.is_admin_identity(user):
-            return active_context or "platform_admin"
-        if base_role == "admin_as_manufacturer":
-            return "manufacturer"
+            return active_context or ROLE_PLATFORM_ADMIN
+        if base_role == ROLE_ADMIN_AS_MANUFACTURER:
+            return normalize_runtime_role(base_role)
         return active_context or base_role
 
     def build_effective_user(self, user: AuthUser | None) -> AuthUser | None:
@@ -87,17 +88,17 @@ class SecurityService:
             if user.base_role is None or user.active_context is None:
                 return replace(user, base_role=base_role, active_context=active_context)
             return user
-        effective_role = "platform_admin" if active_context in {"", "platform_admin", "superuser"} else active_context
+        effective_role = ROLE_PLATFORM_ADMIN if active_context in {"", ROLE_PLATFORM_ADMIN, "superuser"} else active_context
         manufacturer_code = user.manufacturer_code
-        if active_context == "manufacturer":
+        if active_context == normalize_runtime_role("manufacturer"):
             manufacturer_code = self.ADMIN_MANUFACTURER_CODE
-        elif active_context in {"public_buyer", "worker", "platform_admin"}:
+        elif active_context in {ROLE_PUBLIC_BUYER, ROLE_WORKER, ROLE_PLATFORM_ADMIN}:
             manufacturer_code = None
         return replace(
             user,
             role=effective_role,
-            base_role=base_role or "platform_admin",
-            active_context=active_context or "platform_admin",
+            base_role=base_role or ROLE_PLATFORM_ADMIN,
+            active_context=active_context or ROLE_PLATFORM_ADMIN,
             manufacturer_code=manufacturer_code,
         )
 
@@ -135,7 +136,7 @@ class SecurityService:
     def validate_admin_runtime_request(self, user: AuthUser | None, submitted_key: str) -> tuple[bool, str]:
         if not user:
             return False, "Sign in before requesting admin runtime access."
-        if self.get_base_role(user) not in {"admin", "platform_admin", "superuser"}:
+        if self.get_base_role(user) not in ADMIN_BASE_ROLES:
             return False, "Only admin users can unlock admin runtime access."
 
         expected_email = self.get_admin_email()

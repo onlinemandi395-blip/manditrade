@@ -9,7 +9,7 @@ from utils.file_locking import atomic_write_text
 
 
 class AutomationTasks:
-    def __init__(self, *, runtime_root: Path, alert_engine, recommendation_service, kpi_service, audit_service, safe_drive_write_service=None, event_bus=None) -> None:
+    def __init__(self, *, runtime_root: Path, alert_engine, recommendation_service, kpi_service, audit_service, safe_drive_write_service=None, event_bus=None, settlement_service=None) -> None:
         self.runtime_root = runtime_root
         self.alert_engine = alert_engine
         self.recommendation_service = recommendation_service
@@ -17,11 +17,13 @@ class AutomationTasks:
         self.audit_service = audit_service
         self.safe_drive_write_service = safe_drive_write_service
         self.event_bus = event_bus
+        self.settlement_service = settlement_service
 
     def run_hourly_tasks(self, app_context: dict) -> dict[str, Any]:
         alerts = self.alert_engine.generate_alerts(app_context)
         kpis = self.kpi_service.calculate_snapshot(app_context)
         recommendations = self.recommendation_service.generate(app_context)
+        overdue = self.settlement_service.mark_overdue_transactions() if self.settlement_service else []
         self._write_snapshot("hourly", {"kpis": kpis, "alerts": self.alert_engine.read_snapshot(), "recommendations": recommendations})
         result = {
             "ran_at": datetime.now(UTC).isoformat(),
@@ -29,6 +31,7 @@ class AutomationTasks:
             "alerts_generated": len(alerts),
             "recommendation_groups": len(recommendations),
             "platform_health": kpis.get("health_scores", {}).get("platform", 0),
+            "overdue_transactions": len(overdue),
         }
         self._write_result("hourly", result)
         self._publish("HOURLY_TASKS_COMPLETED", result)
@@ -38,6 +41,7 @@ class AutomationTasks:
         alerts = self.alert_engine.generate_alerts(app_context)
         kpis = self.kpi_service.calculate_snapshot(app_context)
         recommendations = self.recommendation_service.generate(app_context)
+        overdue = self.settlement_service.mark_overdue_transactions() if self.settlement_service else []
         archived_logs = self.audit_service.archive_old_logs(keep_days=30)
         self._write_snapshot("daily", {"kpis": kpis, "alerts": self.alert_engine.read_snapshot(), "recommendations": recommendations})
         result = {
@@ -48,6 +52,7 @@ class AutomationTasks:
             "platform_health": kpis.get("health_scores", {}).get("platform", 0),
             "archived_logs": archived_logs,
             "orphan_records_cleaned": 0,
+            "overdue_transactions": len(overdue),
         }
         self._write_result("daily", result)
         self._publish("DAILY_TASKS_COMPLETED", result)

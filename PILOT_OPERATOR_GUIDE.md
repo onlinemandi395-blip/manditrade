@@ -7,20 +7,22 @@ This guide is for the person monitoring the live pilot day to day.
 Open these areas in order:
 
 1. `Operations Center`
-2. `Alerts`
-3. `Payments`
-4. `Mandi Orders`
-5. `Supply Orders`
-6. `Marketplace Orders`
-7. `System Health`
+2. `Finance Operations`
+3. `Alerts`
+4. `Payments`
+5. `Mandi Orders`
+6. `Supply Orders`
+7. `Marketplace Orders`
+8. `System Health`
 
 ## Daily Routine
 
 1. Check for unresolved `CRITICAL` alerts first.
-2. Review overdue payments and delayed dispatches.
+2. Review overdue payments, partial settlements, and delayed dispatches.
 3. Confirm active mandi orders are moving between quote, price, confirmation, and dispatch states.
 4. Verify marketplace orders are not stuck at payment or delivery stages.
-5. Review `System Health` for Drive, OAuth, Gmail, and recovery warnings.
+5. Check `Finance Operations` for new disputes, missing invoices, or unusual outstanding balances.
+6. Review `System Health` for Drive, OAuth, Gmail, and recovery warnings.
 
 ## Incident Handling
 

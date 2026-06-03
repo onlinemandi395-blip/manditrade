@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Iterable
 
+from constants.roles import ROLE_MAHAJAN, ROLE_MANUFACTURER, ROLE_PENDING_USER, ROLE_PLATFORM_ADMIN, ROLE_PUBLIC_BUYER, ROLE_UNAUTHENTICATED, ROLE_WORKER
 
 NAV_ALIAS_MAP: dict[str, str] = {
     "Mandiplace": "MandiPlace",
@@ -22,25 +23,25 @@ NAV_ALIAS_MAP: dict[str, str] = {
 
 
 ROLE_NAVIGATION_MAP: dict[str, list[tuple[str, list[str]]]] = {
-    "unauthenticated": [
+    ROLE_UNAUTHENTICATED: [
         ("General", ["Dashboard"]),
     ],
-    "platform_admin": [
+    ROLE_PLATFORM_ADMIN: [
         ("Core", ["Dashboard", "My Profile", "Notifications", "My Actions"]),
         ("Ecosystem", ["Manufacturers", "Mahajans", "Products", "Product Approvals"]),
         ("Marketplace", ["Marketplace", "Marketplace Orders"]),
         ("Mandi Network", ["MandiPlace", "Mandi Orders"]),
         ("Supply Network", ["Raw Materials", "Supply Orders"]),
-        ("Finance", ["Payments", "Ledger", "Platform Commission"]),
+        ("Finance", ["Payments", "Ledger", "Platform Commission", "Finance Operations"]),
         ("Operations", ["Operations Center", "Packaging Services", "Courier Services", "Logistics", "Jobs", "System Health", "Analytics"]),
     ],
-    "mahajan": [
+    ROLE_MAHAJAN: [
         ("Core", ["Dashboard", "My Profile", "Notifications", "My Actions"]),
         ("Supply Network", ["Raw Materials", "Supply Orders"]),
         ("Finance", ["Payments", "Ledger"]),
         ("Operations", ["Jobs"]),
     ],
-    "manufacturer": [
+    ROLE_MANUFACTURER: [
         ("Core", ["Dashboard", "My Profile", "Notifications", "My Actions"]),
         ("Product Operations", ["Products", "Inventory"]),
         ("Marketplace", ["Marketplace", "Marketplace Orders"]),
@@ -48,23 +49,23 @@ ROLE_NAVIGATION_MAP: dict[str, list[tuple[str, list[str]]]] = {
         ("Finance", ["Payments", "Ledger"]),
         ("Operations", ["Jobs"]),
     ],
-    "public_buyer": [
+    ROLE_PUBLIC_BUYER: [
         ("Core", ["Dashboard", "My Profile", "Notifications", "My Actions"]),
         ("Marketplace", ["Marketplace", "Marketplace Orders"]),
         ("Operations", ["Jobs"]),
     ],
-    "worker": [
+    ROLE_WORKER: [
         ("Core", ["Dashboard", "My Profile", "Notifications", "My Actions"]),
         ("Work", ["Jobs"]),
     ],
-    "pending_user": [
+    ROLE_PENDING_USER: [
         ("General", ["Dashboard"]),
     ],
 }
 
 
 def get_navigation_groups(role_key: str) -> list[tuple[str, list[str]]]:
-    return ROLE_NAVIGATION_MAP.get(role_key, ROLE_NAVIGATION_MAP["unauthenticated"])
+    return ROLE_NAVIGATION_MAP.get(role_key, ROLE_NAVIGATION_MAP[ROLE_UNAUTHENTICATED])
 
 
 def flatten_navigation_groups(groups: Iterable[tuple[str, list[str]]]) -> list[str]:

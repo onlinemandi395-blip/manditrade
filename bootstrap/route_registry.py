@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import streamlit as st
 
+from constants.roles import ROLE_MANUFACTURER, ROLE_MAHAJAN, ROLE_PENDING_USER, ROLE_PLATFORM_ADMIN, ROLE_PUBLIC_BUYER, ROLE_WORKER
 from modules.access.dashboard import render_login_page, render_pending_user_dashboard
 from modules.actions.dashboard import render_actions_dashboard
 from modules.account_status.dashboard import render_account_status_dashboard
 from modules.analytics.dashboard import render_analytics_dashboard
 from modules.admin.commission_summary import render_commission_summary_dashboard
+from modules.admin.finance_operations import render_finance_operations_dashboard
 from modules.finance.commission_dashboard import render_commission_dashboard
 from modules.admin.dashboard import render_admin_dashboard
 from modules.admin.operations_dashboard import render_operations_dashboard
@@ -17,7 +19,6 @@ from modules.admin.inventory_summary import render_inventory_summary_dashboard
 from modules.admin.manufacturers import render_manufacturers_dashboard
 from modules.mahajan.dashboard import render_mahajan_dashboard
 from modules.admin.product_approvals import render_product_approvals_dashboard
-from modules.admin.rfq_summary import render_rfq_summary_dashboard
 from modules.inventory.management import render_inventory_management
 from modules.jobs.dashboard import render_jobs_dashboard
 from modules.ledger.dashboard import render_ledger_dashboard
@@ -42,7 +43,7 @@ from services.navigation_service import NAV_ALIAS_MAP, normalize_navigation_labe
 ROUTE_GROUPS = {
     "public": {"Dashboard"},
     "shared_authenticated": {"Dashboard", "My Profile", "Notifications", "My Actions"},
-    "platform_admin": {
+    ROLE_PLATFORM_ADMIN: {
         "Dashboard",
         "My Profile",
         "Notifications",
@@ -60,6 +61,7 @@ ROUTE_GROUPS = {
         "Payments",
         "Ledger",
         "Platform Commission",
+        "Finance Operations",
         "Operations Center",
         "Packaging Services",
         "Courier Services",
@@ -68,10 +70,10 @@ ROUTE_GROUPS = {
         "System Health",
         "Analytics",
     },
-    "mahajan": {"Dashboard", "My Profile", "Notifications", "My Actions", "Raw Materials", "Mandi Orders", "Payments", "Ledger", "Jobs"},
-    "manufacturer": {"Dashboard", "My Profile", "Notifications", "My Actions", "Products", "Inventory", "Marketplace", "Marketplace Orders", "MandiPlace", "Mandi Orders", "Supply Requests", "Suta Mandi", "Payments", "Ledger", "Jobs"},
-    "public_buyer": {"Dashboard", "My Profile", "Notifications", "My Actions", "Marketplace", "Marketplace Orders", "Jobs"},
-    "worker": {"Dashboard", "My Profile", "Notifications", "My Actions", "Jobs"},
+    ROLE_MAHAJAN: {"Dashboard", "My Profile", "Notifications", "My Actions", "Raw Materials", "Mandi Orders", "Payments", "Ledger", "Jobs"},
+    ROLE_MANUFACTURER: {"Dashboard", "My Profile", "Notifications", "My Actions", "Products", "Inventory", "Marketplace", "Marketplace Orders", "MandiPlace", "Mandi Orders", "Supply Requests", "Suta Mandi", "Payments", "Ledger", "Jobs"},
+    ROLE_PUBLIC_BUYER: {"Dashboard", "My Profile", "Notifications", "My Actions", "Marketplace", "Marketplace Orders", "Jobs"},
+    ROLE_WORKER: {"Dashboard", "My Profile", "Notifications", "My Actions", "Jobs"},
 }
 
 
@@ -84,13 +86,13 @@ def can_access_route(user, section: str, app_context: dict) -> bool:
     role = (user.role or "").strip().lower()
     if normalized_section in ROUTE_GROUPS["shared_authenticated"]:
         return True
-    if security_service.is_admin_identity(session_user) and role == "platform_admin":
-        return normalized_section in ROUTE_GROUPS["platform_admin"]
+    if security_service.is_admin_identity(session_user) and role == ROLE_PLATFORM_ADMIN:
+        return normalized_section in ROUTE_GROUPS[ROLE_PLATFORM_ADMIN]
     if role == "admin_as_manufacturer":
-        return normalized_section in ROUTE_GROUPS["manufacturer"]
+        return normalized_section in ROUTE_GROUPS[ROLE_MANUFACTURER]
     if role in ROUTE_GROUPS:
         return normalized_section in ROUTE_GROUPS[role]
-    if role == "pending_user":
+    if role == ROLE_PENDING_USER:
         return normalized_section == "Dashboard"
     return False
 
@@ -108,17 +110,17 @@ def render_dashboard(app_context: dict) -> None:
     if not user:
         render_login_page(app_context)
         return
-    if app_context["security_service"].is_admin_identity(app_context.get("session_user") or user) and user.role == "platform_admin":
+    if app_context["security_service"].is_admin_identity(app_context.get("session_user") or user) and user.role == ROLE_PLATFORM_ADMIN:
         render_admin_dashboard(app_context)
-    elif user.role == "mahajan":
+    elif user.role == ROLE_MAHAJAN:
         render_mahajan_dashboard(app_context)
-    elif user.role in {"manufacturer", "admin_as_manufacturer"}:
+    elif user.role in {ROLE_MANUFACTURER, "admin_as_manufacturer"}:
         render_manufacturer_dashboard(app_context)
-    elif user.role == "worker":
+    elif user.role == ROLE_WORKER:
         render_jobs_dashboard(app_context)
-    elif user.role == "public_buyer":
+    elif user.role == ROLE_PUBLIC_BUYER:
         render_marketplace_dashboard(app_context)
-    elif user.role == "pending_user":
+    elif user.role == ROLE_PENDING_USER:
         render_pending_user_dashboard(app_context)
     else:
         render_account_status_dashboard(app_context, title="Access Pending", subtitle="This workspace is not mapped to an active commerce role.")
@@ -129,10 +131,10 @@ def render_route(section: str, app_context: dict) -> None:
     user = app_context.get("current_user")
     session_user = app_context.get("session_user") or user
     is_admin_identity = app_context["security_service"].is_admin_identity(session_user)
-    supervisor_mode = bool(is_admin_identity and getattr(user, "role", "") == "platform_admin")
+    supervisor_mode = bool(is_admin_identity and getattr(user, "role", "") == ROLE_PLATFORM_ADMIN)
     if not user:
         if section == "Marketplace":
-            st.session_state["requested_role"] = "public_buyer"
+            st.session_state["requested_role"] = ROLE_PUBLIC_BUYER
         render_login_page(app_context)
         return
     if not can_access_route(user, section, app_context):
@@ -156,15 +158,15 @@ def render_route(section: str, app_context: dict) -> None:
         render_marketplace_dashboard(app_context)
     elif section in {"Marketplace Orders", "Public Orders"}:
         current_user = app_context.get("current_user")
-        if current_user and current_user.role == "public_buyer":
+        if current_user and current_user.role == ROLE_PUBLIC_BUYER:
             render_public_orders_dashboard(app_context, buyer_mode=True)
-        elif current_user and current_user.role in {"manufacturer", "admin_as_manufacturer"}:
+        elif current_user and current_user.role in {ROLE_MANUFACTURER, "admin_as_manufacturer"}:
             render_orders_dashboard(app_context)
         else:
             render_public_orders_dashboard(app_context, buyer_mode=False)
     elif section == "My Orders":
         current_user = app_context.get("current_user")
-        if current_user and current_user.role == "public_buyer":
+        if current_user and current_user.role == ROLE_PUBLIC_BUYER:
             render_public_orders_dashboard(app_context, buyer_mode=True)
         else:
             render_orders_dashboard(app_context)
@@ -193,6 +195,13 @@ def render_route(section: str, app_context: dict) -> None:
             render_admin_dashboard(app_context, section="Payments")
         else:
             render_payments_dashboard(app_context)
+    elif section == "Finance Operations":
+        if "settlement_service" in app_context and "invoice_service" in app_context and "dispute_service" in app_context:
+            render_finance_operations_dashboard(app_context)
+        elif supervisor_mode:
+            render_admin_dashboard(app_context, section="Finance Operations")
+        else:
+            _render_access_denied(app_context)
     elif section == "Dispatch":
         render_dispatch_management(app_context)
     elif section == "Mahajans":

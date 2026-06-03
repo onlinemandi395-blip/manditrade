@@ -97,6 +97,16 @@ Before release, check `System Health` for:
 - latest migration report
 - canonical storage validation
 
+## Finance Operations Verification
+
+Before release or a storage cutover:
+
+- open `Finance Operations` as `platform_admin`
+- confirm transactions and invoices load without errors
+- confirm marketplace payment verification still creates finance records
+- confirm overdue refresh works
+- confirm disputes, if any, remain readable
+
 ## Storage Migration
 
 Always run migration in dry-run mode first:

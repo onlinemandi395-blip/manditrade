@@ -6,6 +6,7 @@ import streamlit as st
 
 from bootstrap.route_registry import render_route
 from bootstrap.service_container import build_app_context
+from constants.roles import ROLE_MAHAJAN, ROLE_MANUFACTURER, ROLE_PLATFORM_ADMIN, ROLE_PUBLIC_BUYER, ROLE_WORKER, normalize_runtime_role
 from components.html_renderer import render_html
 from components.ui_shell import render_configurable_link_button
 from components.ui_shell import apply_ui_shell
@@ -16,11 +17,11 @@ from utils.session import clear_runtime_session, ensure_session_defaults, pop_fl
 BUILD_FILE = Path(__file__).resolve()
 CSS_FILE = BUILD_FILE.parent.parent / "assets" / "styles" / "manditrade_3d.css"
 ADMIN_CONTEXT_OPTIONS = {
-    "platform_admin": "Platform Admin",
-    "mahajan": "Mahajan",
-    "manufacturer": "Manufacturer",
-    "public_buyer": "Public Buyer",
-    "worker": "Worker",
+    ROLE_PLATFORM_ADMIN: "Platform Admin",
+    ROLE_MAHAJAN: "Mahajan",
+    ROLE_MANUFACTURER: "Manufacturer",
+    ROLE_PUBLIC_BUYER: "Public Buyer",
+    ROLE_WORKER: "Worker",
 }
 
 
@@ -33,13 +34,13 @@ def _resolve_navigation_role(app_context: dict) -> str:
         return "unauthenticated"
 
     role = (current_user.role or "").strip().lower()
-    normalized_role = "manufacturer" if role == "admin_as_manufacturer" else role
+    normalized_role = normalize_runtime_role(role)
 
-    if security_service.is_admin_identity(session_user) and normalized_role == "platform_admin":
-        return "platform_admin"
-    if normalized_role in {"mahajan", "manufacturer", "public_buyer", "worker", "pending_user"}:
+    if security_service.is_admin_identity(session_user) and normalized_role == ROLE_PLATFORM_ADMIN:
+        return ROLE_PLATFORM_ADMIN
+    if normalized_role in {ROLE_MAHAJAN, ROLE_MANUFACTURER, ROLE_PUBLIC_BUYER, ROLE_WORKER, "pending_user"}:
         return normalized_role
-    return "manufacturer"
+    return ROLE_MANUFACTURER
 
 
 def _resolve_login_navigation_mode(app_context: dict) -> str:

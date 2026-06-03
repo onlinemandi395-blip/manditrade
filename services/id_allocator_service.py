@@ -34,6 +34,9 @@ class IdAllocatorService:
         "public_payment": "PUBPAY",
         "payment": "PAY",
         "alert": "ALERT",
+        "invoice": "INV",
+        "dispute": "DSPT",
+        "financial_transaction": "FTX",
     }
 
     def __init__(self, counters_path: Path, file_lock_service: FileLockService) -> None:

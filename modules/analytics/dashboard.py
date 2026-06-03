@@ -13,6 +13,7 @@ def render_analytics_dashboard(app_context: dict) -> None:
     render_page_header("Analytics", "Review marketplace, mandi network, and finance summaries from one admin-safe operations page.", ["Platform Admin", "Summary View"])
     current_user = app_context["current_user"]
     governance_service = app_context["governance_service"]
+    settlement_service = app_context.get("settlement_service")
     kpis = app_context["kpi_service"].read_latest_snapshot() or app_context["kpi_service"].calculate_snapshot(app_context)
 
     if current_user and current_user.role == "manufacturer" and current_user.manufacturer_code:
@@ -44,7 +45,10 @@ def render_analytics_dashboard(app_context: dict) -> None:
         with mandi_tab:
             st.dataframe(procurement, use_container_width=True)
         with finance_tab:
-            st.dataframe(app_context["ledger_service"].list_ledger_entries(current_user.manufacturer_code), use_container_width=True)
+            if settlement_service:
+                st.dataframe(settlement_service.list_transactions(role="manufacturer", owner_id=current_user.manufacturer_code), use_container_width=True)
+            else:
+                st.dataframe(app_context["ledger_service"].list_ledger_entries(current_user.manufacturer_code), use_container_width=True)
         return
 
     manufacturers = governance_service.list_manufacturers()
@@ -91,11 +95,19 @@ def render_analytics_dashboard(app_context: dict) -> None:
         if top_materials:
             st.bar_chart({item["raw_material_id"]: item["count"] for item in top_materials})
     with finance_tab:
-        st.dataframe(
-            [
-                {"metric": "Outstanding Ledger", "value": kpis["finance"]["outstanding_ledger"]},
-                {"metric": "Overdue %", "value": kpis["finance"]["overdue_percent"]},
-                {"metric": "Commission Pending", "value": kpis["finance"]["commission_pending"]},
-            ],
-            use_container_width=True,
-        )
+        rows = [
+            {"metric": "Outstanding Ledger", "value": kpis["finance"]["outstanding_ledger"]},
+            {"metric": "Overdue %", "value": kpis["finance"]["overdue_percent"]},
+            {"metric": "Commission Pending", "value": kpis["finance"]["commission_pending"]},
+        ]
+        if settlement_service:
+            summary = settlement_service.summarize()
+            rows.extend(
+                [
+                    {"metric": "Financial Transactions", "value": summary["transaction_count"]},
+                    {"metric": "Finance Outstanding", "value": summary["outstanding_balance"]},
+                    {"metric": "Packaging Charges", "value": summary["packaging_amount"]},
+                    {"metric": "Courier Charges", "value": summary["courier_amount"]},
+                ]
+            )
+        st.dataframe(rows, use_container_width=True)
