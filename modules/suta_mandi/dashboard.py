@@ -4,6 +4,7 @@ from typing import Any
 
 import streamlit as st
 
+from components.detail_drawer import render_catalog_detail_drawer
 from components.data_grid import render_data_grid
 from components.filter_bar import render_filter_bar
 from components.kpi_cards import render_kpi_cards
@@ -52,6 +53,7 @@ def render_suta_mandi_dashboard(app_context: dict) -> None:
     suta_orders = [item for item in orders if is_suta_material(next((mat for mat in all_materials if mat.get("raw_material_id") == item.get("raw_material_id")), {}))]
     cart_service = app_context.get("cart_service")
     image_service = app_context.get("image_service")
+    trust_badge_service = app_context.get("trust_badge_service")
 
     render_kpi_cards(
         [
@@ -123,6 +125,8 @@ def render_suta_mandi_dashboard(app_context: dict) -> None:
                             visibility_label=str(item.get("status", "ACTIVE")),
                             action_label="Add To Request Cart",
                             action_key=f"suta_add_{item.get('raw_material_id', index)}",
+                            badges=trust_badge_service.badges_for_raw_material(item) if trust_badge_service else [],
+                            supporting_text=str(item.get("description", "") or "Admin-curated yarn sourcing supply."),
                         ):
                             cart_service.add_item(
                                 "manufacturer",
@@ -133,6 +137,23 @@ def render_suta_mandi_dashboard(app_context: dict) -> None:
                             )
                             st.success("Added to Suta Mandi request cart.")
                             st.rerun()
+                selected_suta = preview_cards[0]
+                selected_image = image_service.get_display_image(selected_suta, label=str(selected_suta.get("name", "Suta"))) if image_service else {"src": "", "alt": str(selected_suta.get("name", "Suta")), "status": "NONE"}
+                render_catalog_detail_drawer(
+                    title=str(selected_suta.get("name", "Suta")),
+                    subtitle=str(selected_suta.get("category", "SUTA")),
+                    image=selected_image,
+                    price_label="Supply",
+                    price_value=str(selected_suta.get("supply_price", 0)),
+                    availability_label=f"Qty {selected_suta.get('available_qty', 0)}",
+                    metadata={
+                        "MOQ": "1 lot",
+                        "Supplier": str(selected_suta.get("mahajan_id", "Admin routed")),
+                        "Packaging": "Admin coordinated",
+                    },
+                    badges=trust_badge_service.badges_for_raw_material(selected_suta) if trust_badge_service else [],
+                    description=str(selected_suta.get("description", "") or "Yarn/raw-material sourcing lane for manufacturers."),
+                )
             render_data_grid(
                 page_key="suta_catalog_grid",
                 rows=filtered_rows,

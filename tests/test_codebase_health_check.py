@@ -18,6 +18,9 @@ def test_codebase_health_report_builds():
     assert "direct_bulk_action_candidates" in report
     assert "raw_background_task_write_candidates" in report
     assert "retry_logic_outside_recovery_candidates" in report
+    assert "raw_commerce_table_candidates" in report
+    assert "missing_image_fallback_candidates" in report
+    assert "missing_empty_state_candidates" in report
 
 
 def test_codebase_health_script_writes_latest_report():

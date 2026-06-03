@@ -24,8 +24,12 @@ def render_product_card(
     visibility_label: str,
     action_label: str,
     action_key: str,
+    badges: list[str] | None = None,
+    supporting_text: str = "",
 ) -> bool:
     normalized_variant = variant if variant in CARD_VARIANTS else "MARKETPLACE_PRODUCT"
+    badge_html = "".join(f"<span class='mt-chip'>{escape(badge)}</span>" for badge in (badges or [])[:3])
+    supporting_html = f"<p>{escape(supporting_text)}</p>" if supporting_text else ""
     render_html(
         f"""
         <article class="mt-product-card" data-variant="{escape(normalized_variant)}">
@@ -36,10 +40,12 @@ def render_product_card(
             <span class="mt-chip">{escape(visibility_label)}</span>
           </div>
           <h3>{escape(title)}</h3>
+          {supporting_html}
           <div class="mt-chip-row">
             <span class="mt-price-chip">{escape(price_label)}: {escape(price_value)}</span>
             <span class="mt-chip">{escape(str(item.get('unit', 'unit')))}</span>
           </div>
+          <div class="mt-chip-row">{badge_html}</div>
         </article>
         """
     )

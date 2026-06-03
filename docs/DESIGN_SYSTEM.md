@@ -83,6 +83,7 @@ The existing 3D stylesheet remains the richer visual layer, while tokens define 
   - filter + export + pagination wrapper
 - `components/detail_drawer.py`
   - reusable detail surface entry point
+  - catalog-detail rendering for commerce and sourcing surfaces
 - `components/status_chip.py`
   - shared status visuals backed by `constants/statuses.py`
 - `components/empty_state.py`
@@ -135,6 +136,11 @@ The existing 3D stylesheet remains the richer visual layer, while tokens define 
 - `Logistics`
 - `Public Access / Login`
 - authenticated `Marketplace` for `public_buyer` now uses the compact product-browse-first landing treatment
+- refined commerce pages now also use shared trust badges and compact catalog-detail treatment:
+  - `Marketplace`
+  - `Raw Materials`
+  - `Suta Mandi`
+  - manufacturer request cards inside `Mandi Orders / Procurement`
 
 ## Audit Reference
 

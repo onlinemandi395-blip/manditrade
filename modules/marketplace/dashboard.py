@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from html import escape
+from typing import Any
 
 import streamlit as st
 
+from components.detail_drawer import render_catalog_detail_drawer
 from components.empty_state import render_empty_state_block
 from components.html_renderer import render_html
 from components.kpi_cards import render_kpi_cards
@@ -15,6 +17,39 @@ from components.ui_shell import render_page_header, render_showcase_strip
 from modules.profile.dashboard import render_public_buyer_profile_setup
 
 
+def filter_marketplace_products(
+    products: list[dict[str, Any]],
+    *,
+    search_term: str = "",
+    category_filter: str = "All",
+    max_price: float | None = None,
+    in_stock_only: bool = False,
+    sort_by: str = "Featured",
+) -> list[dict[str, Any]]:
+    normalized_search = search_term.strip().lower()
+    filtered = [
+        item
+        for item in products
+        if (category_filter == "All" or item.get("category") == category_filter)
+        and (
+            not normalized_search
+            or normalized_search in str(item.get("name", "")).lower()
+            or normalized_search in str(item.get("description", "")).lower()
+        )
+        and (max_price is None or float(item.get("approved_marketplace_price", item.get("marketplace_price", item.get("price", 0))) or 0) <= max_price)
+        and (not in_stock_only or bool(item.get("visible", True)))
+    ]
+    if sort_by == "Price: Low to High":
+        filtered.sort(key=lambda item: float(item.get("approved_marketplace_price", item.get("marketplace_price", item.get("price", 0))) or 0))
+    elif sort_by == "Price: High to Low":
+        filtered.sort(key=lambda item: float(item.get("approved_marketplace_price", item.get("marketplace_price", item.get("price", 0))) or 0), reverse=True)
+    elif sort_by == "Newest":
+        filtered.sort(key=lambda item: str(item.get("created_at", "")), reverse=True)
+    else:
+        filtered.sort(key=lambda item: (int(item.get("minimum_order_qty", 1) or 1), str(item.get("name", "")).lower()))
+    return filtered
+
+
 def render_marketplace_dashboard(app_context: dict) -> None:
     user = app_context["current_user"]
     role = user.role if user else "public_browse"
@@ -22,6 +57,8 @@ def render_marketplace_dashboard(app_context: dict) -> None:
     products = app_context["product_catalog_service"].list_products(include_pending=False, viewer_role="public_buyer")
     image_service = app_context.get("image_service")
     favorites_service = app_context.get("favorites_service")
+    trust_badge_service = app_context.get("trust_badge_service")
+    cart_service = app_context.get("cart_service")
     render_platform_shell(
         title="Marketplace",
         subtitle="Instant-pay public shopping stays separate from the manufacturer-facing MandiPlace and raw-material supply workflows.",
@@ -49,19 +86,35 @@ def render_marketplace_dashboard(app_context: dict) -> None:
             ]
         )
 
-    search_col, category_col = st.columns([2, 1])
+    max_marketplace_price = max(
+        [float(item.get("approved_marketplace_price", item.get("marketplace_price", item.get("price", 0))) or 0) for item in products],
+        default=0.0,
+    )
+    search_col, category_col = st.columns([2.2, 1.2])
+    stock_col, sort_col = st.columns([1.1, 1.2])
     search_term = search_col.text_input("Search products", placeholder="Rice, atta, masala...")
     category_filter = category_col.selectbox("Category", ["All", *categories]) if categories else "All"
-    filtered = [
-        item
-        for item in products
-        if (category_filter == "All" or item.get("category") == category_filter)
-        and (
-            not search_term.strip()
-            or search_term.strip().lower() in str(item.get("name", "")).lower()
-            or search_term.strip().lower() in str(item.get("description", "")).lower()
-        )
-    ]
+    in_stock_only = getattr(stock_col, "checkbox", lambda *_args, **_kwargs: False)("In stock", value=False)
+    sort_by = getattr(sort_col, "selectbox", lambda _label, options, **_kwargs: options[0])(
+        "Sort",
+        ["Featured", "Newest", "Price: Low to High", "Price: High to Low"],
+    )
+    max_price = st.slider(
+        "Price Range",
+        min_value=0.0,
+        max_value=float(max_marketplace_price or 1.0),
+        value=float(max_marketplace_price or 1.0),
+        step=1.0,
+        disabled=not bool(max_marketplace_price),
+    )
+    filtered = filter_marketplace_products(
+        products,
+        search_term=search_term,
+        category_filter=category_filter,
+        max_price=max_price if max_marketplace_price else None,
+        in_stock_only=in_stock_only,
+        sort_by=sort_by,
+    )
     render_section_intro(
         "Public Catalog",
         "Browse products, compare public pricing, and add items to cart from one clean marketplace grid."
@@ -80,6 +133,7 @@ def render_marketplace_dashboard(app_context: dict) -> None:
                 <span class="mt-chip">Products: {escape(str(len(filtered)))}</span>
                 <span class="mt-chip">Categories: {escape(str(len(categories)))}</span>
                 <span class="mt-price-chip">Cart: {escape(str(cart_count))}</span>
+                <span class="mt-chip">Delivery: seller-confirmed dispatch</span>
               </div>
             </section>
             """
@@ -89,6 +143,7 @@ def render_marketplace_dashboard(app_context: dict) -> None:
     st.markdown("<div class='mt-public-product-grid mt-card-grid'>", unsafe_allow_html=True)
     for index, item in enumerate(filtered[:8]):
         image = image_service.get_display_image(item, label=str(item.get("name", "Product"))) if image_service else {"src": "", "alt": str(item.get("name", "Product")), "status": "NONE"}
+        trust_badges = trust_badge_service.badges_for_marketplace_product(item) if trust_badge_service else []
         clicked = render_product_card(
             item=item,
             variant="MARKETPLACE_PRODUCT",
@@ -101,6 +156,8 @@ def render_marketplace_dashboard(app_context: dict) -> None:
             visibility_label="PUBLIC",
             action_label="View Details",
             action_key=f"marketplace_view_{item.get('product_id', index)}",
+            badges=trust_badges,
+            supporting_text=str(item.get("description", "") or "Public marketplace product."),
         )
         if clicked:
             st.session_state["marketplace_selected_product"] = item.get("product_id", "")
@@ -121,7 +178,7 @@ def render_marketplace_dashboard(app_context: dict) -> None:
     if not app_context["public_buyer_service"].is_profile_complete(buyer):
         render_public_buyer_profile_setup(app_context, welcome_mode=True)
         return
-    cart_service = app_context["public_cart_service"]
+    public_cart_service = app_context["public_cart_service"]
     order_service = app_context["public_order_service"]
     activity_tab, cart_tab = st.tabs(["Browse + Add To Cart", "Cart + Checkout"])
     with activity_tab:
@@ -134,19 +191,21 @@ def render_marketplace_dashboard(app_context: dict) -> None:
             selected_product_id = st.selectbox("Selected Product", [item["product_id"] for item in filtered], format_func=lambda pid: next(item["name"] for item in filtered if item["product_id"] == pid), index=[item["product_id"] for item in filtered].index(selected_product_id))
             selected = next(item for item in filtered if item["product_id"] == selected_product_id)
             image = image_service.get_display_image(selected, label=str(selected.get("name", "Product"))) if image_service else {"src": "", "alt": str(selected.get("name", "Product")), "status": "NONE"}
-            render_html(
-                f"""
-                <article class="mt-product-card">
-                  <div class="mt-product-thumbnail" style="background-image:url('{escape(image['src'])}');" role="img" aria-label="{escape(image['alt'])}"></div>
-                  <h3>{escape(str(selected.get('name', 'Product')))}</h3>
-                  <p>{escape(str(selected.get('description', '') or 'Public marketplace catalog product.'))}</p>
-                  <div class="mt-chip-row">
-                    <span class="mt-price-chip">Marketplace: {escape(str(selected.get('approved_marketplace_price', selected.get('marketplace_price', selected.get('price', 0)))))}</span>
-                    <span class="mt-chip">{escape(str(selected.get('category', 'General')))}</span>
-                    <span class="mt-availability-chip">MOQ {escape(str(selected.get('minimum_order_qty', 1)))}</span>
-                  </div>
-                </article>
-                """
+            trust_badges = trust_badge_service.badges_for_marketplace_product(selected) if trust_badge_service else []
+            render_catalog_detail_drawer(
+                title=str(selected.get("name", "Product")),
+                subtitle=str(selected.get("category", "General")),
+                image=image,
+                price_label="Marketplace",
+                price_value=str(selected.get("approved_marketplace_price", selected.get("marketplace_price", selected.get("price", 0)))),
+                availability_label=f"MOQ {selected.get('minimum_order_qty', 1)}",
+                metadata={
+                    "Unit": str(selected.get("unit", "unit")),
+                    "Dispatch": "Seller confirmed",
+                    "Availability": "In stock" if selected.get("visible", True) else "Check seller",
+                },
+                badges=trust_badges,
+                description=str(selected.get("description", "") or "Public marketplace catalog product."),
             )
             qty = st.number_input(
                 "Quantity",
@@ -156,7 +215,7 @@ def render_marketplace_dashboard(app_context: dict) -> None:
             )
             if st.button("Add To Cart", use_container_width=True):
                 try:
-                    cart_service.add_item(buyer["public_buyer_id"], product_id=selected_product_id, qty=int(qty))
+                    public_cart_service.add_item(buyer["public_buyer_id"], product_id=selected_product_id, qty=int(qty))
                 except ValueError as exc:
                     st.error(str(exc))
                 else:
@@ -175,12 +234,46 @@ def render_marketplace_dashboard(app_context: dict) -> None:
                 st.success("Saved to favorites.")
                 st.rerun()
     with cart_tab:
-        cart = cart_service.get_cart(buyer["public_buyer_id"])
+        cart = public_cart_service.get_cart(buyer["public_buyer_id"])
         if not cart.get("items"):
             render_empty_state_block("Your public cart is empty.", icon="[]", cta="Add products from Browse + Add To Cart")
         else:
-            st.dataframe(cart.get("items", []), use_container_width=True)
+            for item in cart.get("items", []):
+                row_left, row_mid, row_right = st.columns([2.4, 1.2, 0.8])
+                row_left.markdown(
+                    f"**{str(item.get('product_name', item.get('product_id', 'Product')))}**\n\n"
+                    f"Price: {str(item.get('marketplace_price', item.get('price', 0)))} | "
+                    f"Qty: {str(item.get('qty', 1))}"
+                )
+                new_qty = row_mid.number_input(
+                    f"Qty {item.get('item_id', '')}",
+                    min_value=1,
+                    value=max(int(item.get("qty", 1) or 1), 1),
+                    step=1,
+                    key=f"marketplace_cart_qty_{item.get('item_id', '')}",
+                )
+                if cart_service and new_qty != int(item.get("qty", 1) or 1):
+                    cart_service.update_qty(
+                        "public_buyer",
+                        buyer["public_buyer_id"],
+                        cart_type="MARKETPLACE",
+                        item_id=str(item.get("item_id", "")),
+                        qty=int(new_qty),
+                    )
+                    st.rerun()
+                if row_right.button("Remove", key=f"marketplace_remove_{item.get('item_id', '')}", use_container_width=True):
+                    if cart_service:
+                        cart_service.remove_item(
+                            "public_buyer",
+                            buyer["public_buyer_id"],
+                            cart_type="MARKETPLACE",
+                            item_id=str(item.get("item_id", "")),
+                        )
+                    else:
+                        public_cart_service.clear_cart(buyer["public_buyer_id"])
+                    st.rerun()
             st.caption(f"Subtotal: {cart.get('subtotal', 0)}")
+            st.caption("Estimated delivery: seller dispatch after payment verification.")
             st.info("Public checkout uses approved MRP only and requires 100% upfront payment.")
             if st.button("Create Public Order", use_container_width=True):
                 try:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from components.detail_drawer import render_catalog_detail_drawer
 from components.data_grid import render_data_grid
 from components.entity_form import render_entity_form
 from components.filter_bar import render_filter_bar
@@ -20,6 +21,7 @@ def render_raw_materials_dashboard(app_context: dict) -> None:
     materials = governance_service.list_raw_materials(mahajan_id=(mahajan or {}).get("mahajan_id")) if user and user.role == "mahajan" else governance_service.list_raw_materials()
     supply_orders = app_context["procurement_transaction_service"].list_supply_orders(mahajan_id=(mahajan or {}).get("mahajan_id")) if user and user.role == "mahajan" else app_context["procurement_transaction_service"].list_supply_orders()
     image_service = app_context.get("image_service")
+    trust_badge_service = app_context.get("trust_badge_service")
 
     render_platform_shell(
         title="Raw Materials",
@@ -67,7 +69,26 @@ def render_raw_materials_dashboard(app_context: dict) -> None:
                         visibility_label=str(item.get("status", "ACTIVE")),
                         action_label="View Material",
                         action_key=f"raw_material_preview_{item.get('raw_material_id', index)}",
+                        badges=trust_badge_service.badges_for_raw_material(item) if trust_badge_service else [],
+                        supporting_text=str(item.get("description", "") or "Supply-layer input for mandi and manufacturing sourcing."),
                     )
+            selected_material = preview_cards[0]
+            selected_image = image_service.get_display_image(selected_material, label=str(selected_material.get("name", "Raw Material"))) if image_service else {"src": "", "alt": str(selected_material.get("name", "Raw Material")), "status": "NONE"}
+            render_catalog_detail_drawer(
+                title=str(selected_material.get("name", "Raw Material")),
+                subtitle=str(selected_material.get("category", "RAW_MATERIAL")),
+                image=selected_image,
+                price_label="Supply",
+                price_value=str(selected_material.get("supply_price", 0)),
+                availability_label=f"Qty {selected_material.get('available_qty', 0)}",
+                metadata={
+                    "Supplier": str(selected_material.get("mahajan_id", "Admin managed")),
+                    "Unit": str(selected_material.get("unit", "kg")),
+                    "Procurement": "Admin routed",
+                },
+                badges=trust_badge_service.badges_for_raw_material(selected_material) if trust_badge_service else [],
+                description=str(selected_material.get("description", "") or "Raw-material supply input for admin/mahajan-managed sourcing."),
+            )
         if filtered_materials:
             render_data_grid(
                 page_key="raw_materials_catalog",

@@ -118,3 +118,12 @@ This document tracks the operator-facing productivity and resilience layer above
   - direct bulk-action implementations outside the shared layer
   - raw background-task writes outside the task service
   - retry/recovery logic outside the shared recovery service
+
+## Commerce Guardrails
+
+- commerce-focused heuristics now also flag:
+  - raw commerce tables on refined commerce pages
+  - missing shared image fallback usage
+  - missing empty-state usage on commerce pages
+  - hardcoded commerce status-color patterns
+  - direct image rendering that bypasses shared card/detail helpers

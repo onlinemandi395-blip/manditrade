@@ -636,6 +636,7 @@ def render_procurement_dashboard(app_context: dict) -> None:
     mahajans_by_id = _index_by(all_mahajans, "mahajan_id")
     cart_service = app_context.get("cart_service")
     image_service = app_context.get("image_service")
+    trust_badge_service = app_context.get("trust_badge_service")
 
     if user.role == "platform_admin":
         orders = service.list_supply_orders()
@@ -866,6 +867,8 @@ def render_procurement_dashboard(app_context: dict) -> None:
                                 visibility_label=str(item.get("status", "ACTIVE")),
                                 action_label="Add To Request Cart",
                                 action_key=f"mandi_add_{item.get('raw_material_id', index)}",
+                                badges=trust_badge_service.badges_for_raw_material(item) if trust_badge_service else [],
+                                supporting_text=str(item.get("description", "") or "Admin-routed procurement supply."),
                             ):
                                 cart_service.add_item(
                                     "manufacturer",

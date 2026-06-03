@@ -13,6 +13,12 @@ ROLE_LITERALS = {"platform_admin", "manufacturer", "mahajan", "public_buyer", "w
 JSON_WRITE_MARKERS = ["write_text(", ".write_json(", "json.dump(", "json.dumps("]
 MANUAL_PAGE_TITLE_MARKERS = ['st.title(', 'st.header(']
 INLINE_STYLE_MARKER = 'style="'
+COMMERCE_PAGE_MARKERS = {
+    "modules/marketplace/dashboard.py",
+    "modules/suta_mandi/dashboard.py",
+    "modules/raw_materials/dashboard.py",
+    "modules/procurement/dashboard.py",
+}
 
 
 def _python_files() -> list[Path]:
@@ -90,6 +96,19 @@ def _production_experience_flags(path: Path) -> dict[str, bool]:
     }
 
 
+def _commerce_experience_flags(path: Path) -> dict[str, bool]:
+    text = path.read_text(encoding="utf-8")
+    rel = path.relative_to(BASE_DIR).as_posix()
+    commerce_page = rel in COMMERCE_PAGE_MARKERS
+    return {
+        "raw_commerce_tables": commerce_page and "st.dataframe(" in text and "render_data_grid(" not in text,
+        "missing_image_fallback": commerce_page and "render_product_card(" in text and "get_display_image(" not in text,
+        "missing_empty_state": commerce_page and "render_empty_state" not in text and "render_empty_state_block" not in text,
+        "hardcoded_commerce_status_colors": commerce_page and "mt-badge mt-badge-" in text and "render_status_chip" not in text,
+        "direct_image_rendering_bypass": commerce_page and "background-image:url(" in text and "render_product_card(" not in text and "render_catalog_detail_drawer(" not in text,
+    }
+
+
 def _route_names() -> list[str]:
     route_registry = BASE_DIR / "bootstrap" / "route_registry.py"
     text = route_registry.read_text(encoding="utf-8")
@@ -140,6 +159,11 @@ def build_report() -> dict:
     raw_background_task_write_files: list[str] = []
     retry_logic_outside_service_files: list[str] = []
     duplicate_export_retry_block_files: list[str] = []
+    raw_commerce_table_files: list[str] = []
+    missing_image_fallback_files: list[str] = []
+    missing_empty_state_files: list[str] = []
+    hardcoded_commerce_status_color_files: list[str] = []
+    direct_image_rendering_bypass_files: list[str] = []
 
     for path in files:
         rel = path.relative_to(BASE_DIR).as_posix()
@@ -181,6 +205,17 @@ def build_report() -> dict:
             retry_logic_outside_service_files.append(rel)
         if production_flags["duplicate_export_retry_blocks"]:
             duplicate_export_retry_block_files.append(rel)
+        commerce_flags = _commerce_experience_flags(path)
+        if commerce_flags["raw_commerce_tables"]:
+            raw_commerce_table_files.append(rel)
+        if commerce_flags["missing_image_fallback"]:
+            missing_image_fallback_files.append(rel)
+        if commerce_flags["missing_empty_state"]:
+            missing_empty_state_files.append(rel)
+        if commerce_flags["hardcoded_commerce_status_colors"]:
+            hardcoded_commerce_status_color_files.append(rel)
+        if commerce_flags["direct_image_rendering_bypass"]:
+            direct_image_rendering_bypass_files.append(rel)
 
     route_names = _route_names()
     route_counter = Counter(route_names)
@@ -217,6 +252,11 @@ def build_report() -> dict:
         "raw_background_task_write_candidates": sorted(raw_background_task_write_files),
         "retry_logic_outside_recovery_candidates": sorted(retry_logic_outside_service_files),
         "duplicate_export_retry_block_candidates": sorted(duplicate_export_retry_block_files),
+        "raw_commerce_table_candidates": sorted(raw_commerce_table_files),
+        "missing_image_fallback_candidates": sorted(missing_image_fallback_files),
+        "missing_empty_state_candidates": sorted(missing_empty_state_files),
+        "hardcoded_commerce_status_color_candidates": sorted(hardcoded_commerce_status_color_files),
+        "direct_image_rendering_bypass_candidates": sorted(direct_image_rendering_bypass_files),
         "config_files_present": _config_files(),
         "missing_test_hints": missing_test_hints,
         "notes": [

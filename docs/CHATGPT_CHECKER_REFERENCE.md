@@ -1,6 +1,6 @@
 # MandiTrade Checker Reference
 
-Generated from the current repository state on 2026-06-03 after the compact UI + icon sidebar + public marketplace landing polish pass.
+Generated from the current repository state on 2026-06-03 after the commerce experience refinement pass.
 
 ## Final Role Model
 
@@ -27,6 +27,24 @@ Generated from the current repository state on 2026-06-03 after the compact UI +
 - `Suta Mandi`
   - manufacturer-only yarn / suta buying surface
   - fulfilled through admin + mahajan routing
+
+## Commerce Experience Status
+
+- Commerce-first refinement is now active across:
+  - [modules/marketplace/dashboard.py](/c:/2026/manditrade/manditrade/modules/marketplace/dashboard.py)
+  - [modules/raw_materials/dashboard.py](/c:/2026/manditrade/manditrade/modules/raw_materials/dashboard.py)
+  - [modules/suta_mandi/dashboard.py](/c:/2026/manditrade/manditrade/modules/suta_mandi/dashboard.py)
+  - [modules/procurement/dashboard.py](/c:/2026/manditrade/manditrade/modules/procurement/dashboard.py)
+- Current Marketplace buyer experience now includes:
+  - richer search / category / price filtering
+  - trust-badge-enhanced product cards
+  - compact detail drawer
+  - cart quantity updates and remove flow
+  - clearer delivery / dispatch expectations
+- Current procurement-commerce upgrades now include:
+  - trust badges on MandiPlace, Suta Mandi, and raw-material cards
+  - detail-drawer summaries for sourcing items
+  - better supplier / procurement context without turning B2B pages into public ecommerce
 
 ## Operations Center Status
 
