@@ -4,12 +4,13 @@ from typing import Any
 
 import streamlit as st
 
+from components.kpi_cards import render_kpi_cards
+from components.platform_shell import render_platform_shell
 from components.filter_bar import render_filter_bar
 from components.order_detail_view import build_order_detail_payload, render_order_detail_view
 from components.product_card import render_product_card
 from components.responsive_layout import render_section_intro
-from components.three_d_cards import render_metric_grid
-from components.ui_shell import render_metric_card, render_page_header
+from components.ui_shell import render_metric_card
 from utils.deep_links import build_deep_link_target
 from utils.export_utils import export_rows_to_csv_bytes, export_rows_to_json_bytes
 from utils.page_ui import get_active_filter, render_empty_state, render_metric_button_row, render_status_chip
@@ -404,17 +405,19 @@ def _render_mandiplace_admin(app_context: dict, user, service) -> None:
     orders = service.list_mandiplace_orders()
     packaging_services = [item for item in governance_service.list_packaging_services() if item.get("status") == "ACTIVE"]
     courier_services = [item for item in governance_service.list_courier_services() if item.get("status") == "ACTIVE"]
-    render_page_header(
-        "MandiPlace",
-        "Admin-routed manufacturer procurement keeps supplier assignment, packaging, courier, and downstream pricing under controlled review.",
-        ["Platform Admin", "Co-Manufacturer Routing"],
+    render_platform_shell(
+        title="MandiPlace",
+        subtitle="Admin-routed manufacturer procurement keeps supplier assignment, packaging, courier, and downstream pricing under controlled review.",
+        badges=["Platform Admin", "Co-Manufacturer Routing"],
+        breadcrumbs=["Platform", "Mandi Network", "MandiPlace"],
+        primary_actions=["Assign Supplier", "Set Final Price", "Book Courier"],
     )
-    render_metric_grid(
+    render_kpi_cards(
         [
-            render_metric_card("Open Requests", str(len([item for item in orders if item.get("status") in {"REQUESTED_BY_MANUFACTURER", "ADMIN_REVIEWING"}])), "PENDING"),
-            render_metric_card("Assigned", str(len([item for item in orders if item.get("status") == "SUPPLIER_ASSIGNED"])), "OPEN"),
-            render_metric_card("In Transit", str(len([item for item in orders if item.get("status") == "IN_TRANSIT"])), "WARNING"),
-            render_metric_card("Closed", str(len([item for item in orders if item.get("status") == "CLOSED"])), "SUCCESS"),
+            {"label": "Open Requests", "value": str(len([item for item in orders if item.get("status") in {"REQUESTED_BY_MANUFACTURER", "ADMIN_REVIEWING"}])), "status": "PENDING"},
+            {"label": "Assigned", "value": str(len([item for item in orders if item.get("status") == "SUPPLIER_ASSIGNED"])), "status": "OPEN"},
+            {"label": "In Transit", "value": str(len([item for item in orders if item.get("status") == "IN_TRANSIT"])), "status": "WARNING"},
+            {"label": "Closed", "value": str(len([item for item in orders if item.get("status") == "CLOSED"])), "status": "SUCCESS"},
         ]
     )
     overview_tab, assign_tab, pricing_tab, orders_tab = st.tabs(["Overview", "Assign Supplier", "Pricing & Logistics", "Orders"])
@@ -499,17 +502,19 @@ def _render_mandiplace_manufacturer(app_context: dict, user, service) -> None:
         if item.get("status") == "ACTIVE" and item.get("available_for_mandi_network", True)
     ]
     orders = service.list_mandiplace_orders(manufacturer_code=user.manufacturer_code or "")
-    render_page_header(
-        "MandiPlace",
-        "Request co-manufacturer procurement through admin. Supplier discovery remains admin-routed, not direct.",
-        ["Manufacturer", "Admin-Routed Procurement"],
+    render_platform_shell(
+        title="MandiPlace",
+        subtitle="Request co-manufacturer procurement through admin. Supplier discovery remains admin-routed, not direct.",
+        badges=["Manufacturer", "Admin-Routed Procurement"],
+        breadcrumbs=["Workspace", "Mandi Network", "MandiPlace"],
+        primary_actions=["Create Request", "Confirm Order", "Dispatch Order"],
     )
-    render_metric_grid(
+    render_kpi_cards(
         [
-            render_metric_card("My Requests", str(len([item for item in orders if item.get("requesting_manufacturer_id") == (user.manufacturer_code or "")])), "OPEN"),
-            render_metric_card("Assigned To Me", str(len([item for item in orders if item.get("supplier_manufacturer_id") == (user.manufacturer_code or "")])), "PENDING"),
-            render_metric_card("Awaiting My Confirmation", str(len([item for item in orders if item.get("requesting_manufacturer_id") == (user.manufacturer_code or "") and item.get("status") == "COURIER_BOOKED"])), "WARNING"),
-            render_metric_card("In Transit", str(len([item for item in orders if item.get("status") == "IN_TRANSIT"])), "WARNING"),
+            {"label": "My Requests", "value": str(len([item for item in orders if item.get("requesting_manufacturer_id") == (user.manufacturer_code or "")])), "status": "OPEN"},
+            {"label": "Assigned To Me", "value": str(len([item for item in orders if item.get("supplier_manufacturer_id") == (user.manufacturer_code or "")])), "status": "PENDING"},
+            {"label": "Awaiting My Confirmation", "value": str(len([item for item in orders if item.get("requesting_manufacturer_id") == (user.manufacturer_code or "") and item.get("status") == "COURIER_BOOKED"])), "status": "WARNING"},
+            {"label": "In Transit", "value": str(len([item for item in orders if item.get("status") == "IN_TRANSIT"])), "status": "WARNING"},
         ]
     )
     overview_tab, request_tab, responses_tab, orders_tab = st.tabs(["Overview", "Create Request", "Actions", "Orders"])
@@ -617,10 +622,12 @@ def render_procurement_dashboard(app_context: dict) -> None:
         st.info("MandiPlace procurement is available for admin and manufacturers only.")
         return
 
-    render_page_header(
-        "Mandi Orders",
-        "Track admin-controlled raw-material supply. Raw Materials stay in the supply layer, while Products stay in the manufacturer selling layer.",
-        ["Raw Material Supply", user.role.replace("_", " ").title() if user else "Role"],
+    render_platform_shell(
+        title="Mandi Orders",
+        subtitle="Track admin-controlled raw-material supply. Raw Materials stay in the supply layer, while Products stay in the manufacturer selling layer.",
+        badges=["Raw Material Supply", user.role.replace("_", " ").title() if user else "Role"],
+        role=user.role.replace("_", " ").title() if user else None,
+        breadcrumbs=["Workspace", "Supply Network", "Mandi Orders"],
     )
 
     all_materials = governance_service.list_raw_materials()
@@ -632,12 +639,12 @@ def render_procurement_dashboard(app_context: dict) -> None:
 
     if user.role == "platform_admin":
         orders = service.list_supply_orders()
-        render_metric_grid(
+        render_kpi_cards(
             [
-                render_metric_card("Open Requests", str(len(filter_supply_orders(orders, "OPEN_REQUESTS"))), "PENDING"),
-                render_metric_card("Awaiting Mahajan Quote", str(len(filter_supply_orders(orders, "AWAITING_MAHAJAN_QUOTE"))), "OPEN"),
-                render_metric_card("Awaiting Manufacturer Confirmation", str(len(filter_supply_orders(orders, "AWAITING_MANUFACTURER_CONFIRMATION"))), "WARNING"),
-                render_metric_card("Closed", str(len(filter_supply_orders(orders, "CLOSED"))), "SUCCESS"),
+                {"label": "Open Requests", "value": str(len(filter_supply_orders(orders, "OPEN_REQUESTS"))), "status": "PENDING"},
+                {"label": "Awaiting Mahajan Quote", "value": str(len(filter_supply_orders(orders, "AWAITING_MAHAJAN_QUOTE"))), "status": "OPEN"},
+                {"label": "Awaiting Manufacturer Confirmation", "value": str(len(filter_supply_orders(orders, "AWAITING_MANUFACTURER_CONFIRMATION"))), "status": "WARNING"},
+                {"label": "Closed", "value": str(len(filter_supply_orders(orders, "CLOSED"))), "status": "SUCCESS"},
             ]
         )
         _render_mandi_order_filters(page_key, orders)

@@ -1,6 +1,6 @@
 # MandiTrade Checker Reference
 
-Generated from the current repository state on 2026-06-03 after the financial operating system layer pass.
+Generated from the current repository state on 2026-06-03 after the platform shell and design-system consolidation pass.
 
 ## Final Role Model
 
@@ -743,6 +743,81 @@ Generated from the current repository state on 2026-06-03 after the financial op
   - logistics flows
   - migration model
 
+## Platform Shell Status
+
+- Shared platform shell now exists in:
+  - [components/platform_shell.py](/c:/2026/manditrade/manditrade/components/platform_shell.py)
+  - [components/page_hero.py](/c:/2026/manditrade/manditrade/components/page_hero.py)
+- Current shell coverage includes:
+  - topbar
+  - breadcrumbs
+  - action chips
+  - page hero handoff
+  - role-aware page framing
+- First-wave adoption is now live on:
+  - [modules/admin/operations_dashboard.py](/c:/2026/manditrade/manditrade/modules/admin/operations_dashboard.py)
+  - [modules/admin/finance_operations.py](/c:/2026/manditrade/manditrade/modules/admin/finance_operations.py)
+  - [modules/procurement/dashboard.py](/c:/2026/manditrade/manditrade/modules/procurement/dashboard.py)
+  - [modules/products/dashboard.py](/c:/2026/manditrade/manditrade/modules/products/dashboard.py)
+  - [modules/public_orders/dashboard.py](/c:/2026/manditrade/manditrade/modules/public_orders/dashboard.py)
+  - [modules/payments/dashboard.py](/c:/2026/manditrade/manditrade/modules/payments/dashboard.py)
+  - [modules/analytics/dashboard.py](/c:/2026/manditrade/manditrade/modules/analytics/dashboard.py)
+
+## Design System Status
+
+- Shared design-system reference now exists in:
+  - [docs/DESIGN_SYSTEM.md](/c:/2026/manditrade/manditrade/docs/DESIGN_SYSTEM.md)
+- Centralized design tokens now exist in:
+  - [assets/styles/design_tokens.css](/c:/2026/manditrade/manditrade/assets/styles/design_tokens.css)
+- Shared UI primitives now exist in:
+  - [components/kpi_cards.py](/c:/2026/manditrade/manditrade/components/kpi_cards.py)
+  - [components/data_grid.py](/c:/2026/manditrade/manditrade/components/data_grid.py)
+  - [components/detail_drawer.py](/c:/2026/manditrade/manditrade/components/detail_drawer.py)
+  - [components/status_chip.py](/c:/2026/manditrade/manditrade/components/status_chip.py)
+  - [components/empty_state.py](/c:/2026/manditrade/manditrade/components/empty_state.py)
+  - [components/skeleton_loader.py](/c:/2026/manditrade/manditrade/components/skeleton_loader.py)
+  - [components/entity_form.py](/c:/2026/manditrade/manditrade/components/entity_form.py)
+
+## Data-Grid Adoption Status
+
+- Reusable filter + export + pagination wrapper now exists in:
+  - [components/data_grid.py](/c:/2026/manditrade/manditrade/components/data_grid.py)
+- Current first-wave adoption includes:
+  - alerts in [modules/admin/operations_dashboard.py](/c:/2026/manditrade/manditrade/modules/admin/operations_dashboard.py)
+  - transactions in [modules/admin/finance_operations.py](/c:/2026/manditrade/manditrade/modules/admin/finance_operations.py)
+  - product registry in [modules/products/dashboard.py](/c:/2026/manditrade/manditrade/modules/products/dashboard.py)
+  - buyer order views in [modules/public_orders/dashboard.py](/c:/2026/manditrade/manditrade/modules/public_orders/dashboard.py)
+
+## Detail Drawer Adoption Status
+
+- Shared detail-drawer entry point now exists in:
+  - [components/detail_drawer.py](/c:/2026/manditrade/manditrade/components/detail_drawer.py)
+- Current implementation is intentionally lightweight:
+  - shell panel wrapper
+  - shared order-detail renderer handoff
+- This pass establishes the reusable detail surface without forcing a risky all-page drawer migration.
+
+## Responsive Audit Status
+
+- Shell spacing, token classes, and utility responsive rules now live in:
+  - [assets/styles/design_tokens.css](/c:/2026/manditrade/manditrade/assets/styles/design_tokens.css)
+- This pass improved:
+  - shell spacing consistency
+  - action-chip wrapping
+  - empty/loading surface consistency
+  - repeated CSS injection control
+- Remaining responsive cleanup is still incremental rather than universal.
+
+## CSS Cleanup Status
+
+- CSS injection is now deduplicated in:
+  - [components/html_renderer.py](/c:/2026/manditrade/manditrade/components/html_renderer.py)
+- UI shell loading now injects tokens before feature CSS in:
+  - [components/ui_shell.py](/c:/2026/manditrade/manditrade/components/ui_shell.py)
+- Current CSS strategy is:
+  - `design_tokens.css` for shared baseline values
+  - `manditrade_3d.css` for richer page styling
+
 ## Role / Status Constants Status
 
 - Canonical role constants now exist in:
@@ -854,9 +929,11 @@ Generated from the current repository state on 2026-06-03 after the financial op
 ## Tests Result
 
 - `python -m pytest tests/ -q`
-  - Passed: `247`
+  - Passed: `253`
   - Skipped: `5`
-- `python -m compileall app.py modules services utils components schemas bootstrap scripts`
+- `python -m compileall app.py modules services utils components schemas bootstrap scripts constants`
+  - Passed
+- `python scripts/codebase_health_check.py`
   - Passed
 - `python -c "import app; print('app import ok')"`
   - Passed
@@ -883,5 +960,6 @@ Generated from the current repository state on 2026-06-03 after the financial op
 - GST/tax fields are metadata-ready, but there is still no filing-grade tax workflow.
 - Alerts and recommendations are intentionally rule-based and deterministic; there is still no forecasting depth or adaptive scoring beyond current heuristics.
 - Pagination is implemented on the current highest-volume operational pages, but a few legacy / low-traffic screens still use direct table rendering and can be migrated later.
+- Platform shell, hero, KPI, and grid adoption is now live on the highest-traffic operational pages, but this is still a first-wave rollout rather than a full all-page UI unification.
 - Operational search currently routes to page-level detail surfaces, not a universal modal detail shell.
 - Legacy compatibility-only internal names from the old client-era data model still exist and should only be removed in a dedicated migration pass.

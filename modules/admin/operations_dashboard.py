@@ -2,24 +2,27 @@ from __future__ import annotations
 
 import streamlit as st
 
+from components.data_grid import render_data_grid
+from components.kpi_cards import render_kpi_cards
+from components.platform_shell import render_platform_shell
 from components.filter_bar import render_filter_bar
 from components.paginated_table import render_paginated_table
 from components.responsive_layout import render_section_intro
-from components.three_d_cards import render_metric_grid
-from components.ui_shell import render_metric_card, render_page_header
+from components.skeleton_loader import render_skeleton_loader
 from utils.deep_links import activate_deep_link
-from utils.export_utils import export_rows_to_csv_bytes, export_rows_to_json_bytes
 from utils.page_ui import render_empty_state, render_metric_button_row
 
 
 def render_operations_dashboard(app_context: dict) -> None:
     page_key = "operations_center"
     current_user = app_context["current_user"]
-    render_page_header(
-        "Operations Center",
-        "Single-pane command center for live commerce health, supply friction, finance risk, workforce activity, and platform governance.",
-        ["Platform Admin", "Operational Intelligence"],
+    render_platform_shell(
+        title="Operations Center",
+        subtitle="Single-pane command center for live commerce health, supply friction, finance risk, workforce activity, and platform governance.",
+        badges=["Platform Admin", "Operational Intelligence"],
         role=current_user.role.replace("_", " ").title() if current_user else "Admin",
+        breadcrumbs=["Platform", "Operations", "Operations Center"],
+        primary_actions=["Run Hourly Tasks", "Run Daily Tasks"],
     )
     kpis = app_context["kpi_service"].read_latest_snapshot() or app_context["kpi_service"].calculate_snapshot(app_context)
     new_alerts = []
@@ -27,14 +30,14 @@ def render_operations_dashboard(app_context: dict) -> None:
     recommendations = (app_context["recommendation_service"].read_latest() or {}).get("recommendations", {}) or app_context["recommendation_service"].generate(app_context)
     audit_summary = app_context["audit_service"].summarize_structured_events()
 
-    render_metric_grid(
+    render_kpi_cards(
         [
-            render_metric_card("Marketplace Orders Today", str(kpis["marketplace"]["orders_today"]), "OPEN"),
-            render_metric_card("Active Mandi Orders", str(kpis["mandi"]["active_orders"]), "PENDING"),
-            render_metric_card("MandiPlace Orders", str(len(app_context["procurement_transaction_service"].list_mandiplace_orders())), "OPEN"),
-            render_metric_card("Pending Deliveries", str(len([item for item in app_context["public_order_service"].list_all_orders() if str(item.get("status", "")).upper() == "DISPATCHED"]) + len([item for item in app_context["governance_service"].list_supply_orders() if str(item.get("status", "")).upper() == "MAHAJAN_DISPATCHED"])), "HIGH"),
-            render_metric_card("Open Alerts", str(len(alerts)), "CRITICAL" if len([item for item in alerts if str(item.get("severity", "")).upper() == "CRITICAL"]) else "WARNING"),
-            render_metric_card("Platform Health", str(kpis["health_scores"]["platform"]), "SUCCESS" if kpis["health_scores"]["platform"] >= 70 else "WARNING"),
+            {"label": "Marketplace Orders Today", "value": str(kpis["marketplace"]["orders_today"]), "status": "OPEN"},
+            {"label": "Active Mandi Orders", "value": str(kpis["mandi"]["active_orders"]), "status": "PENDING"},
+            {"label": "MandiPlace Orders", "value": str(len(app_context["procurement_transaction_service"].list_mandiplace_orders())), "status": "OPEN"},
+            {"label": "Pending Deliveries", "value": str(len([item for item in app_context["public_order_service"].list_all_orders() if str(item.get("status", "")).upper() == "DISPATCHED"]) + len([item for item in app_context["governance_service"].list_supply_orders() if str(item.get("status", "")).upper() == "MAHAJAN_DISPATCHED"])), "status": "HIGH"},
+            {"label": "Open Alerts", "value": str(len(alerts)), "status": "CRITICAL" if len([item for item in alerts if str(item.get("severity", "")).upper() == "CRITICAL"]) else "WARNING"},
+            {"label": "Platform Health", "value": str(kpis["health_scores"]["platform"]), "status": "SUCCESS" if kpis["health_scores"]["platform"] >= 70 else "WARNING"},
         ]
     )
     render_metric_button_row(
@@ -108,12 +111,17 @@ def render_operations_dashboard(app_context: dict) -> None:
             use_container_width=True,
         )
     with alerts_tab:
-        filtered_alerts = render_filter_bar(page_key="operations_alerts", rows=alerts, search_fields=["alert_id", "entity_id", "message", "type"], status_field="severity", date_field="created_at", search_placeholder="Search alerts by entity or message")
+        if not alerts:
+            render_skeleton_loader(kind="table", count=1)
+        filtered_alerts = render_data_grid(
+            page_key="operations_alerts",
+            rows=alerts,
+            search_fields=["alert_id", "entity_id", "message", "type"],
+            status_field="severity",
+            date_field="created_at",
+            search_placeholder="Search alerts by entity or message",
+        )
         if filtered_alerts:
-            col1, col2 = st.columns(2)
-            col1.download_button("Export Alerts CSV", export_rows_to_csv_bytes(filtered_alerts), file_name="operations-alerts.csv", mime="text/csv", use_container_width=True)
-            col2.download_button("Export Alerts JSON", export_rows_to_json_bytes(filtered_alerts), file_name="operations-alerts.json", mime="application/json", use_container_width=True)
-            render_paginated_table(page_key="operations_alerts", rows=filtered_alerts, search_fields=["alert_id", "entity_id", "message"], status_field="severity")
             selected_alert = st.selectbox("Resolve Alert", [item["alert_id"] for item in filtered_alerts], key="resolve_ops_alert")
             if st.button("Mark Alert Resolved", use_container_width=True):
                 app_context["alert_engine"].resolve_alert(selected_alert)

@@ -12,5 +12,10 @@ def render_html(html: str, *, height: int | None = None) -> None:
 
 
 def inject_css(css_path: Path) -> None:
+    injected = st.session_state.setdefault("_injected_css_paths", set())
+    css_key = str(css_path.resolve())
+    if css_key in injected:
+        return
     css = css_path.read_text(encoding="utf-8")
     st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
+    injected.add(css_key)

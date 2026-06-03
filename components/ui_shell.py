@@ -5,8 +5,12 @@ from pathlib import Path
 
 from components.html_renderer import inject_css, render_html
 
+DESIGN_TOKENS_FILE = Path(__file__).resolve().parent.parent / "assets" / "styles" / "design_tokens.css"
+
 
 def apply_ui_shell(css_path: Path) -> None:
+    if DESIGN_TOKENS_FILE.exists():
+        inject_css(DESIGN_TOKENS_FILE)
     inject_css(css_path)
 
 

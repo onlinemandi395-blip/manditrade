@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import streamlit as st
 
+from components.data_grid import render_data_grid
+from components.platform_shell import render_platform_shell
 from components.filter_bar import render_filter_bar
 from components.order_detail_view import build_order_detail_payload, render_order_detail_view
 from components.responsive_layout import render_section_intro
-from components.three_d_cards import render_metric_grid
-from components.ui_shell import render_metric_card, render_page_header
+from components.kpi_cards import render_kpi_cards
 from utils.deep_links import build_deep_link_target
-from utils.export_utils import export_rows_to_csv_bytes, export_rows_to_json_bytes
 from utils.page_ui import render_empty_state, render_metric_button_row, render_status_chip
 
 
@@ -78,7 +78,13 @@ def render_public_orders_dashboard(app_context: dict, *, buyer_mode: bool = Fals
         if buyer_mode
         else "Verify payments, confirm, and dispatch public marketplace orders assigned to sellers."
     )
-    render_page_header(title, subtitle, ["Public Marketplace", "Instant Pay"], role=user.role.replace("_", " ").title() if user else "Public")
+    render_platform_shell(
+        title=title,
+        subtitle=subtitle,
+        badges=["Public Marketplace", "Instant Pay"],
+        role=user.role.replace("_", " ").title() if user else "Public",
+        breadcrumbs=["Workspace", "Orders", title],
+    )
     if not user:
         st.info("Sign in as a public buyer or seller role to access public orders.")
         return
@@ -92,11 +98,11 @@ def render_public_orders_dashboard(app_context: dict, *, buyer_mode: bool = Fals
             st.info("No public buyer profile is linked to this account yet.")
             return
         orders = service.list_orders_for_buyer(buyer["public_buyer_id"])
-        render_metric_grid(
+        render_kpi_cards(
             [
-                render_metric_card("My Public Orders", str(len(orders)), "SUCCESS"),
-                render_metric_card("Payment Pending", str(len([item for item in orders if item.get("status") == "PAYMENT_PENDING"])), "PENDING"),
-                render_metric_card("Dispatched", str(len([item for item in orders if item.get("status") == "DISPATCHED"])), "OPEN"),
+                {"label": "My Public Orders", "value": str(len(orders)), "status": "SUCCESS"},
+                {"label": "Payment Pending", "value": str(len([item for item in orders if item.get("status") == "PAYMENT_PENDING"])), "status": "PENDING"},
+                {"label": "Dispatched", "value": str(len([item for item in orders if item.get("status") == "DISPATCHED"])), "status": "OPEN"},
             ]
         )
         render_metric_button_row(
@@ -119,7 +125,7 @@ def render_public_orders_dashboard(app_context: dict, *, buyer_mode: bool = Fals
         with overview_tab:
             _render_order_detail(selected)
         with orders_tab:
-            filtered_orders = render_filter_bar(
+            filtered_orders = render_data_grid(
                 page_key=f"{page_key}_orders",
                 rows=orders,
                 search_fields=["public_order_id", "assigned_seller_manufacturer_id", "buyer_email"],
@@ -128,12 +134,7 @@ def render_public_orders_dashboard(app_context: dict, *, buyer_mode: bool = Fals
                 price_field="total_amount",
                 search_placeholder="Search by order ID or seller",
             )
-            if filtered_orders:
-                csv_col, json_col = st.columns(2)
-                csv_col.download_button("Export CSV", export_rows_to_csv_bytes(filtered_orders), file_name="marketplace-orders.csv", mime="text/csv", use_container_width=True)
-                json_col.download_button("Export JSON", export_rows_to_json_bytes(filtered_orders), file_name="marketplace-orders.json", mime="application/json", use_container_width=True)
-                st.dataframe(filtered_orders, use_container_width=True)
-            else:
+            if not filtered_orders:
                 render_empty_state("No Marketplace Orders Yet")
         with payments_tab:
             if selected.get("status") == "PAYMENT_PENDING":
@@ -186,11 +187,11 @@ def render_public_orders_dashboard(app_context: dict, *, buyer_mode: bool = Fals
     else:
         st.info("Public order operations are available to platform admin and seller manufacturers.")
         return
-    render_metric_grid(
+    render_kpi_cards(
         [
-            render_metric_card("Public Orders", str(len(orders)), "SUCCESS"),
-            render_metric_card("Payment Submitted", str(len([item for item in orders if item.get("payment_status") == "SUBMITTED"])), "PENDING"),
-            render_metric_card("Ready To Dispatch", str(len([item for item in orders if item.get("status") == "CONFIRMED"])), "OPEN"),
+            {"label": "Public Orders", "value": str(len(orders)), "status": "SUCCESS"},
+            {"label": "Payment Submitted", "value": str(len([item for item in orders if item.get("payment_status") == "SUBMITTED"])), "status": "PENDING"},
+            {"label": "Ready To Dispatch", "value": str(len([item for item in orders if item.get("status") == "CONFIRMED"])), "status": "OPEN"},
         ]
     )
     render_metric_button_row(

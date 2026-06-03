@@ -4,13 +4,15 @@ from html import escape
 
 import streamlit as st
 
+from components.data_grid import render_data_grid
+from components.kpi_cards import render_kpi_cards
+from components.platform_shell import render_platform_shell
 from components.filter_bar import render_filter_bar
 from components.html_renderer import render_html
 from components.paginated_table import render_paginated_table
 from components.product_card import render_product_card
 from components.responsive_layout import render_section_intro
-from components.three_d_cards import render_metric_grid
-from components.ui_shell import render_dual_panel, render_metric_card, render_mobile_record_card, render_page_header, render_showcase_strip
+from components.ui_shell import render_dual_panel, render_mobile_record_card, render_showcase_strip
 from utils.export_utils import export_rows_to_csv_bytes, export_rows_to_json_bytes
 from utils.page_ui import render_empty_state, render_metric_button_row
 
@@ -26,19 +28,21 @@ def render_products_dashboard(app_context: dict) -> None:
         viewer_code=viewer_code,
     )
     image_service = app_context.get("image_service")
-    render_page_header(
-        "Products",
-        "Govern finished products for catalog selling, approvals, and pricing. Raw-material supply belongs on the Raw Materials and Mandi Orders pages.",
-        ["Public Catalog", "Mandi Price", "Three-Tier Pricing"],
+    render_platform_shell(
+        title="Products",
+        subtitle="Govern finished products for catalog selling, approvals, and pricing. Raw-material supply belongs on the Raw Materials and Mandi Orders pages.",
+        badges=["Public Catalog", "Mandi Price", "Three-Tier Pricing"],
         role=viewer_role.replace("_", " ").title() if viewer_role else "Catalog View",
         metrics=[("Catalog Mode", "Governed visibility"), ("Proposal Path", "Manufacturer to admin")],
         kicker="Digital Manpur Catalog Grid",
+        breadcrumbs=["Workspace", "Catalog", "Products"],
+        primary_actions=["Propose Product" if viewer_role in {"manufacturer", "admin_as_manufacturer"} else "Manage Catalog"],
     )
-    render_metric_grid(
+    render_kpi_cards(
         [
-            render_metric_card("Catalog Products", str(len(products)), "SUCCESS"),
-            render_metric_card("Proposed", str(len([item for item in products if item.get("status") == "PROPOSED"])), "PENDING"),
-            render_metric_card("Active", str(len([item for item in products if item.get("status") == "ACTIVE"])), "OPEN"),
+            {"label": "Catalog Products", "value": str(len(products)), "status": "SUCCESS"},
+            {"label": "Proposed", "value": str(len([item for item in products if item.get("status") == "PROPOSED"])), "status": "PENDING"},
+            {"label": "Active", "value": str(len([item for item in products if item.get("status") == "ACTIVE"])), "status": "OPEN"},
         ]
     )
     render_metric_button_row(
@@ -85,12 +89,9 @@ def render_products_dashboard(app_context: dict) -> None:
                         action_label="View Product",
                         action_key=f"products_preview_{item.get('product_id', index)}",
                     )
-        filtered_products = render_filter_bar(page_key="products_catalog", rows=products, search_fields=["product_id", "name", "category", "created_by_manufacturer_id"], status_field="status", date_field="updated_at", price_field="approved_marketplace_price", search_placeholder="Search by product ID or name")
+        filtered_products = render_data_grid(page_key="products_catalog", rows=products, search_fields=["product_id", "name", "category", "created_by_manufacturer_id"], status_field="status", date_field="updated_at", price_field="approved_marketplace_price", search_placeholder="Search by product ID or name")
         if filtered_products:
-            csv_col, json_col = st.columns(2)
-            csv_col.download_button("Export CSV", export_rows_to_csv_bytes(filtered_products), file_name="products.csv", mime="text/csv", use_container_width=True)
-            json_col.download_button("Export JSON", export_rows_to_json_bytes(filtered_products), file_name="products.json", mime="application/json", use_container_width=True)
-            render_paginated_table(page_key="products_catalog", rows=filtered_products, search_fields=["product_id", "name"], status_field="status")
+            pass
         else:
             render_empty_state("No finished products are visible for this view yet.")
     if not user:

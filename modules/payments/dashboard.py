@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import streamlit as st
 
+from components.platform_shell import render_platform_shell
 from components.filter_bar import render_filter_bar
 from components.responsive_layout import render_section_intro
-from components.three_d_cards import render_metric_grid
-from components.ui_shell import render_metric_card, render_page_header
+from components.kpi_cards import render_kpi_cards
 from utils.export_utils import export_rows_to_csv_bytes, export_rows_to_json_bytes
 from utils.page_ui import render_empty_state, render_metric_button_row
 
@@ -15,16 +15,22 @@ def render_payments_dashboard(app_context: dict) -> None:
     settlement_service = app_context.get("settlement_service")
     dispute_service = app_context.get("dispute_service")
     page_key = "payments"
-    render_page_header("Payments", "Track direct seller/supplier payments and keep follow-up communication organised from one place.", ["Payment Follow-Up", "Email Reminders"])
+    render_platform_shell(
+        title="Payments",
+        subtitle="Track direct seller and supplier payments and keep follow-up communication organised from one place.",
+        badges=["Payment Follow-Up", "Email Reminders"],
+        role=user.role.replace("_", " ").title() if user else None,
+        breadcrumbs=["Workspace", "Finance", "Payments"],
+    )
     if not user:
         st.info("Sign in required.")
         return
     manufacturer_code = user.manufacturer_code or ""
     reminder_ready = bool(manufacturer_code and user.role in {"manufacturer", "admin_as_manufacturer"})
-    render_metric_grid(
+    render_kpi_cards(
         [
-            render_metric_card("Reminder Channel", "Email", "OPEN"),
-            render_metric_card("Trigger", "Send Now" if reminder_ready else "View Only", "SUCCESS"),
+            {"label": "Reminder Channel", "value": "Email", "status": "OPEN"},
+            {"label": "Trigger", "value": "Send Now" if reminder_ready else "View Only", "status": "SUCCESS"},
         ]
     )
     render_metric_button_row(

@@ -2,15 +2,21 @@ from __future__ import annotations
 
 import streamlit as st
 
+from components.kpi_cards import render_kpi_cards
+from components.platform_shell import render_platform_shell
 from components.responsive_layout import render_section_intro
-from components.three_d_cards import render_metric_grid
-from components.ui_shell import render_metric_card, render_page_header
 from utils.page_ui import render_metric_button_row
 
 
 def render_analytics_dashboard(app_context: dict) -> None:
     page_key = "analytics"
-    render_page_header("Analytics", "Review marketplace, mandi network, and finance summaries from one admin-safe operations page.", ["Platform Admin", "Summary View"])
+    render_platform_shell(
+        title="Analytics",
+        subtitle="Review marketplace, mandi network, and finance summaries from one admin-safe operations page.",
+        badges=["Platform Admin", "Summary View"],
+        role=(app_context["current_user"].role.replace("_", " ").title() if app_context.get("current_user") else None),
+        breadcrumbs=["Platform", "Analytics"],
+    )
     current_user = app_context["current_user"]
     governance_service = app_context["governance_service"]
     settlement_service = app_context.get("settlement_service")
@@ -20,11 +26,11 @@ def render_analytics_dashboard(app_context: dict) -> None:
         orders = app_context["order_query_service"].list_orders(current_user.manufacturer_code)
         procurement = app_context["procurement_query_service"].list_procurement_requests(current_user.manufacturer_code)
         inventory = app_context["inventory_query_service"].list_inventory_snapshot(current_user.manufacturer_code)
-        render_metric_grid(
+        render_kpi_cards(
             [
-                render_metric_card("Order Volume", str(len(orders)), "OPEN"),
-                render_metric_card("Procurement Volume", str(len(procurement)), "PENDING"),
-                render_metric_card("Inventory Movements", str(len(inventory.get("items", []))), "SUCCESS"),
+                {"label": "Order Volume", "value": str(len(orders)), "status": "OPEN"},
+                {"label": "Procurement Volume", "value": str(len(procurement)), "status": "PENDING"},
+                {"label": "Inventory Movements", "value": str(len(inventory.get("items", []))), "status": "SUCCESS"},
             ]
         )
         render_metric_button_row(
@@ -55,11 +61,11 @@ def render_analytics_dashboard(app_context: dict) -> None:
     products = governance_service.list_products()
     active_manufacturers = len([m for m in manufacturers if m.get("status") == "ACTIVE"])
     blocked_manufacturers = len([m for m in manufacturers if m.get("status") in {"BLOCKED", "INACTIVE"}])
-    render_metric_grid(
+    render_kpi_cards(
         [
-            render_metric_card("Active Manufacturers", str(active_manufacturers), "SUCCESS"),
-            render_metric_card("Marketplace Revenue Today", str(kpis["marketplace"]["revenue_today"]), "OPEN"),
-            render_metric_card("Platform Health", str(kpis["health_scores"]["platform"]), "SUCCESS" if kpis["health_scores"]["platform"] >= 70 else "WARNING"),
+            {"label": "Active Manufacturers", "value": str(active_manufacturers), "status": "SUCCESS"},
+            {"label": "Marketplace Revenue Today", "value": str(kpis["marketplace"]["revenue_today"]), "status": "OPEN"},
+            {"label": "Platform Health", "value": str(kpis["health_scores"]["platform"]), "status": "SUCCESS" if kpis["health_scores"]["platform"] >= 70 else "WARNING"},
         ]
     )
     render_metric_button_row(
