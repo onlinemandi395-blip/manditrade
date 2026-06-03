@@ -186,3 +186,8 @@ At minimum, changes to the design system layer should keep coverage for:
 - detail drawer safety
 - CSS injection deduplication
 - route/page smoke stability
+# Sidebar Icons
+
+- Sidebar navigation now resolves icons through `constants/navigation_icons.py`.
+- Rendering uses plain `st.button(f"{icon}  {label}")` text prefixing instead of HTML-in-button patterns.
+- Icon lookup is normalized and alias-aware, with a visible fallback bullet rather than an empty icon slot.

@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 from bootstrap.app_bootstrap import default_navigation_section
 from components import icon_sidebar
+from constants.navigation_icons import NAV_ICON_FALLBACK, get_nav_icon
 from services.navigation_service import flatten_navigation_groups, get_navigation_groups, navigation_icon_coverage
 
 
@@ -23,7 +24,7 @@ def test_navigation_icon_map_covers_all_live_labels():
     labels = {item for role_groups in [get_navigation_groups("platform_admin"), get_navigation_groups("manufacturer"), get_navigation_groups("mahajan"), get_navigation_groups("public_buyer"), get_navigation_groups("worker")] for item in flatten_navigation_groups(role_groups)}
 
     assert labels
-    assert all(coverage.get(label) for label in labels)
+    assert all(coverage.get(label) and coverage.get(label) != NAV_ICON_FALLBACK for label in labels)
 
 
 def test_icon_sidebar_formats_labels_with_icons():
@@ -31,6 +32,18 @@ def test_icon_sidebar_formats_labels_with_icons():
 
     assert "Marketplace" in label
     assert label != "Marketplace"
+    assert label.startswith(get_nav_icon("Marketplace"))
+
+
+def test_get_nav_icon_returns_fallback_for_unknown_label():
+    assert get_nav_icon("Unknown Route") == NAV_ICON_FALLBACK
+
+
+def test_grouped_navigation_keeps_icon_prefixes():
+    items = flatten_navigation_groups(get_navigation_groups("platform_admin"))
+
+    assert items
+    assert all(icon_sidebar.format_icon_nav_label(item).split("  ", 1)[0].strip() for item in items)
 
 
 def test_compact_marketplace_and_sidebar_styles_exist():

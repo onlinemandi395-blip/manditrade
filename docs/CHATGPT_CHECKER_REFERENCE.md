@@ -2,6 +2,18 @@
 
 Generated from the current repository state on 2026-06-03 after the Admin Drive runtime wiring pass.
 
+## Sidebar Icon Status
+
+- Sidebar icon rendering is now normalized through:
+  - [constants/navigation_icons.py](/c:/2026/manditrade/manditrade/constants/navigation_icons.py)
+  - [services/navigation_service.py](/c:/2026/manditrade/manditrade/services/navigation_service.py)
+  - [components/icon_sidebar.py](/c:/2026/manditrade/manditrade/components/icon_sidebar.py)
+- Current behavior includes:
+  - alias-aware icon lookup
+  - visible fallback icon for unknown labels
+  - plain-text icon prefixes in Streamlit buttons
+  - coverage tests for active role navigation labels
+
 ## Final Role Model
 
 - Active roles:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Iterable
 
-from constants.navigation_icons import NAV_ICON_MAP, nav_icon_for
+from constants.navigation_icons import NAV_ICON_MAP, get_nav_icon, normalize_nav_label
 from constants.roles import ROLE_MAHAJAN, ROLE_MANUFACTURER, ROLE_PENDING_USER, ROLE_PLATFORM_ADMIN, ROLE_PUBLIC_BUYER, ROLE_UNAUTHENTICATED, ROLE_WORKER
 
 NAV_ALIAS_MAP: dict[str, str] = {
@@ -74,13 +74,14 @@ def flatten_navigation_groups(groups: Iterable[tuple[str, list[str]]]) -> list[s
 
 
 def normalize_navigation_label(label: str) -> str:
-    return NAV_ALIAS_MAP.get(label, label)
+    aliased = NAV_ALIAS_MAP.get(label, label)
+    return normalize_nav_label(aliased)
 
 
 def icon_for_navigation_label(label: str) -> str:
-    return nav_icon_for(label)
+    return get_nav_icon(normalize_navigation_label(label))
 
 
 def navigation_icon_coverage() -> dict[str, str]:
     labels = [item for groups in ROLE_NAVIGATION_MAP.values() for item in flatten_navigation_groups(groups)]
-    return {label: NAV_ICON_MAP.get(label, "") for label in sorted(set(labels))}
+    return {label: icon_for_navigation_label(label) for label in sorted(set(labels))}

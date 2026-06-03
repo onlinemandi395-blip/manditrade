@@ -13,11 +13,13 @@ def render_icon_sidebar_group(group: str, items: list[str], *, selected: str) ->
     chosen: str | None = None
     for item in items:
         active = item == selected
+        button_label = format_icon_nav_label(item)
         if st.button(
-            format_icon_nav_label(item),
+            button_label,
             key=f"nav_icon_{item.lower().replace(' ', '_')}",
             use_container_width=True,
             type="primary" if active else "secondary",
+            help=item,
         ):
             chosen = item
     return chosen
