@@ -2,34 +2,34 @@ from __future__ import annotations
 
 
 NAV_ICON_MAP: dict[str, str] = {
-    "Dashboard": "[DB]",
-    "My Profile": "[ME]",
-    "Notifications": "[NT]",
-    "My Actions": "[AC]",
-    "Manufacturers": "[MF]",
-    "Mahajans": "[MJ]",
-    "Products": "[PD]",
-    "Product Approvals": "[PA]",
-    "Marketplace": "[MK]",
-    "Marketplace Orders": "[MO]",
-    "MandiPlace": "[MP]",
-    "Mandi Orders": "[MD]",
-    "Raw Materials": "[RM]",
-    "Supply Orders": "[SO]",
-    "Supply Requests": "[SR]",
-    "Suta Mandi": "[SM]",
-    "Payments": "[PY]",
-    "Ledger": "[LG]",
-    "Platform Commission": "[PC]",
-    "Jobs": "[JB]",
-    "System Health": "[SH]",
-    "Analytics": "[AN]",
-    "Operations Center": "[OC]",
-    "Finance Operations": "[FO]",
-    "Packaging Services": "[PK]",
-    "Courier Services": "[CR]",
-    "Logistics": "[LO]",
-    "Inventory": "[IV]",
+    "Dashboard": "\u2302",
+    "My Profile": "\U0001F464",
+    "Notifications": "\U0001F514",
+    "My Actions": "\u26A1",
+    "Manufacturers": "\U0001F3ED",
+    "Mahajans": "\U0001F33E",
+    "Products": "\U0001F4E6",
+    "Product Approvals": "\u2705",
+    "Marketplace": "\U0001F6D2",
+    "Marketplace Orders": "\U0001F4CB",
+    "MandiPlace": "\U0001F3EC",
+    "Mandi Orders": "\U0001F501",
+    "Raw Materials": "\U0001F9F1",
+    "Supply Orders": "\U0001F69A",
+    "Supply Requests": "\U0001F4DD",
+    "Suta Mandi": "\U0001F9F5",
+    "Payments": "\U0001F4B3",
+    "Ledger": "\U0001F4D2",
+    "Platform Commission": "\U0001F4B0",
+    "Jobs": "\U0001F6E0",
+    "System Health": "\U0001FA7A",
+    "Analytics": "\U0001F4CA",
+    "Operations Center": "\U0001F9ED",
+    "Finance Operations": "\U0001F3E6",
+    "Packaging Services": "\U0001F4E6",
+    "Courier Services": "\U0001F69B",
+    "Logistics": "\U0001F6E3",
+    "Inventory": "\U0001F4DA",
 }
 
 NAV_ICON_ALIASES: dict[str, str] = {
@@ -48,7 +48,7 @@ NAV_ICON_ALIASES: dict[str, str] = {
     "Platform Commision": "Platform Commission",
 }
 
-NAV_ICON_FALLBACK = "[--]"
+NAV_ICON_FALLBACK = "\u2022"
 
 
 def normalize_nav_label(label: str) -> str:
