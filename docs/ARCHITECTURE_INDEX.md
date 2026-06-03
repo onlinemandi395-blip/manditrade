@@ -33,6 +33,7 @@ Live RBAC no longer exposes `client`.
   - [services/drive_path_service.py](/c:/2026/manditrade/manditrade/services/drive_path_service.py)
 - admin canonical root orchestration now exists via:
   - [services/admin_drive_database_service.py](/c:/2026/manditrade/manditrade/services/admin_drive_database_service.py)
+- when admin runtime token + Drive API are available, Admin Drive DB validation/bootstrapping now checks the real Google Drive root instead of only local mirror folders
 - migration/cutover services:
   - [services/storage_migration_service.py](/c:/2026/manditrade/manditrade/services/storage_migration_service.py)
   - [services/storage_cutover_service.py](/c:/2026/manditrade/manditrade/services/storage_cutover_service.py)

@@ -331,11 +331,16 @@ def render_health_dashboard(app_context: dict) -> None:
         admin_drive_validation = latest_admin_drive_validation or admin_drive_database_service.validate_database_tree(persist=False)
         admin_drive_bootstrap = latest_admin_drive_bootstrap or {}
         canonical_readiness = "READY" if admin_drive_validation.get("status") == "PASS" and not admin_drive_validation.get("critical_errors") else "NOT READY"
+        admin_drive_runtime = admin_drive_validation.get("runtime", admin_drive_root)
         st.json(
             {
                 "root_folder_configured": bool(admin_drive_root.get("root_folder_name")),
                 "root_folder_name": admin_drive_root.get("root_folder_name", ""),
                 "root_folder_reachable": admin_drive_validation.get("root", {}).get("exists", False),
+                "runtime_backend": admin_drive_runtime.get("runtime_backend", ""),
+                "drive_api_requested": admin_drive_runtime.get("drive_api_requested", False),
+                "drive_api_ready": admin_drive_runtime.get("drive_api_ready", False),
+                "runtime_reason": admin_drive_runtime.get("reason", admin_drive_root.get("runtime_reason", "")),
                 "folder_tree_status": admin_drive_validation.get("status", "UNKNOWN"),
                 "required_json_status": "PASS" if not admin_drive_validation.get("bootstrap_files", {}).get("missing") else "REVIEW",
                 "storage_mode": storage_mode,

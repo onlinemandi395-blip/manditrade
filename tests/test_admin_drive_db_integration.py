@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 
 from services.admin_drive_database_service import AdminDriveDatabaseService
@@ -9,6 +10,108 @@ from services.json_service import JsonService
 from services.logging_service import LoggingService
 from services.safe_drive_write_service import SafeDriveWriteService
 from services.schema_validation_service import SchemaValidationService
+
+
+@dataclass
+class _FakeItem:
+    id: str
+    name: str
+    mimeType: str
+    parents: list[str]
+    trashed: bool = False
+
+
+class _FakeDriveExecute:
+    def __init__(self, payload):
+        self.payload = payload
+
+    def execute(self):
+        return self.payload
+
+
+class _FakeDriveFilesResource:
+    def __init__(self, store: dict[str, _FakeItem]) -> None:
+        self.store = store
+        self.counter = 1
+
+    def get(self, fileId: str, fields: str | None = None):
+        item = self.store[fileId]
+        return _FakeDriveExecute({"id": item.id, "name": item.name, "mimeType": item.mimeType, "parents": item.parents, "trashed": item.trashed})
+
+    def list(self, q: str, pageSize: int = 10, fields: str | None = None):
+        def _extract(field: str) -> str:
+            token = f"{field}='"
+            if token not in q:
+                return ""
+            return q.split(token, 1)[1].split("'", 1)[0]
+
+        name = _extract("name")
+        mime_type = _extract("mimeType")
+        parent_id = ""
+        if " in parents" in q:
+            parent_id = q.split("'", 1)[1].split("'", 1)[0]
+        matches = []
+        for item in self.store.values():
+            if item.trashed:
+                continue
+            if name and item.name != name:
+                continue
+            if mime_type and item.mimeType != mime_type:
+                continue
+            if parent_id and parent_id not in item.parents:
+                continue
+            matches.append({"id": item.id, "name": item.name, "mimeType": item.mimeType, "parents": item.parents})
+        return _FakeDriveExecute({"files": matches[:pageSize]})
+
+    def create(self, body: dict, media_body=None, fields: str | None = None):
+        item_id = f"fake-{self.counter}"
+        self.counter += 1
+        item = _FakeItem(
+            id=item_id,
+            name=body["name"],
+            mimeType=body.get("mimeType", "application/json"),
+            parents=list(body.get("parents", [])),
+        )
+        self.store[item_id] = item
+        return _FakeDriveExecute({"id": item.id, "name": item.name, "mimeType": item.mimeType, "parents": item.parents})
+
+
+class _FakeDriveClient:
+    def __init__(self) -> None:
+        self.store: dict[str, _FakeItem] = {}
+        self.files_resource = _FakeDriveFilesResource(self.store)
+
+    def files(self):
+        return self.files_resource
+
+
+class _FakeAuthService:
+    def refresh_credentials(self, payload):
+        return object()
+
+
+class _FakeSecurityService:
+    def __init__(self, *, token_ready: bool = True) -> None:
+        self.admin_token_file = Path("configs/admin_token.enc")
+        self._token_ready = token_ready
+
+    def admin_token_ready(self) -> bool:
+        return self._token_ready
+
+    def decrypt_refresh_token(self, source: Path | None = None) -> str:
+        return "refresh-token"
+
+    def build_runtime_credentials_payload(self, refresh_token: str, access_token: str = "", token_uri: str | None = None, client_id: str | None = None, client_secret: str | None = None) -> dict:
+        return {"refresh_token": refresh_token}
+
+
+class _FakeDriveService:
+    def __init__(self, client: _FakeDriveClient, *, use_drive_api: bool = True) -> None:
+        self.client = client
+        self.use_drive_api = use_drive_api
+
+    def build_drive_client(self, credentials):
+        return self.client
 
 
 def _build_service(tmp_path: Path, *, storage_mode: str = "compatibility") -> AdminDriveDatabaseService:
@@ -110,3 +213,33 @@ def test_system_health_contains_admin_drive_db_panel():
 
     assert "Admin Drive Database" in content
     assert "Validate Admin Drive DB" in content
+
+
+def test_drive_api_bootstrap_creates_runtime_folder_tree_and_json_refs(tmp_path):
+    client = _FakeDriveClient()
+    service = _build_service(tmp_path)
+    service.drive_service = _FakeDriveService(client)
+    service.auth_service = _FakeAuthService()
+    service.security_service = _FakeSecurityService(token_ready=True)
+
+    report = service.bootstrap(dry_run=False)
+
+    assert report["runtime"]["runtime_backend"] == "google_drive_api"
+    assert report["root"]["exists"] is True
+    assert report["root"]["root_folder_id"]
+    assert any(item["path"] == "00_config" and item["exists"] for item in report["folder_tree"]["folders"])
+    assert any(path.endswith("00_config/system_config.json") for path in report["bootstrap_files"]["created"])
+
+
+def test_drive_api_runtime_reports_missing_admin_token(tmp_path):
+    client = _FakeDriveClient()
+    service = _build_service(tmp_path)
+    service.drive_service = _FakeDriveService(client)
+    service.auth_service = _FakeAuthService()
+    service.security_service = _FakeSecurityService(token_ready=False)
+
+    report = service.validate_database_tree(persist=False)
+
+    assert report["runtime"]["drive_api_requested"] is True
+    assert report["runtime"]["drive_api_ready"] is False
+    assert "Admin runtime token" in report["runtime"]["reason"]

@@ -1,6 +1,6 @@
 # MandiTrade Checker Reference
 
-Generated from the current repository state on 2026-06-03 after the Admin Drive database integration pass.
+Generated from the current repository state on 2026-06-03 after the Admin Drive runtime wiring pass.
 
 ## Final Role Model
 
@@ -34,6 +34,8 @@ Generated from the current repository state on 2026-06-03 after the Admin Drive 
   - [services/admin_drive_database_service.py](/c:/2026/manditrade/manditrade/services/admin_drive_database_service.py)
 - Current behavior includes:
   - root resolution from Streamlit secrets or system config
+  - runtime backend detection for `google_drive_api` vs local canonical mirror
+  - admin-token-backed Google Drive root and folder-tree validation when runtime hooks are ready
   - canonical `MANDITRADE_DB` folder-tree bootstrap
   - required JSON envelope bootstrap
   - validation reporting

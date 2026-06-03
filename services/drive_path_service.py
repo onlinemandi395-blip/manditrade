@@ -62,29 +62,34 @@ class DrivePathService:
 
     def ensure_canonical_structure(self) -> Path:
         root = self.ensure_root()
-        for folder in self.FOLDER_TREE.values():
-            (root / folder).mkdir(parents=True, exist_ok=True)
-        for folder in [
-            Path(self._folder("finance")) / "transactions",
-            Path(self._folder("finance")) / "payments",
-            Path(self._folder("finance")) / "invoices",
-            Path(self._folder("finance")) / "ledgers",
-            Path(self._folder("finance")) / "commissions",
-            Path(self._folder("finance")) / "disputes",
-            Path(self._folder("notifications")) / "in_app",
-            Path(self._folder("notifications")) / "email_queue",
-            Path(self._folder("notifications")) / "email_history",
-            Path(self._folder("notifications")) / "dead_letter",
-            Path(self._folder("analytics")) / "snapshots",
-            Path(self._folder("media")) / "products",
-            Path(self._folder("media")) / "raw_materials",
-            Path(self._folder("media")) / "payment_proofs",
-            Path(self._folder("media")) / "delivery_proofs",
-            Path(self._folder("media")) / "job_images",
-            Path(self._folder("media")) / "profile_images",
-        ]:
+        for folder in self.canonical_relative_folders():
             (root / folder).mkdir(parents=True, exist_ok=True)
         return root
+
+    def canonical_relative_folders(self) -> list[Path]:
+        folders = [Path(folder) for folder in self.FOLDER_TREE.values()]
+        folders.extend(
+            [
+                Path(self._folder("finance")) / "transactions",
+                Path(self._folder("finance")) / "payments",
+                Path(self._folder("finance")) / "invoices",
+                Path(self._folder("finance")) / "ledgers",
+                Path(self._folder("finance")) / "commissions",
+                Path(self._folder("finance")) / "disputes",
+                Path(self._folder("notifications")) / "in_app",
+                Path(self._folder("notifications")) / "email_queue",
+                Path(self._folder("notifications")) / "email_history",
+                Path(self._folder("notifications")) / "dead_letter",
+                Path(self._folder("analytics")) / "snapshots",
+                Path(self._folder("media")) / "products",
+                Path(self._folder("media")) / "raw_materials",
+                Path(self._folder("media")) / "payment_proofs",
+                Path(self._folder("media")) / "delivery_proofs",
+                Path(self._folder("media")) / "job_images",
+                Path(self._folder("media")) / "profile_images",
+            ]
+        )
+        return folders
 
     def current_year_month(self) -> str:
         return datetime.now(UTC).strftime("%Y-%m")

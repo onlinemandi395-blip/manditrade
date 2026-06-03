@@ -232,6 +232,10 @@ def build_app_context() -> dict:
         runtime_root=APP_RUNTIME_DIR,
         system_config=system_config,
         secret_overrides={"google_drive": google_drive_secret_overrides},
+        drive_service=drive_service,
+        security_service=security_service,
+        auth_service=auth_service,
+        logging_service=logging_service,
     )
     gmail_service.drive_path_service = drive_path_service
     gmail_service.queue_path = drive_path_service.get_notification_path("email_queue")
