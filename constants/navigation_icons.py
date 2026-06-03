@@ -2,34 +2,34 @@ from __future__ import annotations
 
 
 NAV_ICON_MAP: dict[str, str] = {
-    "Dashboard": "⌂",
-    "My Profile": "👤",
-    "Notifications": "🔔",
-    "My Actions": "⚡",
-    "Manufacturers": "🏭",
-    "Mahajans": "🌾",
-    "Products": "📦",
-    "Product Approvals": "✅",
-    "Marketplace": "🛒",
-    "Marketplace Orders": "📋",
-    "MandiPlace": "🏬",
-    "Mandi Orders": "🔁",
-    "Raw Materials": "🧱",
-    "Supply Orders": "🚚",
-    "Supply Requests": "📝",
-    "Suta Mandi": "🧵",
-    "Payments": "💳",
-    "Ledger": "📒",
-    "Platform Commission": "💰",
-    "Jobs": "🛠",
-    "System Health": "🩺",
-    "Analytics": "📊",
-    "Operations Center": "🧭",
-    "Finance Operations": "🏦",
-    "Packaging Services": "📦",
-    "Courier Services": "🚛",
-    "Logistics": "🛣",
-    "Inventory": "📚",
+    "Dashboard": "[DB]",
+    "My Profile": "[ME]",
+    "Notifications": "[NT]",
+    "My Actions": "[AC]",
+    "Manufacturers": "[MF]",
+    "Mahajans": "[MJ]",
+    "Products": "[PD]",
+    "Product Approvals": "[PA]",
+    "Marketplace": "[MK]",
+    "Marketplace Orders": "[MO]",
+    "MandiPlace": "[MP]",
+    "Mandi Orders": "[MD]",
+    "Raw Materials": "[RM]",
+    "Supply Orders": "[SO]",
+    "Supply Requests": "[SR]",
+    "Suta Mandi": "[SM]",
+    "Payments": "[PY]",
+    "Ledger": "[LG]",
+    "Platform Commission": "[PC]",
+    "Jobs": "[JB]",
+    "System Health": "[SH]",
+    "Analytics": "[AN]",
+    "Operations Center": "[OC]",
+    "Finance Operations": "[FO]",
+    "Packaging Services": "[PK]",
+    "Courier Services": "[CR]",
+    "Logistics": "[LO]",
+    "Inventory": "[IV]",
 }
 
 NAV_ICON_ALIASES: dict[str, str] = {
@@ -48,7 +48,7 @@ NAV_ICON_ALIASES: dict[str, str] = {
     "Platform Commision": "Platform Commission",
 }
 
-NAV_ICON_FALLBACK = "•"
+NAV_ICON_FALLBACK = "[--]"
 
 
 def normalize_nav_label(label: str) -> str:
