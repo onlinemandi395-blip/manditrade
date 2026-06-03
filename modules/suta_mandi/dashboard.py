@@ -4,12 +4,12 @@ from typing import Any
 
 import streamlit as st
 
+from components.data_grid import render_data_grid
 from components.filter_bar import render_filter_bar
+from components.kpi_cards import render_kpi_cards
+from components.platform_shell import render_platform_shell
 from components.product_card import render_product_card
 from components.responsive_layout import render_section_intro
-from components.three_d_cards import render_metric_grid
-from components.ui_shell import render_metric_card, render_page_header
-from utils.export_utils import export_rows_to_csv_bytes, export_rows_to_json_bytes
 from utils.page_ui import render_empty_state
 from utils.page_ui import render_metric_button_row
 
@@ -30,10 +30,14 @@ def render_suta_mandi_dashboard(app_context: dict) -> None:
     procurement_service = app_context["procurement_transaction_service"]
     page_key = "suta_mandi"
 
-    render_page_header(
-        "Suta Mandi",
-        "Manufacturer-only suta purchasing market curated by admin and supplied through mahajans. This is a raw-material buying surface, not a finished-product market.",
-        ["Manufacturer Only", "Admin Curated", "Mahajan Supplied"],
+    render_platform_shell(
+        title="Suta Mandi",
+        subtitle="Manufacturer-only suta purchasing market curated by admin and supplied through mahajans. This is a raw-material buying surface, not a finished-product market.",
+        badges=["Manufacturer Only", "Admin Curated", "Mahajan Supplied"],
+        role=user.role.replace("_", " ").title() if user else "Restricted",
+        metrics=[("Suta Types", "Curated"), ("Flow", "Admin routed")],
+        breadcrumbs=["Workspace", "Supply", "Suta Mandi"],
+        primary_actions=["Request Suta"],
     )
     if not user or user.role not in {"manufacturer", "admin_as_manufacturer"}:
         st.info("Suta Mandi is available only in manufacturer workspace context.")
@@ -49,12 +53,12 @@ def render_suta_mandi_dashboard(app_context: dict) -> None:
     cart_service = app_context.get("cart_service")
     image_service = app_context.get("image_service")
 
-    render_metric_grid(
+    render_kpi_cards(
         [
-            render_metric_card("Suta Types", str(len(suta_materials)), "SUCCESS"),
-            render_metric_card("Open Requests", str(len([item for item in suta_orders if item.get("status") not in {'CLOSED', 'CANCELLED', 'MANUFACTURER_RECEIVED'}])), "PENDING"),
-            render_metric_card("Awaiting Quote", str(len([item for item in suta_orders if item.get("status") == 'SENT_TO_MAHAJAN'])), "OPEN"),
-            render_metric_card("Price Ready", str(len([item for item in suta_orders if item.get("status") == 'ADMIN_PRICE_SET'])), "WARNING"),
+            {"label": "Suta Types", "value": str(len(suta_materials)), "status": "SUCCESS"},
+            {"label": "Open Requests", "value": str(len([item for item in suta_orders if item.get("status") not in {'CLOSED', 'CANCELLED', 'MANUFACTURER_RECEIVED'}])), "status": "PENDING"},
+            {"label": "Awaiting Quote", "value": str(len([item for item in suta_orders if item.get("status") == 'SENT_TO_MAHAJAN'])), "status": "OPEN"},
+            {"label": "Price Ready", "value": str(len([item for item in suta_orders if item.get("status") == 'ADMIN_PRICE_SET'])), "status": "WARNING"},
         ]
     )
     render_metric_button_row(
@@ -73,7 +77,14 @@ def render_suta_mandi_dashboard(app_context: dict) -> None:
             "Manufacturers can browse suta varieties here and raise admin-managed mandi requests. Mahajans supply the raw material, while admin controls routing and pricing.",
         )
         if suta_materials:
-            st.dataframe(suta_materials, use_container_width=True)
+            render_data_grid(
+                page_key="suta_overview",
+                rows=suta_materials,
+                search_fields=["raw_material_id", "name", "mahajan_id", "category"],
+                status_field="status",
+                price_field="supply_price",
+                search_placeholder="Search suta by ID, name, or mahajan",
+            )
         else:
             render_empty_state("No suta materials are listed yet.")
     with catalog_tab:
@@ -122,10 +133,14 @@ def render_suta_mandi_dashboard(app_context: dict) -> None:
                             )
                             st.success("Added to Suta Mandi request cart.")
                             st.rerun()
-            csv_col, json_col = st.columns(2)
-            csv_col.download_button("Export CSV", export_rows_to_csv_bytes(filtered_rows), file_name="suta-mandi.csv", mime="text/csv", use_container_width=True)
-            json_col.download_button("Export JSON", export_rows_to_json_bytes(filtered_rows), file_name="suta-mandi.json", mime="application/json", use_container_width=True)
-            st.dataframe(filtered_rows, use_container_width=True)
+            render_data_grid(
+                page_key="suta_catalog_grid",
+                rows=filtered_rows,
+                search_fields=["raw_material_id", "name", "mahajan_id"],
+                status_field="status",
+                price_field="supply_price",
+                search_placeholder="Search suta by ID, name, or mahajan",
+            )
     with request_tab:
         request_cart = cart_service.get_cart("manufacturer", user.manufacturer_code or "", "SUTA_MANDI") if cart_service else {"items": []}
         if not suta_materials:
@@ -168,6 +183,13 @@ def render_suta_mandi_dashboard(app_context: dict) -> None:
     with orders_tab:
         render_section_intro("My Suta Orders", "Only your manufacturer suta orders appear here. Final supply still moves through admin-managed mandi flow.")
         if suta_orders:
-            st.dataframe(suta_orders, use_container_width=True)
+            render_data_grid(
+                page_key="suta_orders_grid",
+                rows=suta_orders,
+                search_fields=["supply_order_id", "raw_material_id", "manufacturer_code", "mahajan_id"],
+                status_field="status",
+                date_field="updated_at",
+                search_placeholder="Search by order, material, or mahajan",
+            )
         else:
             render_empty_state("No suta mandi orders found for this manufacturer yet.")

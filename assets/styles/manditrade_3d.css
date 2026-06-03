@@ -33,6 +33,7 @@ body,
     radial-gradient(circle at 72% 68%, rgba(56, 189, 248, 0.10), transparent 24%),
     linear-gradient(180deg, #08131f 0%, #07111d 26%, #09121d 52%, #060d14 100%);
   overflow-x: hidden;
+  overflow-y: visible;
 }
 
 .stApp::before {
@@ -126,7 +127,8 @@ body,
 .stSidebar > div:first-child {
   background: transparent;
   position: relative;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding-left: 10px;
   padding-right: 10px;
 }
@@ -334,8 +336,7 @@ textarea:focus-visible {
 }
 
 .stDataFrame,
-.stExpander,
-div[data-testid="stForm"] {
+.stExpander {
   border-radius: var(--radius-lg);
   overflow: hidden;
 }
@@ -345,6 +346,7 @@ div[data-testid="stForm"] {
   border: 1px solid rgba(255,255,255,0.09);
   background: linear-gradient(180deg, rgba(10, 20, 34, 0.72), rgba(9, 18, 31, 0.62));
   box-shadow: var(--shadow-soft);
+  overflow: visible;
 }
 
 .stDataFrame {
@@ -410,6 +412,8 @@ div[data-baseweb="tab-border"] {
 
 .mt-shell {
   position: relative;
+  min-height: 100vh;
+  min-width: 0;
 }
 
 .mt-shell::before {
@@ -528,6 +532,7 @@ div[data-baseweb="tab-border"] {
   padding: 32px 28px;
   margin-bottom: 18px;
   min-height: 220px;
+  height: auto;
 }
 
 .mt-hero-panel {

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from components.data_grid import render_data_grid
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
 from components.ui_shell import render_metric_card, render_page_header, render_showcase_strip
@@ -61,6 +62,7 @@ def render_health_dashboard(app_context: dict) -> None:
     connected_accounts_summary = app_context["connected_accounts_service"].summarize_connections(
         [item.get("manufacturer_code", "") for item in app_context["governance_service"].list_manufacturers() if item.get("manufacturer_code")]
     )
+    reliability_rows = _build_reliability_rows(app_context, lock_files)
     overview_tab, diagnostics_tab, recovery_tab, migration_tab, events_tab = st.tabs(["Overview", "Diagnostics", "Recovery", "Migration", "Events"])
     with overview_tab:
         st.json(deployment_snapshot)
@@ -79,6 +81,14 @@ def render_health_dashboard(app_context: dict) -> None:
         st.json(connected_accounts_summary)
         st.markdown("### Gmail Runtime Delivery")
         st.info("User-facing Gmail queues are disabled. Notification emails are triggered immediately from the active runtime session.")
+        st.markdown("### Operational Reliability")
+        render_data_grid(
+            page_key="health_reliability",
+            rows=reliability_rows,
+            search_fields=["metric", "status", "detail"],
+            status_field="status",
+            search_placeholder="Search reliability metrics",
+        )
 
     current_user = app_context["current_user"]
     session_user = app_context.get("session_user") or current_user
@@ -279,3 +289,18 @@ def render_health_dashboard(app_context: dict) -> None:
                 except Exception:
                     continue
         st.dataframe(stress_rows, use_container_width=True)
+
+
+def _build_reliability_rows(app_context: dict, lock_files: list) -> list[dict]:
+    queue_count = len(app_context["gmail_service"].read_queue())
+    dead_letters = app_context["dead_letter_service"].list_entries(limit=100)
+    failed_notifications = len([item for item in dead_letters if "gmail" in str(item).lower() or "notification" in str(item).lower()])
+    failed_tasks = len([item for item in dead_letters if "task" in str(item).lower() or "export" in str(item).lower()])
+    storage_warnings = len(app_context.get("startup_warnings", []))
+    return [
+        {"metric": "Failed Task Count", "value": failed_tasks, "status": "WARNING" if failed_tasks else "SUCCESS", "detail": "Dead-letter task/export failures"},
+        {"metric": "Retry Queue Count", "value": queue_count, "status": "WARNING" if queue_count else "SUCCESS", "detail": "Queued Gmail notifications pending processing"},
+        {"metric": "Notification Failures", "value": failed_notifications, "status": "WARNING" if failed_notifications else "SUCCESS", "detail": "Dead-letter notification and Gmail failures"},
+        {"metric": "Stale Locks", "value": len(lock_files), "status": "WARNING" if lock_files else "SUCCESS", "detail": "Runtime lock files present"},
+        {"metric": "Storage Warnings", "value": storage_warnings, "status": "WARNING" if storage_warnings else "SUCCESS", "detail": "Startup and storage warning count"},
+    ]

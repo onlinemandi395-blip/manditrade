@@ -23,6 +23,34 @@ This file is the current reference for the shared platform shell and UI composit
   - metrics
   - action chips
 
+### Height Model
+
+- app shell should honor viewport height with `min-height: 100vh`
+- main app column should remain `height: auto`
+- no page should depend on brittle fixed-height wrappers for normal content flow
+
+### Scrolling Model
+
+- the primary app column owns vertical growth
+- forms, grids, and page sections should prefer natural height
+- nested scrollbars should be avoided unless a component truly requires an isolated scroller
+
+### Sidebar State Model
+
+- navigation should preserve the active route
+- transient sidebar UI should reset on:
+  - route change
+  - role/context switch
+  - logout
+  - deep-link redirect
+- this lifecycle is centralized through `collapse_transient_sidebar_state()` in `services/session_state_service.py`
+
+### Responsive Behavior Rules
+
+- desktop keeps sidebar stable while content grows independently
+- tablet/mobile should not trap users inside double-scroll layouts
+- sidebar overlays and temporary sidebar states should collapse on navigation
+
 Recommended page structure:
 
 1. platform shell
@@ -81,7 +109,7 @@ The existing 3D stylesheet remains the richer visual layer, while tokens define 
 - gradients and glow are allowed, but should support operational clarity first
 - tokens hold base values, feature CSS holds page-specific expression
 
-## Current First-Adoption Pages
+## Current Adoption Pages
 
 - `Operations Center`
 - `Finance Operations`
@@ -90,6 +118,28 @@ The existing 3D stylesheet remains the richer visual layer, while tokens define 
 - `Marketplace Orders`
 - `Mandi Orders / Procurement`
 - `Analytics`
+- `Marketplace`
+- `Raw Materials`
+- `Suta Mandi`
+- `Logistics`
+- `Public Access / Login`
+
+## Audit Reference
+
+- `docs/UI_CONSISTENCY_AUDIT.md`
+  - tracks `MIGRATED`, `PARTIAL`, `LEGACY_UI`, and `SKIP_FOR_NOW`
+  - keeps second-wave rollout incremental instead of forcing a one-shot UI rewrite
+
+## Production Experience Layer
+
+- `components/command_palette.py`
+  - global navigation and search launcher
+- `components/toast_manager.py`
+  - unified feedback surface
+- `components/error_boundary.py`
+  - shared operator-safe failure surface
+- `docs/PRODUCTION_EXPERIENCE.md`
+  - operating model for productivity, recovery, and reliability UX
 
 ## Incremental Adoption Rule
 

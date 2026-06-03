@@ -29,6 +29,7 @@ def activate_deep_link(target: dict[str, Any]) -> None:
     route = str(target.get("route") or "Notifications")
     source_id = str(target.get("source_id") or "").strip()
     source_type = str(target.get("source_type") or "").strip().upper()
+    _SESSION_STATE.collapse_transient_sidebar_state()
     _SESSION_STATE.set_navigation(route)
     if route == "Marketplace Orders" and source_id:
         st.session_state["deep_link::marketplace_orders"] = source_id

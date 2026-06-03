@@ -11,6 +11,10 @@ def test_codebase_health_report_builds():
     assert "oversized_files" in report
     assert "duplicate_route_names" in report
     assert "hardcoded_role_string_files" in report
+    assert "raw_large_html_card_candidates" in report
+    assert "direct_inline_color_style_candidates" in report
+    assert "raw_feedback_banner_candidates" in report
+    assert "duplicate_search_bar_candidates" in report
 
 
 def test_codebase_health_script_writes_latest_report():

@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import streamlit as st
 
+from components.data_grid import render_data_grid
+from components.entity_form import render_entity_form
 from components.filter_bar import render_filter_bar
+from components.kpi_cards import render_kpi_cards
+from components.platform_shell import render_platform_shell
 from components.product_card import render_product_card
 from components.responsive_layout import render_section_intro
-from components.three_d_cards import render_metric_grid
-from components.ui_shell import render_metric_card, render_page_header
-from utils.export_utils import export_rows_to_csv_bytes, export_rows_to_json_bytes
 from utils.page_ui import render_empty_state
 
 
@@ -20,16 +21,20 @@ def render_raw_materials_dashboard(app_context: dict) -> None:
     supply_orders = app_context["procurement_transaction_service"].list_supply_orders(mahajan_id=(mahajan or {}).get("mahajan_id")) if user and user.role == "mahajan" else app_context["procurement_transaction_service"].list_supply_orders()
     image_service = app_context.get("image_service")
 
-    render_page_header(
-        "Raw Materials",
-        "Manage raw-material supply in the admin-controlled mandi channel. This page is for supply inputs, not finished products.",
-        ["Supply Network", user.role.replace("_", " ").title() if user else "Role"],
+    render_platform_shell(
+        title="Raw Materials",
+        subtitle="Manage raw-material supply in the admin-controlled mandi channel. This page is for supply inputs, not finished products.",
+        badges=["Supply Network", user.role.replace("_", " ").title() if user else "Role"],
+        role=user.role.replace("_", " ").title() if user else "Supply View",
+        metrics=[("Catalog", str(len(materials))), ("Open Supply Orders", str(len(supply_orders)))],
+        breadcrumbs=["Workspace", "Supply", "Raw Materials"],
+        primary_actions=["Add Raw Material" if user and user.role in {"platform_admin", "mahajan"} else "Review Supply"],
     )
-    render_metric_grid(
+    render_kpi_cards(
         [
-            render_metric_card("Active Raw Materials", str(len([item for item in materials if item.get("status") == "ACTIVE"])), "SUCCESS"),
-            render_metric_card("Low Stock", str(len([item for item in materials if int(item.get("available_qty", 0) or 0) <= 10])), "WARNING"),
-            render_metric_card("Open Admin Requests", str(len([item for item in supply_orders if item.get("status") not in {'CLOSED', 'CANCELLED'}])), "PENDING"),
+            {"label": "Active Raw Materials", "value": str(len([item for item in materials if item.get("status") == "ACTIVE"])), "status": "SUCCESS"},
+            {"label": "Low Stock", "value": str(len([item for item in materials if int(item.get("available_qty", 0) or 0) <= 10])), "status": "WARNING"},
+            {"label": "Open Admin Requests", "value": str(len([item for item in supply_orders if item.get("status") not in {'CLOSED', 'CANCELLED'}])), "status": "PENDING"},
         ]
     )
     overview_tab, catalog_tab, add_tab, activity_tab = st.tabs(["Overview", "Catalog", "Add Raw Material", "Activity"])
@@ -64,20 +69,33 @@ def render_raw_materials_dashboard(app_context: dict) -> None:
                         action_key=f"raw_material_preview_{item.get('raw_material_id', index)}",
                     )
         if filtered_materials:
-            csv_col, json_col = st.columns(2)
-            csv_col.download_button("Export CSV", export_rows_to_csv_bytes(filtered_materials), file_name="raw-materials.csv", mime="text/csv", use_container_width=True)
-            json_col.download_button("Export JSON", export_rows_to_json_bytes(filtered_materials), file_name="raw-materials.json", mime="application/json", use_container_width=True)
-            st.dataframe(filtered_materials, use_container_width=True)
+            render_data_grid(
+                page_key="raw_materials_catalog",
+                rows=filtered_materials,
+                search_fields=["raw_material_id", "name", "mahajan_id", "category"],
+                status_field="status",
+                date_field="updated_at",
+                price_field="supply_price",
+                search_placeholder="Search by raw material ID, name, or mahajan",
+            )
         else:
             render_empty_state("No Raw Materials Added")
     with catalog_tab:
         if materials:
-            st.dataframe(materials, use_container_width=True)
+            render_data_grid(
+                page_key="raw_materials_registry",
+                rows=materials,
+                search_fields=["raw_material_id", "name", "mahajan_id", "category"],
+                status_field="status",
+                date_field="updated_at",
+                price_field="supply_price",
+                search_placeholder="Search by raw material ID, name, or mahajan",
+            )
         else:
             render_empty_state("No Raw Materials Added")
     with add_tab:
         owner_id = (mahajan or {}).get("mahajan_id", "")
-        with st.form("raw_material_form"):
+        with render_entity_form("raw_material_form", title="Create Raw Material"):
             raw_material_id = st.text_input("Raw Material ID", value=f"RM{len(materials) + 1:03d}")
             name = st.text_input("Name")
             if user and user.role == "platform_admin":
@@ -117,6 +135,13 @@ def render_raw_materials_dashboard(app_context: dict) -> None:
     with activity_tab:
         st.caption("Supply activity only. Finished product orders and catalog selling stay outside this page.")
         if supply_orders:
-            st.dataframe(supply_orders, use_container_width=True)
+            render_data_grid(
+                page_key="raw_material_supply_activity",
+                rows=supply_orders,
+                search_fields=["supply_order_id", "mahajan_id", "manufacturer_code", "raw_material_id"],
+                status_field="status",
+                date_field="updated_at",
+                search_placeholder="Search by supply order, mahajan, or material ID",
+            )
         else:
             render_empty_state("No Active Supply Requests")

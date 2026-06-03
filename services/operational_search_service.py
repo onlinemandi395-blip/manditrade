@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
 
@@ -18,8 +19,10 @@ class OperationalSearchService:
             return []
         indexed = self._search_index(query)
         if indexed:
-            return indexed
-        return self._build_records(app_context, normalized)[:25]
+            results = indexed
+        else:
+            results = self._build_records(app_context, normalized)
+        return self._rank_results(results, normalized)[:25]
 
     def _build_records(self, app_context: dict, normalized: str = "") -> list[dict[str, Any]]:
         results: list[dict[str, Any]] = []
@@ -42,6 +45,24 @@ class OperationalSearchService:
         for order in app_context["public_order_service"].list_all_orders():
             if not normalized or normalized in str(order.get("public_order_id", "")).lower():
                 results.append({"label": order.get("public_order_id", ""), "entity_type": "public_order", "entity_id": order.get("public_order_id", ""), "target": build_deep_link_target("PUBLIC_ORDER", order.get("public_order_id", ""))})
+        settlement_service = app_context.get("settlement_service")
+        if settlement_service:
+            for transaction in settlement_service.list_transactions():
+                if not normalized or normalized in str(transaction.get("financial_transaction_id", "")).lower():
+                    results.append({"label": transaction.get("financial_transaction_id", ""), "entity_type": "financial_transaction", "entity_id": transaction.get("financial_transaction_id", ""), "target": {"route": "Finance Operations", "source_id": transaction.get("financial_transaction_id", "")}})
+        invoice_service = app_context.get("invoice_service")
+        if invoice_service:
+            for invoice in invoice_service.list_invoices():
+                if not normalized or normalized in str(invoice.get("invoice_id", "")).lower():
+                    results.append({"label": invoice.get("invoice_id", ""), "entity_type": "invoice", "entity_id": invoice.get("invoice_id", ""), "target": {"route": "Finance Operations", "source_id": invoice.get("invoice_id", "")}})
+        for dispute in governance.list_disputes():
+            if not normalized or normalized in str(dispute.get("dispute_id", "")).lower():
+                results.append({"label": dispute.get("dispute_id", ""), "entity_type": "dispute", "entity_id": dispute.get("dispute_id", ""), "target": {"route": "Finance Operations", "source_id": dispute.get("dispute_id", "")}})
+        procurement_service = app_context.get("procurement_transaction_service")
+        if procurement_service:
+            for logistics in procurement_service.list_mandiplace_orders():
+                if not normalized or normalized in str(logistics.get("mandiplace_order_id", "")).lower():
+                    results.append({"label": logistics.get("mandiplace_order_id", ""), "entity_type": "logistics", "entity_id": logistics.get("mandiplace_order_id", ""), "target": {"route": "Logistics", "source_id": logistics.get("mandiplace_order_id", "")}})
         for manufacturer in governance.list_manufacturers():
             for entry in app_context["ledger_service"].list_ledger_entries(manufacturer.get("manufacturer_code", "")):
                 if not normalized or normalized in str(entry.get("entry_id", "")).lower():
@@ -66,3 +87,22 @@ class OperationalSearchService:
             or normalized in str(item.get("entity_id", "")).lower()
             or normalized in str(item.get("entity_type", "")).lower()
         ][:25]
+
+    def _rank_results(self, results: list[dict[str, Any]], normalized: str) -> list[dict[str, Any]]:
+        def score(item: dict[str, Any]) -> float:
+            haystacks = [
+                str(item.get("label", "")).lower(),
+                str(item.get("entity_id", "")).lower(),
+                str(item.get("entity_type", "")).lower(),
+            ]
+            base = 0.0
+            for value in haystacks:
+                if value == normalized:
+                    base = max(base, 100.0)
+                elif normalized in value:
+                    base = max(base, 70.0)
+                else:
+                    base = max(base, SequenceMatcher(None, normalized, value).ratio() * 50.0)
+            return base
+
+        return sorted(results, key=score, reverse=True)

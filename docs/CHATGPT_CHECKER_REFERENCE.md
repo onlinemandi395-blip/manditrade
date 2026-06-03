@@ -1,6 +1,6 @@
 # MandiTrade Checker Reference
 
-Generated from the current repository state on 2026-06-03 after the platform shell and design-system consolidation pass.
+Generated from the current repository state on 2026-06-03 after the production experience hardening phase 1 pass.
 
 ## Final Role Model
 
@@ -762,6 +762,135 @@ Generated from the current repository state on 2026-06-03 after the platform she
   - [modules/public_orders/dashboard.py](/c:/2026/manditrade/manditrade/modules/public_orders/dashboard.py)
   - [modules/payments/dashboard.py](/c:/2026/manditrade/manditrade/modules/payments/dashboard.py)
   - [modules/analytics/dashboard.py](/c:/2026/manditrade/manditrade/modules/analytics/dashboard.py)
+- Second-wave partial adoption is now live on:
+  - [modules/marketplace/dashboard.py](/c:/2026/manditrade/manditrade/modules/marketplace/dashboard.py)
+  - [modules/raw_materials/dashboard.py](/c:/2026/manditrade/manditrade/modules/raw_materials/dashboard.py)
+  - [modules/suta_mandi/dashboard.py](/c:/2026/manditrade/manditrade/modules/suta_mandi/dashboard.py)
+  - [modules/logistics/dashboard.py](/c:/2026/manditrade/manditrade/modules/logistics/dashboard.py)
+  - [modules/access/dashboard.py](/c:/2026/manditrade/manditrade/modules/access/dashboard.py)
+
+## Shell Height Status
+
+- Viewport-oriented shell height rules now live in:
+  - [assets/styles/design_tokens.css](/c:/2026/manditrade/manditrade/assets/styles/design_tokens.css)
+  - [assets/styles/manditrade_3d.css](/c:/2026/manditrade/manditrade/assets/styles/manditrade_3d.css)
+- Current shell-height model now enforces:
+  - `min-height: 100vh` for the main app shell
+  - dynamic main-column height
+  - visible overflow for long content surfaces
+  - reduced nested clipping around Streamlit forms and containers
+
+## Sidebar State Status
+
+- Transient sidebar lifecycle is now centralized in:
+  - [services/session_state_service.py](/c:/2026/manditrade/manditrade/services/session_state_service.py)
+- Shared helper:
+  - `collapse_transient_sidebar_state()`
+- Current auto-collapse triggers now include:
+  - route change via sidebar navigation
+  - role/context switch
+  - logout
+  - deep-link redirect
+- Main wiring is in:
+  - [bootstrap/app_bootstrap.py](/c:/2026/manditrade/manditrade/bootstrap/app_bootstrap.py)
+  - [utils/deep_links.py](/c:/2026/manditrade/manditrade/utils/deep_links.py)
+
+## Scrolling Model Status
+
+- Current scroll ownership is intentionally simplified toward:
+  - single primary app-column vertical growth
+  - less clipping inside forms
+  - less nested overflow conflict between shell surfaces and Streamlit containers
+- Form/container behavior was tightened in:
+  - [components/entity_form.py](/c:/2026/manditrade/manditrade/components/entity_form.py)
+  - [assets/styles/design_tokens.css](/c:/2026/manditrade/manditrade/assets/styles/design_tokens.css)
+  - [assets/styles/manditrade_3d.css](/c:/2026/manditrade/manditrade/assets/styles/manditrade_3d.css)
+
+## Command Palette Status
+
+- Global command launcher now exists in:
+  - [components/command_palette.py](/c:/2026/manditrade/manditrade/components/command_palette.py)
+- Current support includes:
+  - route search
+  - operational record search
+  - recent search memory
+  - keyboard hint for `Ctrl/Cmd + K`
+- Current bootstrap integration is in:
+  - [bootstrap/app_bootstrap.py](/c:/2026/manditrade/manditrade/bootstrap/app_bootstrap.py)
+
+## Search Experience Status
+
+- Operational search now supports broader production lookups through:
+  - [services/operational_search_service.py](/c:/2026/manditrade/manditrade/services/operational_search_service.py)
+- Current indexed and runtime targets now include:
+  - orders
+  - products
+  - manufacturers
+  - mahajans
+  - payments / financial transactions
+  - invoices
+  - disputes
+  - logistics
+- Current matching now includes:
+  - exact match
+  - partial match
+  - lightweight fuzzy ranking
+
+## Toast Feedback Status
+
+- Shared toast queue now exists in:
+  - [components/toast_manager.py](/c:/2026/manditrade/manditrade/components/toast_manager.py)
+- Current runtime adoption includes:
+  - flash-message rendering in [bootstrap/app_bootstrap.py](/c:/2026/manditrade/manditrade/bootstrap/app_bootstrap.py)
+  - warning feedback for unsaved navigation/logout protection
+- This pass establishes the shared feedback layer without forcing a one-shot replacement of all existing banners.
+
+## Unsaved Changes Status
+
+- Scoped unsaved-change tracking now exists in:
+  - [services/session_state_service.py](/c:/2026/manditrade/manditrade/services/session_state_service.py)
+  - [components/entity_form.py](/c:/2026/manditrade/manditrade/components/entity_form.py)
+- Current protection is intentionally conservative and currently supports:
+  - dirty-form registration in shared entity forms
+  - warning on route change
+  - warning on logout
+- This is a scoped guard rather than a fragile universal interceptor.
+
+## Error Boundary Status
+
+- Shared operator-safe render wrapper now exists in:
+  - [components/error_boundary.py](/c:/2026/manditrade/manditrade/components/error_boundary.py)
+- Current app-level route rendering now uses it in:
+  - [bootstrap/app_bootstrap.py](/c:/2026/manditrade/manditrade/bootstrap/app_bootstrap.py)
+- Current recovery surface includes:
+  - friendly failure message
+  - retry button
+  - expandable details
+  - logging hook support
+
+## Reliability Dashboard Status
+
+- System Health now exposes an `Operational Reliability` summary in:
+  - [modules/system/health_dashboard.py](/c:/2026/manditrade/manditrade/modules/system/health_dashboard.py)
+- Current reliability signals include:
+  - failed task count
+  - retry queue count
+  - notification failures
+  - stale locks
+  - storage warnings
+
+## Production Experience Docs Status
+
+- Production-experience operating model now exists in:
+  - [docs/PRODUCTION_EXPERIENCE.md](/c:/2026/manditrade/manditrade/docs/PRODUCTION_EXPERIENCE.md)
+- Current coverage includes:
+  - command palette
+  - search model
+  - toast model
+  - unsaved changes model
+  - recovery UX
+  - reliability model
+  - guardrails
 
 ## Design System Status
 
@@ -787,6 +916,10 @@ Generated from the current repository state on 2026-06-03 after the platform she
   - transactions in [modules/admin/finance_operations.py](/c:/2026/manditrade/manditrade/modules/admin/finance_operations.py)
   - product registry in [modules/products/dashboard.py](/c:/2026/manditrade/manditrade/modules/products/dashboard.py)
   - buyer order views in [modules/public_orders/dashboard.py](/c:/2026/manditrade/manditrade/modules/public_orders/dashboard.py)
+- Current second-wave adoption includes:
+  - raw-material catalog / registry / activity in [modules/raw_materials/dashboard.py](/c:/2026/manditrade/manditrade/modules/raw_materials/dashboard.py)
+  - suta overview / catalog / orders in [modules/suta_mandi/dashboard.py](/c:/2026/manditrade/manditrade/modules/suta_mandi/dashboard.py)
+  - logistics tracking grid in [modules/logistics/dashboard.py](/c:/2026/manditrade/manditrade/modules/logistics/dashboard.py)
 
 ## Detail Drawer Adoption Status
 
@@ -818,6 +951,17 @@ Generated from the current repository state on 2026-06-03 after the platform she
   - `design_tokens.css` for shared baseline values
   - `manditrade_3d.css` for richer page styling
 
+## UI Consistency Audit Status
+
+- Second-wave UI audit now exists in:
+  - [docs/UI_CONSISTENCY_AUDIT.md](/c:/2026/manditrade/manditrade/docs/UI_CONSISTENCY_AUDIT.md)
+- Current audit classes:
+  - `MIGRATED`
+  - `PARTIAL`
+  - `LEGACY_UI`
+  - `SKIP_FOR_NOW`
+- This pass intentionally expanded shared-shell adoption while preserving a clear list of lower-risk follow-up screens.
+
 ## Role / Status Constants Status
 
 - Canonical role constants now exist in:
@@ -842,6 +986,14 @@ Generated from the current repository state on 2026-06-03 after the platform she
   - duplicate route names
   - hardcoded role string candidates
   - direct JSON write bypass candidates
+  - manual page title candidates
+  - raw large HTML card candidates
+  - repeated table pattern candidates
+  - repeated status chip candidates
+  - direct inline color style candidates
+  - raw feedback banner candidates
+  - direct exception rendering candidates
+  - duplicate search bar candidates
   - missing-test hints
 - Latest report path:
   - `runtime/health_reports/latest_codebase_health.json`
@@ -929,7 +1081,7 @@ Generated from the current repository state on 2026-06-03 after the platform she
 ## Tests Result
 
 - `python -m pytest tests/ -q`
-  - Passed: `253`
+  - Passed: `266`
   - Skipped: `5`
 - `python -m compileall app.py modules services utils components schemas bootstrap scripts constants`
   - Passed
@@ -961,5 +1113,8 @@ Generated from the current repository state on 2026-06-03 after the platform she
 - Alerts and recommendations are intentionally rule-based and deterministic; there is still no forecasting depth or adaptive scoring beyond current heuristics.
 - Pagination is implemented on the current highest-volume operational pages, but a few legacy / low-traffic screens still use direct table rendering and can be migrated later.
 - Platform shell, hero, KPI, and grid adoption is now live on the highest-traffic operational pages, but this is still a first-wave rollout rather than a full all-page UI unification.
+- Second-wave shell/grid adoption now covers several medium-traffic surfaces, but jobs, notifications, profile, ledger, and the dense admin CRUD pages still remain intentionally outside full migration.
+- Sidebar transient state is now centrally reset on route/context/logout/deep-link changes, but richer sidebar overlay behavior is still limited by Streamlit’s native sidebar constraints rather than a fully custom client-side shell.
+- Production-experience hardening now has a command palette, shared toasts, scoped unsaved-change protection, and basic reliability UX, but bulk actions, deeper keyboard choreography, and fuller optimistic UI are still intentionally deferred.
 - Operational search currently routes to page-level detail surfaces, not a universal modal detail shell.
 - Legacy compatibility-only internal names from the old client-era data model still exist and should only be removed in a dedicated migration pass.

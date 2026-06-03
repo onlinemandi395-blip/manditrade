@@ -3,25 +3,28 @@ from __future__ import annotations
 import streamlit as st
 
 from components.html_renderer import render_html
+from components.kpi_cards import render_kpi_cards
+from components.platform_shell import render_platform_shell
 from components.responsive_layout import render_section_intro
-from components.three_d_cards import render_metric_grid
-from components.ui_shell import render_metric_card, render_page_header, render_showcase_strip
+from components.ui_shell import render_showcase_strip
 
 
 def render_login_page(app_context: dict) -> None:
-    render_page_header(
-        "MandiTrade",
-        "Digital Manpur for manufacturer networks, public marketplace trade, mandi-order sourcing, khata discipline, and role-aware operations after one Google sign-in.",
-        ["Single Sign-In", "RBAC Routing", "Post-Login Marketplace"],
+    render_platform_shell(
+        title="MandiTrade",
+        subtitle="Digital Manpur for manufacturer networks, public marketplace trade, mandi-order sourcing, khata discipline, and role-aware operations after one Google sign-in.",
+        badges=["Single Sign-In", "RBAC Routing", "Post-Login Marketplace"],
         role="Public Landing",
         metrics=[("Marketplace", "After sign-in"), ("Workspace Mode", "Role-aware")],
         kicker="Digital Manpur Public Landing",
+        breadcrumbs=["Public", "Dashboard"],
+        primary_actions=["Use sidebar sign-in"],
     )
-    render_metric_grid(
+    render_kpi_cards(
         [
-            render_metric_card("Single Login", "One entry for all users", "SUCCESS"),
-            render_metric_card("Role Routing", "Automatic after sign-in", "OPEN"),
-            render_metric_card("Getting Started", "Fast sign-in for every role", "PENDING"),
+            {"label": "Single Login", "value": "One entry for all users", "status": "SUCCESS"},
+            {"label": "Role Routing", "value": "Automatic after sign-in", "status": "OPEN"},
+            {"label": "Getting Started", "value": "Fast sign-in for every role", "status": "PENDING"},
         ]
     )
     render_showcase_strip(
@@ -75,15 +78,18 @@ def render_access_portal(app_context: dict) -> None:
 def render_pending_user_dashboard(app_context: dict) -> None:
     current_user = app_context["current_user"]
     request = app_context["access_portal_service"].find_latest_request(current_user.email) if current_user else None
-    render_page_header(
-        "Account Setup In Progress",
-        "Your account is being prepared. Please check back soon or contact support if you need help.",
-        ["Preparing Account"],
+    render_platform_shell(
+        title="Account Setup In Progress",
+        subtitle="Your account is being prepared. Please check back soon or contact support if you need help.",
+        badges=["Preparing Account"],
+        role="Pending User",
+        metrics=[("Status", "In Progress")],
+        breadcrumbs=["Public", "Pending Account"],
     )
-    render_metric_grid(
+    render_kpi_cards(
         [
-            render_metric_card("Account Status", "In Progress", "PENDING"),
-            render_metric_card("Next Step", "We will guide you shortly", "WARNING"),
+            {"label": "Account Status", "value": "In Progress", "status": "PENDING"},
+            {"label": "Next Step", "value": "We will guide you shortly", "status": "WARNING"},
         ]
     )
     render_section_intro("Next Step", "If your access should already be active, contact support and we will help you complete setup.")

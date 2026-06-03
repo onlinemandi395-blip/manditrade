@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import streamlit as st
 
+from components.data_grid import render_data_grid
 from components.filter_bar import render_filter_bar
+from components.kpi_cards import render_kpi_cards
+from components.platform_shell import render_platform_shell
 from components.responsive_layout import render_section_intro
-from components.three_d_cards import render_metric_grid
-from components.ui_shell import render_metric_card, render_page_header
 from utils.page_ui import render_empty_state
 
 
@@ -31,16 +32,20 @@ def render_logistics_dashboard(app_context: dict) -> None:
         )
     in_transit = [item for item in logistics_rows if item.get("courier_status") == "IN_TRANSIT"]
     delivered = [item for item in logistics_rows if item.get("courier_status") == "DELIVERED"]
-    render_page_header(
-        "Logistics",
-        "Track courier booking and live delivery status for admin-routed manufacturer procurement.",
-        ["Platform Admin", "Logistics Tracking"],
+    render_platform_shell(
+        title="Logistics",
+        subtitle="Track courier booking and live delivery status for admin-routed manufacturer procurement.",
+        badges=["Platform Admin", "Logistics Tracking"],
+        role="Platform Admin",
+        metrics=[("Tracked Orders", str(len(logistics_rows))), ("Transit", str(len(in_transit)))],
+        breadcrumbs=["Workspace", "Operations", "Logistics"],
+        primary_actions=["Track Deliveries"],
     )
-    render_metric_grid(
+    render_kpi_cards(
         [
-            render_metric_card("Tracked Orders", str(len(logistics_rows)), "OPEN"),
-            render_metric_card("In Transit", str(len(in_transit)), "WARNING"),
-            render_metric_card("Delivered", str(len(delivered)), "SUCCESS"),
+            {"label": "Tracked Orders", "value": str(len(logistics_rows)), "status": "OPEN"},
+            {"label": "In Transit", "value": str(len(in_transit)), "status": "WARNING"},
+            {"label": "Delivered", "value": str(len(delivered)), "status": "SUCCESS"},
         ]
     )
     render_section_intro("MandiPlace Logistics", "Courier assignment and delivery progression stay centrally visible for admin oversight.")
@@ -51,6 +56,12 @@ def render_logistics_dashboard(app_context: dict) -> None:
             search_fields=["mandiplace_order_id", "requesting_manufacturer_id", "supplier_manufacturer_id", "provider_name", "tracking_reference"],
             status_field="courier_status",
         )
-        st.dataframe(filtered, use_container_width=True)
+        render_data_grid(
+            page_key="mandiplace_logistics_grid",
+            rows=filtered,
+            search_fields=["mandiplace_order_id", "requesting_manufacturer_id", "supplier_manufacturer_id", "provider_name", "tracking_reference"],
+            status_field="courier_status",
+            search_placeholder="Search by order, manufacturer, provider, or tracking reference",
+        )
     else:
         render_empty_state("No courier-tracked MandiPlace orders yet.")

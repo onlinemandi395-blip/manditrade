@@ -8,6 +8,9 @@ from bootstrap.route_registry import render_route
 from bootstrap.service_container import build_app_context
 from constants.roles import ROLE_MAHAJAN, ROLE_MANUFACTURER, ROLE_PLATFORM_ADMIN, ROLE_PUBLIC_BUYER, ROLE_WORKER, normalize_runtime_role
 from components.html_renderer import render_html
+from components.error_boundary import render_with_error_boundary
+from components.command_palette import render_command_palette
+from components.toast_manager import push_toast, render_toasts
 from components.ui_shell import render_configurable_link_button
 from components.ui_shell import apply_ui_shell
 from services.navigation_service import flatten_navigation_groups, get_navigation_groups
@@ -79,10 +82,19 @@ def render_header(app_context: dict) -> None:
         st.warning("Configuration issues detected: " + " | ".join(app_context["config_issues"]))
     flash = pop_flash()
     if flash:
-        st.success(flash)
+        push_toast(flash, tone="success")
+    render_toasts()
+    if app_context.get("current_user"):
+        toggle_label = "Hide Command Palette" if st.session_state.get("show_command_palette", False) else "Open Command Palette"
+        if st.button(toggle_label, key="toggle_command_palette", use_container_width=False):
+            st.session_state["show_command_palette"] = not st.session_state.get("show_command_palette", False)
+            st.rerun()
+        if st.session_state.get("show_command_palette", False):
+            render_command_palette(app_context)
 
 
 def render_auth_panel(app_context: dict) -> None:
+    session_state_service = app_context["session_state_service"]
     with st.sidebar:
         st.markdown("## Session")
         user = app_context["current_user"]
@@ -100,6 +112,7 @@ def render_auth_panel(app_context: dict) -> None:
                     key="admin_context_switcher",
                 )
                 if selected_context != active_context and session_user:
+                    session_state_service.collapse_transient_sidebar_state()
                     session_user.active_context = selected_context
                     st.session_state["admin_active_context"] = selected_context
                     st.session_state["user"] = app_context["auth_service"].serialize_user(session_user)
@@ -109,6 +122,11 @@ def render_auth_panel(app_context: dict) -> None:
             if user.manufacturer_code:
                 st.caption(f"Manufacturer: {user.manufacturer_code}")
             if st.button("Logout", use_container_width=True):
+                if session_state_service.has_unsaved_changes() and not st.session_state.get("confirm_logout_with_unsaved_changes", False):
+                    push_toast("You have unsaved changes.", tone="warning", title="Unsaved Changes")
+                    st.session_state["confirm_logout_with_unsaved_changes"] = True
+                    st.rerun()
+                session_state_service.collapse_transient_sidebar_state()
                 app_context["security_service"].revoke_runtime_session()
                 clear_runtime_session()
                 set_flash("Signed out successfully.")
@@ -257,14 +275,22 @@ def render_sidebar_navigation(app_context: dict) -> str:
         app_context["session_state_service"].set_navigation(selected)
     with st.sidebar:
         st.markdown("## Navigation")
+        if app_context["session_state_service"].has_unsaved_changes():
+            st.warning("You have unsaved changes.")
         if is_admin_identity:
             st.caption(f"SuperUser context: {ADMIN_CONTEXT_OPTIONS.get(app_context.get('active_context', 'platform_admin'), 'Platform Admin')}")
         for group, items in groups:
             st.caption(group.upper())
             for item in items:
                 if st.button(item, key=f"nav_{item.lower().replace(' ', '_')}", use_container_width=True, type="primary" if selected == item else "secondary"):
+                    if app_context["session_state_service"].has_unsaved_changes() and not st.session_state.get("confirm_nav_with_unsaved_changes", False):
+                        push_toast("You have unsaved changes.", tone="warning", title="Unsaved Changes")
+                        st.session_state["confirm_nav_with_unsaved_changes"] = True
+                        st.rerun()
                     selected = item
+                    st.session_state["confirm_nav_with_unsaved_changes"] = False
                     app_context["session_state_service"].set_navigation(item)
+                    st.rerun()
         return selected
 
 
@@ -291,5 +317,6 @@ def main() -> None:
         app_context = build_app_context()
     render_auth_panel(app_context)
     section = render_sidebar_navigation(app_context)
+    app_context["available_routes"] = resolve_navigation_sections(app_context)
     render_header(app_context)
-    render_route(section, app_context)
+    render_with_error_boundary(section, render_route, section, app_context, logging_service=app_context.get("logging_service"))

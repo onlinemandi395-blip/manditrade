@@ -3,6 +3,9 @@ from __future__ import annotations
 from html import escape
 from typing import Iterable
 
+import streamlit as st
+
+from components.command_palette import render_command_palette
 from components.html_renderer import render_html
 from components.page_hero import render_page_hero
 
@@ -18,6 +21,7 @@ def render_platform_shell(
     breadcrumbs: Iterable[str] | None = None,
     primary_actions: list[str] | None = None,
     secondary_actions: list[str] | None = None,
+    app_context: dict | None = None,
 ) -> None:
     crumb_html = ""
     if breadcrumbs:
@@ -46,3 +50,5 @@ def render_platform_shell(
         metrics=metrics,
         kicker=kicker,
     )
+    if app_context and st.session_state.get("show_command_palette", False):
+        render_command_palette(app_context)

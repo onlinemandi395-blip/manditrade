@@ -4,11 +4,14 @@ from html import escape
 
 import streamlit as st
 
+from components.empty_state import render_empty_state_block
 from components.html_renderer import render_html
+from components.kpi_cards import render_kpi_cards
+from components.platform_shell import render_platform_shell
 from components.product_card import render_product_card
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
-from components.ui_shell import render_metric_card, render_page_header, render_showcase_strip
+from components.ui_shell import render_page_header, render_showcase_strip
 from modules.profile.dashboard import render_public_buyer_profile_setup
 
 
@@ -18,20 +21,22 @@ def render_marketplace_dashboard(app_context: dict) -> None:
     products = app_context["product_catalog_service"].list_products(include_pending=False, viewer_role="public_buyer")
     image_service = app_context.get("image_service")
     favorites_service = app_context.get("favorites_service")
-    render_page_header(
-        "Marketplace",
-        "Instant-pay public shopping stays separate from the manufacturer-facing MandiPlace and raw-material supply workflows.",
-        ["Public Catalog", "Instant Pay", "Public Visibility Only"],
+    render_platform_shell(
+        title="Marketplace",
+        subtitle="Instant-pay public shopping stays separate from the manufacturer-facing MandiPlace and raw-material supply workflows.",
+        badges=["Public Catalog", "Instant Pay", "Public Visibility Only"],
         role=role.replace("_", " ").title(),
         metrics=[("Visible Products", str(len(products))), ("Checkout Model", "100% upfront")],
         kicker="Digital Manpur Public Marketplace",
+        breadcrumbs=["Workspace", "Commerce", "Marketplace"],
+        primary_actions=["Browse Public Catalog"],
     )
     categories = sorted({item.get("category", "Uncategorized") for item in products})
-    render_metric_grid(
+    render_kpi_cards(
         [
-            render_metric_card("Public Products", str(len(products)), "SUCCESS"),
-            render_metric_card("Categories", str(len(categories)), "OPEN"),
-            render_metric_card("Flow", "Instant Pay", "PENDING"),
+            {"label": "Public Products", "value": str(len(products)), "status": "SUCCESS"},
+            {"label": "Categories", "value": str(len(categories)), "status": "OPEN"},
+            {"label": "Flow", "value": "Instant Pay", "status": "PENDING"},
         ]
     )
     render_showcase_strip(
@@ -56,6 +61,8 @@ def render_marketplace_dashboard(app_context: dict) -> None:
         )
     ]
     render_section_intro("Public Catalog", "Browse public products, compare pricing, and place upfront-pay orders from one simple marketplace view.")
+    if not filtered:
+        render_empty_state_block("No public products match the current search/filter.", icon="[]", cta="Adjust search or category")
     st.markdown("<div class='mt-card-grid'>", unsafe_allow_html=True)
     for index, item in enumerate(filtered[:8]):
         image = image_service.get_display_image(item, label=str(item.get("name", "Product"))) if image_service else {"src": "", "alt": str(item.get("name", "Product")), "status": "NONE"}
@@ -96,7 +103,7 @@ def render_marketplace_dashboard(app_context: dict) -> None:
     activity_tab, cart_tab = st.tabs(["Browse + Add To Cart", "Cart + Checkout"])
     with activity_tab:
         if not filtered:
-            st.info("No public products match the current search/filter.")
+            render_empty_state_block("No public products match the current search/filter.", icon="[]", cta="Adjust filters")
         else:
             selected_product_id = str(st.session_state.get("marketplace_selected_product") or filtered[0]["product_id"])
             if not any(item["product_id"] == selected_product_id for item in filtered):
@@ -147,7 +154,7 @@ def render_marketplace_dashboard(app_context: dict) -> None:
     with cart_tab:
         cart = cart_service.get_cart(buyer["public_buyer_id"])
         if not cart.get("items"):
-            st.info("Your public cart is empty.")
+            render_empty_state_block("Your public cart is empty.", icon="[]", cta="Add products from Browse + Add To Cart")
         else:
             st.dataframe(cart.get("items", []), use_container_width=True)
             st.caption(f"Subtotal: {cart.get('subtotal', 0)}")

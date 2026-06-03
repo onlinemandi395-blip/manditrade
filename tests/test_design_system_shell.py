@@ -110,3 +110,31 @@ def test_apply_ui_shell_injects_design_tokens_before_main(tmp_path: Path, monkey
     apply_ui_shell(main_css)
 
     assert seen_paths == [token_css, main_css]
+
+
+def test_entity_form_wraps_forms_without_forcing_fixed_height(monkeypatch):
+    from components import entity_form
+
+    markdown_calls: list[str] = []
+    form_entries: list[str] = []
+
+    class _DummyForm:
+        def __enter__(self):
+            form_entries.append("enter")
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            form_entries.append("exit")
+            return False
+
+    fake_streamlit = SimpleNamespace(
+        markdown=lambda body, unsafe_allow_html=False: markdown_calls.append(body),
+        form=lambda key: _DummyForm(),
+    )
+    monkeypatch.setattr("components.entity_form.st", fake_streamlit)
+
+    with entity_form.render_entity_form("demo_form", title="Demo"):
+        pass
+
+    assert any("mt-entity-form-wrap" in body for body in markdown_calls)
+    assert form_entries == ["enter", "exit"]
