@@ -1,6 +1,6 @@
 # MandiTrade Checker Reference
 
-Generated from the current repository state on 2026-06-03 after the commerce experience refinement pass.
+Generated from the current repository state on 2026-06-03 after the Admin Drive database integration pass.
 
 ## Final Role Model
 
@@ -27,6 +27,21 @@ Generated from the current repository state on 2026-06-03 after the commerce exp
 - `Suta Mandi`
   - manufacturer-only yarn / suta buying surface
   - fulfilled through admin + mahajan routing
+
+## Admin Drive Database Status
+
+- Canonical Admin Drive DB orchestration now exists in:
+  - [services/admin_drive_database_service.py](/c:/2026/manditrade/manditrade/services/admin_drive_database_service.py)
+- Current behavior includes:
+  - root resolution from Streamlit secrets or system config
+  - canonical `MANDITRADE_DB` folder-tree bootstrap
+  - required JSON envelope bootstrap
+  - validation reporting
+  - System Health visibility
+  - canonical-mode safety blocking when Admin Drive DB validation is missing
+- Path alignment is now centered in:
+  - [services/drive_path_service.py](/c:/2026/manditrade/manditrade/services/drive_path_service.py)
+  - [bootstrap/service_container.py](/c:/2026/manditrade/manditrade/bootstrap/service_container.py)
 
 ## Commerce Experience Status
 

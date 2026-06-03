@@ -7,15 +7,20 @@ from typing import Any
 
 class CanonicalStorageValidationService:
     REQUIRED_DIRS = [
-        "registry",
-        "catalog",
-        "orders",
-        "notifications",
-        "analytics",
-        "runtime",
-        "media",
+        "00_config",
+        "01_identity",
+        "02_catalog",
+        "03_inventory",
+        "04_carts",
+        "05_orders",
+        "07_finance",
+        "09_notifications",
+        "11_intelligence",
+        "12_analytics",
+        "13_audit",
+        "15_media",
     ]
-    CRITICAL_DIRS = {"registry", "catalog"}
+    CRITICAL_DIRS = {"00_config", "01_identity", "02_catalog"}
 
     def __init__(
         self,
@@ -50,6 +55,7 @@ class CanonicalStorageValidationService:
                 else:
                     warnings.append(f"Canonical folder not created yet: {folder}")
         required_files = [
+            self.drive_path_service.get_config_path("system_config.json"),
             self.drive_path_service.get_notification_path("email_queue"),
             self.drive_path_service.get_registry_path("manufacturers"),
             self.drive_path_service.get_catalog_path("products"),

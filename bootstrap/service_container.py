@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 import streamlit as st
 
 from services.action_center_service import ActionCenterService
+from services.admin_drive_database_service import AdminDriveDatabaseService
 from services.access_portal_service import AccessPortalService
 from services.alert_engine import AlertEngine
 from services.automation_tasks import AutomationTasks
@@ -93,6 +94,9 @@ def build_app_context() -> dict:
     system_config.setdefault("storage", {})
     system_config["storage"].setdefault("mode", "compatibility")
     system_config["storage"].setdefault("allow_legacy_fallback", True)
+    system_config["storage"].setdefault("admin_drive_db_enabled", True)
+    system_config["storage"].setdefault("admin_db_root_folder_id", "")
+    system_config["storage"].setdefault("admin_db_root_folder_name", "MANDITRADE_DB")
     system_config.setdefault(
         "public_payment",
         {
@@ -135,6 +139,7 @@ def build_app_context() -> dict:
             and google_secret_overrides.get("redirect_uri")
         )
     oauth_config_fallback_active = not oauth_secrets_override_active
+    google_drive_secret_overrides = dict(st.secrets["google_drive"]) if "google_drive" in st.secrets else {}
 
     auth_service = AuthService(oauth_config=oauth_config, enable_mock_auth=system_config["security"]["enable_mock_auth"])
     security_secret_overrides = dict(st.secrets["security"]) if "security" in st.secrets else {}
@@ -206,14 +211,27 @@ def build_app_context() -> dict:
     )
     catalog_service = CatalogService(governance_root=GOVERNANCE_DIR)
     public_buyers_root = BASE_DIR / "data" / "public_buyers"
+    admin_db_root_name = str(
+        google_drive_secret_overrides.get("admin_db_root_folder_name")
+        or system_config["storage"].get("admin_db_root_folder_name")
+        or "MANDITRADE_DB"
+    ).strip() or "MANDITRADE_DB"
     drive_path_service = DrivePathService(
-        db_root=DATA_DIR / "MANDITRADE_DB",
+        db_root=DATA_DIR / admin_db_root_name,
         runtime_root=APP_RUNTIME_DIR,
         governance_root=GOVERNANCE_DIR,
         manufacturers_root=MANUFACTURERS_DIR,
         public_buyers_root=public_buyers_root,
         storage_mode=system_config["storage"].get("mode", "compatibility"),
         allow_legacy_fallback=bool(system_config["storage"].get("allow_legacy_fallback", True)),
+    )
+    admin_drive_database_service = AdminDriveDatabaseService(
+        drive_path_service=drive_path_service,
+        safe_drive_write_service=safe_drive_write_service,
+        json_service=drive_service.json_service,
+        runtime_root=APP_RUNTIME_DIR,
+        system_config=system_config,
+        secret_overrides={"google_drive": google_drive_secret_overrides},
     )
     gmail_service.drive_path_service = drive_path_service
     gmail_service.queue_path = drive_path_service.get_notification_path("email_queue")
@@ -493,6 +511,7 @@ def build_app_context() -> dict:
     storage_cutover_message = ""
     if storage_mode == "canonical":
         cutover_blockers = storage_cutover_service.canonical_mode_blockers()
+        cutover_blockers.extend(admin_drive_database_service.canonical_mode_blockers())
         if cutover_blockers:
             storage_cutover_blocked = True
             storage_cutover_message = cutover_blockers[0]
@@ -551,6 +570,7 @@ def build_app_context() -> dict:
         "notification_rules": notification_rules,
         "drive_service": drive_service,
         "drive_path_service": drive_path_service,
+        "admin_drive_database_service": admin_drive_database_service,
         "storage_migration_service": storage_migration_service,
         "canonical_storage_validation_service": canonical_storage_validation_service,
         "storage_cutover_service": storage_cutover_service,

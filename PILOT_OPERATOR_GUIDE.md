@@ -57,6 +57,22 @@ Open these areas in order:
 - If anything looks wrong after cutover, switch back to `storage.mode=compatibility` and restart the app.
 - Do not delete legacy governance, public buyer, public order, or public payment JSON during the same change window.
 
+### Admin Drive Database
+
+- `System Health -> Admin Drive Database` now shows:
+  - root configuration
+  - folder-tree status
+  - required JSON bootstrap status
+  - latest validation/bootstrap reports
+  - canonical readiness summary
+- Run:
+  - `python scripts/bootstrap_admin_drive_db.py --dry-run`
+  - `python scripts/bootstrap_admin_drive_db.py --execute`
+  - `python scripts/validate_admin_drive_db.py`
+- Use Admin Drive DB bootstrap to prepare canonical storage only.
+- It does not auto-switch the live app to canonical mode.
+- Do not store manufacturer, mahajan, public-buyer, or worker databases in separate Drives.
+
 ### Gmail Failure
 
 - Confirm `notification_mode=live`.

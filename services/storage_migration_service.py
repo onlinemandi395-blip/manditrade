@@ -150,27 +150,27 @@ class StorageMigrationService:
         elif name == "supply_orders.json":
             mappings.append((self.drive_path_service.get_order_path("supply"), "supply_orders", payload.get("supply_orders", []), "mandi_order_id"))
         elif name == "supply_ledgers.json":
-            mappings.append((self.drive_path_service.db_root / "ledgers" / "supply_ledgers.json", "entries", payload.get("entries", []), "entry_id"))
+            mappings.append((self.drive_path_service.db_root / self.drive_path_service.FOLDER_TREE["finance"] / "ledgers" / "supply_ledgers.json", "entries", payload.get("entries", []), "entry_id"))
         elif name == "jobs.json":
-            mappings.append((self.drive_path_service.db_root / "jobs" / "jobs.json", "jobs", payload.get("jobs", []), "job_id"))
-            mappings.append((self.drive_path_service.db_root / "jobs" / "applications.json", "applications", payload.get("applications", []), "application_id"))
+            mappings.append((self.drive_path_service.get_jobs_path("jobs"), "jobs", payload.get("jobs", []), "job_id"))
+            mappings.append((self.drive_path_service.get_jobs_path("applications"), "applications", payload.get("applications", []), "application_id"))
         elif name == "index.json" and source.parent == self.public_buyers_root:
             mappings.append((self.drive_path_service.get_registry_path("public_buyers"), "buyers", payload.get("buyers", []), "public_buyer_id"))
         elif name.endswith(".json") and source.parent.parent == self.public_orders_root:
             month = source.parent.name
             mappings.append((self.drive_path_service.get_order_path("marketplace", month), "marketplace_orders", [payload], "public_order_id"))
         elif name.endswith(".json") and source.parent.parent == self.public_payments_root:
-            mappings.append((self.drive_path_service.db_root / "payments" / "marketplace_payments.json", "payments", [payload], "payment_id"))
+            mappings.append((self.drive_path_service.get_finance_path("payments", self.drive_path_service.current_year_month()), "payments", [payload], "payment_id"))
         elif source.parent.name in {"public_buyer", "manufacturer", "worker", "mahajan"} or source.parent.parent.name == "carts":
-            mappings.append((self.drive_path_service.db_root / "carts" / f"{source.stem}.json", "carts", [payload], "cart_id"))
+            mappings.append((self.drive_path_service.db_root / self.drive_path_service.FOLDER_TREE["carts"] / f"{source.stem}.json", "carts", [payload], "cart_id"))
         elif name == "alerts.json":
-            mappings.append((self.drive_path_service.db_root / "analytics" / "alerts.json", "alerts", payload.get("alerts", payload if isinstance(payload, list) else []), "alert_id"))
+            mappings.append((self.drive_path_service.get_intelligence_path("alerts"), "alerts", payload.get("alerts", payload if isinstance(payload, list) else []), "alert_id"))
         elif name == "latest.json" and "recommendations" in source.parts:
-            mappings.append((self.drive_path_service.db_root / "analytics" / "recommendations.json", "recommendations", payload.get("recommendations", payload.get("items", [])), "id"))
+            mappings.append((self.drive_path_service.get_intelligence_path("recommendations"), "recommendations", payload.get("recommendations", payload.get("items", [])), "id"))
         elif name == "latest.json" and "kpis" in source.parts:
-            mappings.append((self.drive_path_service.db_root / "analytics" / "kpis.json", "snapshots", [payload], "id"))
+            mappings.append((self.drive_path_service.get_intelligence_path("kpis"), "kpis", [payload], "id"))
         elif name == "latest.json" and "search_index" in source.parts:
-            mappings.append((self.drive_path_service.db_root / "analytics" / "search_index.json", "records", payload.get("records", []), "entity_id"))
+            mappings.append((self.drive_path_service.get_intelligence_path("search_index"), "records", payload.get("records", []), "entity_id"))
         elif "audit_logs" in source.parts:
             try:
                 month = source.stem[:7]

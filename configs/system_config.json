@@ -28,7 +28,10 @@
     "use_drive_api": true,
     "local_mirror_root": "data/manufacturers",
     "mode": "compatibility",
-    "allow_legacy_fallback": true
+    "allow_legacy_fallback": true,
+    "admin_drive_db_enabled": true,
+    "admin_db_root_folder_id": "",
+    "admin_db_root_folder_name": "MANDITRADE_DB"
   },
   "notifications": {
     "notification_mode": "live",

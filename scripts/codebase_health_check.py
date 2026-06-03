@@ -71,6 +71,20 @@ def _bypass_json_write(path: Path) -> list[str]:
     return flags
 
 
+def _storage_bypass_flags(path: Path) -> dict[str, bool]:
+    text = path.read_text(encoding="utf-8")
+    rel = path.relative_to(BASE_DIR).as_posix()
+    approved = {
+        "services/safe_drive_write_service.py",
+        "services/admin_drive_database_service.py",
+        "services/json_service.py",
+    }
+    return {
+        "direct_drive_write_bypass": rel not in approved and ("write_text(" in text or "mkdir(" in text) and "safe_drive_write_service" not in text and "tests/" not in rel,
+        "random_admin_root_usage": "MANDITRADE_DB" in text and "drive_path_service" not in text and "admin_drive_database_service" not in text and rel not in {"services/drive_path_service.py", "bootstrap/service_container.py"},
+    }
+
+
 def _ui_consistency_flags(path: Path) -> dict[str, bool]:
     text = path.read_text(encoding="utf-8")
     return {
@@ -159,6 +173,8 @@ def build_report() -> dict:
     raw_background_task_write_files: list[str] = []
     retry_logic_outside_service_files: list[str] = []
     duplicate_export_retry_block_files: list[str] = []
+    direct_drive_write_bypass_files: list[str] = []
+    random_admin_root_usage_files: list[str] = []
     raw_commerce_table_files: list[str] = []
     missing_image_fallback_files: list[str] = []
     missing_empty_state_files: list[str] = []
@@ -179,6 +195,11 @@ def build_report() -> dict:
         writes = _bypass_json_write(path)
         if writes and "tests/" not in rel:
             bypass_json_writes[rel] = sorted(set(writes))
+        storage_flags = _storage_bypass_flags(path)
+        if storage_flags["direct_drive_write_bypass"]:
+            direct_drive_write_bypass_files.append(rel)
+        if storage_flags["random_admin_root_usage"]:
+            random_admin_root_usage_files.append(rel)
         ui_flags = _ui_consistency_flags(path)
         if ui_flags["manual_page_titles"]:
             manual_page_title_files.append(rel)
@@ -240,6 +261,8 @@ def build_report() -> dict:
         "duplicate_route_names": duplicate_routes,
         "hardcoded_role_string_files": hardcoded_roles,
         "direct_json_write_bypass_candidates": bypass_json_writes,
+        "direct_drive_write_bypass_candidates": sorted(direct_drive_write_bypass_files),
+        "random_admin_root_usage_candidates": sorted(random_admin_root_usage_files),
         "manual_page_title_candidates": sorted(manual_page_title_files),
         "raw_large_html_card_candidates": sorted(raw_large_html_card_files),
         "repeated_table_pattern_candidates": sorted(repeated_table_pattern_files),

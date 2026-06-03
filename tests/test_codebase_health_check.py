@@ -21,6 +21,8 @@ def test_codebase_health_report_builds():
     assert "raw_commerce_table_candidates" in report
     assert "missing_image_fallback_candidates" in report
     assert "missing_empty_state_candidates" in report
+    assert "direct_drive_write_bypass_candidates" in report
+    assert "random_admin_root_usage_candidates" in report
 
 
 def test_codebase_health_script_writes_latest_report():

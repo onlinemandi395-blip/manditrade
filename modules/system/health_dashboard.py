@@ -265,10 +265,13 @@ def render_health_dashboard(app_context: dict) -> None:
         st.markdown("### Storage Migration")
         storage_mode = app_context["system_config"]["storage"].get("mode", "compatibility")
         cutover_service = app_context["storage_cutover_service"]
+        admin_drive_database_service = app_context["admin_drive_database_service"]
         latest_report = cutover_service.load_latest_migration_report()
         latest_dry_run = cutover_service.load_latest_migration_report(mode="dry_run")
         latest_execute = cutover_service.load_latest_migration_report(mode="execute")
         latest_validation = cutover_service.load_latest_validation_report()
+        latest_admin_drive_validation = admin_drive_database_service.load_latest_validation_report()
+        latest_admin_drive_bootstrap = admin_drive_database_service.load_latest_bootstrap_report()
         readiness_report = cutover_service.evaluate_cutover_readiness(storage_mode_current=storage_mode)
         st.json(
             {
@@ -323,6 +326,44 @@ def render_health_dashboard(app_context: dict) -> None:
         st.markdown("### Cutover Readiness")
         st.json(readiness_report, expanded=False)
         st.info("Legacy files remain untouched. Switch `storage.mode` to `canonical` only after dry-run and validation review.")
+        st.markdown("### Admin Drive Database")
+        admin_drive_root = admin_drive_database_service.resolve_root_config()
+        admin_drive_validation = latest_admin_drive_validation or admin_drive_database_service.validate_database_tree(persist=False)
+        admin_drive_bootstrap = latest_admin_drive_bootstrap or {}
+        canonical_readiness = "READY" if admin_drive_validation.get("status") == "PASS" and not admin_drive_validation.get("critical_errors") else "NOT READY"
+        st.json(
+            {
+                "root_folder_configured": bool(admin_drive_root.get("root_folder_name")),
+                "root_folder_name": admin_drive_root.get("root_folder_name", ""),
+                "root_folder_reachable": admin_drive_validation.get("root", {}).get("exists", False),
+                "folder_tree_status": admin_drive_validation.get("status", "UNKNOWN"),
+                "required_json_status": "PASS" if not admin_drive_validation.get("bootstrap_files", {}).get("missing") else "REVIEW",
+                "storage_mode": storage_mode,
+                "last_bootstrap_report": admin_drive_bootstrap.get("generated_at", ""),
+                "last_validation_report": latest_admin_drive_validation.get("generated_at", ""),
+                "canonical_readiness": canonical_readiness,
+                "blocking_issues": admin_drive_validation.get("errors", []),
+            },
+            expanded=False,
+        )
+        col1, col2 = st.columns(2)
+        if col1.button("Validate Admin Drive DB", use_container_width=True):
+            report = admin_drive_database_service.validate_database_tree(persist=True)
+            push_toast(f"Admin Drive DB validation finished with status {report.get('status', 'UNKNOWN')}.", tone="success", title="Admin Drive DB")
+            st.rerun()
+        if col2.button("Bootstrap Dry Run", use_container_width=True):
+            report = admin_drive_database_service.bootstrap(dry_run=True)
+            push_toast(f"Admin Drive DB dry run completed with recommendation {report.get('recommendation', 'UNKNOWN')}.", tone="info", title="Admin Drive DB")
+            st.rerun()
+        col3, col4 = st.columns(2)
+        if col3.button("Bootstrap Execute if Safe", use_container_width=True):
+            report = admin_drive_database_service.bootstrap(dry_run=False)
+            push_toast(f"Admin Drive DB bootstrap execute completed with recommendation {report.get('recommendation', 'UNKNOWN')}.", tone="success", title="Admin Drive DB")
+            st.rerun()
+        if col4.button("Generate DB Structure Report", use_container_width=True):
+            admin_drive_database_service.generate_structure_report()
+            push_toast("Admin Drive DB structure report generated.", tone="info", title="Admin Drive DB")
+            st.rerun()
 
     with events_tab:
         search_value = st.text_input("Search locks / events / stress summaries", key="health_events_search")

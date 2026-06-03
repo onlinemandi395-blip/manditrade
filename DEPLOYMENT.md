@@ -141,6 +141,34 @@ To stay on the safe path:
 
 Cutover is now guarded at startup. If `storage.mode=canonical` is requested without a validated PASS migration state, the app blocks startup with a safe storage warning.
 
+## Admin Drive Database
+
+Platform Admin Google Drive is the only intended canonical database root.
+
+Recommended secrets:
+
+```toml
+[google_drive]
+admin_db_root_folder_id = ""
+admin_db_root_folder_name = "MANDITRADE_DB"
+```
+
+Bootstrap and validation flow:
+
+```bash
+python scripts/bootstrap_admin_drive_db.py --dry-run
+python scripts/bootstrap_admin_drive_db.py --execute
+python scripts/validate_admin_drive_db.py
+```
+
+Rules:
+
+- do not hardcode personal Drive IDs in code
+- do not store role-owned databases in manufacturer/mahajan/public-buyer Drive
+- do not switch `storage.mode=canonical` until Admin Drive DB validation is healthy
+- do not delete legacy storage during bootstrap or validation
+- media stays under canonical `15_media/` folders and JSON stores references only
+
 ## Release Gate
 
 ```bash
