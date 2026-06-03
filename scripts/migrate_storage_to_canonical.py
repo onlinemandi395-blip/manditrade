@@ -17,8 +17,9 @@ from services.storage_migration_service import StorageMigrationService
 from utils.paths import APP_RUNTIME_DIR, BASE_DIR, DATA_DIR, GOVERNANCE_DIR, MANUFACTURERS_DIR, RUNTIME_BACKUPS_DIR, RUNTIME_VERSION_HISTORY_DIR
 
 
-def _build_service() -> StorageMigrationService:
+def _build_service(*, rehearsal: bool = False) -> StorageMigrationService:
     json_service = JsonService()
+    runtime_root = APP_RUNTIME_DIR / "migration_rehearsal" if rehearsal else APP_RUNTIME_DIR
     safe_write = SafeDriveWriteService(
         json_service=json_service,
         file_lock_service=FileLockService(),
@@ -29,8 +30,8 @@ def _build_service() -> StorageMigrationService:
     )
     allocator = IdAllocatorService(APP_RUNTIME_DIR / "id_counters.json", FileLockService())
     drive_path_service = DrivePathService(
-        db_root=DATA_DIR / "MANDITRADE_DB",
-        runtime_root=APP_RUNTIME_DIR,
+        db_root=(runtime_root / "MANDITRADE_DB") if rehearsal else (DATA_DIR / "MANDITRADE_DB"),
+        runtime_root=runtime_root,
         governance_root=GOVERNANCE_DIR,
         manufacturers_root=MANUFACTURERS_DIR,
         public_buyers_root=BASE_DIR / "data" / "public_buyers",
@@ -44,16 +45,17 @@ def _build_service() -> StorageMigrationService:
         public_buyers_root=BASE_DIR / "data" / "public_buyers",
         public_orders_root=BASE_DIR / "data" / "public_orders",
         public_payments_root=BASE_DIR / "data" / "public_payments",
-        runtime_root=APP_RUNTIME_DIR,
+        runtime_root=runtime_root,
     )
 
 
 def main(argv: list[str]) -> int:
     mode = "dry_run"
+    rehearsal = "--rehearsal" in argv
     if "--execute" in argv:
         mode = "execute"
-    service = _build_service()
-    report = service.run(mode=mode)
+    service = _build_service(rehearsal=rehearsal)
+    report = service.run(mode=mode, rehearsal=rehearsal)
     print(json.dumps(report, indent=2))
     return 0 if report["recommendation"] in {"PASS", "REVIEW"} else 1
 

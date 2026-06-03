@@ -181,3 +181,40 @@ class PricingService:
             ],
             "payment_recipient": "SUPPLIER_DIRECT",
         }
+
+    def calculate_mandiplace_breakdown(
+        self,
+        *,
+        qty: float,
+        supplier_unit_price: float,
+        manufacturer_unit_price: float,
+        packaging_cost: float = 0,
+        courier_cost: float = 0,
+        admin_spread_share_percent: float | None = None,
+    ) -> dict[str, Any]:
+        qty_value = float(qty or 0)
+        supplier_price = round(float(supplier_unit_price or 0), 2)
+        manufacturer_price = round(float(manufacturer_unit_price or 0), 2)
+        goods_amount = round(qty_value * manufacturer_price, 2)
+        supplier_amount = round(qty_value * supplier_price, 2)
+        spread = round(goods_amount - supplier_amount, 2)
+        packaging_total = round(float(packaging_cost or 0), 2)
+        courier_total = round(float(courier_cost or 0), 2)
+        spread_share_percent = float(admin_spread_share_percent if admin_spread_share_percent is not None else self.admin_profit_share_percent)
+        admin_commission = round(max(spread, 0) * (spread_share_percent / 100), 2)
+        final_payable = round(goods_amount + packaging_total + courier_total, 2)
+        return {
+            "qty": qty_value,
+            "supplier_unit_price": supplier_price,
+            "manufacturer_unit_price": manufacturer_price,
+            "goods_amount": goods_amount,
+            "supplier_amount": supplier_amount,
+            "spread": spread,
+            "admin_spread_share_percent": spread_share_percent,
+            "admin_commission": admin_commission,
+            "packaging_cost": packaging_total,
+            "courier_cost": courier_total,
+            "final_payable": final_payable,
+            "commission_status": "CALCULATED",
+            "payment_recipient": "SUPPLIER_DIRECT",
+        }

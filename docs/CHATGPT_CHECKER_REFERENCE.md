@@ -1,6 +1,6 @@
 # MandiTrade Checker Reference
 
-Generated from the current repository state on 2026-06-02 after the storage migration readiness pass.
+Generated from the current repository state on 2026-06-03 after the admin-routed manufacturer MandiPlace procurement and packaging/courier services pass.
 
 ## Final Role Model
 
@@ -20,7 +20,7 @@ Generated from the current repository state on 2026-06-02 after the storage migr
   - seller payout goes directly to manufacturer
 - `MandiPlace`
   - manufacturer procurement and B2B lane
-  - admin-routed supply workflow
+  - admin-routed co-manufacturer workflow
 - `Raw Materials`
   - admin + mahajan supply-management lane
   - manufacturers participate through admin-routed supply requests
@@ -45,6 +45,82 @@ Generated from the current repository state on 2026-06-02 after the storage migr
   - recommendations
   - operational search
   - automation task runner
+  - MandiPlace procurement volume snapshot
+
+## Admin-Routed Manufacturer Procurement Status
+
+- Manufacturer-to-manufacturer MandiPlace procurement is now admin-routed through:
+  - [services/procurement_transaction_service.py](/c:/2026/manditrade/manditrade/services/procurement_transaction_service.py)
+  - [modules/procurement/dashboard.py](/c:/2026/manditrade/manditrade/modules/procurement/dashboard.py)
+- Current flow support includes:
+  - manufacturer request creation
+  - admin co-manufacturer assignment
+  - supplier quote submission
+  - admin downstream price setting
+  - packaging selection
+  - courier booking
+  - requester confirmation
+  - supplier dispatch
+  - delivered / received / closed progression
+- Direct manufacturer-to-manufacturer bypass remains blocked in the live workflow.
+
+## Co-Manufacturer Assignment Status
+
+- Supplier eligibility is currently enforced with:
+  - active manufacturer status
+  - product availability for MandiPlace
+  - supplier-owned mandi-visible inventory
+  - requester and supplier must be different manufacturers
+- Main implementation:
+  - [services/procurement_transaction_service.py](/c:/2026/manditrade/manditrade/services/procurement_transaction_service.py)
+  - [services/dual_inventory_service.py](/c:/2026/manditrade/manditrade/services/dual_inventory_service.py)
+
+## Packaging Service Status
+
+- Admin packaging catalog now exists in:
+  - [modules/admin/packaging_services.py](/c:/2026/manditrade/manditrade/modules/admin/packaging_services.py)
+  - [services/governance_service.py](/c:/2026/manditrade/manditrade/services/governance_service.py)
+- Current support includes:
+  - create
+  - update pricing
+  - archive
+  - apply packaging to MandiPlace order
+
+## Courier Service Status
+
+- Admin courier catalog now exists in:
+  - [modules/admin/courier_services.py](/c:/2026/manditrade/manditrade/modules/admin/courier_services.py)
+  - [modules/logistics/dashboard.py](/c:/2026/manditrade/manditrade/modules/logistics/dashboard.py)
+  - [services/governance_service.py](/c:/2026/manditrade/manditrade/services/governance_service.py)
+- Current support includes:
+  - create
+  - update rate card
+  - archive
+  - book courier on MandiPlace order
+  - track courier delivery state
+
+## Final Cost Calculation Status
+
+- MandiPlace cost breakdown now calculates:
+  - goods amount
+  - supplier amount
+  - spread
+  - admin commission
+  - packaging cost
+  - courier cost
+  - final payable
+- Main pricing implementation:
+  - [services/pricing_service.py](/c:/2026/manditrade/manditrade/services/pricing_service.py)
+
+## Commission / Ledger Status
+
+- MandiPlace confirmation now creates:
+  - manufacturer-to-supplier goods ledger
+  - manufacturer-to-admin commission ledger
+  - manufacturer-to-admin service ledger when packaging/courier charges exist
+- Main implementation:
+  - [services/procurement_transaction_service.py](/c:/2026/manditrade/manditrade/services/procurement_transaction_service.py)
+  - [services/ledger_service.py](/c:/2026/manditrade/manditrade/services/ledger_service.py)
 
 ## State Management Status
 
@@ -85,12 +161,15 @@ Generated from the current repository state on 2026-06-02 after the storage migr
 - Current migration support includes:
   - legacy path discovery
   - dry-run and execute modes
+  - rehearsal execute mode
   - canonical-path writes through safe write service
   - duplicate-safe merge behavior
   - entity normalization
-  - migration report generation
+  - mode-specific migration report generation
 - Main operator script:
   - [scripts/migrate_storage_to_canonical.py](/c:/2026/manditrade/manditrade/scripts/migrate_storage_to_canonical.py)
+- Rehearsal operator script:
+  - [scripts/run_storage_migration_rehearsal.py](/c:/2026/manditrade/manditrade/scripts/run_storage_migration_rehearsal.py)
 
 ## Canonical Validation Status
 
@@ -102,6 +181,7 @@ Generated from the current repository state on 2026-06-02 after the storage migr
   - required JSON readability
   - legacy-vs-canonical gap warnings
   - queue/media/schema readiness at a lightweight level
+  - persisted validation report status for cutover review
 
 ## Storage Mode Status
 
@@ -114,6 +194,24 @@ Generated from the current repository state on 2026-06-02 after the storage migr
   - `compatibility`
 - Canonical mode switching is now path-layer aware in:
   - [services/drive_path_service.py](/c:/2026/manditrade/manditrade/services/drive_path_service.py)
+- Canonical mode is now startup-guarded through:
+  - [services/storage_cutover_service.py](/c:/2026/manditrade/manditrade/services/storage_cutover_service.py)
+  - [bootstrap/service_container.py](/c:/2026/manditrade/manditrade/bootstrap/service_container.py)
+  - [bootstrap/app_bootstrap.py](/c:/2026/manditrade/manditrade/bootstrap/app_bootstrap.py)
+- Unsafe canonical startup now blocks with:
+  - `Canonical storage mode requested, but validated migration report is missing.`
+
+## Cutover Readiness Status
+
+- Shared cutover readiness evaluation now exists in:
+  - [services/storage_cutover_service.py](/c:/2026/manditrade/manditrade/services/storage_cutover_service.py)
+- Readiness report generator now exists in:
+  - [scripts/generate_cutover_readiness_report.py](/c:/2026/manditrade/manditrade/scripts/generate_cutover_readiness_report.py)
+- Current readiness requirements are:
+  - last execute migration recommendation = `PASS`
+  - canonical validation status = `PASS`
+  - critical validation errors = `0`
+  - record and checksum checks must remain acceptable
 
 ## System Health Migration Status
 
@@ -121,10 +219,17 @@ Generated from the current repository state on 2026-06-02 after the storage migr
   - [modules/system/health_dashboard.py](/c:/2026/manditrade/manditrade/modules/system/health_dashboard.py)
 - Current panel shows:
   - current storage mode
+  - last dry-run status
+  - last execute status
+  - last validation status
+  - canonical readiness
+  - blocking issues
+  - recommended next action
   - latest migration report
   - canonical validation result
   - dry-run trigger
   - validation trigger
+  - cutover readiness report trigger
 
 ## Path Service Status
 
@@ -521,6 +626,8 @@ Generated from the current repository state on 2026-06-02 after the storage migr
   - daily checks
   - incident handling
   - severity model
+  - storage migration rehearsal
+  - rollback to compatibility mode
   - release gate command sequence
 
 ## Smoke Test Status
@@ -606,7 +713,7 @@ Generated from the current repository state on 2026-06-02 after the storage migr
 ## Tests Result
 
 - `python -m pytest tests/ -q`
-  - Passed: `227`
+  - Passed: `239`
   - Skipped: `5`
 - `python -m compileall app.py modules services utils components schemas bootstrap scripts`
   - Passed
@@ -629,7 +736,8 @@ Generated from the current repository state on 2026-06-02 after the storage migr
 - Release readiness is still blocked by cloud OAuth/admin email configuration, so this is not yet a pilot `GO`.
 - Card-based shopping is now live on the main marketplace and manufacturer request surfaces, but some lower-traffic admin/supervisory tables still remain table-first rather than card-first by design.
 - Favorites are currently wired into the marketplace flow first; manufacturer-side saved-item UX can be expanded further on additional shopping surfaces later.
-- Canonical pathing, migration tooling, and validation are now in place, but production cutover still depends on an operator-reviewed execute run plus explicit `storage.mode=canonical` switch.
+- Canonical pathing, rehearsal tooling, validation, and cutover guards are now in place, but production cutover still depends on an operator-reviewed execute run plus explicit `storage.mode=canonical` switch after readiness says `READY`.
+- MandiPlace manufacturer procurement is now routed through admin with packaging and courier support, but packaging/courier charges are still modeled for admin-led settlement rather than a fuller configurable recipient matrix.
 - Alerts and recommendations are intentionally rule-based and deterministic; there is still no forecasting depth or adaptive scoring beyond current heuristics.
 - Pagination is implemented on the current highest-volume operational pages, but a few legacy / low-traffic screens still use direct table rendering and can be migrated later.
 - Operational search currently routes to page-level detail surfaces, not a universal modal detail shell.

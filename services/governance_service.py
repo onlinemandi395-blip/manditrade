@@ -44,6 +44,18 @@ class GovernanceService:
     def supply_ledgers_path(self) -> Path:
         return self.governance_root / "supply_ledgers.json"
 
+    @property
+    def mandiplace_orders_path(self) -> Path:
+        return self.governance_root / "mandiplace_orders.json"
+
+    @property
+    def packaging_services_path(self) -> Path:
+        return self.governance_root / "packaging_services.json"
+
+    @property
+    def courier_services_path(self) -> Path:
+        return self.governance_root / "courier_services.json"
+
     def ensure_files(self) -> None:
         if not self.products_path.exists():
             self.safe_drive_write_service.replace_document(
@@ -81,6 +93,21 @@ class GovernanceService:
             self.safe_drive_write_service.replace_document(
                 self.supply_ledgers_path,
                 {"schema_version": "1.0", "entries": []},
+            )
+        if not self.mandiplace_orders_path.exists():
+            self.safe_drive_write_service.replace_document(
+                self.mandiplace_orders_path,
+                {"schema_version": "1.0", "orders": []},
+            )
+        if not self.packaging_services_path.exists():
+            self.safe_drive_write_service.replace_document(
+                self.packaging_services_path,
+                {"schema_version": "1.0", "services": []},
+            )
+        if not self.courier_services_path.exists():
+            self.safe_drive_write_service.replace_document(
+                self.courier_services_path,
+                {"schema_version": "1.0", "services": []},
             )
 
     def list_products(self) -> list[dict[str, Any]]:
@@ -426,6 +453,144 @@ class GovernanceService:
         self.safe_drive_write_service.replace_document(self.supply_ledgers_path, payload)
         self._audit("CREATE_SUPPLY_LEDGER_ENTRY", "supply_ledger", str(entry.get("entry_id", "")), {"mandi_order_id": entry.get("mandi_order_id", ""), "status": entry.get("status", "")})
         return entry
+
+    def list_packaging_services(self) -> list[dict[str, Any]]:
+        self.ensure_files()
+        return self.json_service.read_json(self.packaging_services_path, {"services": []}).get("services", [])
+
+    def get_packaging_service(self, packaging_service_id: str) -> dict[str, Any] | None:
+        self.ensure_files()
+        key = str(packaging_service_id or "").strip().upper()
+        return next((item for item in self.list_packaging_services() if item.get("packaging_service_id") == key), None)
+
+    def upsert_packaging_service(self, service: dict[str, Any]) -> dict[str, Any]:
+        self.ensure_files()
+        payload = self.json_service.read_json(self.packaging_services_path, {"services": []})
+        service_id = str(service.get("packaging_service_id") or "").strip().upper()
+        if not service_id:
+            raise ValueError("Packaging service ID is required.")
+        now = datetime.now(UTC).isoformat()
+        existing = next((row for row in payload.get("services", []) if row.get("packaging_service_id") == service_id), None)
+        normalized = {
+            "packaging_service_id": service_id,
+            "name": str(service.get("name") or (existing or {}).get("name") or "").strip(),
+            "material_type": str(service.get("material_type") or (existing or {}).get("material_type") or "BOX").strip().upper(),
+            "unit": str(service.get("unit") or (existing or {}).get("unit") or "piece").strip(),
+            "base_price": round(float(service.get("base_price") if service.get("base_price") is not None else (existing or {}).get("base_price", 0) or 0), 2),
+            "price_per_unit": round(float(service.get("price_per_unit") if service.get("price_per_unit") is not None else (existing or {}).get("price_per_unit", 0) or 0), 2),
+            "minimum_charge": round(float(service.get("minimum_charge") if service.get("minimum_charge") is not None else (existing or {}).get("minimum_charge", 0) or 0), 2),
+            "applicable_product_categories": list(service.get("applicable_product_categories") or (existing or {}).get("applicable_product_categories") or []),
+            "status": str(service.get("status") or (existing or {}).get("status") or "ACTIVE").strip().upper(),
+            "created_at": (existing or {}).get("created_at") or now,
+            "updated_at": now,
+        }
+        if existing:
+            existing.update(normalized)
+        else:
+            payload.setdefault("services", []).append(normalized)
+        payload.setdefault("schema_version", "1.0")
+        self.safe_drive_write_service.replace_document(self.packaging_services_path, payload)
+        self._audit("UPSERT_PACKAGING_SERVICE", "packaging_service", service_id, {"status": normalized.get("status", "")})
+        return normalized
+
+    def archive_packaging_service(self, packaging_service_id: str) -> bool:
+        return self._archive_record(
+            path=self.packaging_services_path,
+            list_key="services",
+            matcher=lambda item: item.get("packaging_service_id") == str(packaging_service_id or "").strip().upper(),
+            entity_type="packaging_service",
+            entity_id=str(packaging_service_id or "").strip().upper(),
+        )
+
+    def list_courier_services(self) -> list[dict[str, Any]]:
+        self.ensure_files()
+        return self.json_service.read_json(self.courier_services_path, {"services": []}).get("services", [])
+
+    def get_courier_service(self, courier_service_id: str) -> dict[str, Any] | None:
+        self.ensure_files()
+        key = str(courier_service_id or "").strip().upper()
+        return next((item for item in self.list_courier_services() if item.get("courier_service_id") == key), None)
+
+    def upsert_courier_service(self, service: dict[str, Any]) -> dict[str, Any]:
+        self.ensure_files()
+        payload = self.json_service.read_json(self.courier_services_path, {"services": []})
+        service_id = str(service.get("courier_service_id") or "").strip().upper()
+        if not service_id:
+            raise ValueError("Courier service ID is required.")
+        now = datetime.now(UTC).isoformat()
+        existing = next((row for row in payload.get("services", []) if row.get("courier_service_id") == service_id), None)
+        normalized = {
+            "courier_service_id": service_id,
+            "provider_name": str(service.get("provider_name") or (existing or {}).get("provider_name") or "").strip(),
+            "service_type": str(service.get("service_type") or (existing or {}).get("service_type") or "LOCAL").strip().upper(),
+            "base_price": round(float(service.get("base_price") if service.get("base_price") is not None else (existing or {}).get("base_price", 0) or 0), 2),
+            "price_per_km": round(float(service.get("price_per_km") if service.get("price_per_km") is not None else (existing or {}).get("price_per_km", 0) or 0), 2),
+            "price_per_kg": round(float(service.get("price_per_kg") if service.get("price_per_kg") is not None else (existing or {}).get("price_per_kg", 0) or 0), 2),
+            "minimum_charge": round(float(service.get("minimum_charge") if service.get("minimum_charge") is not None else (existing or {}).get("minimum_charge", 0) or 0), 2),
+            "supported_locations": list(service.get("supported_locations") or (existing or {}).get("supported_locations") or []),
+            "contact_name": str(service.get("contact_name") or (existing or {}).get("contact_name") or "").strip(),
+            "contact_mobile": str(service.get("contact_mobile") or (existing or {}).get("contact_mobile") or "").strip(),
+            "status": str(service.get("status") or (existing or {}).get("status") or "ACTIVE").strip().upper(),
+            "created_at": (existing or {}).get("created_at") or now,
+            "updated_at": now,
+        }
+        if existing:
+            existing.update(normalized)
+        else:
+            payload.setdefault("services", []).append(normalized)
+        payload.setdefault("schema_version", "1.0")
+        self.safe_drive_write_service.replace_document(self.courier_services_path, payload)
+        self._audit("UPSERT_COURIER_SERVICE", "courier_service", service_id, {"status": normalized.get("status", "")})
+        return normalized
+
+    def archive_courier_service(self, courier_service_id: str) -> bool:
+        return self._archive_record(
+            path=self.courier_services_path,
+            list_key="services",
+            matcher=lambda item: item.get("courier_service_id") == str(courier_service_id or "").strip().upper(),
+            entity_type="courier_service",
+            entity_id=str(courier_service_id or "").strip().upper(),
+        )
+
+    def list_mandiplace_orders(self) -> list[dict[str, Any]]:
+        self.ensure_files()
+        return self.json_service.read_json(self.mandiplace_orders_path, {"orders": []}).get("orders", [])
+
+    def get_mandiplace_order(self, mandiplace_order_id: str) -> dict[str, Any] | None:
+        self.ensure_files()
+        key = str(mandiplace_order_id or "").strip().upper()
+        return next((item for item in self.list_mandiplace_orders() if item.get("mandiplace_order_id") == key), None)
+
+    def upsert_mandiplace_order(self, order: dict[str, Any]) -> dict[str, Any]:
+        self.ensure_files()
+        payload = self.json_service.read_json(self.mandiplace_orders_path, {"orders": []})
+        order_id = str(order.get("mandiplace_order_id") or "").strip().upper()
+        if not order_id:
+            raise ValueError("MandiPlace order ID is required.")
+        now = datetime.now(UTC).isoformat()
+        existing = next((row for row in payload.get("orders", []) if row.get("mandiplace_order_id") == order_id), None)
+        normalized = dict(existing or {})
+        normalized.update(order)
+        normalized["mandiplace_order_id"] = order_id
+        normalized["updated_at"] = now
+        normalized["created_at"] = normalized.get("created_at") or now
+        if existing:
+            existing.update(normalized)
+        else:
+            payload.setdefault("orders", []).append(normalized)
+        payload.setdefault("schema_version", "1.0")
+        self.safe_drive_write_service.replace_document(self.mandiplace_orders_path, payload)
+        self._audit(
+            "UPSERT_MANDIPLACE_ORDER",
+            "mandiplace_order",
+            order_id,
+            {
+                "status": normalized.get("status", ""),
+                "requesting_manufacturer_id": normalized.get("requesting_manufacturer_id", ""),
+                "supplier_manufacturer_id": normalized.get("supplier_manufacturer_id", ""),
+            },
+        )
+        return normalized
 
     def _archive_record(
         self,

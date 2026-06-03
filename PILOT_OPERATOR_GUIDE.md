@@ -42,10 +42,18 @@ Open these areas in order:
 
 - Keep `storage.mode=compatibility` until migration is validated.
 - Run `python scripts/migrate_storage_to_canonical.py --dry-run` first.
-- Review `runtime/migration_reports/latest_migration_report.json`.
-- Run `python scripts/validate_canonical_storage.py`.
-- Only then run execute mode and consider switching to `storage.mode=canonical`.
-- Do not delete legacy data during the same change window.
+- Run `python scripts/run_storage_migration_rehearsal.py` for a safe rehearsal write into `runtime/migration_rehearsal/`.
+- Review:
+  - `runtime/migration_reports/latest_dry_run_migration_report.json`
+  - `runtime/migration_reports/latest_rehearsal_execute_migration_report.json`
+  - `runtime/migration_reports/latest_rehearsal_canonical_validation_report.json`
+- Run the real execute only after rehearsal review:
+  - `python scripts/migrate_storage_to_canonical.py --execute`
+  - `python scripts/validate_canonical_storage.py`
+  - `python scripts/generate_cutover_readiness_report.py`
+- Switch to `storage.mode=canonical` only when the readiness report says `READY`.
+- If anything looks wrong after cutover, switch back to `storage.mode=compatibility` and restart the app.
+- Do not delete legacy governance, public buyer, public order, or public payment JSON during the same change window.
 
 ### Gmail Failure
 

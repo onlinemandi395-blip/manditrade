@@ -271,6 +271,9 @@ def main() -> None:
     ensure_session_defaults()
     apply_ui_shell(CSS_FILE)
     app_context = build_app_context()
+    if app_context.get("storage_cutover_blocked"):
+        st.error(app_context.get("storage_cutover_message") or "Canonical storage mode requested, but validated migration report is missing.")
+        st.stop()
     st.session_state["runtime_environment"] = app_context["system_config"]["app"].get("runtime_environment", "local")
     handle_oauth_callback(app_context)
     if not st.session_state.get("startup_recovery_ran"):

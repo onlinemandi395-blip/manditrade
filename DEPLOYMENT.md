@@ -103,22 +103,33 @@ Always run migration in dry-run mode first:
 
 ```bash
 python scripts/migrate_storage_to_canonical.py --dry-run
+python scripts/run_storage_migration_rehearsal.py
 python scripts/validate_canonical_storage.py
+python scripts/generate_cutover_readiness_report.py
 ```
 
 After review, execute:
 
 ```bash
 python scripts/migrate_storage_to_canonical.py --execute
+python scripts/validate_canonical_storage.py
+python scripts/generate_cutover_readiness_report.py
 ```
 
-Then switch:
+Then, only if validation and readiness both return `PASS` / `READY`, switch:
 
 ```text
 system_config.json -> storage.mode = canonical
 ```
 
-Keep legacy files intact until canonical validation is acceptable and operator review is complete.
+To stay on the safe path:
+
+- keep `storage.mode=compatibility` until the cutover readiness report says `READY`
+- if any issue appears after a mode switch, set `storage.mode=compatibility` again and restart
+- never delete legacy governance, buyer, order, or payment JSON during rehearsal or first cutover
+- rehearsal writes to `runtime/migration_rehearsal/`, not the live canonical folder tree
+
+Cutover is now guarded at startup. If `storage.mode=canonical` is requested without a validated PASS migration state, the app blocks startup with a safe storage warning.
 
 ## Release Gate
 

@@ -11,6 +11,8 @@ from modules.finance.commission_dashboard import render_commission_dashboard
 from modules.admin.dashboard import render_admin_dashboard
 from modules.admin.operations_dashboard import render_operations_dashboard
 from modules.admin.mahajans import render_mahajans_dashboard
+from modules.admin.packaging_services import render_packaging_services_dashboard
+from modules.admin.courier_services import render_courier_services_dashboard
 from modules.admin.inventory_summary import render_inventory_summary_dashboard
 from modules.admin.manufacturers import render_manufacturers_dashboard
 from modules.mahajan.dashboard import render_mahajan_dashboard
@@ -33,6 +35,7 @@ from modules.public_orders.dashboard import render_public_orders_dashboard
 from modules.raw_materials.dashboard import render_raw_materials_dashboard
 from modules.suta_mandi.dashboard import render_suta_mandi_dashboard
 from modules.system.health_dashboard import render_health_dashboard
+from modules.logistics.dashboard import render_logistics_dashboard
 from services.navigation_service import NAV_ALIAS_MAP, normalize_navigation_label
 
 
@@ -58,6 +61,9 @@ ROUTE_GROUPS = {
         "Ledger",
         "Platform Commission",
         "Operations Center",
+        "Packaging Services",
+        "Courier Services",
+        "Logistics",
         "Jobs",
         "System Health",
         "Analytics",
@@ -195,6 +201,12 @@ def render_route(section: str, app_context: dict) -> None:
         render_raw_materials_dashboard(app_context)
     elif section == "Operations Center":
         render_operations_dashboard(app_context)
+    elif section == "Packaging Services":
+        render_packaging_services_dashboard(app_context)
+    elif section == "Courier Services":
+        render_courier_services_dashboard(app_context)
+    elif section == "Logistics":
+        render_logistics_dashboard(app_context)
     elif section == "Jobs":
         render_jobs_dashboard(app_context)
     elif section == "Analytics":

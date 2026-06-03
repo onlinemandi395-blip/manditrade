@@ -34,6 +34,8 @@ def test_all_role_navigation_routes_render_without_exception(monkeypatch):
         "render_commission_dashboard",
         "render_admin_dashboard",
         "render_operations_dashboard",
+        "render_packaging_services_dashboard",
+        "render_courier_services_dashboard",
         "render_mahajans_dashboard",
         "render_inventory_summary_dashboard",
         "render_manufacturers_dashboard",
@@ -57,6 +59,7 @@ def test_all_role_navigation_routes_render_without_exception(monkeypatch):
         "render_raw_materials_dashboard",
         "render_suta_mandi_dashboard",
         "render_health_dashboard",
+        "render_logistics_dashboard",
     ]
     for target in patch_targets:
         monkeypatch.setattr(f"bootstrap.route_registry.{target}", _capture(target))

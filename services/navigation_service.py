@@ -4,8 +4,7 @@ from typing import Iterable
 
 
 NAV_ALIAS_MAP: dict[str, str] = {
-    "Mandiplace": "Mandi Orders",
-    "MandiPlace": "Mandi Orders",
+    "Mandiplace": "MandiPlace",
     "Mandiplace Order": "Mandi Orders",
     "rfq": "Mandi Orders",
     "RFQ": "Mandi Orders",
@@ -33,7 +32,7 @@ ROLE_NAVIGATION_MAP: dict[str, list[tuple[str, list[str]]]] = {
         ("Mandi Network", ["MandiPlace", "Mandi Orders"]),
         ("Supply Network", ["Raw Materials", "Supply Orders"]),
         ("Finance", ["Payments", "Ledger", "Platform Commission"]),
-        ("Operations", ["Operations Center", "Jobs", "System Health", "Analytics"]),
+        ("Operations", ["Operations Center", "Packaging Services", "Courier Services", "Logistics", "Jobs", "System Health", "Analytics"]),
     ],
     "mahajan": [
         ("Core", ["Dashboard", "My Profile", "Notifications", "My Actions"]),

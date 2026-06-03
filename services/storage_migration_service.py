@@ -30,19 +30,27 @@ class StorageMigrationService:
         self.public_payments_root = public_payments_root
         self.runtime_root = runtime_root
 
-    def run(self, *, mode: str) -> dict[str, Any]:
+    def run(
+        self,
+        *,
+        mode: str,
+        rehearsal: bool = False,
+        report_dir: Path | None = None,
+    ) -> dict[str, Any]:
         migration_id = self.id_allocator_service.allocate("event")
         started_at = datetime.now(UTC).isoformat()
         source_files = self._discover_legacy_sources()
         canonical_documents, report_state = self._build_canonical_documents(source_files)
         records_migrated = sum(item["count"] for item in canonical_documents.values())
         if mode == "execute":
+            self.drive_path_service.ensure_canonical_structure()
             for target, doc in canonical_documents.items():
                 self.safe_drive_write_service.replace_document(Path(target), doc)
         completed_at = datetime.now(UTC).isoformat()
         report = {
             "migration_id": migration_id,
             "mode": mode,
+            "rehearsal": rehearsal,
             "started_at": started_at,
             "completed_at": completed_at,
             "source_files_scanned": len(source_files),
@@ -56,7 +64,7 @@ class StorageMigrationService:
             "checksum_summary": {target: payload["checksum"] for target, payload in canonical_documents.items()},
             "recommendation": "FAIL" if report_state["errors"] else "REVIEW" if report_state["conflicts"] else "PASS",
         }
-        self._write_report(report)
+        self._write_report(report, report_dir=report_dir, rehearsal=rehearsal)
         return report
 
     def _discover_legacy_sources(self) -> list[Path]:
@@ -191,11 +199,21 @@ class StorageMigrationService:
         normalized["version"] = int(row.get("version", 1) or 1)
         return normalized
 
-    def _write_report(self, report: dict[str, Any]) -> Path:
-        report_dir = self.runtime_root / "migration_reports"
+    def _write_report(self, report: dict[str, Any], *, report_dir: Path | None, rehearsal: bool) -> Path:
+        report_dir = report_dir or (self.runtime_root / "migration_reports")
         report_dir.mkdir(parents=True, exist_ok=True)
-        target = report_dir / f"migration_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}.json"
+        prefix = "rehearsal_report" if rehearsal else "migration"
+        mode = str(report.get("mode") or "dry_run").strip().lower()
+        target = report_dir / f"{prefix}_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}.json"
         latest = report_dir / "latest_migration_report.json"
+        latest_mode = report_dir / f"latest_{mode}_migration_report.json"
+        latest_rehearsal = report_dir / "latest_rehearsal_migration_report.json"
+        latest_rehearsal_mode = report_dir / f"latest_rehearsal_{mode}_migration_report.json"
         self.safe_drive_write_service.replace_document(target, report)
-        self.safe_drive_write_service.replace_document(latest, report)
+        if rehearsal:
+            self.safe_drive_write_service.replace_document(latest_rehearsal, report)
+            self.safe_drive_write_service.replace_document(latest_rehearsal_mode, report)
+        else:
+            self.safe_drive_write_service.replace_document(latest, report)
+            self.safe_drive_write_service.replace_document(latest_mode, report)
         return target

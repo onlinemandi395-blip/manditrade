@@ -17,13 +17,25 @@ class CanonicalStorageValidationService:
     ]
     CRITICAL_DIRS = {"registry", "catalog"}
 
-    def __init__(self, *, drive_path_service, json_service, governance_root: Path, public_buyers_root: Path) -> None:
+    def __init__(
+        self,
+        *,
+        drive_path_service,
+        json_service,
+        governance_root: Path,
+        public_buyers_root: Path,
+        runtime_root: Path,
+        safe_drive_write_service,
+    ) -> None:
         self.drive_path_service = drive_path_service
         self.json_service = json_service
         self.governance_root = governance_root
         self.public_buyers_root = public_buyers_root
+        self.runtime_root = runtime_root
+        self.safe_drive_write_service = safe_drive_write_service
 
-    def validate(self) -> dict[str, Any]:
+    def validate(self, *, rehearsal: bool = False, persist: bool = True) -> dict[str, Any]:
+        self.drive_path_service.ensure_canonical_structure()
         db_root = self.drive_path_service.db_root
         checks: list[dict[str, Any]] = []
         errors: list[str] = []
@@ -56,12 +68,26 @@ class CanonicalStorageValidationService:
         if legacy_data_exists and not canonical_registry.exists():
             warnings.append("Legacy data exists but canonical manufacturer registry is missing.")
         status = "PASS" if not errors else "FAIL"
-        if not errors and warnings:
-            status = "REVIEW"
-        return {
+        report = {
             "generated_at": datetime.now(UTC).isoformat(),
+            "rehearsal": rehearsal,
             "status": status,
             "checks": checks,
             "errors": errors,
             "warnings": warnings,
+            "critical_errors": len(errors),
         }
+        if persist:
+            self._write_report(report, rehearsal=rehearsal)
+        return report
+
+    def _write_report(self, report: dict[str, Any], *, rehearsal: bool) -> Path:
+        report_dir = self.runtime_root / "migration_reports"
+        report_dir.mkdir(parents=True, exist_ok=True)
+        prefix = "rehearsal_canonical_validation" if rehearsal else "canonical_validation"
+        latest_name = "latest_rehearsal_canonical_validation_report.json" if rehearsal else "latest_canonical_validation_report.json"
+        target = report_dir / f"{prefix}_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}.json"
+        latest = report_dir / latest_name
+        self.safe_drive_write_service.replace_document(target, report)
+        self.safe_drive_write_service.replace_document(latest, report)
+        return target

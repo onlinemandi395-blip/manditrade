@@ -37,6 +37,7 @@ class ProcurementTransactionService:
         governance_service=None,
         pricing_service=None,
         event_notification_service=None,
+        product_catalog_service=None,
     ) -> None:
         self.drive_service = drive_service
         self.safe_drive_write_service = safe_drive_write_service
@@ -55,6 +56,7 @@ class ProcurementTransactionService:
         self.governance_service = governance_service
         self.pricing_service = pricing_service
         self.event_notification_service = event_notification_service
+        self.product_catalog_service = product_catalog_service
 
     def _default_logistics(self) -> dict[str, Any]:
         return {
@@ -71,6 +73,32 @@ class ProcurementTransactionService:
             "proof_url": "",
             "proof_image_url": "",
             "delivered_at": "",
+        }
+
+    def _default_packaging(self) -> dict[str, Any]:
+        return {
+            "packaging_service_id": "",
+            "packaging_name": "",
+            "qty": 0,
+            "unit_price": 0.0,
+            "total_packaging_cost": 0.0,
+            "packaging_note": "",
+        }
+
+    def _default_courier(self) -> dict[str, Any]:
+        return {
+            "courier_service_id": "",
+            "provider_name": "",
+            "pickup_location": "",
+            "delivery_location": "",
+            "distance_km": 0.0,
+            "weight_kg": 0.0,
+            "courier_cost": 0.0,
+            "tracking_reference": "",
+            "driver_name": "",
+            "driver_mobile": "",
+            "vehicle_number": "",
+            "status": "",
         }
 
     def _validate_available_items(self, available_items: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -151,6 +179,538 @@ class ProcurementTransactionService:
         if mahajan_id:
             orders = [item for item in orders if item.get("mahajan_id") == mahajan_id]
         return orders
+
+    def list_mandiplace_orders(
+        self,
+        *,
+        requesting_manufacturer_id: str | None = None,
+        supplier_manufacturer_id: str | None = None,
+        manufacturer_code: str | None = None,
+    ) -> list[dict[str, Any]]:
+        if not self.governance_service:
+            return []
+        orders = self.governance_service.list_mandiplace_orders()
+        if requesting_manufacturer_id:
+            orders = [item for item in orders if item.get("requesting_manufacturer_id") == requesting_manufacturer_id]
+        if supplier_manufacturer_id:
+            orders = [item for item in orders if item.get("supplier_manufacturer_id") == supplier_manufacturer_id]
+        if manufacturer_code:
+            orders = [
+                item
+                for item in orders
+                if item.get("requesting_manufacturer_id") == manufacturer_code or item.get("supplier_manufacturer_id") == manufacturer_code
+            ]
+        return orders
+
+    def create_mandiplace_request(
+        self,
+        *,
+        requesting_manufacturer_id: str,
+        items: list[dict[str, Any]],
+        requested_by: str,
+        notes: str = "",
+    ) -> dict[str, Any]:
+        if not self.governance_service:
+            raise ValueError("Governance service not configured for MandiPlace requests.")
+        normalized_items: list[dict[str, Any]] = []
+        for item in items:
+            qty = float(item.get("qty", 0) or 0)
+            if qty <= 0:
+                raise ValueError("Requested quantity must be greater than zero.")
+            normalized_items.append(
+                {
+                    "product_id": str(item.get("product_id") or "").strip(),
+                    "name": str(item.get("name") or item.get("product_name") or "").strip(),
+                    "qty": qty,
+                    "unit": str(item.get("unit") or "unit").strip(),
+                    "requested_location": str(item.get("requested_location") or "").strip(),
+                    "required_by_date": str(item.get("required_by_date") or "").strip(),
+                }
+            )
+        if not normalized_items:
+            raise ValueError("At least one MandiPlace item is required.")
+        qty_total = sum(float(item.get("qty", 0) or 0) for item in normalized_items)
+        order = {
+            "mandiplace_order_id": self.id_allocator_service.allocate("order").replace("ORD-", "MPO-"),
+            "order_type": "mandiplace_order",
+            "requesting_manufacturer_id": requesting_manufacturer_id,
+            "supplier_manufacturer_id": "",
+            "assigned_by_admin": "",
+            "items": normalized_items,
+            "requested_by": requested_by,
+            "notes": notes,
+            "qty_total": qty_total,
+            "supplier_unit_price": 0.0,
+            "manufacturer_unit_price": 0.0,
+            "packaging": self._default_packaging(),
+            "courier": self._default_courier(),
+            "commission": {},
+            "cost_breakdown": {},
+            "status": "REQUESTED_BY_MANUFACTURER",
+            "internal_status_history": [
+                {"status": "REQUESTED_BY_MANUFACTURER", "at": datetime.now(UTC).isoformat(), "actor": requested_by}
+            ],
+            "payment_receiver": "",
+            "payment_status": "PENDING",
+            "payment_proof_url": "",
+            "payment_proof_uploaded_at": "",
+            "payment_verified_by": "",
+            "payment_verified_at": "",
+            "logistics": self._default_logistics(),
+            "ratings": [],
+        }
+        created = self.governance_service.upsert_mandiplace_order(order)
+        self._audit("MANDIPLACE_REQUEST_CREATED", requested_by, "manufacturer", created["mandiplace_order_id"], {"status": created.get("status", "")})
+        self._emit_event(
+            "MANDIPLACE_ORDER_CREATED",
+            entity_type="MANDIPLACE_ORDER",
+            entity_id=created["mandiplace_order_id"],
+            title="MandiPlace order created",
+            message=f"MandiPlace order {created['mandiplace_order_id']} was created.",
+            manufacturer_code=requesting_manufacturer_id,
+            manufacturer_email=requested_by,
+            admin_email="PLATFORM_ADMIN",
+        )
+        return created
+
+    def list_eligible_manufacturer_suppliers(self, *, mandiplace_order_id: str) -> list[dict[str, Any]]:
+        if not self.governance_service:
+            return []
+        order = self.governance_service.get_mandiplace_order(mandiplace_order_id)
+        if not order:
+            raise ValueError("MandiPlace order not found.")
+        requester = str(order.get("requesting_manufacturer_id") or "").strip()
+        required_items = list(order.get("items", []))
+        product_ids = {str(item.get("product_id") or "").strip() for item in required_items if item.get("product_id")}
+        product_catalog = {
+            str(item.get("product_id") or ""): item
+            for item in self.governance_service.list_products()
+            if item.get("status") == "ACTIVE" and item.get("available_for_mandi_network", True)
+        }
+        manufacturers = [item for item in self.governance_service.list_manufacturers() if item.get("status") == "ACTIVE"]
+        eligible: list[dict[str, Any]] = []
+        for manufacturer in manufacturers:
+            supplier_code = str(manufacturer.get("manufacturer_code") or "").strip()
+            if not supplier_code or supplier_code == requester:
+                continue
+            inventory_doc = self.dual_inventory_service.list_inventory(supplier_code)
+            inventory_index = {str(item.get("product_id") or ""): item for item in inventory_doc.get("items", [])}
+            supported = True
+            availability_rows = []
+            estimated_price = 0.0
+            for request_item in required_items:
+                product_id = str(request_item.get("product_id") or "").strip()
+                inv = inventory_index.get(product_id, {})
+                mandi_inventory = dict(inv.get("mandi_inventory") or {})
+                visible = bool(mandi_inventory.get("visible_to_mandi", True))
+                available_qty = int(mandi_inventory.get("available_qty", 0) or 0) - int(mandi_inventory.get("reserved_qty", 0) or 0)
+                required_qty = int(float(request_item.get("qty", 0) or 0))
+                owner_matches = str(product_catalog.get(product_id, {}).get("created_by_manufacturer_id") or product_catalog.get(product_id, {}).get("created_by") or "").strip()
+                price = float(product_catalog.get(product_id, {}).get("approved_mandi_price", product_catalog.get(product_id, {}).get("mandi_price", 0)) or 0)
+                availability_rows.append(
+                    {
+                        "product_id": product_id,
+                        "product_name": request_item.get("name", product_id),
+                        "available_qty": available_qty,
+                        "required_qty": required_qty,
+                        "visible_to_mandi": visible,
+                        "estimated_price": price,
+                    }
+                )
+                estimated_price += price
+                if product_id not in product_ids or owner_matches != supplier_code or not visible or available_qty < required_qty:
+                    supported = False
+            if supported and availability_rows:
+                eligible.append(
+                    {
+                        "manufacturer_code": supplier_code,
+                        "business_name": manufacturer.get("business_name", supplier_code),
+                        "city": manufacturer.get("city", ""),
+                        "estimated_price": round(estimated_price / max(len(availability_rows), 1), 2),
+                        "availability": availability_rows,
+                    }
+                )
+        return eligible
+
+    def assign_manufacturer_supplier(self, *, mandiplace_order_id: str, supplier_manufacturer_id: str, admin_email: str) -> dict[str, Any]:
+        if not self.governance_service:
+            raise ValueError("Governance service not configured for MandiPlace requests.")
+        order = self.governance_service.get_mandiplace_order(mandiplace_order_id)
+        if not order:
+            raise ValueError("MandiPlace order not found.")
+        requester = str(order.get("requesting_manufacturer_id") or "").strip()
+        supplier_code = str(supplier_manufacturer_id or "").strip().upper()
+        if supplier_code == requester:
+            raise ValueError("Supplier manufacturer cannot be the same as the requesting manufacturer.")
+        eligible = self.list_eligible_manufacturer_suppliers(mandiplace_order_id=mandiplace_order_id)
+        if supplier_code not in {item.get("manufacturer_code") for item in eligible}:
+            raise ValueError("Selected supplier manufacturer is not eligible for this order.")
+        order["supplier_manufacturer_id"] = supplier_code
+        order["assigned_by_admin"] = admin_email
+        order["status"] = "SUPPLIER_ASSIGNED"
+        order.setdefault("internal_status_history", []).append({"status": "ADMIN_REVIEWING", "at": datetime.now(UTC).isoformat(), "actor": admin_email})
+        order["internal_status_history"].append({"status": "SUPPLIER_ASSIGNED", "at": datetime.now(UTC).isoformat(), "actor": admin_email})
+        updated = self.governance_service.upsert_mandiplace_order(order)
+        supplier = self.governance_service.get_manufacturer(supplier_code) or {}
+        self._emit_event(
+            "SUPPLIER_ASSIGNED",
+            entity_type="MANDIPLACE_ORDER",
+            entity_id=mandiplace_order_id,
+            title="MandiPlace supplier assigned",
+            message=f"Supplier manufacturer assigned for {mandiplace_order_id}.",
+            manufacturer_code=supplier_code,
+            manufacturer_email=str(supplier.get("owner_email", "")).strip().lower(),
+            admin_email=admin_email,
+        )
+        return updated
+
+    def supplier_quote_mandiplace_order(
+        self,
+        *,
+        mandiplace_order_id: str,
+        supplier_manufacturer_id: str,
+        supplier_unit_price: float,
+        actor_email: str,
+        notes: str = "",
+    ) -> dict[str, Any]:
+        order = self.governance_service.get_mandiplace_order(mandiplace_order_id)
+        if not order:
+            raise ValueError("MandiPlace order not found.")
+        supplier_code = str(supplier_manufacturer_id or "").strip().upper()
+        if order.get("supplier_manufacturer_id") != supplier_code:
+            raise PermissionError("Manufacturer cannot quote another supplier's MandiPlace order.")
+        order["supplier_unit_price"] = round(float(supplier_unit_price or 0), 2)
+        order["supplier_quote_note"] = notes
+        order["status"] = "SUPPLIER_QUOTED"
+        order.setdefault("internal_status_history", []).append({"status": "SUPPLIER_QUOTED", "at": datetime.now(UTC).isoformat(), "actor": actor_email})
+        updated = self.governance_service.upsert_mandiplace_order(order)
+        self._emit_event(
+            "SUPPLIER_QUOTED",
+            entity_type="MANDIPLACE_ORDER",
+            entity_id=mandiplace_order_id,
+            title="Supplier quoted MandiPlace order",
+            message=f"Supplier quote submitted for {mandiplace_order_id}.",
+            manufacturer_code=order.get("requesting_manufacturer_id", ""),
+            admin_email=actor_email,
+        )
+        return updated
+
+    def set_mandiplace_manufacturer_price(self, *, mandiplace_order_id: str, manufacturer_unit_price: float, admin_email: str) -> dict[str, Any]:
+        if not self.pricing_service:
+            raise ValueError("Pricing service not configured.")
+        order = self.governance_service.get_mandiplace_order(mandiplace_order_id)
+        if not order:
+            raise ValueError("MandiPlace order not found.")
+        order["manufacturer_unit_price"] = round(float(manufacturer_unit_price or 0), 2)
+        breakdown = self.pricing_service.calculate_mandiplace_breakdown(
+            qty=float(order.get("qty_total", 0) or 0),
+            supplier_unit_price=float(order.get("supplier_unit_price", 0) or 0),
+            manufacturer_unit_price=float(order.get("manufacturer_unit_price", 0) or 0),
+            packaging_cost=float((order.get("packaging") or {}).get("total_packaging_cost", 0) or 0),
+            courier_cost=float((order.get("courier") or {}).get("courier_cost", 0) or 0),
+        )
+        order["cost_breakdown"] = breakdown
+        order["commission"] = {
+            "admin_commission": breakdown.get("admin_commission", 0),
+            "spread": breakdown.get("spread", 0),
+            "commission_status": "CALCULATED",
+        }
+        order["status"] = "ADMIN_PRICE_SET"
+        order.setdefault("internal_status_history", []).append({"status": "ADMIN_PRICE_SET", "at": datetime.now(UTC).isoformat(), "actor": admin_email})
+        updated = self.governance_service.upsert_mandiplace_order(order)
+        requester = self.governance_service.get_manufacturer(updated.get("requesting_manufacturer_id", "")) or {}
+        self._emit_event(
+            "ADMIN_PRICE_SET",
+            entity_type="MANDIPLACE_ORDER",
+            entity_id=mandiplace_order_id,
+            title="MandiPlace price set",
+            message=f"Admin price was set for {mandiplace_order_id}.",
+            manufacturer_code=updated.get("requesting_manufacturer_id", ""),
+            manufacturer_email=str(requester.get("owner_email", "")).strip().lower(),
+            admin_email=admin_email,
+        )
+        return updated
+
+    def apply_packaging_to_mandiplace_order(
+        self,
+        *,
+        mandiplace_order_id: str,
+        packaging_service_id: str,
+        qty: float,
+        actor_email: str,
+        packaging_note: str = "",
+    ) -> dict[str, Any]:
+        order = self.governance_service.get_mandiplace_order(mandiplace_order_id)
+        service = self.governance_service.get_packaging_service(packaging_service_id)
+        if not order:
+            raise ValueError("MandiPlace order not found.")
+        if not service or service.get("status") != "ACTIVE":
+            raise ValueError("Packaging service is not available.")
+        qty_value = float(qty or 0)
+        total_cost = max(round(float(service.get("base_price", 0) or 0) + qty_value * float(service.get("price_per_unit", 0) or 0), 2), float(service.get("minimum_charge", 0) or 0))
+        order["packaging"] = {
+            "packaging_service_id": service.get("packaging_service_id", ""),
+            "packaging_name": service.get("name", ""),
+            "qty": qty_value,
+            "unit_price": float(service.get("price_per_unit", 0) or 0),
+            "total_packaging_cost": total_cost,
+            "packaging_note": packaging_note,
+        }
+        order["status"] = "PACKAGING_SELECTED"
+        order["cost_breakdown"] = self.pricing_service.calculate_mandiplace_breakdown(
+            qty=float(order.get("qty_total", 0) or 0),
+            supplier_unit_price=float(order.get("supplier_unit_price", 0) or 0),
+            manufacturer_unit_price=float(order.get("manufacturer_unit_price", 0) or 0),
+            packaging_cost=total_cost,
+            courier_cost=float((order.get("courier") or {}).get("courier_cost", 0) or 0),
+        )
+        order.setdefault("internal_status_history", []).append({"status": "PACKAGING_SELECTED", "at": datetime.now(UTC).isoformat(), "actor": actor_email})
+        updated = self.governance_service.upsert_mandiplace_order(order)
+        self._emit_event(
+            "PACKAGING_SELECTED",
+            entity_type="MANDIPLACE_ORDER",
+            entity_id=mandiplace_order_id,
+            title="Packaging selected",
+            message=f"Packaging selected for {mandiplace_order_id}.",
+            manufacturer_code=updated.get("requesting_manufacturer_id", ""),
+            admin_email=actor_email,
+        )
+        return updated
+
+    def book_courier_for_mandiplace_order(
+        self,
+        *,
+        mandiplace_order_id: str,
+        courier_service_id: str,
+        pickup_location: str,
+        delivery_location: str,
+        distance_km: float,
+        weight_kg: float,
+        actor_email: str,
+        tracking_reference: str = "",
+        driver_name: str = "",
+        driver_mobile: str = "",
+        vehicle_number: str = "",
+    ) -> dict[str, Any]:
+        order = self.governance_service.get_mandiplace_order(mandiplace_order_id)
+        service = self.governance_service.get_courier_service(courier_service_id)
+        if not order:
+            raise ValueError("MandiPlace order not found.")
+        if not service or service.get("status") != "ACTIVE":
+            raise ValueError("Courier service is not available.")
+        courier_cost = max(
+            round(
+                float(service.get("base_price", 0) or 0)
+                + float(distance_km or 0) * float(service.get("price_per_km", 0) or 0)
+                + float(weight_kg or 0) * float(service.get("price_per_kg", 0) or 0),
+                2,
+            ),
+            float(service.get("minimum_charge", 0) or 0),
+        )
+        order["courier"] = {
+            "courier_service_id": service.get("courier_service_id", ""),
+            "provider_name": service.get("provider_name", ""),
+            "pickup_location": pickup_location,
+            "delivery_location": delivery_location,
+            "distance_km": float(distance_km or 0),
+            "weight_kg": float(weight_kg or 0),
+            "courier_cost": courier_cost,
+            "tracking_reference": tracking_reference,
+            "driver_name": driver_name,
+            "driver_mobile": driver_mobile,
+            "vehicle_number": vehicle_number,
+            "status": "BOOKED",
+        }
+        order.setdefault("logistics", self._default_logistics())
+        order["logistics"].update(
+            {
+                "transport_mode": service.get("service_type", ""),
+                "driver_name": driver_name,
+                "driver_mobile": driver_mobile,
+                "vehicle_number": vehicle_number,
+                "expected_delivery": "",
+                "delivery_status": "BOOKED",
+            }
+        )
+        order["status"] = "COURIER_BOOKED"
+        order["cost_breakdown"] = self.pricing_service.calculate_mandiplace_breakdown(
+            qty=float(order.get("qty_total", 0) or 0),
+            supplier_unit_price=float(order.get("supplier_unit_price", 0) or 0),
+            manufacturer_unit_price=float(order.get("manufacturer_unit_price", 0) or 0),
+            packaging_cost=float((order.get("packaging") or {}).get("total_packaging_cost", 0) or 0),
+            courier_cost=courier_cost,
+        )
+        order.setdefault("internal_status_history", []).append({"status": "COURIER_BOOKED", "at": datetime.now(UTC).isoformat(), "actor": actor_email})
+        updated = self.governance_service.upsert_mandiplace_order(order)
+        self._emit_event(
+            "COURIER_BOOKED",
+            entity_type="MANDIPLACE_ORDER",
+            entity_id=mandiplace_order_id,
+            title="Courier booked",
+            message=f"Courier booked for {mandiplace_order_id}.",
+            manufacturer_code=updated.get("requesting_manufacturer_id", ""),
+            admin_email=actor_email,
+        )
+        return updated
+
+    def confirm_mandiplace_order(self, *, mandiplace_order_id: str, manufacturer_code: str, actor_email: str) -> dict[str, Any]:
+        order = self.governance_service.get_mandiplace_order(mandiplace_order_id)
+        if not order:
+            raise ValueError("MandiPlace order not found.")
+        if order.get("requesting_manufacturer_id") != manufacturer_code:
+            raise PermissionError("Manufacturer cannot confirm another manufacturer's MandiPlace order.")
+        breakdown = dict(order.get("cost_breakdown") or {})
+        if not breakdown:
+            breakdown = self.pricing_service.calculate_mandiplace_breakdown(
+                qty=float(order.get("qty_total", 0) or 0),
+                supplier_unit_price=float(order.get("supplier_unit_price", 0) or 0),
+                manufacturer_unit_price=float(order.get("manufacturer_unit_price", 0) or 0),
+                packaging_cost=float((order.get("packaging") or {}).get("total_packaging_cost", 0) or 0),
+                courier_cost=float((order.get("courier") or {}).get("courier_cost", 0) or 0),
+            )
+        order["cost_breakdown"] = breakdown
+        order["commission"] = {
+            "admin_commission": breakdown.get("admin_commission", 0),
+            "spread": breakdown.get("spread", 0),
+            "commission_status": "DUE",
+        }
+        order["payment_receiver"] = order.get("supplier_manufacturer_id", "")
+        order["status"] = "MANUFACTURER_CONFIRMED"
+        order.setdefault("internal_status_history", []).append({"status": "MANUFACTURER_CONFIRMED", "at": datetime.now(UTC).isoformat(), "actor": actor_email})
+        self.ledger_service.create_entry(
+            manufacturer_code,
+            party_a=manufacturer_code,
+            party_b=order.get("supplier_manufacturer_id", "") or "ADMIN_ROUTED_SUPPLIER",
+            entry_type="MANDIPLACE_LEDGER",
+            amount=float(breakdown.get("goods_amount", 0) or 0),
+            paid_amount=0,
+            ledger_days=7,
+            note=f"Admin-routed MandiPlace order {mandiplace_order_id}",
+            metadata={
+                "ledger_scope": "mandiplace_ledger",
+                "mandiplace_order_id": mandiplace_order_id,
+                "payment_receiver": order.get("supplier_manufacturer_id", ""),
+                "cost_breakdown": breakdown,
+            },
+        )
+        self.ledger_service.create_entry(
+            manufacturer_code,
+            party_a=manufacturer_code,
+            party_b="PLATFORM_ADMIN",
+            entry_type="MANDIPLACE_COMMISSION",
+            amount=float(breakdown.get("admin_commission", 0) or 0),
+            paid_amount=0,
+            ledger_days=7,
+            note=f"Commission due for MandiPlace order {mandiplace_order_id}",
+            metadata={
+                "ledger_scope": "mandiplace_commission",
+                "mandiplace_order_id": mandiplace_order_id,
+            },
+        )
+        if float(breakdown.get("packaging_cost", 0) or 0) > 0 or float(breakdown.get("courier_cost", 0) or 0) > 0:
+            self.ledger_service.create_entry(
+                manufacturer_code,
+                party_a=manufacturer_code,
+                party_b="PLATFORM_ADMIN",
+                entry_type="MANDIPLACE_SERVICE",
+                amount=float(breakdown.get("packaging_cost", 0) or 0) + float(breakdown.get("courier_cost", 0) or 0),
+                paid_amount=0,
+                ledger_days=7,
+                note=f"Packaging/courier due for MandiPlace order {mandiplace_order_id}",
+                metadata={
+                    "ledger_scope": "mandiplace_service",
+                    "mandiplace_order_id": mandiplace_order_id,
+                },
+            )
+        updated = self.governance_service.upsert_mandiplace_order(order)
+        return updated
+
+    def dispatch_mandiplace_order(self, *, mandiplace_order_id: str, supplier_manufacturer_id: str, actor_email: str) -> dict[str, Any]:
+        order = self.governance_service.get_mandiplace_order(mandiplace_order_id)
+        if not order:
+            raise ValueError("MandiPlace order not found.")
+        supplier_code = str(supplier_manufacturer_id or "").strip().upper()
+        if order.get("supplier_manufacturer_id") != supplier_code:
+            raise PermissionError("Manufacturer cannot dispatch another supplier's MandiPlace order.")
+        inventory_items = [
+            {"product_id": item.get("product_id", ""), "qty": int(float(item.get("qty", 0) or 0))}
+            for item in order.get("items", [])
+            if item.get("product_id")
+        ]
+        if inventory_items:
+            self.dual_inventory_service.finalize_reserved(supplier_code, inventory_items, bucket="mandi_inventory")
+        order["status"] = "SUPPLIER_DISPATCHED"
+        order.setdefault("courier", self._default_courier())
+        if order["courier"]:
+            order["courier"]["status"] = "IN_TRANSIT"
+        order.setdefault("logistics", self._default_logistics())
+        order["logistics"]["dispatch_time"] = datetime.now(UTC).isoformat()
+        order["logistics"]["delivery_status"] = "IN_TRANSIT"
+        order.setdefault("internal_status_history", []).append({"status": "SUPPLIER_DISPATCHED", "at": datetime.now(UTC).isoformat(), "actor": actor_email})
+        order["internal_status_history"].append({"status": "IN_TRANSIT", "at": datetime.now(UTC).isoformat(), "actor": actor_email})
+        updated = self.governance_service.upsert_mandiplace_order(order)
+        requester = self.governance_service.get_manufacturer(updated.get("requesting_manufacturer_id", "")) or {}
+        self._emit_event(
+            "ORDER_DISPATCHED",
+            entity_type="MANDIPLACE_ORDER",
+            entity_id=mandiplace_order_id,
+            title="MandiPlace order dispatched",
+            message=f"MandiPlace order {mandiplace_order_id} was dispatched.",
+            manufacturer_code=updated.get("requesting_manufacturer_id", ""),
+            manufacturer_email=str(requester.get("owner_email", "")).strip().lower(),
+            admin_email=actor_email,
+        )
+        return updated
+
+    def update_mandiplace_courier_status(self, *, mandiplace_order_id: str, actor_email: str, status: str) -> dict[str, Any]:
+        order = self.governance_service.get_mandiplace_order(mandiplace_order_id)
+        if not order:
+            raise ValueError("MandiPlace order not found.")
+        normalized = str(status or "").strip().upper()
+        order.setdefault("courier", self._default_courier())
+        order["courier"]["status"] = normalized
+        order.setdefault("logistics", self._default_logistics())
+        order["logistics"]["delivery_status"] = normalized
+        if normalized == "DELIVERED":
+            order["status"] = "DELIVERED"
+            order["logistics"]["delivered_at"] = datetime.now(UTC).isoformat()
+            order.setdefault("internal_status_history", []).append({"status": "DELIVERED", "at": datetime.now(UTC).isoformat(), "actor": actor_email})
+            self._emit_event(
+                "ORDER_DELIVERED",
+                entity_type="MANDIPLACE_ORDER",
+                entity_id=mandiplace_order_id,
+                title="MandiPlace order delivered",
+                message=f"MandiPlace order {mandiplace_order_id} reached delivery stage.",
+                manufacturer_code=order.get("requesting_manufacturer_id", ""),
+                admin_email=actor_email,
+            )
+        else:
+            order.setdefault("internal_status_history", []).append({"status": normalized, "at": datetime.now(UTC).isoformat(), "actor": actor_email})
+        return self.governance_service.upsert_mandiplace_order(order)
+
+    def receive_mandiplace_order(self, *, mandiplace_order_id: str, manufacturer_code: str, actor_email: str) -> dict[str, Any]:
+        order = self.governance_service.get_mandiplace_order(mandiplace_order_id)
+        if not order:
+            raise ValueError("MandiPlace order not found.")
+        if order.get("requesting_manufacturer_id") != manufacturer_code:
+            raise PermissionError("Manufacturer cannot receive another manufacturer's MandiPlace order.")
+        order["status"] = "RECEIVED"
+        order.setdefault("logistics", self._default_logistics())
+        order["logistics"]["delivery_status"] = "DELIVERED"
+        order["logistics"]["delivered_at"] = datetime.now(UTC).isoformat()
+        order.setdefault("internal_status_history", []).append({"status": "RECEIVED", "at": datetime.now(UTC).isoformat(), "actor": actor_email})
+        updated = self.governance_service.upsert_mandiplace_order(order)
+        return updated
+
+    def close_mandiplace_order(self, *, mandiplace_order_id: str, admin_email: str) -> dict[str, Any]:
+        order = self.governance_service.get_mandiplace_order(mandiplace_order_id)
+        if not order:
+            raise ValueError("MandiPlace order not found.")
+        if order.get("status") != "RECEIVED":
+            raise ValueError("Only received MandiPlace orders can be closed.")
+        order["status"] = "CLOSED"
+        order.setdefault("internal_status_history", []).append({"status": "CLOSED", "at": datetime.now(UTC).isoformat(), "actor": admin_email})
+        return self.governance_service.upsert_mandiplace_order(order)
 
     def create_supply_request(
         self,

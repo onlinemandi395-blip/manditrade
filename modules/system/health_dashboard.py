@@ -192,31 +192,53 @@ def render_health_dashboard(app_context: dict) -> None:
 
     with migration_tab:
         st.markdown("### Storage Migration")
+        storage_mode = app_context["system_config"]["storage"].get("mode", "compatibility")
+        cutover_service = app_context["storage_cutover_service"]
+        latest_report = cutover_service.load_latest_migration_report()
+        latest_dry_run = cutover_service.load_latest_migration_report(mode="dry_run")
+        latest_execute = cutover_service.load_latest_migration_report(mode="execute")
+        latest_validation = cutover_service.load_latest_validation_report()
+        readiness_report = cutover_service.evaluate_cutover_readiness(storage_mode_current=storage_mode)
         st.json(
             {
-                "storage_mode": app_context["system_config"]["storage"].get("mode", "compatibility"),
+                "storage_mode": storage_mode,
                 "allow_legacy_fallback": app_context["system_config"]["storage"].get("allow_legacy_fallback", True),
                 "canonical_root": str(app_context["drive_path_service"].db_root),
+                "canonical_readiness": readiness_report["recommendation"],
             }
         )
-        migration_reports_dir = app_context["runtime_paths"]["base"] / "migration_reports"
-        latest_report = {}
-        latest_validation = {}
-        latest_report_path = migration_reports_dir / "latest_migration_report.json"
-        if latest_report_path.exists():
-            import json
-            latest_report = json.loads(latest_report_path.read_text(encoding="utf-8"))
         if st.button("Dry Run Storage Migration", use_container_width=True):
             latest_report = app_context["storage_migration_service"].run(mode="dry_run")
             st.success("Dry-run migration report generated.")
         if st.button("Validate Canonical Storage", use_container_width=True):
             latest_validation = app_context["canonical_storage_validation_service"].validate()
             st.success("Canonical validation completed.")
-        validation_result = latest_validation or app_context["canonical_storage_validation_service"].validate()
+        if st.button("Generate Cutover Readiness Report", use_container_width=True):
+            readiness_report = cutover_service.generate_cutover_readiness_report(storage_mode_current=storage_mode)
+            st.success("Cutover readiness report generated.")
+        validation_result = latest_validation or cutover_service.load_latest_validation_report() or app_context["canonical_storage_validation_service"].validate()
+        readiness_report = cutover_service.evaluate_cutover_readiness(storage_mode_current=storage_mode)
+        st.markdown("### Cutover Status")
+        st.json(
+            {
+                "current_storage_mode": storage_mode,
+                "last_dry_run_status": latest_dry_run.get("recommendation", "MISSING"),
+                "last_execute_status": latest_execute.get("recommendation", "MISSING"),
+                "last_validation_status": validation_result.get("status", "MISSING"),
+                "canonical_readiness": readiness_report["recommendation"],
+                "blocking_issues": readiness_report["blocking_issues"],
+                "recommended_next_action": readiness_report["recommended_next_action"],
+            },
+            expanded=False,
+        )
         st.markdown("### Latest Migration Report")
         st.json(latest_report, expanded=False)
+        st.markdown("### Last Execute Report")
+        st.json(latest_execute, expanded=False)
         st.markdown("### Canonical Validation")
         st.json(validation_result, expanded=False)
+        st.markdown("### Cutover Readiness")
+        st.json(readiness_report, expanded=False)
         st.info("Legacy files remain untouched. Switch `storage.mode` to `canonical` only after dry-run and validation review.")
 
     with events_tab:

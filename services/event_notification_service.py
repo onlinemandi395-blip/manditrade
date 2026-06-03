@@ -71,9 +71,9 @@ class EventNotificationService:
         worker_email = str(payload.get("worker_email", "")).strip().lower()
         admin_email = str(payload.get("admin_email", "")).strip().lower()
         recipients: list[dict[str, str]] = []
-        if event_type in {"PRODUCT_APPROVAL_REQUESTED", "PAYMENT_DISPUTE", "FAILED_WORKFLOW", "SYSTEM_HEALTH_ALERT", "COMMISSION_DUE", "MANUFACTURER_CREATED", "MANUFACTURER_UPDATED", "MAHAJAN_INVITED", "MAHAJAN_ONBOARDED"}:
+        if event_type in {"PRODUCT_APPROVAL_REQUESTED", "PAYMENT_DISPUTE", "FAILED_WORKFLOW", "SYSTEM_HEALTH_ALERT", "COMMISSION_DUE", "MANUFACTURER_CREATED", "MANUFACTURER_UPDATED", "MAHAJAN_INVITED", "MAHAJAN_ONBOARDED", "MANDIPLACE_ORDER_CREATED", "SUPPLIER_QUOTED", "PACKAGING_SELECTED", "ORDER_DISPATCHED", "ORDER_DELIVERED"}:
             recipients.append({"role": "platform_admin", "owner_id": manufacturer_code or "PLATFORM_ADMIN", "user_id": admin_email or "PLATFORM_ADMIN", "email": admin_email})
-        if event_type in {"PRODUCT_APPROVED", "PRODUCT_REJECTED", "MARKETPLACE_ORDER_CREATED", "MANDI_ORDER_CREATED", "SUPPLY_ORDER_CREATED", "PAYMENT_SUBMITTED", "PAYMENT_VERIFIED", "LOGISTICS_UPDATED", "JOB_APPLICATION_RECEIVED", "RAW_MATERIAL_CREATED", "RAW_MATERIAL_UPDATED", "ARCHIVED"} and manufacturer_code:
+        if event_type in {"PRODUCT_APPROVED", "PRODUCT_REJECTED", "MARKETPLACE_ORDER_CREATED", "MANDI_ORDER_CREATED", "SUPPLY_ORDER_CREATED", "PAYMENT_SUBMITTED", "PAYMENT_VERIFIED", "LOGISTICS_UPDATED", "JOB_APPLICATION_RECEIVED", "RAW_MATERIAL_CREATED", "RAW_MATERIAL_UPDATED", "ARCHIVED", "SUPPLIER_ASSIGNED", "ADMIN_PRICE_SET", "PACKAGING_SELECTED", "COURIER_BOOKED", "ORDER_DISPATCHED", "ORDER_DELIVERED"} and manufacturer_code:
             recipients.append({"role": "manufacturer", "owner_id": manufacturer_code, "user_id": manufacturer_code, "email": manufacturer_email})
         if event_type in {"SUPPLY_ORDER_ASSIGNED", "SUPPLY_ORDER_CONFIRMED", "PAYMENT_UPDATED", "LOGISTICS_UPDATED", "RAW_MATERIAL_LOW_STOCK"} and mahajan_id:
             mahajan = self.governance_service.get_mahajan(mahajan_id) or {}

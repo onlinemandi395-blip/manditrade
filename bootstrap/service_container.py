@@ -63,6 +63,7 @@ from services.security_service import SecurityService
 from services.session_state_service import SessionStateService
 from services.startup_recovery_service import StartupRecoveryService
 from services.storage_migration_service import StorageMigrationService
+from services.storage_cutover_service import StorageCutoverService
 from services.token_rotation_service import TokenRotationService
 from services.trade_confirmation_service import TradeConfirmationService
 from services.trust_badge_service import TrustBadgeService
@@ -276,6 +277,13 @@ def build_app_context() -> dict:
         json_service=drive_service.json_service,
         governance_root=GOVERNANCE_DIR,
         public_buyers_root=public_buyers_root,
+        runtime_root=APP_RUNTIME_DIR,
+        safe_drive_write_service=safe_drive_write_service,
+    )
+    storage_cutover_service = StorageCutoverService(
+        runtime_root=APP_RUNTIME_DIR,
+        safe_drive_write_service=safe_drive_write_service,
+        json_service=drive_service.json_service,
     )
     product_catalog_service = ProductCatalogService(
         governance_service=governance_service,
@@ -423,6 +431,15 @@ def build_app_context() -> dict:
         oauth_config_fallback_active=oauth_config_fallback_active,
     )
     startup_blockers = list(startup_checks) + deployment_validation["blockers"]
+    storage_mode = str(system_config["storage"].get("mode", "compatibility")).strip().lower()
+    storage_cutover_blocked = False
+    storage_cutover_message = ""
+    if storage_mode == "canonical":
+        cutover_blockers = storage_cutover_service.canonical_mode_blockers()
+        if cutover_blockers:
+            storage_cutover_blocked = True
+            storage_cutover_message = cutover_blockers[0]
+            startup_blockers.extend(cutover_blockers)
     startup_warnings = deployment_validation["warnings"]
     runtime_environment = system_config["app"].get("runtime_environment", "local")
     if runtime_environment != "local":
@@ -479,6 +496,7 @@ def build_app_context() -> dict:
         "drive_path_service": drive_path_service,
         "storage_migration_service": storage_migration_service,
         "canonical_storage_validation_service": canonical_storage_validation_service,
+        "storage_cutover_service": storage_cutover_service,
         "auth_service": auth_service,
         "encryption_service": encryption_service,
         "security_service": security_service,
@@ -538,6 +556,8 @@ def build_app_context() -> dict:
         "domain_paths_service": domain_paths_service,
         "startup_checks": startup_blockers,
         "startup_warnings": startup_warnings,
+        "storage_cutover_blocked": storage_cutover_blocked,
+        "storage_cutover_message": storage_cutover_message,
         "deployment_validation": deployment_validation,
         "effective_demo_mode": effective_demo_mode,
         "google_runtime_enabled": google_runtime_enabled,

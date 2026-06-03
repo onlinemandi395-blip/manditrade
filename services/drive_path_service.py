@@ -28,6 +28,29 @@ class DrivePathService:
         self.db_root.mkdir(parents=True, exist_ok=True)
         return self.db_root
 
+    def ensure_canonical_structure(self) -> Path:
+        root = self.ensure_root()
+        for folder in [
+            "config",
+            "registry",
+            "catalog",
+            "inventory",
+            "orders",
+            "carts",
+            "payments",
+            "ledgers",
+            "commissions",
+            "jobs",
+            "notifications",
+            "actions",
+            "analytics",
+            "audit",
+            "runtime",
+            "media",
+        ]:
+            (root / folder).mkdir(parents=True, exist_ok=True)
+        return root
+
     def current_year_month(self) -> str:
         return datetime.now(UTC).strftime("%Y-%m")
 

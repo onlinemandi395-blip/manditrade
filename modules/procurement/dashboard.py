@@ -48,6 +48,39 @@ MANDI_ORDER_FILTERS = {
     "CLOSED": {"label": "Closed", "statuses": {"CLOSED"}},
 }
 
+MANDIPLACE_TIMELINE_STEPS = [
+    "REQUESTED_BY_MANUFACTURER",
+    "ADMIN_REVIEWING",
+    "SUPPLIER_ASSIGNED",
+    "SUPPLIER_QUOTED",
+    "ADMIN_PRICE_SET",
+    "PACKAGING_SELECTED",
+    "COURIER_BOOKED",
+    "MANUFACTURER_CONFIRMED",
+    "SUPPLIER_DISPATCHED",
+    "IN_TRANSIT",
+    "DELIVERED",
+    "RECEIVED",
+    "CLOSED",
+]
+
+MANDIPLACE_TIMELINE_LABELS = {
+    "REQUESTED_BY_MANUFACTURER": "Manufacturer Requested",
+    "ADMIN_REVIEWING": "Admin Reviewing",
+    "SUPPLIER_ASSIGNED": "Supplier Assigned",
+    "SUPPLIER_QUOTED": "Supplier Quoted",
+    "ADMIN_PRICE_SET": "Admin Price Set",
+    "PACKAGING_SELECTED": "Packaging Selected",
+    "COURIER_BOOKED": "Courier Booked",
+    "MANUFACTURER_CONFIRMED": "Manufacturer Confirmed",
+    "SUPPLIER_DISPATCHED": "Supplier Dispatched",
+    "IN_TRANSIT": "In Transit",
+    "DELIVERED": "Delivered",
+    "RECEIVED": "Received",
+    "CLOSED": "Closed",
+    "CANCELLED": "Cancelled",
+}
+
 
 def get_mandi_timeline_steps() -> list[str]:
     return list(MANDI_TIMELINE_STEPS)
@@ -291,20 +324,304 @@ def _render_logistics_console(*, order: dict[str, Any], service, user) -> None:
         st.rerun()
 
 
+def get_mandiplace_order_role_actions(role: str, order: dict[str, Any] | None, *, manufacturer_code: str = "") -> list[str]:
+    if not order:
+        return []
+    status = str(order.get("status") or "")
+    if role == "platform_admin":
+        if status in {"REQUESTED_BY_MANUFACTURER", "ADMIN_REVIEWING"}:
+            return ["Assign Supplier"]
+        if status == "SUPPLIER_QUOTED":
+            return ["Set Price"]
+        if status in {"ADMIN_PRICE_SET", "PACKAGING_SELECTED"}:
+            return ["Book Courier"]
+        if status == "RECEIVED":
+            return ["Close Order"]
+        return []
+    if role in {"manufacturer", "admin_as_manufacturer"}:
+        requester = str(order.get("requesting_manufacturer_id") or "")
+        supplier = str(order.get("supplier_manufacturer_id") or "")
+        if manufacturer_code == supplier:
+            if status == "SUPPLIER_ASSIGNED":
+                return ["Submit Quote"]
+            if status == "MANUFACTURER_CONFIRMED":
+                return ["Dispatch Order"]
+        if manufacturer_code == requester:
+            if status == "COURIER_BOOKED":
+                return ["Confirm Price"]
+            if status == "DELIVERED":
+                return ["Mark Received"]
+        return []
+    return []
+
+
+def _render_mandiplace_detail(order: dict[str, Any], *, manufacturer_code: str = "") -> None:
+    items = [
+        {
+            "name": item.get("name", item.get("product_id", "Product")),
+            "qty": item.get("qty", 0),
+            "unit": item.get("unit", ""),
+            "unit_price": order.get("manufacturer_unit_price", 0),
+            "subtotal": float(item.get("qty", 0) or 0) * float(order.get("manufacturer_unit_price", 0) or 0),
+            "thumbnail_url": "",
+            "image_url": "",
+        }
+        for item in order.get("items", [])
+    ]
+    next_action = get_mandiplace_order_role_actions(
+        "manufacturer" if manufacturer_code else "platform_admin",
+        order,
+        manufacturer_code=manufacturer_code,
+    )
+    render_order_detail_view(
+        build_order_detail_payload(
+            order,
+            order_id_key="mandiplace_order_id",
+            status=str(order.get("status", "")),
+            items=items,
+            timeline_steps=MANDIPLACE_TIMELINE_STEPS,
+            timeline_labels=MANDIPLACE_TIMELINE_LABELS,
+            status_history=list(order.get("internal_status_history", [])),
+            logistics=dict(order.get("logistics", {})),
+            payment={
+                "payment_receiver": order.get("payment_receiver", ""),
+                "payment_proof_url": order.get("payment_proof_url", ""),
+                "payment_verified_by": order.get("payment_verified_by", ""),
+                "payment_verified_at": order.get("payment_verified_at", ""),
+                "cost_breakdown": dict(order.get("cost_breakdown") or {}),
+                "packaging": dict(order.get("packaging") or {}),
+                "courier": dict(order.get("courier") or {}),
+                "commission": dict(order.get("commission") or {}),
+            },
+            next_action=next_action[0] if next_action else "Waiting on another role",
+            trust_badges=[],
+        )
+    )
+
+
+def _render_mandiplace_admin(app_context: dict, user, service) -> None:
+    governance_service = app_context["governance_service"]
+    orders = service.list_mandiplace_orders()
+    packaging_services = [item for item in governance_service.list_packaging_services() if item.get("status") == "ACTIVE"]
+    courier_services = [item for item in governance_service.list_courier_services() if item.get("status") == "ACTIVE"]
+    render_page_header(
+        "MandiPlace",
+        "Admin-routed manufacturer procurement keeps supplier assignment, packaging, courier, and downstream pricing under controlled review.",
+        ["Platform Admin", "Co-Manufacturer Routing"],
+    )
+    render_metric_grid(
+        [
+            render_metric_card("Open Requests", str(len([item for item in orders if item.get("status") in {"REQUESTED_BY_MANUFACTURER", "ADMIN_REVIEWING"}])), "PENDING"),
+            render_metric_card("Assigned", str(len([item for item in orders if item.get("status") == "SUPPLIER_ASSIGNED"])), "OPEN"),
+            render_metric_card("In Transit", str(len([item for item in orders if item.get("status") == "IN_TRANSIT"])), "WARNING"),
+            render_metric_card("Closed", str(len([item for item in orders if item.get("status") == "CLOSED"])), "SUCCESS"),
+        ]
+    )
+    overview_tab, assign_tab, pricing_tab, orders_tab = st.tabs(["Overview", "Assign Supplier", "Pricing & Logistics", "Orders"])
+    with overview_tab:
+        render_section_intro("Manufacturer Procurement Control", "Manufacturers request products through admin. Supplier co-manufacturer assignment, packaging, courier, and closing stay controlled here.")
+        if orders:
+            selected_id = st.selectbox("Review MandiPlace Order", [item["mandiplace_order_id"] for item in orders], key="mandiplace_admin_detail")
+            selected = next(item for item in orders if item["mandiplace_order_id"] == selected_id)
+            _render_mandiplace_detail(selected)
+        st.dataframe(orders, use_container_width=True)
+    with assign_tab:
+        pending = [item for item in orders if item.get("status") in {"REQUESTED_BY_MANUFACTURER", "ADMIN_REVIEWING"}]
+        if pending:
+            selected_id = st.selectbox("Order To Assign", [item["mandiplace_order_id"] for item in pending], key="assign_manufacturer_supplier")
+            candidates = service.list_eligible_manufacturer_suppliers(mandiplace_order_id=selected_id)
+            if candidates:
+                st.dataframe(candidates, use_container_width=True)
+                selected_supplier = st.selectbox("Eligible Supplier", [item["manufacturer_code"] for item in candidates], format_func=lambda code: f"{code} | {next((row.get('business_name', '') for row in candidates if row['manufacturer_code'] == code), '')}")
+                if st.button("Assign Supplier", use_container_width=True):
+                    service.assign_manufacturer_supplier(mandiplace_order_id=selected_id, supplier_manufacturer_id=selected_supplier, admin_email=user.email)
+                    st.success("Supplier assigned.")
+                    st.rerun()
+            else:
+                st.info("No eligible co-manufacturer suppliers are available for this request yet.")
+        else:
+            st.info("No manufacturer procurement requests are waiting for assignment.")
+    with pricing_tab:
+        quoted = [item for item in orders if item.get("status") in {"SUPPLIER_QUOTED", "ADMIN_PRICE_SET", "PACKAGING_SELECTED"}]
+        if quoted:
+            selected_id = st.selectbox("Manage Pricing", [item["mandiplace_order_id"] for item in quoted], key="manage_mandiplace_price")
+            selected = next(item for item in quoted if item["mandiplace_order_id"] == selected_id)
+            manufacturer_price = st.number_input("Manufacturer Unit Price", min_value=0.0, step=1.0, value=float(selected.get("manufacturer_unit_price", selected.get("supplier_unit_price", 0)) or 0))
+            if st.button("Set Final Price", use_container_width=True):
+                service.set_mandiplace_manufacturer_price(mandiplace_order_id=selected_id, manufacturer_unit_price=manufacturer_price, admin_email=user.email)
+                st.success("Manufacturer-facing price updated.")
+                st.rerun()
+            if packaging_services:
+                packaging_id = st.selectbox("Packaging Service", [item["packaging_service_id"] for item in packaging_services], key="mandiplace_packaging_service")
+                packaging_qty = st.number_input("Packaging Qty", min_value=0.0, step=1.0, value=float((selected.get("packaging") or {}).get("qty", 1) or 1))
+                if st.button("Apply Packaging", use_container_width=True):
+                    service.apply_packaging_to_mandiplace_order(mandiplace_order_id=selected_id, packaging_service_id=packaging_id, qty=packaging_qty, actor_email=user.email)
+                    st.success("Packaging applied.")
+                    st.rerun()
+            if courier_services:
+                courier_id = st.selectbox("Courier Service", [item["courier_service_id"] for item in courier_services], key="mandiplace_courier_service")
+                pickup = st.text_input("Pickup Location", value=str((selected.get("courier") or {}).get("pickup_location", "")))
+                delivery = st.text_input("Delivery Location", value=str((selected.get("courier") or {}).get("delivery_location", "")))
+                distance = st.number_input("Distance KM", min_value=0.0, step=1.0, value=float((selected.get("courier") or {}).get("distance_km", 0) or 0))
+                weight = st.number_input("Weight KG", min_value=0.0, step=1.0, value=float((selected.get("courier") or {}).get("weight_kg", 0) or 0))
+                if st.button("Book Courier", use_container_width=True):
+                    service.book_courier_for_mandiplace_order(
+                        mandiplace_order_id=selected_id,
+                        courier_service_id=courier_id,
+                        pickup_location=pickup,
+                        delivery_location=delivery,
+                        distance_km=distance,
+                        weight_kg=weight,
+                        actor_email=user.email,
+                    )
+                    st.success("Courier booked.")
+                    st.rerun()
+        else:
+            st.info("No quoted or priceable MandiPlace orders are available right now.")
+    with orders_tab:
+        if orders:
+            selected_id = st.selectbox("Order Detail", [item["mandiplace_order_id"] for item in orders], key="mandiplace_admin_orders")
+            selected = next(item for item in orders if item["mandiplace_order_id"] == selected_id)
+            _render_mandiplace_detail(selected)
+            if selected.get("status") == "RECEIVED" and st.button("Close Order", use_container_width=True, key=f"close_mpo_{selected_id}"):
+                service.close_mandiplace_order(mandiplace_order_id=selected_id, admin_email=user.email)
+                st.success("MandiPlace order closed.")
+                st.rerun()
+            st.dataframe(orders, use_container_width=True)
+        else:
+            render_empty_state("No manufacturer procurement orders yet.")
+
+
+def _render_mandiplace_manufacturer(app_context: dict, user, service) -> None:
+    products = [
+        item
+        for item in app_context["product_catalog_service"].list_products(viewer_role="manufacturer", viewer_code=user.manufacturer_code or "")
+        if item.get("status") == "ACTIVE" and item.get("available_for_mandi_network", True)
+    ]
+    orders = service.list_mandiplace_orders(manufacturer_code=user.manufacturer_code or "")
+    render_page_header(
+        "MandiPlace",
+        "Request co-manufacturer procurement through admin. Supplier discovery remains admin-routed, not direct.",
+        ["Manufacturer", "Admin-Routed Procurement"],
+    )
+    render_metric_grid(
+        [
+            render_metric_card("My Requests", str(len([item for item in orders if item.get("requesting_manufacturer_id") == (user.manufacturer_code or "")])), "OPEN"),
+            render_metric_card("Assigned To Me", str(len([item for item in orders if item.get("supplier_manufacturer_id") == (user.manufacturer_code or "")])), "PENDING"),
+            render_metric_card("Awaiting My Confirmation", str(len([item for item in orders if item.get("requesting_manufacturer_id") == (user.manufacturer_code or "") and item.get("status") == "COURIER_BOOKED"])), "WARNING"),
+            render_metric_card("In Transit", str(len([item for item in orders if item.get("status") == "IN_TRANSIT"])), "WARNING"),
+        ]
+    )
+    overview_tab, request_tab, responses_tab, orders_tab = st.tabs(["Overview", "Create Request", "Actions", "Orders"])
+    with overview_tab:
+        render_section_intro("Admin-Routed Manufacturer Procurement", "You can request MandiPlace products here, but supplier manufacturer assignment stays under admin control.")
+        if orders:
+            selected_id = st.selectbox("Review Order", [item["mandiplace_order_id"] for item in orders], key="mandiplace_manufacturer_detail")
+            selected = next(item for item in orders if item["mandiplace_order_id"] == selected_id)
+            _render_mandiplace_detail(selected, manufacturer_code=user.manufacturer_code or "")
+        st.dataframe(orders, use_container_width=True)
+    with request_tab:
+        if products:
+            product_id = st.selectbox("Product", [item["product_id"] for item in products], format_func=lambda pid: f"{pid} | {next((row.get('name', '') for row in products if row['product_id'] == pid), '')}")
+            selected_product = next(item for item in products if item["product_id"] == product_id)
+            qty = st.number_input("Qty", min_value=1.0, step=1.0, value=1.0)
+            requested_location = st.text_input("Requested Location")
+            required_by_date = st.text_input("Required By Date")
+            note = st.text_area("Request Note")
+            if st.button("Create MandiPlace Request", use_container_width=True):
+                service.create_mandiplace_request(
+                    requesting_manufacturer_id=user.manufacturer_code or "",
+                    requested_by=user.email,
+                    notes=note,
+                    items=[
+                        {
+                            "product_id": product_id,
+                            "name": selected_product.get("name", product_id),
+                            "qty": qty,
+                            "unit": selected_product.get("unit", "unit"),
+                            "requested_location": requested_location,
+                            "required_by_date": required_by_date,
+                        }
+                    ],
+                )
+                st.success("MandiPlace request sent to admin.")
+                st.rerun()
+        else:
+            st.info("No active MandiPlace products are available right now.")
+    with responses_tab:
+        as_supplier = [item for item in orders if item.get("supplier_manufacturer_id") == (user.manufacturer_code or "")]
+        as_requester = [item for item in orders if item.get("requesting_manufacturer_id") == (user.manufacturer_code or "")]
+        quote_ready = [item for item in as_supplier if item.get("status") == "SUPPLIER_ASSIGNED"]
+        if quote_ready:
+            selected_id = st.selectbox("Quote Assigned Order", [item["mandiplace_order_id"] for item in quote_ready], key="supplier_quote_mpo")
+            supplier_price = st.number_input("Supplier Unit Price", min_value=0.0, step=1.0)
+            note = st.text_area("Supplier Note")
+            if st.button("Submit Supplier Quote", use_container_width=True):
+                service.supplier_quote_mandiplace_order(
+                    mandiplace_order_id=selected_id,
+                    supplier_manufacturer_id=user.manufacturer_code or "",
+                    supplier_unit_price=supplier_price,
+                    actor_email=user.email,
+                    notes=note,
+                )
+                st.success("Supplier quote submitted.")
+                st.rerun()
+        confirm_ready = [item for item in as_requester if item.get("status") == "COURIER_BOOKED"]
+        if confirm_ready:
+            selected_id = st.selectbox("Confirm Final Price", [item["mandiplace_order_id"] for item in confirm_ready], key="confirm_mpo")
+            if st.button("Confirm Procurement Order", use_container_width=True):
+                service.confirm_mandiplace_order(mandiplace_order_id=selected_id, manufacturer_code=user.manufacturer_code or "", actor_email=user.email)
+                st.success("MandiPlace order confirmed.")
+                st.rerun()
+        dispatch_ready = [item for item in as_supplier if item.get("status") == "MANUFACTURER_CONFIRMED"]
+        if dispatch_ready:
+            selected_id = st.selectbox("Dispatch Order", [item["mandiplace_order_id"] for item in dispatch_ready], key="dispatch_mpo")
+            if st.button("Mark Supplier Dispatch", use_container_width=True):
+                service.dispatch_mandiplace_order(mandiplace_order_id=selected_id, supplier_manufacturer_id=user.manufacturer_code or "", actor_email=user.email)
+                st.success("MandiPlace order dispatched.")
+                st.rerun()
+        receive_ready = [item for item in as_requester if item.get("status") == "DELIVERED"]
+        if receive_ready:
+            selected_id = st.selectbox("Receive Delivered Order", [item["mandiplace_order_id"] for item in receive_ready], key="receive_mpo")
+            if st.button("Mark Received", use_container_width=True):
+                service.receive_mandiplace_order(mandiplace_order_id=selected_id, manufacturer_code=user.manufacturer_code or "", actor_email=user.email)
+                st.success("MandiPlace order received.")
+                st.rerun()
+        if not any([quote_ready, confirm_ready, dispatch_ready, receive_ready]):
+            st.info("No MandiPlace actions are waiting on your role right now.")
+    with orders_tab:
+        if orders:
+            st.dataframe(orders, use_container_width=True)
+        else:
+            render_empty_state("No MandiPlace orders available yet.")
+
+
 def render_procurement_dashboard(app_context: dict) -> None:
     user = app_context["current_user"]
     service = app_context["procurement_transaction_service"]
     governance_service = app_context["governance_service"]
     page_key = f"mandi_orders_{(user.role if user else 'public')}"
+    active_navigation = app_context["session_state_service"].get_navigation("Dashboard")
+
+    if not user:
+        st.info("Sign in required.")
+        return
+
+    if active_navigation == "MandiPlace":
+        if user.role == "platform_admin":
+            _render_mandiplace_admin(app_context, user, service)
+            return
+        if user.role in {"manufacturer", "admin_as_manufacturer"}:
+            _render_mandiplace_manufacturer(app_context, user, service)
+            return
+        st.info("MandiPlace procurement is available for admin and manufacturers only.")
+        return
 
     render_page_header(
         "Mandi Orders",
         "Track admin-controlled raw-material supply. Raw Materials stay in the supply layer, while Products stay in the manufacturer selling layer.",
         ["Raw Material Supply", user.role.replace("_", " ").title() if user else "Role"],
     )
-    if not user:
-        st.info("Sign in required.")
-        return
 
     all_materials = governance_service.list_raw_materials()
     all_mahajans = governance_service.list_mahajans()

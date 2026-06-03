@@ -31,6 +31,7 @@ def render_operations_dashboard(app_context: dict) -> None:
         [
             render_metric_card("Marketplace Orders Today", str(kpis["marketplace"]["orders_today"]), "OPEN"),
             render_metric_card("Active Mandi Orders", str(kpis["mandi"]["active_orders"]), "PENDING"),
+            render_metric_card("MandiPlace Orders", str(len(app_context["procurement_transaction_service"].list_mandiplace_orders())), "OPEN"),
             render_metric_card("Pending Deliveries", str(len([item for item in app_context["public_order_service"].list_all_orders() if str(item.get("status", "")).upper() == "DISPATCHED"]) + len([item for item in app_context["governance_service"].list_supply_orders() if str(item.get("status", "")).upper() == "MAHAJAN_DISPATCHED"])), "HIGH"),
             render_metric_card("Open Alerts", str(len(alerts)), "CRITICAL" if len([item for item in alerts if str(item.get("severity", "")).upper() == "CRITICAL"]) else "WARNING"),
             render_metric_card("Platform Health", str(kpis["health_scores"]["platform"]), "SUCCESS" if kpis["health_scores"]["platform"] >= 70 else "WARNING"),
@@ -57,6 +58,7 @@ def render_operations_dashboard(app_context: dict) -> None:
                 {"metric": "Marketplace Orders Today", "value": kpis["marketplace"]["orders_today"]},
                 {"metric": "Marketplace Revenue Today", "value": kpis["marketplace"]["revenue_today"]},
                 {"metric": "Active Mandi Orders", "value": kpis["mandi"]["active_orders"]},
+                {"metric": "MandiPlace Procurement Orders", "value": len(app_context["procurement_transaction_service"].list_mandiplace_orders())},
                 {"metric": "Pending Deliveries", "value": len([item for item in app_context["public_order_service"].list_all_orders() if str(item.get("status", "")).upper() == "DISPATCHED"])},
             ],
             use_container_width=True,
