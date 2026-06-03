@@ -2,10 +2,14 @@ from __future__ import annotations
 
 import streamlit as st
 
+from components.background_tasks_panel import render_background_tasks_panel
+from components.bulk_actions import render_bulk_actions
 from components.data_grid import render_data_grid
 from components.responsive_layout import render_section_intro
+from components.toast_manager import push_toast
 from components.three_d_cards import render_metric_grid
 from components.ui_shell import render_metric_card, render_page_header, render_showcase_strip
+from utils.export_utils import export_rows_to_csv_bytes, export_rows_to_json_bytes
 
 
 def render_health_dashboard(app_context: dict) -> None:
@@ -141,7 +145,34 @@ def render_health_dashboard(app_context: dict) -> None:
             st.info("Google runtime diagnostics are available to the signed-in admin only.")
         runtime_metrics = app_context["runtime_metrics_service"].latest()
         st.markdown("### Dead Letter Queue")
-        st.dataframe(app_context["dead_letter_service"].list_entries(limit=50), use_container_width=True)
+        dead_letter_rows = app_context["dead_letter_service"].list_entries(limit=50)
+        st.dataframe(dead_letter_rows, use_container_width=True)
+        selected_ids, triggered_action = render_bulk_actions(
+            page_key="health_dead_letters_bulk",
+            rows=dead_letter_rows,
+            id_field="entry_id",
+            action_options=[("export_csv", "Export Dead Letters CSV"), ("export_json", "Export Dead Letters JSON")],
+            selection_label="Select dead-letter entries",
+        )
+        selected_rows = [row for row in dead_letter_rows if row.get("entry_id") in selected_ids]
+        if triggered_action == "export_csv" and selected_rows:
+            st.download_button(
+                "Download Selected Dead Letters CSV",
+                export_rows_to_csv_bytes(selected_rows),
+                file_name="dead-letters-selected.csv",
+                mime="text/csv",
+                use_container_width=True,
+                key="dead_letters_export_csv",
+            )
+        if triggered_action == "export_json" and selected_rows:
+            st.download_button(
+                "Download Selected Dead Letters JSON",
+                export_rows_to_json_bytes(selected_rows),
+                file_name="dead-letters-selected.json",
+                mime="application/json",
+                use_container_width=True,
+                key="dead_letters_export_json",
+            )
         st.markdown("### Runtime Metrics")
         st.json(runtime_metrics)
         st.markdown("### Recent Runtime Errors")
@@ -191,14 +222,44 @@ def render_health_dashboard(app_context: dict) -> None:
         st.markdown("### Recovery Utilities")
         col1, col2 = st.columns(2)
         if col1.button("Rebuild Search Index", use_container_width=True):
-            st.json(app_context["operational_search_service"].rebuild_index(app_context), expanded=False)
+            task = app_context["recovery_action_service"].execute(
+                "rebuild_search_index",
+                app_context,
+                actor_role=getattr(current_user, "role", ""),
+                actor_id=getattr(current_user, "email", "platform_admin"),
+            )
+            push_toast(f"Search index rebuild queued with status {task.get('status', 'UNKNOWN')}.", tone="success", title="Recovery")
+            st.rerun()
         if col2.button("Refresh KPI Snapshot", use_container_width=True):
-            st.json(app_context["kpi_service"].calculate_snapshot(app_context), expanded=False)
+            task = app_context["recovery_action_service"].execute(
+                "refresh_kpi_snapshot",
+                app_context,
+                actor_role=getattr(current_user, "role", ""),
+                actor_id=getattr(current_user, "email", "platform_admin"),
+            )
+            push_toast(f"KPI refresh queued with status {task.get('status', 'UNKNOWN')}.", tone="success", title="Recovery")
+            st.rerun()
         col3, col4 = st.columns(2)
         if col3.button("Regenerate Alerts", use_container_width=True):
-            st.json(app_context["alert_engine"].generate_alerts(app_context), expanded=False)
+            task = app_context["recovery_action_service"].execute(
+                "regenerate_alerts",
+                app_context,
+                actor_role=getattr(current_user, "role", ""),
+                actor_id=getattr(current_user, "email", "platform_admin"),
+            )
+            push_toast(f"Alert regeneration queued with status {task.get('status', 'UNKNOWN')}.", tone="success", title="Recovery")
+            st.rerun()
         if col4.button("Repair Snapshots", use_container_width=True):
-            st.json(app_context["automation_tasks"].run_daily_tasks(app_context), expanded=False)
+            task = app_context["recovery_action_service"].execute(
+                "run_hourly_automation",
+                app_context,
+                actor_role=getattr(current_user, "role", ""),
+                actor_id=getattr(current_user, "email", "platform_admin"),
+            )
+            push_toast(f"Automation refresh queued with status {task.get('status', 'UNKNOWN')}.", tone="success", title="Recovery")
+            st.rerun()
+        st.markdown("### Background Tasks")
+        render_background_tasks_panel(app_context, page_key="health_background_tasks", limit=15)
 
     with migration_tab:
         st.markdown("### Storage Migration")
@@ -221,11 +282,23 @@ def render_health_dashboard(app_context: dict) -> None:
             latest_report = app_context["storage_migration_service"].run(mode="dry_run")
             st.success("Dry-run migration report generated.")
         if st.button("Validate Canonical Storage", use_container_width=True):
-            latest_validation = app_context["canonical_storage_validation_service"].validate()
-            st.success("Canonical validation completed.")
+            task = app_context["recovery_action_service"].execute(
+                "rerun_canonical_validation",
+                app_context,
+                actor_role=getattr(current_user, "role", ""),
+                actor_id=getattr(current_user, "email", "platform_admin"),
+            )
+            push_toast(f"Canonical validation queued with status {task.get('status', 'UNKNOWN')}.", tone="success", title="Recovery")
+            st.rerun()
         if st.button("Generate Cutover Readiness Report", use_container_width=True):
-            readiness_report = cutover_service.generate_cutover_readiness_report(storage_mode_current=storage_mode)
-            st.success("Cutover readiness report generated.")
+            task = app_context["recovery_action_service"].execute(
+                "generate_cutover_readiness_report",
+                app_context,
+                actor_role=getattr(current_user, "role", ""),
+                actor_id=getattr(current_user, "email", "platform_admin"),
+            )
+            push_toast(f"Cutover readiness report queued with status {task.get('status', 'UNKNOWN')}.", tone="success", title="Recovery")
+            st.rerun()
         validation_result = latest_validation or cutover_service.load_latest_validation_report() or app_context["canonical_storage_validation_service"].validate()
         readiness_report = cutover_service.evaluate_cutover_readiness(storage_mode_current=storage_mode)
         st.markdown("### Cutover Status")

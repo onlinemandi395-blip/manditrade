@@ -10,7 +10,9 @@ from services.alert_engine import AlertEngine
 from services.automation_tasks import AutomationTasks
 from services.audit_service import AuditService
 from services.auth_service import AuthService
+from services.background_task_service import BackgroundTaskService
 from services.bootstrap_service import BootstrapService
+from services.bulk_action_service import BulkActionService
 from services.cache_service import CacheService
 from services.canonical_storage_validation_service import CanonicalStorageValidationService
 from services.catalog_service import CatalogService
@@ -52,6 +54,7 @@ from services.public_order_service import PublicOrderService
 from services.pricing_service import PricingService
 from services.kpi_service import KPIService
 from services.recommendation_service import RecommendationService
+from services.recovery_action_service import RecoveryActionService
 from services.query.inventory_query_service import InventoryQueryService
 from services.query.order_query_service import OrderQueryService
 from services.query.procurement_query_service import ProcurementQueryService
@@ -250,6 +253,13 @@ def build_app_context() -> dict:
     kpi_service = KPIService(snapshot_path=APP_RUNTIME_DIR / "kpis" / "latest.json", safe_drive_write_service=safe_drive_write_service)
     recommendation_service = RecommendationService(recommendations_path=APP_RUNTIME_DIR / "recommendations" / "latest.json", safe_drive_write_service=safe_drive_write_service)
     operational_search_service = OperationalSearchService(index_path=APP_RUNTIME_DIR / "search_index" / "latest.json", safe_drive_write_service=safe_drive_write_service)
+    background_task_service = BackgroundTaskService(
+        runtime_root=APP_RUNTIME_DIR,
+        safe_drive_write_service=safe_drive_write_service,
+        json_service=drive_service.json_service,
+        id_allocator_service=id_allocator_service,
+        dead_letter_service=dead_letter_service,
+    )
     settlement_service = SettlementService(
         governance_service=governance_service,
         id_allocator_service=id_allocator_service,
@@ -273,6 +283,13 @@ def build_app_context() -> dict:
         safe_drive_write_service=safe_drive_write_service,
         json_service=drive_service.json_service,
         id_allocator_service=id_allocator_service,
+    )
+    bulk_action_service = BulkActionService(
+        notification_center_service=notification_center_service,
+        public_buyer_service=public_buyer_service,
+        governance_service=governance_service,
+        gmail_service=gmail_service,
+        audit_service=audit_service,
     )
     event_notification_service = EventNotificationService(
         notification_center_service=notification_center_service,
@@ -451,6 +468,17 @@ def build_app_context() -> dict:
         event_bus=event_bus,
         settlement_service=settlement_service,
     )
+    recovery_action_service = RecoveryActionService(
+        background_task_service=background_task_service,
+        gmail_service=gmail_service,
+        operational_search_service=operational_search_service,
+        kpi_service=kpi_service,
+        alert_engine=alert_engine,
+        canonical_storage_validation_service=canonical_storage_validation_service,
+        settlement_service=settlement_service,
+        automation_tasks=automation_tasks,
+        storage_cutover_service=storage_cutover_service,
+    )
 
     startup_checks = config_service.validate_streamlit_secrets(security_service.load_streamlit_secrets())
     deployment_validation = config_service.validate_deployment_profile(
@@ -576,10 +604,13 @@ def build_app_context() -> dict:
         "kpi_service": kpi_service,
         "recommendation_service": recommendation_service,
         "operational_search_service": operational_search_service,
+        "background_task_service": background_task_service,
+        "bulk_action_service": bulk_action_service,
         "settlement_service": settlement_service,
         "invoice_service": invoice_service,
         "dispute_service": dispute_service,
         "automation_tasks": automation_tasks,
+        "recovery_action_service": recovery_action_service,
         "access_portal_service": access_portal_service,
         "action_center_service": action_center_service,
         "order_query_service": OrderQueryService(drive_service=drive_service, json_service=drive_service.json_service, domain_paths_service=domain_paths_service),

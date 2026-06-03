@@ -10,6 +10,7 @@ from constants.roles import ROLE_MAHAJAN, ROLE_MANUFACTURER, ROLE_PLATFORM_ADMIN
 from components.html_renderer import render_html
 from components.error_boundary import render_with_error_boundary
 from components.command_palette import render_command_palette
+from components.icon_sidebar import render_icon_sidebar_group
 from components.toast_manager import push_toast, render_toasts
 from components.ui_shell import render_configurable_link_button
 from components.ui_shell import apply_ui_shell
@@ -262,6 +263,20 @@ def resolve_navigation_sections(app_context: dict) -> list[str]:
     return flatten_navigation_groups(get_navigation_groups(_resolve_navigation_role(app_context)))
 
 
+def default_navigation_section(app_context: dict) -> str:
+    role = _resolve_navigation_role(app_context)
+    defaults = {
+        ROLE_PLATFORM_ADMIN: "Dashboard",
+        ROLE_MANUFACTURER: "Dashboard",
+        ROLE_MAHAJAN: "Dashboard",
+        ROLE_PUBLIC_BUYER: "Marketplace",
+        ROLE_WORKER: "Jobs",
+    }
+    default = defaults.get(role, "Dashboard")
+    sections = flatten_navigation_groups(get_navigation_groups(role))
+    return default if default in sections else (sections[0] if sections else "Dashboard")
+
+
 def render_sidebar_navigation(app_context: dict) -> str:
     current_user = app_context.get("current_user")
     session_user = app_context.get("session_user") or current_user
@@ -269,9 +284,9 @@ def render_sidebar_navigation(app_context: dict) -> str:
     navigation_role = _resolve_navigation_role(app_context)
     groups = get_navigation_groups(navigation_role)
     sections = flatten_navigation_groups(groups)
-    selected = app_context["session_state_service"].get_navigation(sections[0] if sections else "Dashboard")
+    selected = app_context["session_state_service"].get_navigation(default_navigation_section(app_context))
     if selected not in sections:
-        selected = sections[0] if sections else "Dashboard"
+        selected = default_navigation_section(app_context)
         app_context["session_state_service"].set_navigation(selected)
     with st.sidebar:
         st.markdown("## Navigation")
@@ -281,16 +296,16 @@ def render_sidebar_navigation(app_context: dict) -> str:
             st.caption(f"SuperUser context: {ADMIN_CONTEXT_OPTIONS.get(app_context.get('active_context', 'platform_admin'), 'Platform Admin')}")
         for group, items in groups:
             st.caption(group.upper())
-            for item in items:
-                if st.button(item, key=f"nav_{item.lower().replace(' ', '_')}", use_container_width=True, type="primary" if selected == item else "secondary"):
-                    if app_context["session_state_service"].has_unsaved_changes() and not st.session_state.get("confirm_nav_with_unsaved_changes", False):
-                        push_toast("You have unsaved changes.", tone="warning", title="Unsaved Changes")
-                        st.session_state["confirm_nav_with_unsaved_changes"] = True
-                        st.rerun()
-                    selected = item
-                    st.session_state["confirm_nav_with_unsaved_changes"] = False
-                    app_context["session_state_service"].set_navigation(item)
+            chosen = render_icon_sidebar_group(group, items, selected=selected)
+            if chosen:
+                if app_context["session_state_service"].has_unsaved_changes() and not st.session_state.get("confirm_nav_with_unsaved_changes", False):
+                    push_toast("You have unsaved changes.", tone="warning", title="Unsaved Changes")
+                    st.session_state["confirm_nav_with_unsaved_changes"] = True
                     st.rerun()
+                selected = chosen
+                st.session_state["confirm_nav_with_unsaved_changes"] = False
+                app_context["session_state_service"].set_navigation(chosen)
+                st.rerun()
         return selected
 
 

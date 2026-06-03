@@ -37,6 +37,7 @@ class IdAllocatorService:
         "invoice": "INV",
         "dispute": "DSPT",
         "financial_transaction": "FTX",
+        "task": "TASK",
     }
 
     def __init__(self, counters_path: Path, file_lock_service: FileLockService) -> None:

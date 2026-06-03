@@ -18,6 +18,7 @@ from modules.profile.dashboard import render_public_buyer_profile_setup
 def render_marketplace_dashboard(app_context: dict) -> None:
     user = app_context["current_user"]
     role = user.role if user else "public_browse"
+    is_public_buyer = bool(user and user.role == "public_buyer")
     products = app_context["product_catalog_service"].list_products(include_pending=False, viewer_role="public_buyer")
     image_service = app_context.get("image_service")
     favorites_service = app_context.get("favorites_service")
@@ -32,20 +33,21 @@ def render_marketplace_dashboard(app_context: dict) -> None:
         primary_actions=["Browse Public Catalog"],
     )
     categories = sorted({item.get("category", "Uncategorized") for item in products})
-    render_kpi_cards(
-        [
-            {"label": "Public Products", "value": str(len(products)), "status": "SUCCESS"},
-            {"label": "Categories", "value": str(len(categories)), "status": "OPEN"},
-            {"label": "Flow", "value": "Instant Pay", "status": "PENDING"},
-        ]
-    )
-    render_showcase_strip(
-        [
-            ("Public Buyers", "MRP only", "SUCCESS"),
-            ("MandiPlace Buyers", "B2B lane separate", "OPEN"),
-            ("Manufacturers", "Preview + fulfilment", "PENDING"),
-        ]
-    )
+    if not is_public_buyer:
+        render_kpi_cards(
+            [
+                {"label": "Public Products", "value": str(len(products)), "status": "SUCCESS"},
+                {"label": "Categories", "value": str(len(categories)), "status": "OPEN"},
+                {"label": "Flow", "value": "Instant Pay", "status": "PENDING"},
+            ]
+        )
+        render_showcase_strip(
+            [
+                ("Public Buyers", "MRP only", "SUCCESS"),
+                ("MandiPlace Buyers", "B2B lane separate", "OPEN"),
+                ("Manufacturers", "Preview + fulfilment", "PENDING"),
+            ]
+        )
 
     search_col, category_col = st.columns([2, 1])
     search_term = search_col.text_input("Search products", placeholder="Rice, atta, masala...")
@@ -60,10 +62,31 @@ def render_marketplace_dashboard(app_context: dict) -> None:
             or search_term.strip().lower() in str(item.get("description", "")).lower()
         )
     ]
-    render_section_intro("Public Catalog", "Browse public products, compare pricing, and place upfront-pay orders from one simple marketplace view.")
+    render_section_intro(
+        "Public Catalog",
+        "Browse products, compare public pricing, and add items to cart from one clean marketplace grid."
+        if is_public_buyer
+        else "Browse public products, compare pricing, and place upfront-pay orders from one simple marketplace view.",
+    )
+    if is_public_buyer:
+        cart_count = 0
+        buyer_preview = app_context["public_buyer_service"].get_by_email(user.email)
+        if buyer_preview:
+            cart_count = len(app_context["public_cart_service"].get_cart(buyer_preview["public_buyer_id"]).get("items", []))
+        render_html(
+            f"""
+            <section class="mt-public-marketplace-toolbar">
+              <div class="mt-chip-row">
+                <span class="mt-chip">Products: {escape(str(len(filtered)))}</span>
+                <span class="mt-chip">Categories: {escape(str(len(categories)))}</span>
+                <span class="mt-price-chip">Cart: {escape(str(cart_count))}</span>
+              </div>
+            </section>
+            """
+        )
     if not filtered:
         render_empty_state_block("No public products match the current search/filter.", icon="[]", cta="Adjust search or category")
-    st.markdown("<div class='mt-card-grid'>", unsafe_allow_html=True)
+    st.markdown("<div class='mt-public-product-grid mt-card-grid'>", unsafe_allow_html=True)
     for index, item in enumerate(filtered[:8]):
         image = image_service.get_display_image(item, label=str(item.get("name", "Product"))) if image_service else {"src": "", "alt": str(item.get("name", "Product")), "status": "NONE"}
         clicked = render_product_card(

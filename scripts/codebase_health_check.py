@@ -79,6 +79,17 @@ def _ui_consistency_flags(path: Path) -> dict[str, bool]:
     }
 
 
+def _production_experience_flags(path: Path) -> dict[str, bool]:
+    text = path.read_text(encoding="utf-8")
+    rel = path.relative_to(BASE_DIR).as_posix()
+    return {
+        "direct_bulk_actions": "Run Bulk Action" in text and rel != "components/bulk_actions.py",
+        "raw_background_task_writes": "background_tasks" in text and any(marker in text for marker in JSON_WRITE_MARKERS) and "background_task_service" not in text,
+        "retry_logic_outside_service": any(marker in text for marker in ["retry_failed(", "process_queue(", "rebuild_index(", "calculate_snapshot(", "generate_alerts("]) and rel not in {"services/recovery_action_service.py", "services/background_task_service.py"},
+        "duplicate_export_retry_blocks": text.count("download_button(") >= 2 or ("retry" in text.lower() and text.count("button(") >= 3 and "bulk_action_service" not in text),
+    }
+
+
 def _route_names() -> list[str]:
     route_registry = BASE_DIR / "bootstrap" / "route_registry.py"
     text = route_registry.read_text(encoding="utf-8")
@@ -125,6 +136,10 @@ def build_report() -> dict:
     raw_feedback_banner_files: list[str] = []
     direct_exception_rendering_files: list[str] = []
     duplicate_search_bar_files: list[str] = []
+    direct_bulk_action_files: list[str] = []
+    raw_background_task_write_files: list[str] = []
+    retry_logic_outside_service_files: list[str] = []
+    duplicate_export_retry_block_files: list[str] = []
 
     for path in files:
         rel = path.relative_to(BASE_DIR).as_posix()
@@ -157,6 +172,15 @@ def build_report() -> dict:
             direct_exception_rendering_files.append(rel)
         if ui_flags["duplicate_search_bars"]:
             duplicate_search_bar_files.append(rel)
+        production_flags = _production_experience_flags(path)
+        if production_flags["direct_bulk_actions"]:
+            direct_bulk_action_files.append(rel)
+        if production_flags["raw_background_task_writes"]:
+            raw_background_task_write_files.append(rel)
+        if production_flags["retry_logic_outside_service"]:
+            retry_logic_outside_service_files.append(rel)
+        if production_flags["duplicate_export_retry_blocks"]:
+            duplicate_export_retry_block_files.append(rel)
 
     route_names = _route_names()
     route_counter = Counter(route_names)
@@ -189,6 +213,10 @@ def build_report() -> dict:
         "raw_feedback_banner_candidates": sorted(raw_feedback_banner_files),
         "direct_exception_rendering_candidates": sorted(direct_exception_rendering_files),
         "duplicate_search_bar_candidates": sorted(duplicate_search_bar_files),
+        "direct_bulk_action_candidates": sorted(direct_bulk_action_files),
+        "raw_background_task_write_candidates": sorted(raw_background_task_write_files),
+        "retry_logic_outside_recovery_candidates": sorted(retry_logic_outside_service_files),
+        "duplicate_export_retry_block_candidates": sorted(duplicate_export_retry_block_files),
         "config_files_present": _config_files(),
         "missing_test_hints": missing_test_hints,
         "notes": [

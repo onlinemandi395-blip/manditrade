@@ -22,6 +22,8 @@ This file is the current reference for the shared platform shell and UI composit
   - role badge
   - metrics
   - action chips
+- `components/icon_sidebar.py`
+  - compact route rendering with centralized icon labels
 
 ### Height Model
 
@@ -69,6 +71,7 @@ Recommended page structure:
   - shadows
   - transitions
   - shell utility classes
+  - compact density controls for cards, sidebar width, and KPI height
 
 The existing 3D stylesheet remains the richer visual layer, while tokens define the reusable baseline.
 
@@ -88,6 +91,10 @@ The existing 3D stylesheet remains the richer visual layer, while tokens define 
   - lightweight loading placeholders
 - `components/entity_form.py`
   - grouped form wrapper for shared layout
+- `components/bulk_actions.py`
+  - shared bulk-selection and action trigger surface
+- `components/background_tasks_panel.py`
+  - reusable background-task visibility panel
 
 ## Status Rules
 
@@ -101,6 +108,10 @@ The existing 3D stylesheet remains the richer visual layer, while tokens define 
 - card stacks should collapse cleanly on tablet/mobile
 - filters should wrap without hiding primary actions
 - detail surfaces should remain readable before becoming more complex modal UX
+- public product browsing should target:
+  - 4-column desktop grid
+  - 2-column tablet grid
+  - 1-column mobile grid
 
 ## CSS Philosophy
 
@@ -123,6 +134,7 @@ The existing 3D stylesheet remains the richer visual layer, while tokens define 
 - `Suta Mandi`
 - `Logistics`
 - `Public Access / Login`
+- authenticated `Marketplace` for `public_buyer` now uses the compact product-browse-first landing treatment
 
 ## Audit Reference
 
@@ -140,6 +152,10 @@ The existing 3D stylesheet remains the richer visual layer, while tokens define 
   - shared operator-safe failure surface
 - `docs/PRODUCTION_EXPERIENCE.md`
   - operating model for productivity, recovery, and reliability UX
+- `services/background_task_service.py`
+  - lightweight task lifecycle tracking for recovery/export/operator actions
+- `services/recovery_action_service.py`
+  - centralized admin recovery orchestration
 
 ## Incremental Adoption Rule
 

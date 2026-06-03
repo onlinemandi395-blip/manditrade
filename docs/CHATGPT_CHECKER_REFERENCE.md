@@ -1,6 +1,6 @@
 # MandiTrade Checker Reference
 
-Generated from the current repository state on 2026-06-03 after the production experience hardening phase 1 pass.
+Generated from the current repository state on 2026-06-03 after the compact UI + icon sidebar + public marketplace landing polish pass.
 
 ## Final Role Model
 
@@ -769,6 +769,53 @@ Generated from the current repository state on 2026-06-03 after the production e
   - [modules/logistics/dashboard.py](/c:/2026/manditrade/manditrade/modules/logistics/dashboard.py)
   - [modules/access/dashboard.py](/c:/2026/manditrade/manditrade/modules/access/dashboard.py)
 
+## Compact UI Status
+
+- Shared density tuning is now live through:
+  - [assets/styles/design_tokens.css](/c:/2026/manditrade/manditrade/assets/styles/design_tokens.css)
+  - [assets/styles/manditrade_3d.css](/c:/2026/manditrade/manditrade/assets/styles/manditrade_3d.css)
+- Current compacting includes:
+  - tighter card padding
+  - smaller KPI card height
+  - lighter shadows and blur
+  - smaller hero and tab density
+  - more compact form and sidebar button sizing
+
+## Icon Sidebar Status
+
+- Centralized navigation icons now exist in:
+  - [constants/navigation_icons.py](/c:/2026/manditrade/manditrade/constants/navigation_icons.py)
+- Current compact icon-label sidebar rendering is now handled through:
+  - [components/icon_sidebar.py](/c:/2026/manditrade/manditrade/components/icon_sidebar.py)
+  - [bootstrap/app_bootstrap.py](/c:/2026/manditrade/manditrade/bootstrap/app_bootstrap.py)
+- RBAC route filtering and transient-sidebar collapse behavior remain unchanged.
+
+## Public Buyer Marketplace Landing Status
+
+- Authenticated `public_buyer` default navigation now resolves to:
+  - `Marketplace`
+- Main implementation:
+  - [bootstrap/app_bootstrap.py](/c:/2026/manditrade/manditrade/bootstrap/app_bootstrap.py)
+- Pre-login navigation remains:
+  - `Dashboard` only
+
+## Product Grid Status
+
+- Public Marketplace now leans on a cleaner browse-first product grid in:
+  - [modules/marketplace/dashboard.py](/c:/2026/manditrade/manditrade/modules/marketplace/dashboard.py)
+  - [components/product_card.py](/c:/2026/manditrade/manditrade/components/product_card.py)
+- Current public-buyer landing behavior reduces the admin KPI feel by:
+  - suppressing the heavier KPI/showcase strip on buyer landing
+  - surfacing cart count near the product browse controls
+  - keeping price, availability, and add-to-cart flow front and center
+
+## RBAC Navigation Status
+
+- Role-based route visibility still remains centralized in:
+  - [services/navigation_service.py](/c:/2026/manditrade/manditrade/services/navigation_service.py)
+  - [bootstrap/route_registry.py](/c:/2026/manditrade/manditrade/bootstrap/route_registry.py)
+- This pass changes presentation and defaults, not route permissions.
+
 ## Shell Height Status
 
 - Viewport-oriented shell height rules now live in:
@@ -815,8 +862,53 @@ Generated from the current repository state on 2026-06-03 after the production e
   - operational record search
   - recent search memory
   - keyboard hint for `Ctrl/Cmd + K`
+  - admin recovery actions
+  - quick create/open shortcuts for key operational pages
 - Current bootstrap integration is in:
   - [bootstrap/app_bootstrap.py](/c:/2026/manditrade/manditrade/bootstrap/app_bootstrap.py)
+
+## Bulk Action Status
+
+- Shared bulk-action UI now exists in:
+  - [components/bulk_actions.py](/c:/2026/manditrade/manditrade/components/bulk_actions.py)
+- Shared execution service now exists in:
+  - [services/bulk_action_service.py](/c:/2026/manditrade/manditrade/services/bulk_action_service.py)
+- Current first-wave adopted bulk actions include:
+  - notifications bulk mark read / resolve
+  - email queue bulk retry
+  - finance transaction export selection
+  - System Health dead-letter export selection
+
+## Background Task Status
+
+- Lightweight task tracking now exists in:
+  - [services/background_task_service.py](/c:/2026/manditrade/manditrade/services/background_task_service.py)
+  - [components/background_tasks_panel.py](/c:/2026/manditrade/manditrade/components/background_tasks_panel.py)
+- Current tracked operator tasks include:
+  - search index rebuild
+  - KPI refresh
+  - alert refresh
+  - overdue refresh
+  - canonical validation rerun
+  - cutover readiness generation
+
+## Recovery Action Status
+
+- Shared recovery orchestration now exists in:
+  - [services/recovery_action_service.py](/c:/2026/manditrade/manditrade/services/recovery_action_service.py)
+- Current admin-safe recovery actions include:
+  - retry failed Gmail queue
+  - rebuild search index
+  - refresh KPI snapshot
+  - regenerate alerts
+  - rerun canonical validation
+  - refresh overdue detection
+  - run hourly automation
+  - generate cutover readiness report
+- Current adoption surfaces include:
+  - [modules/system/health_dashboard.py](/c:/2026/manditrade/manditrade/modules/system/health_dashboard.py)
+  - [modules/admin/finance_operations.py](/c:/2026/manditrade/manditrade/modules/admin/finance_operations.py)
+  - [components/command_palette.py](/c:/2026/manditrade/manditrade/components/command_palette.py)
 
 ## Search Experience Status
 
@@ -878,6 +970,7 @@ Generated from the current repository state on 2026-06-03 after the production e
   - notification failures
   - stale locks
   - storage warnings
+  - background task history panel
 
 ## Production Experience Docs Status
 
@@ -994,6 +1087,10 @@ Generated from the current repository state on 2026-06-03 after the production e
   - raw feedback banner candidates
   - direct exception rendering candidates
   - duplicate search bar candidates
+  - direct bulk action candidates
+  - raw background task write candidates
+  - retry logic outside recovery candidates
+  - duplicate export/retry block candidates
   - missing-test hints
 - Latest report path:
   - `runtime/health_reports/latest_codebase_health.json`
@@ -1081,7 +1178,7 @@ Generated from the current repository state on 2026-06-03 after the production e
 ## Tests Result
 
 - `python -m pytest tests/ -q`
-  - Passed: `266`
+  - Passed: `276`
   - Skipped: `5`
 - `python -m compileall app.py modules services utils components schemas bootstrap scripts constants`
   - Passed
@@ -1115,6 +1212,7 @@ Generated from the current repository state on 2026-06-03 after the production e
 - Platform shell, hero, KPI, and grid adoption is now live on the highest-traffic operational pages, but this is still a first-wave rollout rather than a full all-page UI unification.
 - Second-wave shell/grid adoption now covers several medium-traffic surfaces, but jobs, notifications, profile, ledger, and the dense admin CRUD pages still remain intentionally outside full migration.
 - Sidebar transient state is now centrally reset on route/context/logout/deep-link changes, but richer sidebar overlay behavior is still limited by Streamlit’s native sidebar constraints rather than a fully custom client-side shell.
-- Production-experience hardening now has a command palette, shared toasts, scoped unsaved-change protection, and basic reliability UX, but bulk actions, deeper keyboard choreography, and fuller optimistic UI are still intentionally deferred.
+- Sidebar presentation is now more compact and icon-led, but it still uses Streamlit button primitives rather than a fully custom client-side nav rail.
+- Production-experience hardening now includes bulk actions, background task tracking, and shared recovery actions, but deeper keyboard choreography and broader optimistic UI are still intentionally deferred.
 - Operational search currently routes to page-level detail surfaces, not a universal modal detail shell.
 - Legacy compatibility-only internal names from the old client-era data model still exist and should only be removed in a dedicated migration pass.

@@ -162,6 +162,13 @@ def test_public_buyer_navigation_excludes_internal_routes(tmp_path):
     assert "Ledger" not in sections
 
 
+def test_public_marketplace_uses_product_grid_markup():
+    content = Path("modules/marketplace/dashboard.py").read_text(encoding="utf-8")
+
+    assert "mt-public-product-grid mt-card-grid" in content
+    assert "Cart:" in content
+
+
 def test_new_public_buyer_profile_starts_incomplete(tmp_path):
     stack = build_public_stack(tmp_path)
     buyer = stack["public_buyer_service"].register_or_get(email="buyer@example.com", full_name="Buyer")

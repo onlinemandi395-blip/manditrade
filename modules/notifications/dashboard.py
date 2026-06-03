@@ -4,11 +4,13 @@ from html import escape
 
 import streamlit as st
 
+from components.bulk_actions import render_bulk_actions
 from components.html_renderer import render_html
 from components.filter_bar import render_filter_bar
 from components.paginated_table import render_paginated_table
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
+from components.toast_manager import push_toast
 from components.ui_shell import render_3d_panel, render_dual_panel, render_metric_card, render_mobile_record_card, render_page_header, render_showcase_strip
 from utils.deep_links import activate_deep_link, build_deep_link_target
 from utils.export_utils import export_rows_to_csv_bytes, export_rows_to_json_bytes
@@ -118,6 +120,29 @@ def render_notifications_dashboard(app_context: dict) -> None:
                 render_html(f"<section class='mt-card-stack'>{preview_cards}</section>")
                 render_3d_panel("".join(render_mobile_record_card(item) for item in unread_rows[:5]), "Latest Alerts", tone="subtle")
                 st.download_button("Download Unread CSV", export_rows_to_csv_bytes(unread_rows), file_name="notifications-unread.csv", mime="text/csv", use_container_width=True)
+                selected_ids, triggered_action = render_bulk_actions(
+                    page_key="notifications_unread_bulk",
+                    rows=unread_rows,
+                    id_field="notification_id",
+                    action_options=[("mark_read", "Mark Read"), ("mark_resolved", "Mark Resolved")],
+                    selection_label="Select unread notifications",
+                )
+                if triggered_action:
+                    if not selected_ids:
+                        push_toast("Select at least one notification first.", tone="warning", title="Bulk Actions")
+                    else:
+                        report = app_context["bulk_action_service"].bulk_update_notifications(
+                            user=user,
+                            notification_ids=selected_ids,
+                            mark_read=triggered_action == "mark_read",
+                            resolved=triggered_action == "mark_resolved",
+                        )
+                        push_toast(
+                            f"Updated {len(report['successes'])} notifications.",
+                            tone="success" if not report["failures"] else "warning",
+                            title="Bulk Actions",
+                        )
+                        st.rerun()
             else:
                 render_empty_state("No notifications need attention right now.")
             render_paginated_table(page_key="notifications_unread", rows=unread_rows, search_fields=["notification_id", "title"], status_field="priority")
@@ -163,6 +188,26 @@ def render_notifications_dashboard(app_context: dict) -> None:
             queue_rows = gmail_service.read_queue() if gmail_service else []
             if queue_rows:
                 render_paginated_table(page_key="gmail_queue", rows=queue_rows, search_fields=["email_id", "recipient_email", "event_type"], status_field="status")
+                failed_rows = [item for item in queue_rows if str(item.get("status", "")).upper() == "FAILED"]
+                if failed_rows:
+                    selected_ids, triggered_action = render_bulk_actions(
+                        page_key="gmail_queue_bulk",
+                        rows=failed_rows,
+                        id_field="email_id",
+                        action_options=[("retry_failed", "Retry Failed Emails")],
+                        selection_label="Select failed email queue items",
+                    )
+                    if triggered_action == "retry_failed":
+                        if not selected_ids:
+                            push_toast("Select at least one failed email first.", tone="warning", title="Bulk Actions")
+                        else:
+                            report = app_context["bulk_action_service"].bulk_retry_failed_notifications(selected_ids)
+                            push_toast(
+                                f"Queued {len(report['successes'])} failed emails for retry.",
+                                tone="success" if not report["failures"] else "warning",
+                                title="Bulk Actions",
+                            )
+                            st.rerun()
                 selected_id = st.selectbox("Queued Email", [item["email_id"] for item in queue_rows], key="gmail_queue_select")
                 if st.button("Retry Selected Email", use_container_width=True, key="gmail_retry_selected"):
                     gmail_service.retry_failed(selected_id)

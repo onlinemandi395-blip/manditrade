@@ -66,7 +66,7 @@ def render_metric_card(label: str, value: str, status: str = "SUCCESS") -> str:
     elif status in {"OPEN", "DISPATCHED", "DELIVERED"}:
         tone_class = "mt-rfq-card"
     return f"""
-    <article class="mt-card mt-card--metric mt-kpi-card {tone_class}">
+    <article class="mt-card mt-card--metric mt-kpi-card mt-compact-kpi-card {tone_class}">
       <div class="mt-card__label">{escape(label)}</div>
       <div class="mt-card__value">{escape(value)}</div>
       {render_status_badge(status)}

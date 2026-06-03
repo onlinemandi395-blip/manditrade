@@ -56,6 +56,44 @@ This document tracks the operator-facing productivity and resilience layer above
   - view details
   - system health repair actions
 
+## Bulk Action Model
+
+- shared selection/action surface now exists in:
+  - `components/bulk_actions.py`
+- current bulk-service execution lives in:
+  - `services/bulk_action_service.py`
+- current safe first-wave actions include:
+  - bulk mark read
+  - bulk mark resolved
+  - bulk retry failed email queue items
+  - bulk export from adopted operational pages
+
+## Background Task Model
+
+- lightweight task tracking now exists in:
+  - `services/background_task_service.py`
+  - `components/background_tasks_panel.py`
+- current tracked task areas include:
+  - search rebuild
+  - KPI refresh
+  - alert refresh
+  - overdue refresh
+  - canonical validation
+  - cutover readiness generation
+
+## Recovery Action Model
+
+- admin-safe recovery orchestration now exists in:
+  - `services/recovery_action_service.py`
+- command palette and System Health can now trigger:
+  - retry failed email queue
+  - rebuild search index
+  - refresh KPI snapshot
+  - regenerate alerts
+  - rerun canonical validation
+  - refresh overdue detection
+  - generate cutover readiness report
+
 ## Reliability Model
 
 - reliability summary lives in:
@@ -77,3 +115,6 @@ This document tracks the operator-facing productivity and resilience layer above
   - duplicate search bars
   - inline color styles
   - repeated table patterns
+  - direct bulk-action implementations outside the shared layer
+  - raw background-task writes outside the task service
+  - retry/recovery logic outside the shared recovery service

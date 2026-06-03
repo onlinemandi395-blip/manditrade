@@ -15,6 +15,9 @@ def test_codebase_health_report_builds():
     assert "direct_inline_color_style_candidates" in report
     assert "raw_feedback_banner_candidates" in report
     assert "duplicate_search_bar_candidates" in report
+    assert "direct_bulk_action_candidates" in report
+    assert "raw_background_task_write_candidates" in report
+    assert "retry_logic_outside_recovery_candidates" in report
 
 
 def test_codebase_health_script_writes_latest_report():

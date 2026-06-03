@@ -82,6 +82,14 @@ def test_status_chip_renders_html(monkeypatch):
     assert "Payment" in html_calls[0]
 
 
+def test_metric_card_uses_compact_kpi_class():
+    from components.ui_shell import render_metric_card
+
+    html = render_metric_card("Orders", "12", "SUCCESS")
+
+    assert "mt-compact-kpi-card" in html
+
+
 def test_inject_css_avoids_duplicate_markdown(tmp_path: Path, monkeypatch):
     css_file = tmp_path / "tokens.css"
     css_file.write_text(".demo { color: red; }", encoding="utf-8")
