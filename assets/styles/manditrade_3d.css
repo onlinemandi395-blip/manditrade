@@ -129,9 +129,9 @@ body,
   position: relative;
   overflow-x: hidden;
   overflow-y: auto;
-  padding-left: 8px;
-  padding-right: 8px;
-  width: var(--mt-sidebar-width-compact, 17.5rem);
+  padding-left: 10px;
+  padding-right: 10px;
+  width: clamp(13.5rem, 16vw, 17rem);
 }
 
 [data-testid="stSidebar"] > div:first-child::before {
@@ -167,6 +167,10 @@ body,
 [data-testid="stSidebar"] .block-container {
   padding-top: 1.1rem;
   padding-bottom: 1.4rem;
+}
+
+[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] {
+  gap: 0.45rem;
 }
 
 [data-testid="stSidebar"] h2,
@@ -985,45 +989,50 @@ div[data-baseweb="tab-border"] {
 }
 
 [data-testid="stSidebar"] .stButton > button {
-  min-height: 58px;
-  border-radius: 18px !important;
-  padding: 0.45rem 0.45rem !important;
+  min-height: 68px;
+  border-radius: 20px !important;
+  padding: 0.5rem 0.35rem !important;
   justify-content: center;
-  font-size: 1.4rem;
+  font-size: 1.55rem;
   font-weight: 800;
   font-family: "Segoe UI", system-ui, sans-serif;
   line-height: 1.2;
   letter-spacing: 0.01em;
   background:
-    linear-gradient(160deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02)),
-    linear-gradient(135deg, rgba(56,193,114,0.24), rgba(56,189,248,0.18) 52%, rgba(245,158,11,0.22)) !important;
-  border: 1px solid rgba(255,255,255,0.12) !important;
+    linear-gradient(165deg, rgba(255,255,255,0.12), rgba(255,255,255,0.02) 42%, rgba(0,0,0,0.12)),
+    linear-gradient(135deg, rgba(56,193,114,0.28), rgba(56,189,248,0.22) 50%, rgba(245,158,11,0.26)) !important;
+  border: 1px solid rgba(255,255,255,0.14) !important;
   box-shadow:
-    0 16px 28px rgba(0, 0, 0, 0.20),
-    inset 0 1px 0 rgba(255,255,255,0.10),
-    inset 0 -8px 18px rgba(8, 19, 31, 0.22);
-  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.22);
+    0 18px 32px rgba(0, 0, 0, 0.24),
+    0 10px 18px rgba(8, 19, 31, 0.22),
+    inset 0 1px 0 rgba(255,255,255,0.14),
+    inset 0 -12px 20px rgba(8, 19, 31, 0.26);
+  text-shadow:
+    0 1px 0 rgba(0, 0, 0, 0.22),
+    0 0 10px rgba(255,255,255,0.04);
+  aspect-ratio: 1 / 1;
 }
 
 [data-testid="stSidebar"] .stButton > button[kind="primary"] {
   background:
-    linear-gradient(160deg, rgba(255,255,255,0.12), rgba(255,255,255,0.04)),
-    linear-gradient(135deg, rgba(56,193,114,0.34), rgba(56,189,248,0.26) 52%, rgba(245,158,11,0.30)) !important;
+    linear-gradient(160deg, rgba(255,255,255,0.16), rgba(255,255,255,0.05)),
+    linear-gradient(135deg, rgba(56,193,114,0.40), rgba(56,189,248,0.30) 52%, rgba(245,158,11,0.34)) !important;
   box-shadow:
-    0 18px 34px rgba(0, 0, 0, 0.24),
+    0 22px 40px rgba(0, 0, 0, 0.28),
     0 0 0 1px rgba(56,189,248,0.12),
-    0 0 18px rgba(56,189,248,0.12),
-    inset 0 1px 0 rgba(255,255,255,0.12),
-    inset 0 -10px 18px rgba(8, 19, 31, 0.24);
+    0 0 22px rgba(56,189,248,0.14),
+    0 0 28px rgba(56,193,114,0.08),
+    inset 0 1px 0 rgba(255,255,255,0.16),
+    inset 0 -12px 20px rgba(8, 19, 31, 0.28);
 }
 
 [data-testid="stSidebar"] .stButton > button:hover {
-  transform: translateY(-2px) scale(1.01);
+  transform: translateY(-3px) scale(1.03);
   box-shadow:
-    0 22px 38px rgba(0, 0, 0, 0.26),
-    0 0 22px rgba(56,189,248,0.10),
-    inset 0 1px 0 rgba(255,255,255,0.12),
-    inset 0 -10px 18px rgba(8, 19, 31, 0.24);
+    0 26px 42px rgba(0, 0, 0, 0.30),
+    0 0 26px rgba(56,189,248,0.12),
+    inset 0 1px 0 rgba(255,255,255,0.16),
+    inset 0 -12px 20px rgba(8, 19, 31, 0.28);
 }
 
 .mt-public-marketplace-toolbar {
