@@ -6,7 +6,7 @@ from services.navigation_service import icon_for_navigation_label
 
 
 def format_icon_nav_label(item: str) -> str:
-    return f"{icon_for_navigation_label(item)}  {item}"
+    return icon_for_navigation_label(item)
 
 
 def render_icon_sidebar_group(group: str, items: list[str], *, selected: str) -> str | None:

@@ -32,11 +32,13 @@ from modules.payments.dashboard import render_payments_dashboard
 from modules.profile.dashboard import render_my_profile_dashboard
 from modules.procurement.dashboard import render_procurement_dashboard
 from modules.products.dashboard import render_products_dashboard
+from modules.public_buyer.dashboard import render_public_buyer_dashboard
 from modules.public_orders.dashboard import render_public_orders_dashboard
 from modules.raw_materials.dashboard import render_raw_materials_dashboard
 from modules.suta_mandi.dashboard import render_suta_mandi_dashboard
 from modules.system.health_dashboard import render_health_dashboard
 from modules.logistics.dashboard import render_logistics_dashboard
+from modules.workers.dashboard import render_workers_dashboard
 from services.navigation_service import NAV_ALIAS_MAP, normalize_navigation_label
 
 
@@ -117,9 +119,9 @@ def render_dashboard(app_context: dict) -> None:
     elif user.role in {ROLE_MANUFACTURER, "admin_as_manufacturer"}:
         render_manufacturer_dashboard(app_context)
     elif user.role == ROLE_WORKER:
-        render_jobs_dashboard(app_context)
+        render_workers_dashboard(app_context)
     elif user.role == ROLE_PUBLIC_BUYER:
-        render_marketplace_dashboard(app_context)
+        render_public_buyer_dashboard(app_context)
     elif user.role == ROLE_PENDING_USER:
         render_pending_user_dashboard(app_context)
     else:

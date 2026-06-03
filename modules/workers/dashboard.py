@@ -4,57 +4,92 @@ import streamlit as st
 
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
-from components.ui_shell import render_3d_panel, render_metric_card, render_mobile_record_card, render_page_header
+from components.ui_shell import render_metric_card, render_page_header, render_showcase_strip
+from utils.page_ui import render_metric_button_row
 
 
 def render_workers_dashboard(app_context: dict) -> None:
     user = app_context["current_user"]
     worker_service = app_context["worker_service"]
-    render_page_header("Workers", "Track available mandi workers, build worker profiles, and review public availability.", ["Workers", "3D Control"])
-    workers = worker_service.list_workers(include_private=True)
+    job_service = app_context["job_service"]
+
+    render_page_header(
+        "Worker Dashboard",
+        "Read-only view for worker profile status, open jobs, applications, and current work pipeline.",
+        ["Read Only", "Jobs Network"],
+    )
+
+    worker_record = worker_service.get_worker_by_email(user.email) if user else {}
+    worker_id = worker_record.get("worker_id", "")
+    public_workers = worker_service.list_workers()
+    open_jobs = job_service.list_open_jobs()
+    worker_applications = job_service.list_applications(worker_id=worker_id) if worker_id else []
+    active_applications = [item for item in worker_applications if item.get("status") not in {"REJECTED", "COMPLETED"}]
+
     render_metric_grid(
         [
-            render_metric_card("Worker Profiles", str(len(workers)), "SUCCESS"),
-            render_metric_card("Public Workers", str(len(worker_service.list_workers())), "OPEN"),
+            render_metric_card("Profile Status", "Linked" if worker_record else "Pending", "SUCCESS" if worker_record else "PENDING"),
+            render_metric_card("Open Jobs", str(len(open_jobs)), "OPEN"),
+            render_metric_card("My Applications", str(len(worker_applications)), "WARNING"),
+            render_metric_card("Public Worker Pool", str(len(public_workers)), "SUCCESS"),
         ]
     )
-    overview_tab, profile_tab, pool_tab = st.tabs(["Overview", "My Worker Profile", "Worker Pool"])
+    render_showcase_strip(
+        [
+            ("Available", str(bool(worker_record.get("available", False))) if worker_record else "False", "OPEN"),
+            ("Public Profile", str(bool(worker_record.get("public_profile_opt_in", False))) if worker_record else "False", "SUCCESS"),
+            ("Active Applications", str(len(active_applications)), "PENDING"),
+        ]
+    )
+    render_metric_button_row(
+        "worker_dashboard",
+        [
+            {"label": "Overview", "value": str(len(open_jobs)), "tab_name": "Overview"},
+            {"label": "Open Jobs", "value": str(len(open_jobs)), "tab_name": "Open Jobs"},
+            {"label": "Applications", "value": str(len(worker_applications)), "tab_name": "Applications"},
+        ],
+    )
+    render_section_intro(
+        "Read-Only Work View",
+        "This dashboard is summary-only. Use Jobs and My Profile pages to apply, update profile details, or manage work activity.",
+    )
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("#### Job Pipeline")
+        st.bar_chart(
+            {
+                "Open Jobs": len(open_jobs),
+                "My Applications": len(worker_applications),
+                "Active Applications": len(active_applications),
+            }
+        )
+    with col2:
+        st.markdown("#### Profile Snapshot")
+        st.bar_chart(
+            {
+                "Available": 1 if worker_record.get("available", False) else 0,
+                "Public Profile": 1 if worker_record.get("public_profile_opt_in", False) else 0,
+                "Skills": len(worker_record.get("skills", []) or []),
+            }
+        )
+
+    overview_tab, jobs_tab, applications_tab = st.tabs(["Overview", "Open Jobs", "Applications"])
     with overview_tab:
-        render_section_intro("Worker Profiles", "Manufacturers can browse worker availability, and workers can maintain their own public job profile.")
-
-    can_manage = bool(user and user.role in {"manufacturer", "admin_as_manufacturer", "platform_admin", "worker"})
-    with profile_tab:
-        if can_manage and user:
-            existing = worker_service.get_worker_by_email(user.email) or {}
-            with st.form("worker_profile_form"):
-                col1, col2 = st.columns(2)
-                name = col1.text_input("Name", value=existing.get("name", user.name))
-                mobile = col2.text_input("Mobile", value=existing.get("mobile", ""))
-                city = col1.text_input("City", value=existing.get("city", "Pune"))
-                area = col2.text_input("Area", value=existing.get("area", "Bhosari"))
-                skills = st.text_input("Skills", value=",".join(existing.get("skills", ["Loading", "Packaging"])))
-                preferred = st.text_input("Preferred Work Types", value=",".join(existing.get("preferred_work_type", ["Daily Wage", "Part-time"])))
-                available = st.checkbox("Available", value=existing.get("available", True))
-                public_opt_in = st.checkbox("Public Profile Opt-In", value=existing.get("public_profile_opt_in", True))
-                submitted = st.form_submit_button("Save Worker Profile")
-            if submitted:
-                worker_service.upsert_worker(
-                    linked_email=user.email,
-                    name=name,
-                    mobile=mobile,
-                    city=city,
-                    area=area,
-                    skills=[item.strip() for item in skills.split(",")],
-                    preferred_work_type=[item.strip() for item in preferred.split(",")],
-                    available=available,
-                    public_profile_opt_in=public_opt_in,
-                )
-                st.success("Worker profile saved.")
-                st.rerun()
-
-    public_workers = worker_service.list_workers()
-    with pool_tab:
-        if public_workers:
-            render_3d_panel("".join(render_mobile_record_card(item) for item in public_workers), "Public Worker Pool")
-        else:
-            st.info("No public worker profiles are visible yet.")
+        st.dataframe(
+            [
+                {
+                    "worker_id": worker_record.get("worker_id", ""),
+                    "name": worker_record.get("name", user.name),
+                    "city": worker_record.get("city", ""),
+                    "area": worker_record.get("area", ""),
+                    "available": worker_record.get("available", False),
+                    "public_profile_opt_in": worker_record.get("public_profile_opt_in", False),
+                }
+            ],
+            use_container_width=True,
+        )
+    with jobs_tab:
+        st.dataframe(open_jobs, use_container_width=True)
+    with applications_tab:
+        st.dataframe(worker_applications, use_container_width=True)

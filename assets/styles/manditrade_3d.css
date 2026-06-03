@@ -985,19 +985,45 @@ div[data-baseweb="tab-border"] {
 }
 
 [data-testid="stSidebar"] .stButton > button {
-  min-height: 36px;
-  border-radius: 12px !important;
-  padding: 0.35rem 0.7rem !important;
-  justify-content: flex-start;
-  font-size: 0.9rem;
+  min-height: 58px;
+  border-radius: 18px !important;
+  padding: 0.45rem 0.45rem !important;
+  justify-content: center;
+  font-size: 1.4rem;
+  font-weight: 800;
   font-family: "Segoe UI", system-ui, sans-serif;
   line-height: 1.2;
   letter-spacing: 0.01em;
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.14);
+  background:
+    linear-gradient(160deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02)),
+    linear-gradient(135deg, rgba(56,193,114,0.24), rgba(56,189,248,0.18) 52%, rgba(245,158,11,0.22)) !important;
+  border: 1px solid rgba(255,255,255,0.12) !important;
+  box-shadow:
+    0 16px 28px rgba(0, 0, 0, 0.20),
+    inset 0 1px 0 rgba(255,255,255,0.10),
+    inset 0 -8px 18px rgba(8, 19, 31, 0.22);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.22);
 }
 
 [data-testid="stSidebar"] .stButton > button[kind="primary"] {
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.18);
+  background:
+    linear-gradient(160deg, rgba(255,255,255,0.12), rgba(255,255,255,0.04)),
+    linear-gradient(135deg, rgba(56,193,114,0.34), rgba(56,189,248,0.26) 52%, rgba(245,158,11,0.30)) !important;
+  box-shadow:
+    0 18px 34px rgba(0, 0, 0, 0.24),
+    0 0 0 1px rgba(56,189,248,0.12),
+    0 0 18px rgba(56,189,248,0.12),
+    inset 0 1px 0 rgba(255,255,255,0.12),
+    inset 0 -10px 18px rgba(8, 19, 31, 0.24);
+}
+
+[data-testid="stSidebar"] .stButton > button:hover {
+  transform: translateY(-2px) scale(1.01);
+  box-shadow:
+    0 22px 38px rgba(0, 0, 0, 0.26),
+    0 0 22px rgba(56,189,248,0.10),
+    inset 0 1px 0 rgba(255,255,255,0.12),
+    inset 0 -10px 18px rgba(8, 19, 31, 0.24);
 }
 
 .mt-public-marketplace-toolbar {
