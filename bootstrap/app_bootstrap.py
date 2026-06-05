@@ -14,7 +14,7 @@ from components.icon_sidebar import render_icon_sidebar_group
 from components.toast_manager import push_toast, render_toasts
 from components.ui_shell import render_configurable_link_button
 from components.ui_shell import apply_ui_shell
-from services.navigation_service import flatten_navigation_groups, get_default_route_for_role, get_navigation_groups
+from services.navigation_service import flatten_navigation_groups, get_default_route_for_role, get_navigation_for_role
 from utils.session import clear_runtime_session, ensure_session_defaults, pop_flash, set_flash
 
 
@@ -260,7 +260,7 @@ def handle_oauth_callback(app_context: dict) -> None:
 
 
 def resolve_navigation_sections(app_context: dict) -> list[str]:
-    return [item["route"] for item in flatten_navigation_groups(get_navigation_groups(_resolve_navigation_role(app_context), app_context))]
+    return [item["route"] for item in flatten_navigation_groups(get_navigation_for_role(_resolve_navigation_role(app_context), app_context))]
 
 
 def default_navigation_section(app_context: dict) -> str:
@@ -273,7 +273,7 @@ def render_sidebar_navigation(app_context: dict) -> str:
     session_user = app_context.get("session_user") or current_user
     is_admin_identity = app_context["security_service"].is_admin_identity(session_user)
     navigation_role = _resolve_navigation_role(app_context)
-    groups = get_navigation_groups(navigation_role, app_context)
+    groups = get_navigation_for_role(navigation_role, app_context)
     sections = [item["route"] for item in flatten_navigation_groups(groups)]
     selected = app_context["session_state_service"].get_navigation(default_navigation_section(app_context))
     if selected not in sections:

@@ -16,12 +16,14 @@
     ],
     "platform_admin": [
       {
-        "group": "Core",
+        "group": "Platform",
         "items": [
           {"label": "Dashboard", "icon": "", "route": "dashboard"},
           {"label": "My Profile", "icon": "", "route": "my_profile"},
           {"label": "Notifications", "icon": "", "route": "notifications"},
-          {"label": "My Actions", "icon": "", "route": "my_actions"}
+          {"label": "My Actions", "icon": "", "route": "my_actions"},
+          {"label": "System Health", "icon": "", "route": "system_health"},
+          {"label": "Admin Drive DB", "icon": "", "route": "admin_drive_db"}
         ]
       },
       {
@@ -31,16 +33,16 @@
           {"label": "Mahajans", "icon": "", "route": "mahajans"},
           {"label": "Workers", "icon": "", "route": "workers"},
           {"label": "Products", "icon": "", "route": "products"},
-          {"label": "Product Approvals", "icon": "", "route": "product_approvals"}
+          {"label": "Procurement Sources", "icon": "", "route": "procurement_sources"}
         ]
       },
       {
-        "group": "Commerce",
+        "group": "Operations",
         "items": [
-          {"label": "Marketplace", "icon": "", "route": "marketplace"},
-          {"label": "MandiPlace", "icon": "", "route": "mandiplace"},
-          {"label": "Raw Materials", "icon": "", "route": "raw_materials"},
-          {"label": "Orders", "icon": "", "route": "orders"}
+          {"label": "Orders", "icon": "", "route": "orders"},
+          {"label": "Inventory", "icon": "", "route": "inventory"},
+          {"label": "Warehouses", "icon": "", "route": "warehouses"},
+          {"label": "Shipments", "icon": "", "route": "shipments"}
         ]
       },
       {
@@ -48,20 +50,13 @@
         "items": [
           {"label": "Payments", "icon": "", "route": "payments"},
           {"label": "Ledger", "icon": "", "route": "ledger"},
-          {"label": "Platform Commission", "icon": "", "route": "platform_commission"},
-          {"label": "Finance Operations", "icon": "", "route": "finance_operations"}
+          {"label": "Platform Commission", "icon": "", "route": "platform_commission"}
         ]
       },
       {
-        "group": "Operations",
+        "group": "Insights",
         "items": [
-          {"label": "Operations Center", "icon": "", "route": "operations_center"},
-          {"label": "Warehouses", "icon": "", "route": "warehouses"},
-          {"label": "Shipments", "icon": "", "route": "shipments"},
-          {"label": "Logistics", "icon": "", "route": "logistics"},
-          {"label": "Jobs", "icon": "", "route": "jobs"},
-          {"label": "Analytics", "icon": "", "route": "analytics"},
-          {"label": "Admin Drive DB", "icon": "", "route": "admin_drive_db"}
+          {"label": "Analytics", "icon": "", "route": "analytics"}
         ]
       }
     ],

@@ -17,6 +17,7 @@ from modules.admin.packaging_services import render_packaging_services_dashboard
 from modules.admin.courier_services import render_courier_services_dashboard
 from modules.admin.inventory_summary import render_inventory_summary_dashboard
 from modules.admin.manufacturers import render_manufacturers_dashboard
+from modules.admin.procurement_sources import render_procurement_sources_dashboard
 from modules.admin.workers import render_workers_admin_dashboard
 from modules.mahajan.dashboard import render_mahajan_dashboard
 from modules.admin.product_approvals import render_product_approvals_dashboard
@@ -59,22 +60,15 @@ ROUTE_GROUPS = {
         "mahajans",
         "workers",
         "products",
+        "procurement_sources",
         "product_approvals",
-        "marketplace",
         "orders",
-        "mandiplace",
-        "raw_materials",
+        "inventory",
         "payments",
         "ledger",
         "platform_commission",
-        "finance_operations",
-        "operations_center",
         "warehouses",
-        "packaging_services",
-        "courier_services",
         "shipments",
-        "logistics",
-        "jobs",
         "system_health",
         "analytics",
         "admin_drive_db",
@@ -159,6 +153,8 @@ def render_route(section: str, app_context: dict) -> None:
         render_my_profile_dashboard(app_context)
     elif section == "products":
         render_products_dashboard(app_context)
+    elif section == "procurement_sources":
+        render_procurement_sources_dashboard(app_context)
     elif section == "mandiplace":
         render_procurement_dashboard(app_context)
     elif section == "suta_mandi":

@@ -29,6 +29,7 @@ NAV_ALIAS_MAP: dict[str, str] = {
     "Supply Orders": "Mandi Orders",
     "Public Orders": "Marketplace Orders",
     "System Health": "Admin Drive DB",
+    "Procurement Source": "Procurement Sources",
 }
 
 ROUTE_ALIASES: dict[str, str] = {
@@ -43,6 +44,8 @@ ROUTE_ALIASES: dict[str, str] = {
     "mahajans": "mahajans",
     "workers": "workers",
     "products": "products",
+    "procurement sources": "procurement_sources",
+    "procurement_sources": "procurement_sources",
     "product approvals": "product_approvals",
     "product_approvals": "product_approvals",
     "marketplace": "marketplace",
@@ -102,11 +105,11 @@ DEFAULT_NAVIGATION_CONFIG: dict[str, Any] = {
             {"group": "General", "items": [{"label": "Dashboard", "icon": "", "route": "dashboard"}]},
         ],
         ROLE_PLATFORM_ADMIN: [
-            {"group": "Core", "items": [{"label": "Dashboard", "icon": "", "route": "dashboard"}, {"label": "My Profile", "icon": "", "route": "my_profile"}, {"label": "Notifications", "icon": "", "route": "notifications"}, {"label": "My Actions", "icon": "", "route": "my_actions"}]},
-            {"group": "Ecosystem", "items": [{"label": "Manufacturers", "icon": "", "route": "manufacturers"}, {"label": "Mahajans", "icon": "", "route": "mahajans"}, {"label": "Workers", "icon": "", "route": "workers"}, {"label": "Products", "icon": "", "route": "products"}, {"label": "Product Approvals", "icon": "", "route": "product_approvals"}]},
-            {"group": "Commerce", "items": [{"label": "Marketplace", "icon": "", "route": "marketplace"}, {"label": "MandiPlace", "icon": "", "route": "mandiplace"}, {"label": "Raw Materials", "icon": "", "route": "raw_materials"}, {"label": "Orders", "icon": "", "route": "orders"}]},
-            {"group": "Finance", "items": [{"label": "Payments", "icon": "", "route": "payments"}, {"label": "Ledger", "icon": "", "route": "ledger"}, {"label": "Platform Commission", "icon": "", "route": "platform_commission"}, {"label": "Finance Operations", "icon": "", "route": "finance_operations"}]},
-            {"group": "Operations", "items": [{"label": "Operations Center", "icon": "", "route": "operations_center"}, {"label": "Warehouses", "icon": "", "route": "warehouses"}, {"label": "Shipments", "icon": "", "route": "shipments"}, {"label": "Logistics", "icon": "", "route": "logistics"}, {"label": "Jobs", "icon": "", "route": "jobs"}, {"label": "Analytics", "icon": "", "route": "analytics"}, {"label": "Admin Drive DB", "icon": "", "route": "admin_drive_db"}]},
+            {"group": "Platform", "items": [{"label": "Dashboard", "icon": "", "route": "dashboard"}, {"label": "My Profile", "icon": "", "route": "my_profile"}, {"label": "Notifications", "icon": "", "route": "notifications"}, {"label": "My Actions", "icon": "", "route": "my_actions"}, {"label": "System Health", "icon": "", "route": "system_health"}, {"label": "Admin Drive DB", "icon": "", "route": "admin_drive_db"}]},
+            {"group": "Ecosystem", "items": [{"label": "Manufacturers", "icon": "", "route": "manufacturers"}, {"label": "Mahajans", "icon": "", "route": "mahajans"}, {"label": "Workers", "icon": "", "route": "workers"}, {"label": "Products", "icon": "", "route": "products"}, {"label": "Procurement Sources", "icon": "", "route": "procurement_sources"}]},
+            {"group": "Operations", "items": [{"label": "Orders", "icon": "", "route": "orders"}, {"label": "Inventory", "icon": "", "route": "inventory"}, {"label": "Warehouses", "icon": "", "route": "warehouses"}, {"label": "Shipments", "icon": "", "route": "shipments"}]},
+            {"group": "Finance", "items": [{"label": "Payments", "icon": "", "route": "payments"}, {"label": "Ledger", "icon": "", "route": "ledger"}, {"label": "Platform Commission", "icon": "", "route": "platform_commission"}]},
+            {"group": "Insights", "items": [{"label": "Analytics", "icon": "", "route": "analytics"}]},
         ],
         ROLE_MAHAJAN: [
             {"group": "Core", "items": [{"label": "Dashboard", "icon": "", "route": "dashboard"}, {"label": "My Profile", "icon": "", "route": "my_profile"}, {"label": "Notifications", "icon": "", "route": "notifications"}, {"label": "My Actions", "icon": "", "route": "my_actions"}]},
@@ -241,6 +244,15 @@ def _load_json(path: Path) -> dict[str, Any] | None:
         return None
 
 
+def _load_json_with_error(path: Path) -> tuple[dict[str, Any] | None, str]:
+    if not path.exists():
+        return None, "missing"
+    try:
+        return json.loads(path.read_text(encoding="utf-8")), ""
+    except Exception as exc:  # noqa: BLE001
+        return None, str(exc)
+
+
 def _drive_navigation_config_path(app_context: dict | None) -> Path | None:
     if not app_context or "drive_path_service" not in app_context:
         return None
@@ -257,26 +269,56 @@ def _seed_drive_navigation_config_if_missing(app_context: dict | None, local_con
 
 
 def load_navigation_config(app_context: dict | None = None) -> dict[str, Any]:
+    return load_navigation_bundle(app_context)["config"]
+
+
+def load_navigation_bundle(app_context: dict | None = None) -> dict[str, Any]:
     fallback = _default_navigation_config()
-    local_config = _load_json(LOCAL_NAVIGATION_CONFIG_PATH) or fallback
+    local_config, local_error = _load_json_with_error(LOCAL_NAVIGATION_CONFIG_PATH)
+    effective_local = local_config or fallback
+    metadata = {
+        "source": "BUILTIN_FALLBACK",
+        "path": str(LOCAL_NAVIGATION_CONFIG_PATH),
+        "loaded_at": _now_iso(),
+        "loaded_roles": sorted(role for role in fallback["roles"] if role != ROLE_UNAUTHENTICATED and role != ROLE_PENDING_USER),
+        "errors": [],
+    }
+    if local_error and local_error != "missing":
+        metadata["errors"].append(f"Local config parse error: {local_error}")
+    drive_runtime_ready = False
+    if app_context and "admin_drive_database_service" in app_context:
+        runtime = app_context["admin_drive_database_service"].runtime_status()
+        drive_runtime_ready = bool(runtime.get("drive_api_ready", False))
     _seed_drive_navigation_config_if_missing(app_context, local_config)
     drive_path = _drive_navigation_config_path(app_context)
-    if drive_path:
-        drive_config = _load_json(drive_path)
+    if drive_path and drive_runtime_ready:
+        drive_config, drive_error = _load_json_with_error(drive_path)
+        if drive_error and drive_error != "missing":
+            metadata["errors"].append(f"Drive config parse error: {drive_error}")
         if isinstance(drive_config, dict) and drive_config.get("roles"):
-            return validate_navigation_config(drive_config)
+            config = validate_navigation_config(drive_config)
+            metadata["source"] = "DRIVE"
+            metadata["path"] = str(drive_path)
+            metadata["loaded_roles"] = sorted(role for role in config["roles"] if role not in {ROLE_UNAUTHENTICATED, ROLE_PENDING_USER})
+            return {"config": config, "metadata": metadata}
         if app_context and "safe_drive_write_service" in app_context:
-            app_context["safe_drive_write_service"].replace_document(drive_path, validate_navigation_config(local_config))
-            refreshed = _load_json(drive_path)
+            app_context["safe_drive_write_service"].replace_document(drive_path, validate_navigation_config(effective_local))
+            refreshed, refresh_error = _load_json_with_error(drive_path)
+            if refresh_error and refresh_error != "missing":
+                metadata["errors"].append(f"Drive config refresh error: {refresh_error}")
             if isinstance(refreshed, dict) and refreshed.get("roles"):
-                return validate_navigation_config(refreshed)
+                metadata["errors"].append("Drive config was refreshed from local fallback.")
     if local_config:
-        return validate_navigation_config(local_config)
-    return fallback
+        config = validate_navigation_config(local_config)
+        metadata["source"] = "LOCAL_CONFIG"
+        metadata["path"] = str(LOCAL_NAVIGATION_CONFIG_PATH)
+        metadata["loaded_roles"] = sorted(role for role in config["roles"] if role not in {ROLE_UNAUTHENTICATED, ROLE_PENDING_USER})
+        return {"config": config, "metadata": metadata}
+    return {"config": fallback, "metadata": metadata}
 
 
 def get_navigation_groups(role_key: str, app_context: dict | None = None) -> list[tuple[str, list[dict[str, str]]]]:
-    config = load_navigation_config(app_context)
+    config = load_navigation_bundle(app_context)["config"]
     groups = config["roles"].get(role_key, config["roles"][ROLE_UNAUTHENTICATED])
     return [(group["group"], list(group["items"])) for group in groups]
 
@@ -290,7 +332,7 @@ def flatten_navigation_groups(groups: Iterable[tuple[str, list[dict[str, str]]]]
 
 
 def get_default_route_for_role(role_key: str, app_context: dict | None = None) -> str:
-    config = load_navigation_config(app_context)
+    config = load_navigation_bundle(app_context)["config"]
     default_route = normalize_navigation_route(config["default_routes"].get(role_key, "dashboard"))
     available_routes = [item["route"] for item in flatten_navigation_groups(get_navigation_groups(role_key, app_context))]
     return default_route if default_route in available_routes else (available_routes[0] if available_routes else "dashboard")
@@ -308,6 +350,23 @@ def get_navigation_label(route: str, app_context: dict | None = None) -> str:
 
 
 def navigation_icon_coverage(app_context: dict | None = None) -> dict[str, str]:
-    config = load_navigation_config(app_context)
+    config = load_navigation_bundle(app_context)["config"]
     labels = [item["label"] for item in _iter_role_items(config)]
     return {label: icon_for_navigation_label(label) for label in sorted(set(labels))}
+
+
+def get_navigation_runtime_info(role_key: str, app_context: dict | None = None) -> dict[str, Any]:
+    bundle = load_navigation_bundle(app_context)
+    config = bundle["config"]
+    metadata = dict(bundle["metadata"])
+    groups = get_navigation_for_role(role_key, app_context)
+    metadata.update(
+        {
+            "active_role": role_key,
+            "default_route": get_default_route_for_role(role_key, app_context),
+            "nav_groups": [{"group": group, "items": [item["label"] for item in items]} for group, items in groups],
+            "nav_item_count": len(flatten_navigation_groups(groups)),
+            "config_roles": sorted(role for role in config["roles"] if role not in {ROLE_UNAUTHENTICATED, ROLE_PENDING_USER}),
+        }
+    )
+    return metadata

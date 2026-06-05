@@ -9,6 +9,7 @@ from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
 from components.toast_manager import push_toast
 from components.ui_shell import render_metric_card, render_page_header
+from services.navigation_service import get_navigation_runtime_info
 
 
 def _create_smoke_record(app_context: dict) -> dict:
@@ -16,14 +17,24 @@ def _create_smoke_record(app_context: dict) -> dict:
     drive_path_service = app_context["drive_path_service"]
     safe_drive_write_service = app_context["safe_drive_write_service"]
     target = drive_path_service.get_runtime_path("") / "drive_smoke_test.json"
+    runtime = admin_drive_database_service.runtime_status()
     payload = {
         "schema_version": 1,
         "status": "OK",
         "created_at": datetime.now(UTC).isoformat(),
-        "runtime_backend": admin_drive_database_service.runtime_status(),
+        "runtime_backend": runtime,
     }
     safe_drive_write_service.replace_document(target, payload)
-    return {"path": str(target), "payload": payload}
+    return {
+        "path": str(target),
+        "payload": payload,
+        "runtime_ready": bool(runtime.get("drive_api_ready", False)),
+        "message": (
+            "Google Drive runtime is not connected. Using local canonical mirror or missing admin token/config."
+            if not runtime.get("drive_api_ready", False)
+            else "Smoke record created through the active canonical Admin Drive path."
+        ),
+    }
 
 
 def render_admin_drive_db_dashboard(app_context: dict) -> None:
@@ -46,6 +57,7 @@ def render_admin_drive_db_dashboard(app_context: dict) -> None:
     latest_structure = service._read_report(service.reports_dir / "latest_admin_drive_db_structure.json")
     validation = latest_validation or service.validate_database_tree(persist=False)
     runtime = validation.get("runtime", root)
+    nav_info = get_navigation_runtime_info("platform_admin", app_context)
     canonical_readiness = "READY" if validation.get("status") == "PASS" and not validation.get("critical_errors") else "NOT READY"
     render_metric_grid(
         [
@@ -72,6 +84,8 @@ def render_admin_drive_db_dashboard(app_context: dict) -> None:
             "validation_status": validation.get("status", "UNKNOWN"),
             "files_count": len(service.drive_path_service.bootstrap_file_definitions()),
             "canonical_readiness": canonical_readiness,
+            "navigation_source": nav_info.get("source", "UNKNOWN"),
+            "navigation_config_path": nav_info.get("path", ""),
         },
         expanded=False,
     )
@@ -91,6 +105,7 @@ def render_admin_drive_db_dashboard(app_context: dict) -> None:
     col4, col5 = st.columns(2)
     if col4.button("Create Smoke Record", use_container_width=True):
         smoke = _create_smoke_record(app_context)
+        st.session_state["admin_drive_db_smoke_result"] = smoke
         push_toast(f"Smoke record written to {Path(smoke['path']).name}.", tone="success", title="Admin Drive DB")
         st.rerun()
     if col5.button("Refresh", use_container_width=True):
@@ -101,10 +116,40 @@ def render_admin_drive_db_dashboard(app_context: dict) -> None:
         st.rerun()
     st.markdown("### Validation Report")
     st.json(validation, expanded=False)
+    st.markdown("### Navigation Inspector")
+    st.json(
+        {
+            "active_role": nav_info.get("active_role", "platform_admin"),
+            "default_route": nav_info.get("default_route", ""),
+            "source_used": nav_info.get("source", "UNKNOWN"),
+            "config_path": nav_info.get("path", ""),
+            "loaded_roles": nav_info.get("loaded_roles", []),
+            "loaded_at": nav_info.get("loaded_at", ""),
+            "nav_item_count": nav_info.get("nav_item_count", 0),
+            "nav_groups": nav_info.get("nav_groups", []),
+            "config_errors": nav_info.get("errors", []),
+        },
+        expanded=False,
+    )
     st.markdown("### Bootstrap Report")
     st.json(latest_bootstrap or {}, expanded=False)
     st.markdown("### Structure Report")
     st.json(latest_structure or {}, expanded=False)
+    smoke_result = st.session_state.get("admin_drive_db_smoke_result")
+    if smoke_result:
+        st.markdown("### Smoke Record Result")
+        if smoke_result.get("runtime_ready"):
+            st.success(smoke_result.get("message", "Smoke record created."))
+        else:
+            st.warning(smoke_result.get("message", "Google Drive runtime is not connected."))
+        st.json(
+            {
+                "path_written": smoke_result.get("path", ""),
+                "runtime_ready": smoke_result.get("runtime_ready", False),
+                "local_mirror_fallback": not smoke_result.get("runtime_ready", False),
+                "payload": smoke_result.get("payload", {}),
+            },
+            expanded=False,
+        )
     if not runtime.get("drive_api_ready", False):
         st.warning(runtime.get("reason") or "Admin Drive DB is using local mirror fallback because runtime Drive API access is not ready.")
-

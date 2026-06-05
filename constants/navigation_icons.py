@@ -10,6 +10,7 @@ NAV_ICON_MAP: dict[str, str] = {
     "Mahajans": "\u2733",
     "Workers": "\u2692",
     "Products": "\u25ab",
+    "Procurement Sources": "\u2699",
     "Product Approvals": "\u2713",
     "Marketplace": "\u25c6",
     "Orders": "\u21f6",
