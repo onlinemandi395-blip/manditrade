@@ -12,20 +12,29 @@ from utils.page_ui import render_empty_state
 
 def render_logistics_dashboard(app_context: dict) -> None:
     procurement_service = app_context["procurement_transaction_service"]
+    governance_service = app_context["governance_service"]
     orders = procurement_service.list_mandiplace_orders()
+    shipments = governance_service.list_shipments()
+    warehouses = governance_service.list_warehouses()
+    courier_services = governance_service.list_courier_services()
     logistics_rows = []
-    for order in orders:
+    for shipment in shipments:
+        order = next((item for item in orders if item.get("mandiplace_order_id") == shipment.get("order_id")), {})
         courier = dict(order.get("courier") or {})
         logistics = dict(order.get("logistics") or {})
+        warehouse = governance_service.get_warehouse(shipment.get("source_warehouse_id", "")) or {}
         logistics_rows.append(
             {
-                "mandiplace_order_id": order.get("mandiplace_order_id", ""),
+                "shipment_id": shipment.get("shipment_id", ""),
+                "order_id": shipment.get("order_id", ""),
+                "shipment_type": shipment.get("shipment_type", ""),
                 "requesting_manufacturer_id": order.get("requesting_manufacturer_id", ""),
                 "supplier_manufacturer_id": order.get("supplier_manufacturer_id", ""),
+                "source_warehouse": warehouse.get("warehouse_name", shipment.get("source_warehouse_id", "")),
                 "provider_name": courier.get("provider_name", ""),
-                "tracking_reference": courier.get("tracking_reference", ""),
-                "courier_status": courier.get("status", ""),
-                "delivery_status": logistics.get("delivery_status", ""),
+                "tracking_reference": shipment.get("tracking_number", courier.get("tracking_reference", "")),
+                "courier_status": shipment.get("status", courier.get("status", "")),
+                "delivery_status": logistics.get("delivery_status", shipment.get("status", "")),
                 "driver_name": courier.get("driver_name", logistics.get("driver_name", "")),
                 "vehicle_number": courier.get("vehicle_number", logistics.get("vehicle_number", "")),
             }
@@ -34,34 +43,36 @@ def render_logistics_dashboard(app_context: dict) -> None:
     delivered = [item for item in logistics_rows if item.get("courier_status") == "DELIVERED"]
     render_platform_shell(
         title="Logistics",
-        subtitle="Track courier booking and live delivery status for admin-routed manufacturer procurement.",
+        subtitle="Track warehouses, shipments, and courier-linked delivery status across the admin-routed commerce network.",
         badges=["Platform Admin", "Logistics Tracking"],
         role="Platform Admin",
-        metrics=[("Tracked Orders", str(len(logistics_rows))), ("Transit", str(len(in_transit)))],
+        metrics=[("Tracked Shipments", str(len(logistics_rows))), ("Transit", str(len(in_transit)))],
         breadcrumbs=["Workspace", "Operations", "Logistics"],
         primary_actions=["Track Deliveries"],
     )
     render_kpi_cards(
         [
-            {"label": "Tracked Orders", "value": str(len(logistics_rows)), "status": "OPEN"},
+            {"label": "Active Warehouses", "value": str(len([item for item in warehouses if item.get("status") == "ACTIVE"])), "status": "OPEN"},
+            {"label": "Active Couriers", "value": str(len([item for item in courier_services if item.get("status") == "ACTIVE"])), "status": "SUCCESS"},
+            {"label": "Tracked Shipments", "value": str(len(logistics_rows)), "status": "OPEN"},
             {"label": "In Transit", "value": str(len(in_transit)), "status": "WARNING"},
             {"label": "Delivered", "value": str(len(delivered)), "status": "SUCCESS"},
         ]
     )
-    render_section_intro("MandiPlace Logistics", "Courier assignment and delivery progression stay centrally visible for admin oversight.")
+    render_section_intro("Logistics Control", "Warehouse-linked shipments and courier progression now stay centrally visible for admin oversight.")
     if logistics_rows:
         filtered = render_filter_bar(
             page_key="mandiplace_logistics",
             rows=logistics_rows,
-            search_fields=["mandiplace_order_id", "requesting_manufacturer_id", "supplier_manufacturer_id", "provider_name", "tracking_reference"],
+            search_fields=["shipment_id", "order_id", "requesting_manufacturer_id", "supplier_manufacturer_id", "source_warehouse", "provider_name", "tracking_reference"],
             status_field="courier_status",
         )
         render_data_grid(
             page_key="mandiplace_logistics_grid",
             rows=filtered,
-            search_fields=["mandiplace_order_id", "requesting_manufacturer_id", "supplier_manufacturer_id", "provider_name", "tracking_reference"],
+            search_fields=["shipment_id", "order_id", "requesting_manufacturer_id", "supplier_manufacturer_id", "source_warehouse", "provider_name", "tracking_reference"],
             status_field="courier_status",
-            search_placeholder="Search by order, manufacturer, provider, or tracking reference",
+            search_placeholder="Search by shipment, order, warehouse, provider, or tracking reference",
         )
     else:
         render_empty_state("No courier-tracked MandiPlace orders yet.")

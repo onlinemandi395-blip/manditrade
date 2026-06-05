@@ -38,6 +38,8 @@ class IdAllocatorService:
         "dispute": "DSPT",
         "financial_transaction": "FTX",
         "task": "TASK",
+        "warehouse": "WH",
+        "shipment": "SHP",
     }
 
     def __init__(self, counters_path: Path, file_lock_service: FileLockService) -> None:

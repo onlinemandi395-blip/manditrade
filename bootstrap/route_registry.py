@@ -39,7 +39,9 @@ from modules.raw_materials.dashboard import render_raw_materials_dashboard
 from modules.suta_mandi.dashboard import render_suta_mandi_dashboard
 from modules.system.health_dashboard import render_health_dashboard
 from modules.logistics.dashboard import render_logistics_dashboard
+from modules.shipments.dashboard import render_shipments_dashboard
 from modules.workers.dashboard import render_workers_dashboard
+from modules.warehouses.dashboard import render_warehouses_dashboard
 from services.navigation_service import NAV_ALIAS_MAP, normalize_navigation_label
 
 
@@ -67,15 +69,17 @@ ROUTE_GROUPS = {
         "Platform Commission",
         "Finance Operations",
         "Operations Center",
+        "Warehouses",
         "Packaging Services",
         "Courier Services",
+        "Shipments",
         "Logistics",
         "Jobs",
         "System Health",
         "Analytics",
     },
-    ROLE_MAHAJAN: {"Dashboard", "My Profile", "Notifications", "My Actions", "Raw Materials", "Mandi Orders", "Payments", "Ledger", "Jobs"},
-    ROLE_MANUFACTURER: {"Dashboard", "My Profile", "Notifications", "My Actions", "Products", "Inventory", "Marketplace", "Marketplace Orders", "MandiPlace", "Mandi Orders", "Supply Requests", "Suta Mandi", "Payments", "Ledger", "Jobs"},
+    ROLE_MAHAJAN: {"Dashboard", "My Profile", "Notifications", "My Actions", "Warehouses", "Raw Materials", "Shipments", "Mandi Orders", "Payments", "Ledger", "Jobs"},
+    ROLE_MANUFACTURER: {"Dashboard", "My Profile", "Notifications", "My Actions", "Products", "Warehouses", "Inventory", "Shipments", "Marketplace", "Marketplace Orders", "MandiPlace", "Mandi Orders", "Supply Requests", "Suta Mandi", "Payments", "Ledger", "Jobs"},
     ROLE_PUBLIC_BUYER: {"Dashboard", "My Profile", "Notifications", "My Actions", "Marketplace", "Marketplace Orders", "Jobs"},
     ROLE_WORKER: {"Dashboard", "My Profile", "Notifications", "My Actions", "Jobs"},
 }
@@ -176,6 +180,10 @@ def render_route(section: str, app_context: dict) -> None:
             render_orders_dashboard(app_context)
     elif section == "Inventory":
         render_inventory_management(app_context)
+    elif section == "Warehouses":
+        render_warehouses_dashboard(app_context)
+    elif section == "Shipments":
+        render_shipments_dashboard(app_context)
     elif section in {"Supply Orders", "Supply Requests"}:
         render_procurement_dashboard(app_context)
     elif section == "Mandi Orders":

@@ -26,9 +26,11 @@ NAV_ICON_MAP: dict[str, str] = {
     "System Health": "\u271a",
     "Analytics": "\u25b3",
     "Operations Center": "\u2318",
+    "Warehouses": "\u25a9",
     "Finance Operations": "\u25ec",
     "Packaging Services": "\u25a1",
     "Courier Services": "\u2197",
+    "Shipments": "\u21f2",
     "Logistics": "\u229e",
     "Inventory": "\u25a6",
 }

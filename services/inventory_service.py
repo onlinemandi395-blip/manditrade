@@ -43,13 +43,18 @@ class InventoryService:
         *,
         owner_role: str,
         owner_id: str,
+        warehouse_id: str = "",
         item_type: str,
         item_id: str,
         network: str,
         available_qty: int = 0,
         reserved_qty: int = 0,
+        packed_qty: int = 0,
+        dispatched_qty: int = 0,
+        delivered_qty: int = 0,
         sold_qty: int = 0,
         damaged_qty: int = 0,
+        returned_qty: int = 0,
         unit: str = "",
         location: dict[str, Any] | None = None,
         reorder_level: int = 0,
@@ -62,13 +67,18 @@ class InventoryService:
         record = self._build_record(
             owner_role=owner_role,
             owner_id=owner_id,
+            warehouse_id=warehouse_id,
             item_type=item_type,
             item_id=item_id,
             network=normalized_network,
             available_qty=available_qty,
             reserved_qty=reserved_qty,
+            packed_qty=packed_qty,
+            dispatched_qty=dispatched_qty,
+            delivered_qty=delivered_qty,
             sold_qty=sold_qty,
             damaged_qty=damaged_qty,
+            returned_qty=returned_qty,
             unit=unit,
             location=location or {},
             reorder_level=reorder_level,
@@ -90,6 +100,7 @@ class InventoryService:
         if note:
             self._log_movement(
                 inventory_id=record["inventory_id"],
+                warehouse_id=record.get("warehouse_id", ""),
                 movement_type="ADD",
                 qty=max(int(available_qty or 0), 0),
                 before_qty=0,
@@ -134,6 +145,7 @@ class InventoryService:
         self.safe_drive_write_service.mutate_json(path, mutator, schema_name="inventory")
         self._log_movement(
             inventory_id=inventory_id,
+            warehouse_id=record.get("warehouse_id", ""),
             movement_type=movement_type,
             qty=abs(int(qty_delta or 0)),
             before_qty=before_qty,
@@ -171,6 +183,7 @@ class InventoryService:
         self.safe_drive_write_service.mutate_json(path, mutator, schema_name="inventory")
         self._log_movement(
             inventory_id=inventory_id,
+            warehouse_id=record.get("warehouse_id", ""),
             movement_type="RESERVE",
             qty=requested,
             before_qty=before_available,
@@ -208,6 +221,7 @@ class InventoryService:
         self.safe_drive_write_service.mutate_json(path, mutator, schema_name="inventory")
         self._log_movement(
             inventory_id=inventory_id,
+            warehouse_id=record.get("warehouse_id", ""),
             movement_type="RELEASE",
             qty=requested,
             before_qty=before_available,
@@ -243,6 +257,7 @@ class InventoryService:
         self.safe_drive_write_service.mutate_json(path, mutator, schema_name="inventory")
         self._log_movement(
             inventory_id=inventory_id,
+            warehouse_id=record.get("warehouse_id", ""),
             movement_type="SELL",
             qty=requested,
             before_qty=int(record.get("available_qty", 0) or 0),
@@ -255,12 +270,59 @@ class InventoryService:
         self._sync_legacy_projection(updated)
         return updated
 
+    def mark_packed(self, *, inventory_id: str, qty: int, related_order_id: str = "", note: str = "", created_by: str = "") -> dict[str, Any]:
+        record, network = self._find_inventory_record(inventory_id)
+        path = self._inventory_path(network)
+        requested = max(int(qty or 0), 0)
+        before_packed = int(record.get("packed_qty", 0) or 0)
+
+        def mutator(payload: dict[str, Any]) -> dict[str, Any]:
+            for item in payload.get("items", []):
+                if item.get("inventory_id") == inventory_id:
+                    item["packed_qty"] = before_packed + requested
+                    item["updated_at"] = self._now()
+                    payload["updated_at"] = self._now()
+                    return payload
+            raise ValueError(f"Inventory record not found: {inventory_id}")
+
+        self.safe_drive_write_service.mutate_json(path, mutator, schema_name="inventory")
+        self._log_movement(
+            inventory_id=inventory_id,
+            warehouse_id=record.get("warehouse_id", ""),
+            movement_type="PACK",
+            qty=requested,
+            before_qty=int(record.get("available_qty", 0) or 0),
+            after_qty=int(record.get("available_qty", 0) or 0),
+            related_order_id=related_order_id,
+            note=note,
+            created_by=created_by,
+        )
+        return self.get_inventory_record(inventory_id)
+
     def mark_dispatched(self, *, inventory_id: str, qty: int, related_order_id: str = "", note: str = "", created_by: str = "") -> dict[str, Any]:
+        record, network = self._find_inventory_record(inventory_id)
+        path = self._inventory_path(network)
+        requested = max(int(qty or 0), 0)
+        before_dispatched = int(record.get("dispatched_qty", 0) or 0)
+        before_packed = int(record.get("packed_qty", 0) or 0)
+
+        def mutator(payload: dict[str, Any]) -> dict[str, Any]:
+            for item in payload.get("items", []):
+                if item.get("inventory_id") == inventory_id:
+                    item["dispatched_qty"] = before_dispatched + requested
+                    item["packed_qty"] = max(0, before_packed - requested)
+                    item["updated_at"] = self._now()
+                    payload["updated_at"] = self._now()
+                    return payload
+            raise ValueError(f"Inventory record not found: {inventory_id}")
+
+        self.safe_drive_write_service.mutate_json(path, mutator, schema_name="inventory")
         record = self.get_inventory_record(inventory_id)
         self._log_movement(
             inventory_id=inventory_id,
+            warehouse_id=record.get("warehouse_id", ""),
             movement_type="DISPATCH",
-            qty=max(int(qty or 0), 0),
+            qty=requested,
             before_qty=int(record.get("available_qty", 0) or 0),
             after_qty=int(record.get("available_qty", 0) or 0),
             related_order_id=related_order_id,
@@ -271,11 +333,29 @@ class InventoryService:
         return record
 
     def mark_received(self, *, inventory_id: str, qty: int, related_order_id: str = "", note: str = "", created_by: str = "") -> dict[str, Any]:
+        record, network = self._find_inventory_record(inventory_id)
+        path = self._inventory_path(network)
+        requested = max(int(qty or 0), 0)
+        before_dispatched = int(record.get("dispatched_qty", 0) or 0)
+        before_delivered = int(record.get("delivered_qty", 0) or 0)
+
+        def mutator(payload: dict[str, Any]) -> dict[str, Any]:
+            for item in payload.get("items", []):
+                if item.get("inventory_id") == inventory_id:
+                    item["dispatched_qty"] = max(0, before_dispatched - requested)
+                    item["delivered_qty"] = before_delivered + requested
+                    item["updated_at"] = self._now()
+                    payload["updated_at"] = self._now()
+                    return payload
+            raise ValueError(f"Inventory record not found: {inventory_id}")
+
+        self.safe_drive_write_service.mutate_json(path, mutator, schema_name="inventory")
         record = self.get_inventory_record(inventory_id)
         self._log_movement(
             inventory_id=inventory_id,
+            warehouse_id=record.get("warehouse_id", ""),
             movement_type="RECEIVE",
-            qty=max(int(qty or 0), 0),
+            qty=requested,
             before_qty=int(record.get("available_qty", 0) or 0),
             after_qty=int(record.get("available_qty", 0) or 0),
             related_order_id=related_order_id,
@@ -323,9 +403,15 @@ class InventoryService:
         mandi_available_qty: int,
         visible_to_mandi: bool = True,
     ) -> None:
+        warehouse = self.governance_service.ensure_default_warehouse(
+            owner_role="manufacturer",
+            owner_id=manufacturer_code,
+            warehouse_name=f"{product_name} Hub",
+        ) if self.governance_service else {"warehouse_id": ""}
         marketplace = self._find_inventory_by_keys(
             owner_role="manufacturer",
             owner_id=manufacturer_code,
+            warehouse_id=str(warehouse.get("warehouse_id", "")),
             item_type="PRODUCT",
             item_id=product_id,
             network="MARKETPLACE",
@@ -333,6 +419,7 @@ class InventoryService:
         mandiplace = self._find_inventory_by_keys(
             owner_role="manufacturer",
             owner_id=manufacturer_code,
+            warehouse_id=str(warehouse.get("warehouse_id", "")),
             item_type="PRODUCT",
             item_id=product_id,
             network="MANDIPLACE",
@@ -341,13 +428,18 @@ class InventoryService:
             existing=marketplace,
             owner_role="manufacturer",
             owner_id=manufacturer_code,
+            warehouse_id=str(warehouse.get("warehouse_id", "")),
             item_type="PRODUCT",
             item_id=product_id,
             network="MARKETPLACE",
             available_qty=self_available_qty,
             reserved_qty=int((marketplace or {}).get("reserved_qty", 0) or 0),
+            packed_qty=int((marketplace or {}).get("packed_qty", 0) or 0),
+            dispatched_qty=int((marketplace or {}).get("dispatched_qty", 0) or 0),
+            delivered_qty=int((marketplace or {}).get("delivered_qty", 0) or 0),
             sold_qty=int((marketplace or {}).get("sold_qty", 0) or 0),
             damaged_qty=int((marketplace or {}).get("damaged_qty", 0) or 0),
+            returned_qty=int((marketplace or {}).get("returned_qty", 0) or 0),
             unit=unit,
             reorder_level=5,
             status="ACTIVE",
@@ -357,13 +449,18 @@ class InventoryService:
             existing=mandiplace,
             owner_role="manufacturer",
             owner_id=manufacturer_code,
+            warehouse_id=str(warehouse.get("warehouse_id", "")),
             item_type="PRODUCT",
             item_id=product_id,
             network="MANDIPLACE",
             available_qty=mandi_available_qty,
             reserved_qty=int((mandiplace or {}).get("reserved_qty", 0) or 0),
+            packed_qty=int((mandiplace or {}).get("packed_qty", 0) or 0),
+            dispatched_qty=int((mandiplace or {}).get("dispatched_qty", 0) or 0),
+            delivered_qty=int((mandiplace or {}).get("delivered_qty", 0) or 0),
             sold_qty=int((mandiplace or {}).get("sold_qty", 0) or 0),
             damaged_qty=int((mandiplace or {}).get("damaged_qty", 0) or 0),
+            returned_qty=int((mandiplace or {}).get("returned_qty", 0) or 0),
             unit=unit,
             reorder_level=5,
             status="ACTIVE" if visible_to_mandi else "HIDDEN",
@@ -374,9 +471,17 @@ class InventoryService:
     def sync_raw_material_record(self, item: dict[str, Any]) -> dict[str, Any]:
         network = "SUTA_MANDI" if str(item.get("category", "")).strip().upper() == "SUTA" else "RAW_MATERIALS"
         item_type = self.NETWORK_ITEM_TYPES[network]
+        owner_id = str(item.get("mahajan_id", "")).strip()
+        warehouse = self.governance_service.ensure_default_warehouse(
+            owner_role="mahajan",
+            owner_id=owner_id,
+            warehouse_name=f"{str(item.get('name', '')).strip() or owner_id} Godown",
+            city=str(item.get("city", "")).strip(),
+        ) if self.governance_service and owner_id else {"warehouse_id": ""}
         existing = self._find_inventory_by_keys(
             owner_role="mahajan",
-            owner_id=str(item.get("mahajan_id", "")).strip(),
+            owner_id=owner_id,
+            warehouse_id=str(warehouse.get("warehouse_id", "")),
             item_type=item_type,
             item_id=str(item.get("raw_material_id", "")).strip(),
             network=network,
@@ -384,14 +489,19 @@ class InventoryService:
         return self._upsert_inventory_snapshot(
             existing=existing,
             owner_role="mahajan",
-            owner_id=str(item.get("mahajan_id", "")).strip(),
+            owner_id=owner_id,
+            warehouse_id=str(warehouse.get("warehouse_id", "")),
             item_type=item_type,
             item_id=str(item.get("raw_material_id", "")).strip(),
             network=network,
             available_qty=int(item.get("available_qty", 0) or 0),
             reserved_qty=int((existing or {}).get("reserved_qty", 0) or 0),
+            packed_qty=int((existing or {}).get("packed_qty", 0) or 0),
+            dispatched_qty=int((existing or {}).get("dispatched_qty", 0) or 0),
+            delivered_qty=int((existing or {}).get("delivered_qty", 0) or 0),
             sold_qty=int((existing or {}).get("sold_qty", 0) or 0),
             damaged_qty=int((existing or {}).get("damaged_qty", 0) or 0),
+            returned_qty=int((existing or {}).get("returned_qty", 0) or 0),
             unit=str(item.get("unit", "kg")),
             reorder_level=10,
             status=str(item.get("status", "ACTIVE")),
@@ -420,6 +530,7 @@ class InventoryService:
         *,
         owner_role: str,
         owner_id: str,
+        warehouse_id: str | None = None,
         item_type: str,
         item_id: str,
         network: str,
@@ -427,17 +538,62 @@ class InventoryService:
         return self._find_inventory_by_keys(
             owner_role=owner_role,
             owner_id=owner_id,
+            warehouse_id=warehouse_id,
             item_type=item_type,
             item_id=item_id,
             network=network,
         )
+
+    def aggregate_inventory(
+        self,
+        *,
+        owner_role: str,
+        owner_id: str,
+        item_type: str,
+        item_id: str,
+        network: str,
+    ) -> dict[str, Any] | None:
+        rows = [
+            row
+            for row in self.get_inventory_for_network(network)
+            if row.get("owner_role") == str(owner_role or "").strip().lower()
+            and row.get("owner_id") == str(owner_id or "").strip()
+            and row.get("item_type") == str(item_type or "").strip().upper()
+            and row.get("item_id") == str(item_id or "").strip()
+        ]
+        if not rows:
+            return None
+        first = dict(rows[0])
+        first["warehouse_id"] = ""
+        for field in ("available_qty", "reserved_qty", "packed_qty", "dispatched_qty", "delivered_qty", "sold_qty", "damaged_qty", "returned_qty"):
+            first[field] = sum(int(item.get(field, 0) or 0) for item in rows)
+        return first
+
+    def warehouse_inventory_options(
+        self,
+        *,
+        owner_role: str,
+        owner_id: str,
+        item_type: str,
+        item_id: str,
+        network: str,
+    ) -> list[dict[str, Any]]:
+        rows = self.get_inventory_for_network(network)
+        return [
+            row
+            for row in rows
+            if row.get("owner_role") == str(owner_role or "").strip().lower()
+            and row.get("owner_id") == str(owner_id or "").strip()
+            and row.get("item_type") == str(item_type or "").strip().upper()
+            and row.get("item_id") == str(item_id or "").strip()
+        ]
 
     def get_marketplace_inventory_for_product(self, product: dict[str, Any]) -> dict[str, Any] | None:
         seller_id = str(product.get("public_seller_manufacturer_id") or product.get("created_by_manufacturer_id") or product.get("created_by") or "").strip()
         product_id = str(product.get("product_id", "")).strip()
         if not seller_id or not product_id:
             return None
-        return self.get_inventory_by_keys(
+        return self.aggregate_inventory(
             owner_role="manufacturer",
             owner_id=seller_id,
             item_type="PRODUCT",
@@ -446,7 +602,7 @@ class InventoryService:
         )
 
     def get_mandiplace_inventory_for_product(self, manufacturer_code: str, product_id: str) -> dict[str, Any] | None:
-        return self.get_inventory_by_keys(
+        return self.aggregate_inventory(
             owner_role="manufacturer",
             owner_id=manufacturer_code,
             item_type="PRODUCT",
@@ -530,13 +686,18 @@ class InventoryService:
         *,
         owner_role: str,
         owner_id: str,
+        warehouse_id: str,
         item_type: str,
         item_id: str,
         network: str,
         available_qty: int,
         reserved_qty: int,
+        packed_qty: int,
+        dispatched_qty: int,
+        delivered_qty: int,
         sold_qty: int,
         damaged_qty: int,
+        returned_qty: int,
         unit: str,
         location: dict[str, Any],
         reorder_level: int,
@@ -549,13 +710,18 @@ class InventoryService:
             "inventory_id": inventory_id or self.id_allocator_service.allocate("inventory"),
             "owner_role": str(owner_role or "").strip().lower(),
             "owner_id": str(owner_id or "").strip(),
+            "warehouse_id": str(warehouse_id or "").strip().upper(),
             "item_type": str(item_type or "").strip().upper(),
             "item_id": str(item_id or "").strip(),
             "network": network,
             "available_qty": max(int(available_qty or 0), 0),
             "reserved_qty": max(int(reserved_qty or 0), 0),
+            "packed_qty": max(int(packed_qty or 0), 0),
+            "dispatched_qty": max(int(dispatched_qty or 0), 0),
+            "delivered_qty": max(int(delivered_qty or 0), 0),
             "sold_qty": max(int(sold_qty or 0), 0),
             "damaged_qty": max(int(damaged_qty or 0), 0),
+            "returned_qty": max(int(returned_qty or 0), 0),
             "unit": str(unit or "").strip(),
             "location": {
                 "city": str((location or {}).get("city", "")).strip(),
@@ -575,13 +741,18 @@ class InventoryService:
         existing: dict[str, Any] | None,
         owner_role: str,
         owner_id: str,
+        warehouse_id: str,
         item_type: str,
         item_id: str,
         network: str,
         available_qty: int,
         reserved_qty: int,
+        packed_qty: int,
+        dispatched_qty: int,
+        delivered_qty: int,
         sold_qty: int,
         damaged_qty: int,
+        returned_qty: int,
         unit: str,
         reorder_level: int,
         status: str,
@@ -591,13 +762,18 @@ class InventoryService:
         record = self._build_record(
             owner_role=owner_role,
             owner_id=owner_id,
+            warehouse_id=warehouse_id,
             item_type=item_type,
             item_id=item_id,
             network=network,
             available_qty=available_qty,
             reserved_qty=reserved_qty,
+            packed_qty=packed_qty,
+            dispatched_qty=dispatched_qty,
+            delivered_qty=delivered_qty,
             sold_qty=sold_qty,
             damaged_qty=damaged_qty,
+            returned_qty=returned_qty,
             unit=unit,
             location=location,
             reorder_level=reorder_level,
@@ -647,6 +823,7 @@ class InventoryService:
         *,
         owner_role: str,
         owner_id: str,
+        warehouse_id: str | None = None,
         item_type: str,
         item_id: str,
         network: str,
@@ -659,6 +836,7 @@ class InventoryService:
                 for row in rows
                 if row.get("owner_role") == str(owner_role or "").strip().lower()
                 and row.get("owner_id") == str(owner_id or "").strip()
+                and (warehouse_id is None or row.get("warehouse_id") == str(warehouse_id or "").strip().upper())
                 and row.get("item_type") == str(item_type or "").strip().upper()
                 and row.get("item_id") == str(item_id or "").strip()
             ),
@@ -669,6 +847,7 @@ class InventoryService:
         self,
         *,
         inventory_id: str,
+        warehouse_id: str,
         movement_type: str,
         qty: int,
         before_qty: int,
@@ -680,6 +859,7 @@ class InventoryService:
         movement = {
             "movement_id": self.id_allocator_service.allocate("inventory_movement"),
             "inventory_id": inventory_id,
+            "warehouse_id": str(warehouse_id or "").strip().upper(),
             "movement_type": str(movement_type or "").strip().upper(),
             "qty": max(int(qty or 0), 0),
             "before_qty": max(int(before_qty or 0), 0),
@@ -718,25 +898,35 @@ class InventoryService:
             return
         marketplace_rows = self.get_inventory_for_owner(owner_role="manufacturer", owner_id=manufacturer_code, network="MARKETPLACE")
         mandi_rows = self.get_inventory_for_owner(owner_role="manufacturer", owner_id=manufacturer_code, network="MANDIPLACE")
-        mandi_index = {item.get("item_id"): item for item in mandi_rows}
+        mandi_index: dict[str, list[dict[str, Any]]] = {}
+        for item in mandi_rows:
+            mandi_index.setdefault(str(item.get("item_id", "")), []).append(item)
+        marketplace_index: dict[str, list[dict[str, Any]]] = {}
+        for item in marketplace_rows:
+            marketplace_index.setdefault(str(item.get("item_id", "")), []).append(item)
         payload = {"schema_version": "2.0", "manufacturer_code": manufacturer_code, "items": []}
-        for row in marketplace_rows:
-            mandi_row = mandi_index.get(row.get("item_id"), {})
+        for product_id, grouped_market_rows in marketplace_index.items():
+            grouped_mandi_rows = mandi_index.get(product_id, [])
+            total_market_available = sum(int(row.get("available_qty", 0) or 0) for row in grouped_market_rows)
+            total_market_reserved = sum(int(row.get("reserved_qty", 0) or 0) for row in grouped_market_rows)
+            total_mandi_available = sum(int(row.get("available_qty", 0) or 0) for row in grouped_mandi_rows)
+            total_mandi_reserved = sum(int(row.get("reserved_qty", 0) or 0) for row in grouped_mandi_rows)
+            base_row = grouped_market_rows[0]
             payload["items"].append(
                 {
                     "manufacturer_id": manufacturer_code,
-                    "product_id": row.get("item_id", ""),
-                    "product_name": (row.get("location", {}) or {}).get("warehouse_name", row.get("item_id", "")),
+                    "product_id": product_id,
+                    "product_name": (base_row.get("location", {}) or {}).get("warehouse_name", product_id),
                     "self_inventory": {
-                        "available_qty": int(row.get("available_qty", 0) or 0),
-                        "reserved_qty": int(row.get("reserved_qty", 0) or 0),
-                        "unit": row.get("unit", ""),
+                        "available_qty": total_market_available,
+                        "reserved_qty": total_market_reserved,
+                        "unit": base_row.get("unit", ""),
                     },
                     "mandi_inventory": {
-                        "available_qty": int(mandi_row.get("available_qty", 0) or 0),
-                        "reserved_qty": int(mandi_row.get("reserved_qty", 0) or 0),
-                        "unit": mandi_row.get("unit", row.get("unit", "")),
-                        "visible_to_mandi": str(mandi_row.get("status", "ACTIVE")).upper() == "ACTIVE",
+                        "available_qty": total_mandi_available,
+                        "reserved_qty": total_mandi_reserved,
+                        "unit": (grouped_mandi_rows[0] if grouped_mandi_rows else {}).get("unit", base_row.get("unit", "")),
+                        "visible_to_mandi": any(str(item.get("status", "ACTIVE")).upper() == "ACTIVE" for item in grouped_mandi_rows) if grouped_mandi_rows else False,
                     },
                 }
             )

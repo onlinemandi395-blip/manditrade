@@ -47,6 +47,48 @@ class PublicOrderService:
         self.settlement_service = settlement_service
         self.invoice_service = invoice_service
 
+    def _upsert_marketplace_shipment(self, order: dict[str, Any], *, status: str, actor_email: str) -> None:
+        if not self.governance_service:
+            return
+        seller_id = str(order.get("assigned_seller_manufacturer_id", "")).strip().upper()
+        if not seller_id:
+            return
+        warehouse = self.governance_service.ensure_default_warehouse(
+            owner_role="manufacturer",
+            owner_id=seller_id,
+            warehouse_name=f"{seller_id} Main Warehouse",
+        )
+        logistics = dict(order.get("logistics") or {})
+        shipment_id = str(order.get("shipment_id") or "").strip().upper() or self.id_allocator_service.allocate("shipment")
+        shipment = self.governance_service.upsert_shipment(
+            {
+                "shipment_id": shipment_id,
+                "order_id": order.get("public_order_id", ""),
+                "shipment_type": "MARKETPLACE",
+                "source_warehouse_id": warehouse.get("warehouse_id", ""),
+                "destination_city": str((order.get("buyer_profile") or {}).get("city", "")),
+                "destination_state": str((order.get("buyer_profile") or {}).get("state", "")),
+                "packaging_id": "",
+                "courier_id": "",
+                "tracking_number": str(logistics.get("vehicle_number", "") or logistics.get("transport_mode", "")),
+                "weight": float(len(order.get("items", [])) or 0),
+                "package_count": max(len(order.get("items", [])), 1),
+                "courier_cost": 0.0,
+                "status": status,
+                "related_public_buyer_id": order.get("public_buyer_id", ""),
+                "manufacturer_code": seller_id,
+                "updated_by": actor_email,
+            }
+        )
+        path = self._order_path(order["public_order_id"], order["created_at"])
+
+        def mutator(payload: dict[str, Any]) -> dict[str, Any]:
+            payload["shipment_id"] = shipment["shipment_id"]
+            payload["updated_at"] = datetime.now(UTC).isoformat()
+            return payload
+
+        self.safe_drive_write_service.mutate_json(path, mutator)
+
     def list_orders_for_buyer(self, public_buyer_id: str) -> list[dict[str, Any]]:
         return [item for item in self.list_all_orders() if item.get("public_buyer_id") == public_buyer_id]
 
@@ -78,6 +120,10 @@ class PublicOrderService:
             "public_order_id": self.id_allocator_service.allocate("public_order"),
             "public_buyer_id": public_buyer_id,
             "buyer_email": buyer.get("email", ""),
+            "buyer_profile": {
+                "city": buyer.get("city", ""),
+                "state": buyer.get("state", ""),
+            },
             "items": items,
             "total_amount": float(cart.get("payment_required", 0)),
             "payment_mode": self._payment_config().get("mode", "UPI_MANUAL"),
@@ -398,7 +444,7 @@ class PublicOrderService:
     def dispatch_order(self, public_order_id: str, seller_user) -> dict[str, Any]:
         order = self.get_order(public_order_id)
         self._ensure_seller_access(order, seller_user)
-        return self._transition_order(
+        updated = self._transition_order(
             public_order_id,
             allowed_statuses={"CONFIRMED"},
             next_status="DISPATCHED",
@@ -406,6 +452,8 @@ class PublicOrderService:
             buyer_email_subject=f"Dispatch update: {public_order_id}",
             buyer_email_body=f"Your public marketplace order {public_order_id} has been dispatched.",
         )
+        self._upsert_marketplace_shipment(updated, status="IN_TRANSIT", actor_email=getattr(seller_user, "email", ""))
+        return updated
 
     def confirm_delivery(self, public_order_id: str, acting_user) -> dict[str, Any]:
         order = self.get_order(public_order_id)
@@ -431,6 +479,7 @@ class PublicOrderService:
             buyer_email_subject=f"Delivery complete: {public_order_id}",
             buyer_email_body=f"Your public marketplace order {public_order_id} has been marked delivered.",
         )
+        self._upsert_marketplace_shipment(updated, status="DELIVERED", actor_email=getattr(acting_user, "email", ""))
         return updated
 
     def get_order(self, public_order_id: str) -> dict[str, Any]:

@@ -257,7 +257,7 @@ def build_app_context() -> dict:
         json_service=drive_service.json_service,
         id_allocator_service=id_allocator_service,
         governance_service=governance_service,
-        event_notification_service=event_notification_service,
+        event_notification_service=None,
     )
     dual_inventory_service = DualInventoryService(
         safe_drive_write_service=safe_drive_write_service,
@@ -337,6 +337,7 @@ def build_app_context() -> dict:
         public_buyer_service=public_buyer_service,
         notification_rules=notification_rules,
     )
+    inventory_service.event_notification_service = event_notification_service
     governance_service.event_notification_service = event_notification_service
     settlement_service.event_notification_service = event_notification_service
     dispute_service.event_notification_service = event_notification_service

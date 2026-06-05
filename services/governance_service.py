@@ -57,6 +57,14 @@ class GovernanceService:
         return self.governance_root / "courier_services.json"
 
     @property
+    def warehouses_path(self) -> Path:
+        return self.governance_root / "warehouses.json"
+
+    @property
+    def shipments_path(self) -> Path:
+        return self.governance_root / "shipments.json"
+
+    @property
     def financial_transactions_path(self) -> Path:
         return self.governance_root / "financial_transactions.json"
 
@@ -116,6 +124,16 @@ class GovernanceService:
             self.safe_drive_write_service.replace_document(
                 self.courier_services_path,
                 {"schema_version": "1.0", "services": []},
+            )
+        if not self.warehouses_path.exists():
+            self.safe_drive_write_service.replace_document(
+                self.warehouses_path,
+                {"schema_version": "1.0", "warehouses": []},
+            )
+        if not self.shipments_path.exists():
+            self.safe_drive_write_service.replace_document(
+                self.shipments_path,
+                {"schema_version": "1.0", "shipments": []},
             )
         if not self.financial_transactions_path.exists():
             self.safe_drive_write_service.replace_document(
@@ -604,6 +622,125 @@ class GovernanceService:
             entity_type="courier_service",
             entity_id=str(courier_service_id or "").strip().upper(),
         )
+
+    def list_warehouses(self, *, owner_role: str | None = None, owner_id: str | None = None) -> list[dict[str, Any]]:
+        self.ensure_files()
+        rows = self.json_service.read_json(self.warehouses_path, {"warehouses": []}).get("warehouses", [])
+        if owner_role:
+            rows = [item for item in rows if str(item.get("owner_role", "")).strip().lower() == str(owner_role).strip().lower()]
+        if owner_id:
+            rows = [item for item in rows if str(item.get("owner_id", "")).strip().upper() == str(owner_id).strip().upper()]
+        return rows
+
+    def get_warehouse(self, warehouse_id: str) -> dict[str, Any] | None:
+        self.ensure_files()
+        key = str(warehouse_id or "").strip().upper()
+        return next((item for item in self.list_warehouses() if item.get("warehouse_id") == key), None)
+
+    def upsert_warehouse(self, warehouse: dict[str, Any]) -> dict[str, Any]:
+        self.ensure_files()
+        payload = self.json_service.read_json(self.warehouses_path, {"warehouses": []})
+        warehouse_id = str(warehouse.get("warehouse_id") or "").strip().upper()
+        if not warehouse_id:
+            raise ValueError("Warehouse ID is required.")
+        now = datetime.now(UTC).isoformat()
+        existing = next((row for row in payload.get("warehouses", []) if row.get("warehouse_id") == warehouse_id), None)
+        normalized = {
+            "warehouse_id": warehouse_id,
+            "owner_role": str(warehouse.get("owner_role") or (existing or {}).get("owner_role") or "").strip().lower(),
+            "owner_id": str(warehouse.get("owner_id") or (existing or {}).get("owner_id") or "").strip().upper(),
+            "warehouse_name": str(warehouse.get("warehouse_name") or (existing or {}).get("warehouse_name") or "").strip(),
+            "contact_person": str(warehouse.get("contact_person") or (existing or {}).get("contact_person") or "").strip(),
+            "phone": str(warehouse.get("phone") or (existing or {}).get("phone") or "").strip(),
+            "address": str(warehouse.get("address") or (existing or {}).get("address") or "").strip(),
+            "city": str(warehouse.get("city") or (existing or {}).get("city") or "").strip(),
+            "state": str(warehouse.get("state") or (existing or {}).get("state") or "").strip(),
+            "pincode": str(warehouse.get("pincode") or (existing or {}).get("pincode") or "").strip(),
+            "latitude": str(warehouse.get("latitude") or (existing or {}).get("latitude") or "").strip(),
+            "longitude": str(warehouse.get("longitude") or (existing or {}).get("longitude") or "").strip(),
+            "capacity": float(warehouse.get("capacity") if warehouse.get("capacity") is not None else (existing or {}).get("capacity", 0) or 0),
+            "status": str(warehouse.get("status") or (existing or {}).get("status") or "ACTIVE").strip().upper(),
+            "is_default": bool(warehouse.get("is_default") if warehouse.get("is_default") is not None else (existing or {}).get("is_default", False)),
+            "created_at": (existing or {}).get("created_at") or now,
+            "updated_at": now,
+        }
+        if existing:
+            existing.update(normalized)
+        else:
+            payload.setdefault("warehouses", []).append(normalized)
+        if normalized["is_default"]:
+            for row in payload.get("warehouses", []):
+                if row.get("warehouse_id") != warehouse_id and row.get("owner_role") == normalized["owner_role"] and row.get("owner_id") == normalized["owner_id"]:
+                    row["is_default"] = False
+        payload.setdefault("schema_version", "1.0")
+        self.safe_drive_write_service.replace_document(self.warehouses_path, payload)
+        self._audit("UPSERT_WAREHOUSE", "warehouse", warehouse_id, {"owner_role": normalized.get("owner_role", ""), "owner_id": normalized.get("owner_id", ""), "status": normalized.get("status", "")})
+        return normalized
+
+    def ensure_default_warehouse(
+        self,
+        *,
+        owner_role: str,
+        owner_id: str,
+        warehouse_name: str = "",
+        city: str = "",
+        state: str = "",
+        contact_person: str = "",
+    ) -> dict[str, Any]:
+        existing = next((item for item in self.list_warehouses(owner_role=owner_role, owner_id=owner_id) if item.get("is_default")), None)
+        if existing:
+            return existing
+        owner_key = str(owner_id or "").strip().upper().replace(" ", "")[:6] or str(owner_role or "").strip().upper()[:3]
+        warehouse_id = f"{owner_key}-WH{len(self.list_warehouses(owner_role=owner_role, owner_id=owner_id)) + 1:03d}"
+        return self.upsert_warehouse(
+            {
+                "warehouse_id": warehouse_id,
+                "owner_role": owner_role,
+                "owner_id": owner_id,
+                "warehouse_name": warehouse_name or f"{str(owner_id).strip().upper()} Main Warehouse",
+                "contact_person": contact_person,
+                "city": city,
+                "state": state,
+                "status": "ACTIVE",
+                "is_default": True,
+            }
+        )
+
+    def list_shipments(self) -> list[dict[str, Any]]:
+        self.ensure_files()
+        return self.json_service.read_json(self.shipments_path, {"shipments": []}).get("shipments", [])
+
+    def get_shipment(self, shipment_id: str) -> dict[str, Any] | None:
+        self.ensure_files()
+        key = str(shipment_id or "").strip().upper()
+        return next((item for item in self.list_shipments() if item.get("shipment_id") == key), None)
+
+    def upsert_shipment(self, shipment: dict[str, Any]) -> dict[str, Any]:
+        self.ensure_files()
+        payload = self.json_service.read_json(self.shipments_path, {"shipments": []})
+        shipment_id = str(shipment.get("shipment_id") or "").strip().upper()
+        if not shipment_id:
+            raise ValueError("Shipment ID is required.")
+        now = datetime.now(UTC).isoformat()
+        existing = next((row for row in payload.get("shipments", []) if row.get("shipment_id") == shipment_id), None)
+        normalized = dict(existing or {})
+        normalized.update(shipment)
+        normalized["shipment_id"] = shipment_id
+        normalized["shipment_type"] = str(normalized.get("shipment_type") or "MANDIPLACE").strip().upper()
+        normalized["status"] = str(normalized.get("status") or "CREATED").strip().upper()
+        normalized["source_warehouse_id"] = str(normalized.get("source_warehouse_id") or "").strip().upper()
+        normalized["courier_id"] = str(normalized.get("courier_id") or "").strip().upper()
+        normalized["packaging_id"] = str(normalized.get("packaging_id") or "").strip().upper()
+        normalized["created_at"] = normalized.get("created_at") or now
+        normalized["updated_at"] = now
+        if existing:
+            existing.update(normalized)
+        else:
+            payload.setdefault("shipments", []).append(normalized)
+        payload.setdefault("schema_version", "1.0")
+        self.safe_drive_write_service.replace_document(self.shipments_path, payload)
+        self._audit("UPSERT_SHIPMENT", "shipment", shipment_id, {"status": normalized.get("status", ""), "order_id": normalized.get("order_id", ""), "shipment_type": normalized.get("shipment_type", "")})
+        return normalized
 
     def list_mandiplace_orders(self) -> list[dict[str, Any]]:
         self.ensure_files()

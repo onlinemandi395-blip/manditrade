@@ -76,6 +76,58 @@ class ProcurementTransactionService:
         category = str(material.get("category", "")).strip().upper()
         return "SUTA_MANDI" if category == "SUTA" else "RAW_MATERIALS"
 
+    def _warehouse_for_owner(self, *, owner_role: str, owner_id: str, warehouse_name: str, city: str = "") -> dict[str, Any]:
+        if not self.governance_service:
+            return {}
+        return self.governance_service.ensure_default_warehouse(
+            owner_role=owner_role,
+            owner_id=owner_id,
+            warehouse_name=warehouse_name,
+            city=city,
+        )
+
+    def _upsert_shipment_for_order(
+        self,
+        *,
+        order_id: str,
+        shipment_type: str,
+        source_warehouse_id: str,
+        destination_city: str,
+        destination_state: str,
+        packaging_id: str = "",
+        courier_id: str = "",
+        tracking_number: str = "",
+        weight: float = 0.0,
+        package_count: int = 1,
+        courier_cost: float = 0.0,
+        status: str,
+        actor_email: str,
+        existing_shipment_id: str = "",
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        if not self.governance_service:
+            return {}
+        shipment_id = str(existing_shipment_id or "").strip().upper() or self.id_allocator_service.allocate("shipment")
+        return self.governance_service.upsert_shipment(
+            {
+                "shipment_id": shipment_id,
+                "order_id": order_id,
+                "shipment_type": shipment_type,
+                "source_warehouse_id": source_warehouse_id,
+                "destination_city": destination_city,
+                "destination_state": destination_state,
+                "packaging_id": packaging_id,
+                "courier_id": courier_id,
+                "tracking_number": tracking_number,
+                "weight": float(weight or 0),
+                "package_count": int(package_count or 1),
+                "courier_cost": float(courier_cost or 0),
+                "status": status,
+                "updated_by": actor_email,
+                **(metadata or {}),
+            }
+        )
+
     def _reserve_supply_inventory(self, order: dict[str, Any], *, actor_email: str) -> None:
         inventory_service = self._inventory_service()
         if not inventory_service:
@@ -828,7 +880,7 @@ class ProcurementTransactionService:
                         related_order_id=mandiplace_order_id,
                         note="MandiPlace order dispatched",
                         created_by=actor_email,
-                    )
+                        )
         order["status"] = "SUPPLIER_DISPATCHED"
         order.setdefault("courier", self._default_courier())
         if order["courier"]:
@@ -838,6 +890,35 @@ class ProcurementTransactionService:
         order["logistics"]["delivery_status"] = "IN_TRANSIT"
         order.setdefault("internal_status_history", []).append({"status": "SUPPLIER_DISPATCHED", "at": datetime.now(UTC).isoformat(), "actor": actor_email})
         order["internal_status_history"].append({"status": "IN_TRANSIT", "at": datetime.now(UTC).isoformat(), "actor": actor_email})
+        source_warehouse_id = self._warehouse_for_owner(
+            owner_role="manufacturer",
+            owner_id=supplier_code,
+            warehouse_name=f"{supplier_code} Main Warehouse",
+        ).get("warehouse_id", "")
+        shipment = self._upsert_shipment_for_order(
+            order_id=mandiplace_order_id,
+            shipment_type="MANDIPLACE",
+            source_warehouse_id=source_warehouse_id,
+            destination_city=str((self.governance_service.get_manufacturer(order.get("requesting_manufacturer_id", "")) or {}).get("city", "")),
+            destination_state=str(((self.governance_service.get_manufacturer(order.get("requesting_manufacturer_id", "")) or {}).get("address") or {}).get("state", "")),
+            packaging_id=str((order.get("packaging") or {}).get("packaging_service_id", "")),
+            courier_id=str((order.get("courier") or {}).get("courier_service_id", "")),
+            tracking_number=str((order.get("courier") or {}).get("tracking_reference", "")),
+            weight=float((order.get("courier") or {}).get("weight_kg", 0) or 0),
+            package_count=max(len(order.get("items", [])), 1),
+            courier_cost=float((order.get("courier") or {}).get("courier_cost", 0) or 0),
+            status="IN_TRANSIT",
+            actor_email=actor_email,
+            existing_shipment_id=str(order.get("shipment_id", "")),
+            metadata={
+                "mandiplace_order_id": mandiplace_order_id,
+                "requesting_manufacturer_id": order.get("requesting_manufacturer_id", ""),
+                "supplier_manufacturer_id": supplier_code,
+            },
+        )
+        if shipment:
+            order["shipment_id"] = shipment.get("shipment_id", "")
+        order["source_warehouse_id"] = source_warehouse_id
         updated = self.governance_service.upsert_mandiplace_order(order)
         requester = self.governance_service.get_manufacturer(updated.get("requesting_manufacturer_id", "")) or {}
         self._emit_event(
@@ -921,6 +1002,29 @@ class ProcurementTransactionService:
         order["logistics"]["delivery_status"] = "DELIVERED"
         order["logistics"]["delivered_at"] = datetime.now(UTC).isoformat()
         order.setdefault("internal_status_history", []).append({"status": "RECEIVED", "at": datetime.now(UTC).isoformat(), "actor": actor_email})
+        shipment = self._upsert_shipment_for_order(
+            order_id=mandiplace_order_id,
+            shipment_type="MANDIPLACE",
+            source_warehouse_id=str(order.get("source_warehouse_id", "")),
+            destination_city=str((self.governance_service.get_manufacturer(manufacturer_code) or {}).get("city", "")),
+            destination_state=str((((self.governance_service.get_manufacturer(manufacturer_code) or {}).get("address")) or {}).get("state", "")),
+            packaging_id=str((order.get("packaging") or {}).get("packaging_service_id", "")),
+            courier_id=str((order.get("courier") or {}).get("courier_service_id", "")),
+            tracking_number=str((order.get("courier") or {}).get("tracking_reference", "")),
+            weight=float((order.get("courier") or {}).get("weight_kg", 0) or 0),
+            package_count=max(len(order.get("items", [])), 1),
+            courier_cost=float((order.get("courier") or {}).get("courier_cost", 0) or 0),
+            status="DELIVERED",
+            actor_email=actor_email,
+            existing_shipment_id=str(order.get("shipment_id", "")),
+            metadata={
+                "mandiplace_order_id": mandiplace_order_id,
+                "requesting_manufacturer_id": manufacturer_code,
+                "supplier_manufacturer_id": order.get("supplier_manufacturer_id", ""),
+            },
+        )
+        if shipment:
+            order["shipment_id"] = shipment.get("shipment_id", "")
         updated = self.governance_service.upsert_mandiplace_order(order)
         return updated
 
@@ -1178,6 +1282,35 @@ class ProcurementTransactionService:
         order["logistics"]["delivery_status"] = "DISPATCHED"
         order["logistics"]["dispatch_time"] = datetime.now(UTC).isoformat()
         order.setdefault("internal_status_history", []).append({"status": "MAHAJAN_DISPATCHED", "at": datetime.now(UTC).isoformat(), "actor": actor_email})
+        material = self._raw_material_record(order.get("raw_material_id", ""))
+        source_warehouse_id = self._warehouse_for_owner(
+            owner_role="mahajan",
+            owner_id=mahajan_id,
+            warehouse_name=f"{mahajan_id} Main Godown",
+            city=str(material.get("city", "")),
+        ).get("warehouse_id", "")
+        shipment = self._upsert_shipment_for_order(
+            order_id=mandi_order_id,
+            shipment_type="SUTA" if self._raw_material_network(order.get("raw_material_id", "")) == "SUTA_MANDI" else "RAW_MATERIAL",
+            source_warehouse_id=source_warehouse_id,
+            destination_city=str((self.governance_service.get_manufacturer(order.get("manufacturer_id", "")) or {}).get("city", "")),
+            destination_state=str((((self.governance_service.get_manufacturer(order.get("manufacturer_id", "")) or {}).get("address")) or {}).get("state", "")),
+            tracking_number=str(order.get("mandi_order_id", "")),
+            weight=float(order.get("qty", 0) or 0),
+            package_count=1,
+            courier_cost=0.0,
+            status="IN_TRANSIT",
+            actor_email=actor_email,
+            existing_shipment_id=str(order.get("shipment_id", "")),
+            metadata={
+                "mandi_order_id": mandi_order_id,
+                "manufacturer_id": order.get("manufacturer_id", ""),
+                "mahajan_id": mahajan_id,
+            },
+        )
+        if shipment:
+            order["shipment_id"] = shipment.get("shipment_id", "")
+        order["source_warehouse_id"] = source_warehouse_id
         updated = self.governance_service.upsert_supply_order(order)
         self._audit("SUPPLY_DISPATCHED", actor_email, "mahajan", mandi_order_id, {"status": updated.get("status", ""), "delivery_status": updated.get("logistics", {}).get("delivery_status", "")})
         return updated
@@ -1196,6 +1329,27 @@ class ProcurementTransactionService:
         order["logistics"]["delivery_status"] = "DELIVERED"
         order["logistics"]["delivered_at"] = datetime.now(UTC).isoformat()
         order.setdefault("internal_status_history", []).append({"status": "MANUFACTURER_RECEIVED", "at": datetime.now(UTC).isoformat(), "actor": actor_email})
+        shipment = self._upsert_shipment_for_order(
+            order_id=mandi_order_id,
+            shipment_type="SUTA" if self._raw_material_network(order.get("raw_material_id", "")) == "SUTA_MANDI" else "RAW_MATERIAL",
+            source_warehouse_id=str(order.get("source_warehouse_id", "")),
+            destination_city=str((self.governance_service.get_manufacturer(manufacturer_code) or {}).get("city", "")),
+            destination_state=str((((self.governance_service.get_manufacturer(manufacturer_code) or {}).get("address")) or {}).get("state", "")),
+            tracking_number=str(order.get("mandi_order_id", "")),
+            weight=float(order.get("qty", 0) or 0),
+            package_count=1,
+            courier_cost=0.0,
+            status="DELIVERED",
+            actor_email=actor_email,
+            existing_shipment_id=str(order.get("shipment_id", "")),
+            metadata={
+                "mandi_order_id": mandi_order_id,
+                "manufacturer_id": manufacturer_code,
+                "mahajan_id": order.get("mahajan_id", ""),
+            },
+        )
+        if shipment:
+            order["shipment_id"] = shipment.get("shipment_id", "")
         updated = self.governance_service.upsert_supply_order(order)
         self._audit("SUPPLY_RECEIVED", actor_email, "manufacturer", mandi_order_id, {"status": updated.get("status", ""), "delivery_status": updated.get("logistics", {}).get("delivery_status", "")})
         return updated

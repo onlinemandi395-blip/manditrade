@@ -15,15 +15,17 @@ Status meanings:
 | RBAC | `DONE` | Active runtime roles are `platform_admin`, `manufacturer`, `mahajan`, `public_buyer`, and `worker`. |
 | Identity Governance | `PARTIAL` | Admin manufacturer, mahajan, and worker governance screens now exist with completeness/trust summaries, but invitation analytics and deeper self-service completion are still maturing. |
 | Admin Drive DB | `PARTIAL` | Canonical root/services exist; live cutover remains operator-controlled. |
-| Inventory Engine | `PARTIAL` | Unified inventory records, reservations, and movement ledger now exist across marketplace, MandiPlace, raw materials, and suta, but some lower-traffic screens still use older quantity summaries. |
+| Inventory Engine | `PARTIAL` | Unified inventory records, reservations, and movement ledger now exist across marketplace, MandiPlace, raw materials, and suta, and records are now warehouse-aware with default site fallback. |
+| Warehouses | `PARTIAL` | Warehouse records, default-site fallback, and role-specific warehouse management screens now exist, but deeper multi-warehouse allocation logic is still pending. |
+| Shipments | `PARTIAL` | Shipment records now link dispatch flows to source warehouses across marketplace, MandiPlace, and supply lanes, but optimization and richer courier execution remain future work. |
 | Sidebar | `DONE` | Readable icon + label nav restored and icon-only experiment removed. |
 | Marketplace | `PARTIAL` | Public buyer browse/cart flow is stable, and product cards now show live stock state with reservation on order creation. |
 | Products | `PARTIAL` | Catalog/product workflow exists; some seller/admin screens still carry older shell patterns. |
 | Raw Materials | `PARTIAL` | Supply catalog now follows the commerce-card pattern more closely and shows unified inventory stock states, but deeper procurement cleanup remains. |
 | Suta Mandi | `PARTIAL` | Manufacturer sourcing lane now aligns better with commerce cards and stock-state visibility, but workflow polish remains. |
 | MandiPlace | `PARTIAL` | Dedicated card-first cleanup is in place for requester/admin/supplier views, and supplier stock is now reservation-driven, but some action tabs still rely on older form-first patterns. |
-| Packaging | `PARTIAL` | Catalogs and order attachment flow exist; visibility is now clearer on procurement cards/details. |
-| Courier | `PARTIAL` | Catalogs and logistics attachment flow exist; booking/tracking visibility is now clearer on procurement cards/details. |
+| Packaging | `PARTIAL` | Catalogs and order attachment flow exist; visibility is now clearer on procurement cards/details and shipment records. |
+| Courier | `PARTIAL` | Catalogs and logistics attachment flow exist; booking/tracking visibility is now clearer on procurement cards/details and shipment records. |
 | Finance | `PARTIAL` | Settlement/invoice/dispute layer exists, but it is still a JSON-first operational system. |
 | Notifications | `PARTIAL` | In-app notifications and Gmail queue exist; UI/ops polish is still ongoing. |
 | Jobs | `PARTIAL` | Job and worker lifecycle exists; worker identity governance is stronger now, but lower-traffic job screens still need cleanup. |
