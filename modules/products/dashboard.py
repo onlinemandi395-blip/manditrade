@@ -136,6 +136,18 @@ def render_products_dashboard(app_context: dict) -> None:
                         default=[item for item in (selected.get("source_ids", []) or []) if item in set(procurement_source_lookup.keys())],
                         format_func=lambda source_id: f"{source_id} - {(procurement_source_lookup.get(source_id) or {}).get('business_name', source_id)}",
                     )
+                    st.markdown("#### Source Details")
+                    source_type = col1.selectbox("Source Type", ["", "MANUFACTURER", "MAHAJAN", "EXTERNAL"], index=["", "MANUFACTURER", "MAHAJAN", "EXTERNAL"].index(selected.get("source_type", "")) if selected.get("source_type", "") in {"", "MANUFACTURER", "MAHAJAN", "EXTERNAL"} else 0)
+                    source_name = col2.text_input("Source Name", value=selected.get("source_name", ""))
+                    source_contact_person = col1.text_input("Contact Person", value=selected.get("source_contact_person", ""))
+                    source_mobile = col2.text_input("Source Mobile", value=selected.get("source_mobile", ""))
+                    source_email = col1.text_input("Source Email", value=selected.get("source_email", ""))
+                    source_city = col2.text_input("Source City", value=selected.get("source_city", ""))
+                    source_state = col1.text_input("Source State", value=selected.get("source_state", ""))
+                    source_confirmed = col2.checkbox("Source Confirmed?", value=bool(selected.get("source_confirmed", False)))
+                    procurement_price = col1.number_input("Procurement Price", min_value=0.0, step=1.0, value=float(selected.get("procurement_price", 0) or 0))
+                    available_qty = col2.number_input("Available Qty", min_value=0, step=1, value=int(selected.get("available_qty", 0) or 0))
+                    lead_time_days = col1.number_input("Lead Time (Days)", min_value=0, step=1, value=int(selected.get("lead_time_days", 0) or 0))
                     visible = col1.checkbox("Visible to Active Catalog?", value=bool(selected.get("visible", True)))
                     image_url = st.text_input("Product Image URL", value=selected.get("image_url", ""))
                     image_alt_text = st.text_input("Image Alt Text", value=selected.get("image_alt_text", selected.get("name", "")))
@@ -162,6 +174,18 @@ def render_products_dashboard(app_context: dict) -> None:
                             "available_for_mandi_network": available_for_mandi_network,
                             "public_seller_manufacturer_id": public_seller_manufacturer_id,
                             "source_ids": source_ids,
+                            "source_type": source_type,
+                            "source_name": source_name,
+                            "source_contact_person": source_contact_person,
+                            "source_mobile": source_mobile,
+                            "source_email": source_email,
+                            "source_city": source_city,
+                            "source_state": source_state,
+                            "source_confirmed": source_confirmed,
+                            "procurement_price": procurement_price,
+                            "selling_price": approved_marketplace_price,
+                            "available_qty": available_qty,
+                            "lead_time_days": lead_time_days,
                             "visible": visible,
                             "image_url": image_url,
                             "image_file_ref": image_file_ref,

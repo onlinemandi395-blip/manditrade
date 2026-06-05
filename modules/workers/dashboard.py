@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from components.dashboard_widgets import render_dashboard_widget_grid
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
 from components.ui_shell import render_metric_card, render_page_header, render_showcase_strip
@@ -51,7 +52,18 @@ def render_workers_dashboard(app_context: dict) -> None:
     )
     render_section_intro(
         "Read-Only Work View",
-        "This dashboard is summary-only. Use Jobs and My Profile pages to apply, update profile details, or manage work activity.",
+        "This dashboard is now the worker landing zone. Use the widgets below to jump straight into open jobs, applications, profile, and notifications.",
+    )
+    render_dashboard_widget_grid(
+        app_context,
+        "worker_dashboard_widgets",
+        [
+            {"title": "Jobs", "subtitle": "Open local work", "route": "jobs", "badge": f"{len(open_jobs)} open"},
+            {"title": "My Applications", "subtitle": "Review submitted applications", "route": "jobs", "tab_name": "Applications", "badge": f"{len(worker_applications)} applied"},
+            {"title": "Notifications", "subtitle": "Important updates", "route": "notifications", "badge": "Inbox"},
+            {"title": "My Profile", "subtitle": "Worker identity and availability", "route": "my_profile", "badge": "Account"},
+        ],
+        columns=2,
     )
 
     col1, col2 = st.columns(2)

@@ -52,6 +52,19 @@ class ActionCenterService:
                 actions.append({"type": "REVIEW_FAILED_PUBLIC_PAYMENT", "count": failed_payments})
             if public_orders:
                 actions.append({"type": "MONITOR_PUBLIC_ORDERS", "count": len(public_orders)})
+            source_contact_needed = len(
+                [
+                    item
+                    for item in public_orders
+                    if item.get("status") in {"PAYMENT_PENDING", "PAID", "CONFIRMED"}
+                    and any(
+                        str(product.get("source_email") or product.get("source_mobile") or "").strip()
+                        for product in item.get("items", [])
+                    )
+                ]
+            )
+            if source_contact_needed:
+                actions.append({"type": "CONTACT_PRODUCT_SOURCE", "count": source_contact_needed})
         if supply_orders:
             manufacturer_requests = len([item for item in supply_orders if item.get("status") == "REQUESTED_BY_MANUFACTURER"])
             quoted = len([item for item in supply_orders if item.get("status") == "MAHAJAN_QUOTED"])

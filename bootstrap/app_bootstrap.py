@@ -281,6 +281,7 @@ def render_sidebar_navigation(app_context: dict) -> str:
         app_context["session_state_service"].set_navigation(selected)
     with st.sidebar:
         st.markdown("## Navigation")
+        st.caption("Secondary workspace navigation")
         if app_context["session_state_service"].has_unsaved_changes():
             st.warning("You have unsaved changes.")
         if is_admin_identity:

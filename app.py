@@ -9,7 +9,7 @@ st.set_page_config(
     page_title="MandiTrade",
     page_icon="MT",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 

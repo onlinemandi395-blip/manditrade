@@ -115,6 +115,43 @@ class PublicOrderService:
         seller_id = cart.get("assigned_seller_manufacturer_id", "")
         if not seller_id:
             raise ValueError("Public cart is missing a seller assignment.")
+        product_index = {item.get("product_id", ""): item for item in self.product_catalog_service.list_products(include_pending=False, viewer_role="public_buyer")}
+        enriched_items = []
+        for item in items:
+            product = product_index.get(item.get("product_id", ""), {})
+            enriched_items.append(
+                {
+                    **item,
+                    "source_type": product.get("source_type", ""),
+                    "source_name": product.get("source_name", ""),
+                    "source_contact_person": product.get("source_contact_person", ""),
+                    "source_mobile": product.get("source_mobile", ""),
+                    "source_email": product.get("source_email", ""),
+                    "source_city": product.get("source_city", ""),
+                    "source_state": product.get("source_state", ""),
+                    "source_confirmed": bool(product.get("source_confirmed", False)),
+                    "procurement_price": float(product.get("procurement_price", 0) or 0),
+                    "lead_time_days": int(product.get("lead_time_days", 0) or 0),
+                }
+            )
+        items = enriched_items
+        primary_source = next(
+            (
+                {
+                    "source_type": item.get("source_type", ""),
+                    "source_name": item.get("source_name", ""),
+                    "source_contact_person": item.get("source_contact_person", ""),
+                    "source_mobile": item.get("source_mobile", ""),
+                    "source_email": item.get("source_email", ""),
+                    "source_city": item.get("source_city", ""),
+                    "source_state": item.get("source_state", ""),
+                    "source_confirmed": bool(item.get("source_confirmed", False)),
+                }
+                for item in items
+                if str(item.get("source_name") or item.get("source_email") or item.get("source_mobile") or "").strip()
+            ),
+            {},
+        )
         order = {
             "schema_version": "1.0",
             "public_order_id": self.id_allocator_service.allocate("public_order"),
@@ -137,6 +174,7 @@ class PublicOrderService:
             "payment_receiver": seller_id,
             "status": "PAYMENT_PENDING",
             "assigned_seller_manufacturer_id": seller_id,
+            "product_source_snapshot": primary_source,
             "inventory_reserved": False,
             "commission_breakdown": [
                 self.pricing_service.calculate_commission(

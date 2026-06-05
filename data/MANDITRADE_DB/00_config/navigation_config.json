@@ -30,7 +30,6 @@
         "group": "Sourcing",
         "items": [
           {"label": "Products", "icon": "", "route": "products"},
-          {"label": "Procurement Sources", "icon": "", "route": "procurement_sources"},
           {"label": "Workers", "icon": "", "route": "workers"}
         ]
       },
@@ -181,8 +180,8 @@
     "platform_admin": "dashboard",
     "manufacturer": "dashboard",
     "mahajan": "dashboard",
-    "public_buyer": "marketplace",
-    "worker": "jobs",
+    "public_buyer": "dashboard",
+    "worker": "dashboard",
     "pending_user": "dashboard",
     "unauthenticated": "dashboard"
   }

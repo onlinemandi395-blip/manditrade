@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from components.dashboard_widgets import render_dashboard_widget_grid
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
 from components.ui_shell import render_metric_card, render_page_header, render_showcase_strip
@@ -52,7 +53,19 @@ def render_public_buyer_dashboard(app_context: dict) -> None:
     )
     render_section_intro(
         "Read-Only Buyer View",
-        "This dashboard is summary-only. Use Marketplace, Marketplace Orders, My Profile, and Notifications for shopping and account actions.",
+        "This dashboard is now the buyer landing zone. Use the widgets below to jump into shopping, order follow-up, notifications, and profile tasks.",
+    )
+    render_dashboard_widget_grid(
+        app_context,
+        "public_buyer_dashboard_widgets",
+        [
+            {"title": "Marketplace", "subtitle": "Browse products", "route": "marketplace", "badge": f"{len(products)} active"},
+            {"title": "My Orders", "subtitle": "Track order progress", "route": "my_orders", "badge": f"{len(orders)} orders"},
+            {"title": "Jobs", "subtitle": "Explore local work", "route": "jobs", "badge": "Jobs"},
+            {"title": "Notifications", "subtitle": "See updates and alerts", "route": "notifications", "badge": "Inbox"},
+            {"title": "My Profile", "subtitle": "Update buyer details", "route": "my_profile", "badge": "Account"},
+        ],
+        columns=3,
     )
 
     col1, col2 = st.columns(2)

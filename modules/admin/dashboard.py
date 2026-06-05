@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from components.dashboard_widgets import render_dashboard_widget_grid
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
 from components.ui_shell import render_dual_panel, render_metric_card, render_mobile_record_card, render_page_header, render_showcase_strip
@@ -49,7 +50,7 @@ def _build_supervisory_rows(app_context: dict) -> list[dict]:
 
 def render_admin_dashboard(app_context: dict, section: str = "Dashboard") -> None:
     active_context = app_context.get("active_context", "platform_admin")
-    render_page_header("SuperUser Control Center", "One admin identity with context-aware previews, platform controls, and privacy-safe manufacturer supervision.", ["SuperUser", "Context Switch"])
+    render_page_header("Admin Dashboard", "Dashboard-first control zone for products, orders, shipments, ledger, admin actions, and Drive health. Sidebar is now secondary.", ["SuperUser", "Dashboard First", "Context Switch"])
     rows, pending_products, active_products, actions, public_orders = _build_supervisory_rows(app_context)
 
     render_metric_grid(
@@ -72,6 +73,22 @@ def render_admin_dashboard(app_context: dict, section: str = "Dashboard") -> Non
         render_mobile_record_card({"Pending Products": len(pending_products), "Active Products": len(active_products)}),
         "Supervision Focus",
         render_mobile_record_card({"Manufacturers": len(rows), "Actions": sum(int(item.get("count", 0)) for item in actions), "Public Orders": len(public_orders)}),
+    )
+    render_section_intro("Quick Access", "Use dashboard widgets as the main operating home. Sidebar remains available, but it is no longer the primary way to move around.")
+    render_dashboard_widget_grid(
+        app_context,
+        "admin_dashboard_widgets",
+        [
+            {"title": "My Profile", "subtitle": "Identity and account settings", "route": "my_profile", "badge": "Account"},
+            {"title": "Notifications", "subtitle": "Review live updates", "route": "notifications", "badge": "Inbox"},
+            {"title": "My Actions", "subtitle": "Pending admin work", "route": "my_actions", "badge": f"{sum(int(item.get('count', 0)) for item in actions)} open"},
+            {"title": "Products", "subtitle": "Catalog and source fields", "route": "products", "badge": f"{len(active_products)} active"},
+            {"title": "Orders", "subtitle": "Marketplace and sourcing orders", "route": "orders", "badge": f"{len(public_orders)} public"},
+            {"title": "Shipments", "subtitle": "Source-origin logistics", "route": "shipments", "badge": "Dispatch"},
+            {"title": "Ledger", "subtitle": "Settlement and margin view", "route": "ledger", "badge": "Khata"},
+            {"title": "Admin Drive DB", "subtitle": "Database health and smoke test", "route": "admin_drive_db", "badge": "Drive"},
+            {"title": "System Health", "subtitle": "Runtime and recovery checks", "route": "system_health", "badge": "Ops"},
+        ],
     )
     if section == "Inventory Summary":
         render_section_intro("Inventory Summary", "SuperAdmin sees manufacturer-level inventory impact through marketplace and mandi activity summaries only.")

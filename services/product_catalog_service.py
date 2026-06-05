@@ -60,6 +60,17 @@ class ProductCatalogService:
         image_status: str = "",
         created_by_email: str = "",
         source_ids: list[str] | None = None,
+        source_type: str = "",
+        source_name: str = "",
+        source_contact_person: str = "",
+        source_mobile: str = "",
+        source_email: str = "",
+        source_city: str = "",
+        source_state: str = "",
+        source_confirmed: bool = False,
+        procurement_price: float = 0,
+        available_qty: int = 0,
+        lead_time_days: int = 0,
     ) -> dict[str, Any]:
         created_at = datetime.now(UTC).isoformat()
         client_price = float(suggested_client_price if suggested_client_price is not None else suggested_mrp or 0)
@@ -103,6 +114,18 @@ class ProductCatalogService:
             "created_by_email": created_by_email.strip().lower(),
             "public_seller_manufacturer_id": created_by,
             "source_ids": [str(item).strip().upper() for item in (source_ids or []) if str(item).strip()],
+            "source_type": source_type.strip().upper(),
+            "source_name": source_name.strip(),
+            "source_contact_person": source_contact_person.strip(),
+            "source_mobile": source_mobile.strip(),
+            "source_email": source_email.strip().lower(),
+            "source_city": source_city.strip(),
+            "source_state": source_state.strip(),
+            "source_confirmed": bool(source_confirmed),
+            "procurement_price": float(procurement_price or 0),
+            "selling_price": marketplace_price,
+            "available_qty": int(available_qty or 0),
+            "lead_time_days": int(lead_time_days or 0),
             "approved_by": "",
             "admin_note": "",
             "created_at": created_at,
@@ -228,6 +251,7 @@ class ProductCatalogService:
             "approved_mandi_price", "approved_client_price", "approved_marketplace_price", "approved_mrp",
             "visibility_request", "approved_visibility", "minimum_order_qty", "available_for_public_sale",
             "available_for_mandi_network", "image_url", "image_file_ref", "thumbnail_url", "image_alt_text", "image_status", "public_seller_manufacturer_id", "visible", "admin_note", "status", "source_ids",
+            "source_type", "source_name", "source_contact_person", "source_mobile", "source_email", "source_city", "source_state", "source_confirmed", "procurement_price", "selling_price", "available_qty", "lead_time_days",
         }
         for key, value in updates.items():
             if key in allowed_fields:
@@ -365,6 +389,18 @@ class ProductCatalogService:
         item["approved_client_price"] = float(item.get("approved_client_price", item.get("approved_mrp", client_price)) or 0) if item.get("status") == "ACTIVE" else item.get("approved_client_price")
         item["approved_marketplace_price"] = float(item.get("approved_marketplace_price", marketplace_price) or 0) if item.get("status") == "ACTIVE" else item.get("approved_marketplace_price")
         item["source_ids"] = [str(value).strip().upper() for value in item.get("source_ids", []) or [] if str(value).strip()]
+        item["source_type"] = str(item.get("source_type", "") or "").strip().upper()
+        item["source_name"] = str(item.get("source_name", "") or "").strip()
+        item["source_contact_person"] = str(item.get("source_contact_person", "") or "").strip()
+        item["source_mobile"] = str(item.get("source_mobile", "") or "").strip()
+        item["source_email"] = str(item.get("source_email", "") or "").strip().lower()
+        item["source_city"] = str(item.get("source_city", "") or "").strip()
+        item["source_state"] = str(item.get("source_state", "") or "").strip()
+        item["source_confirmed"] = bool(item.get("source_confirmed", False))
+        item["procurement_price"] = float(item.get("procurement_price", 0) or 0)
+        item["selling_price"] = float(item.get("selling_price", item.get("marketplace_price", marketplace_price)) or 0)
+        item["available_qty"] = int(item.get("available_qty", 0) or 0)
+        item["lead_time_days"] = int(item.get("lead_time_days", 0) or 0)
         if self.image_service:
             item.update(self.image_service.normalize_image_metadata(item, image_alt_text=str(item.get("image_alt_text") or item.get("name") or "Product")))
         return item
@@ -440,7 +476,7 @@ class ProductCatalogService:
             for key in {
                 "client_price", "marketplace_price", "suggested_client_price", "suggested_marketplace_price",
                 "approved_client_price", "approved_marketplace_price", "created_by", "created_by_manufacturer_id",
-                "created_by_email", "public_seller_manufacturer_id", "visible", "source_ids",
+                "created_by_email", "public_seller_manufacturer_id", "visible", "source_ids", "source_contact_person", "source_mobile", "source_email",
             }:
                 result.pop(key, None)
             result["supply_price"] = result.get("mandi_price", 0)
@@ -448,6 +484,7 @@ class ProductCatalogService:
             for key in {
                 "mandi_price", "client_price", "suggested_mandi_price", "suggested_client_price", "approved_mandi_price",
                 "approved_client_price", "created_by", "created_by_manufacturer_id", "created_by_email", "public_seller_manufacturer_id", "visible", "source_ids",
+                "source_contact_person", "source_mobile", "source_email", "procurement_price",
             }:
                 result.pop(key, None)
             result["price"] = result.get("marketplace_price", 0)
