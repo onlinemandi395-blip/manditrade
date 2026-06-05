@@ -6,14 +6,17 @@
       "collection": "products",
       "fields": [
         {"name": "product_name", "label_key": "field.product_name", "type": "text", "required": true},
+        {"name": "product_code", "label_key": "field.product_code", "type": "text", "required": true},
         {"name": "category", "label_key": "field.category", "type": "text", "required": true},
+        {"name": "subcategory", "label_key": "field.subcategory", "type": "text"},
+        {"name": "description", "label_key": "field.description", "type": "text"},
+        {"name": "unit", "label_key": "field.unit", "type": "text"},
         {"name": "marketplace_price", "label_key": "field.marketplace_price", "type": "number"},
-        {"name": "mandiplace_price", "label_key": "field.mandiplace_price", "type": "number"},
-        {"name": "suta_price", "label_key": "field.suta_price", "type": "number"},
+        {"name": "manditrade_price", "label_key": "field.manditrade_price", "type": "number"},
         {"name": "image_url", "label_key": "field.image_url", "type": "text"},
         {"name": "available_marketplace", "label_key": "field.available_marketplace", "type": "checkbox"},
-        {"name": "available_mandiplace", "label_key": "field.available_mandiplace", "type": "checkbox"},
-        {"name": "available_suta_mandi", "label_key": "field.available_suta_mandi", "type": "checkbox"}
+        {"name": "available_manditrade", "label_key": "field.available_manditrade", "type": "checkbox"},
+        {"name": "available_quantity", "label_key": "field.available_quantity", "type": "number"}
       ]
     },
     "raw_material_form": {

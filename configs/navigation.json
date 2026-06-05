@@ -4,13 +4,13 @@
       {"route": "dashboard", "icon": "[DB]", "label_key": "sidebar.dashboard"},
       {"route": "products", "icon": "[PD]", "label_key": "sidebar.products"},
       {"route": "marketplace", "icon": "[MK]", "label_key": "sidebar.marketplace"},
-      {"route": "mandiplace", "icon": "[MP]", "label_key": "sidebar.mandiplace"},
-      {"route": "suta_mandi", "icon": "[SM]", "label_key": "sidebar.suta_mandi"},
+      {"route": "manditrade", "icon": "[MT]", "label_key": "sidebar.manditrade"},
       {"route": "raw_materials", "icon": "[RM]", "label_key": "sidebar.raw_materials"},
       {"route": "orders", "icon": "[OR]", "label_key": "sidebar.orders"},
       {"route": "shipments", "icon": "[SH]", "label_key": "sidebar.shipments"},
       {"route": "ledger", "icon": "[LG]", "label_key": "sidebar.ledger"},
       {"route": "notifications", "icon": "[NT]", "label_key": "sidebar.notifications"},
+      {"route": "admin_configuration", "icon": "[CF]", "label_key": "sidebar.admin_configuration"},
       {"route": "system_health", "icon": "[HL]", "label_key": "sidebar.system_health"}
     ]
   }

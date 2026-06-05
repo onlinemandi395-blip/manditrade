@@ -9,95 +9,39 @@
       "category": "Textile",
       "subcategory": "Towel",
       "description": "Premium cotton towel",
-      "images": [
-        {
-          "file_id": "",
-          "thumbnail_url": "",
-          "view_url": ""
-        }
-      ],
+      "image_url": "",
+      "unit": "piece",
       "sales_channels": {
         "marketplace": {
           "enabled": true,
           "price": 250
         },
-        "mandiplace": {
+        "manditrade": {
           "enabled": true,
           "price": 220
-        },
-        "suta_mandi": {
-          "enabled": false,
-          "price": 0
         }
       },
-      "manufacturer_mapping": [
+      "manufacturer_tags": [
         {
+          "email": "manufacturer@example.com",
           "manufacturer_id": "MFG_001",
-          "manufacturer_name": "ABC Towels Pvt Ltd",
-          "contact": {
-            "email": "abc@manufacturer.com",
-            "phone": "9999999999"
-          },
-          "inventory": {
-            "available_quantity": 5000,
-            "unit": "piece"
-          },
+          "name": "Demo Manufacturer",
           "priority": 1,
           "active": true
         }
       ],
-      "mahajan_mapping": [
+      "mahajan_tags": [
         {
+          "email": "mahajan@example.com",
           "mahajan_id": "MHJ_001",
-          "mahajan_name": "Patna Cotton Supplier",
-          "contact": {
-            "email": "mahajan1@example.com",
-            "phone": "7777777777"
-          },
-          "supplied_raw_materials": ["RAW_COTTON", "THREAD", "PACKAGING"],
+          "name": "Demo Mahajan",
+          "raw_materials": ["Cotton Thread", "Packaging Bag"],
           "active": true
         }
       ],
-      "raw_material_requirements": [
-        {
-          "raw_material_id": "RM_001",
-          "name": "Cotton Thread",
-          "quantity_per_unit": 0.3,
-          "unit": "kg"
-        }
-      ],
-      "packaging_service": {
-        "service_id": "PKG_001",
-        "service_name": "Standard Packaging"
-      },
-      "courier_service": {
-        "service_id": "CRR_001",
-        "service_name": "Local Courier"
-      },
-      "workflow": {
-        "order_queue_enabled": true,
-        "notification_enabled": true,
-        "gmail_notifications": {
-          "marketplace_order": true,
-          "mandiplace_order": true,
-          "suta_mandi_order": true,
-          "dispatch": true,
-          "delivery": true
-        }
-      },
-      "order_routing": {
-        "marketplace": {
-          "queue": "marketplace_orders",
-          "notify": ["platform_admin", "manufacturer"]
-        },
-        "mandiplace": {
-          "queue": "mandiplace_orders",
-          "notify": ["platform_admin", "manufacturer"]
-        },
-        "suta_mandi": {
-          "queue": "suta_orders",
-          "notify": ["platform_admin", "manufacturer", "mahajan"]
-        }
+      "inventory": {
+        "available_quantity": 5000,
+        "unit": "piece"
       },
       "created_at": "2026-06-05T00:00:00Z",
       "updated_at": "2026-06-05T00:00:00Z"
@@ -110,19 +54,78 @@
       "category": "Textile",
       "subcategory": "Bedsheet",
       "description": "Double-bed cotton bedsheet",
-      "images": [],
+      "image_url": "",
+      "unit": "piece",
       "sales_channels": {
         "marketplace": {"enabled": true, "price": 780},
-        "mandiplace": {"enabled": true, "price": 710},
-        "suta_mandi": {"enabled": false, "price": 0}
+        "manditrade": {"enabled": true, "price": 710}
       },
-      "manufacturer_mapping": [],
-      "mahajan_mapping": [],
-      "raw_material_requirements": [],
-      "packaging_service": {},
-      "courier_service": {},
-      "workflow": {"order_queue_enabled": true, "notification_enabled": true, "gmail_notifications": {}},
-      "order_routing": {},
+      "manufacturer_tags": [],
+      "mahajan_tags": [],
+      "inventory": {
+        "available_quantity": 1500,
+        "unit": "piece"
+      },
+      "created_at": "2026-06-05T00:00:00Z",
+      "updated_at": "2026-06-05T00:00:00Z"
+    },
+    {
+      "product_id": "PROD_003",
+      "product_code": "RICE_BAG_025",
+      "product_name": "Rice Bag 25 KG",
+      "status": "ACTIVE",
+      "category": "Agriculture",
+      "subcategory": "Bag",
+      "description": "Heavy-duty rice carrying bag",
+      "image_url": "",
+      "unit": "piece",
+      "sales_channels": {
+        "marketplace": {"enabled": true, "price": 95},
+        "manditrade": {"enabled": true, "price": 82}
+      },
+      "manufacturer_tags": [],
+      "mahajan_tags": [],
+      "inventory": {"available_quantity": 800, "unit": "piece"},
+      "created_at": "2026-06-05T00:00:00Z",
+      "updated_at": "2026-06-05T00:00:00Z"
+    },
+    {
+      "product_id": "PROD_004",
+      "product_code": "WOOD_CRATE_01",
+      "product_name": "Wooden Packaging Crate",
+      "status": "ACTIVE",
+      "category": "Packaging",
+      "subcategory": "Crate",
+      "description": "Reusable wooden crate for bulk shipments",
+      "image_url": "",
+      "unit": "piece",
+      "sales_channels": {
+        "marketplace": {"enabled": false, "price": 0},
+        "manditrade": {"enabled": true, "price": 430}
+      },
+      "manufacturer_tags": [],
+      "mahajan_tags": [],
+      "inventory": {"available_quantity": 60, "unit": "piece"},
+      "created_at": "2026-06-05T00:00:00Z",
+      "updated_at": "2026-06-05T00:00:00Z"
+    },
+    {
+      "product_id": "PROD_005",
+      "product_code": "STEEL_RACK_01",
+      "product_name": "Steel Rack Unit",
+      "status": "DRAFT",
+      "category": "Storage",
+      "subcategory": "Rack",
+      "description": "Industrial steel storage rack",
+      "image_url": "",
+      "unit": "unit",
+      "sales_channels": {
+        "marketplace": {"enabled": false, "price": 0},
+        "manditrade": {"enabled": true, "price": 5400}
+      },
+      "manufacturer_tags": [],
+      "mahajan_tags": [],
+      "inventory": {"available_quantity": 15, "unit": "unit"},
       "created_at": "2026-06-05T00:00:00Z",
       "updated_at": "2026-06-05T00:00:00Z"
     }

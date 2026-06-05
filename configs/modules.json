@@ -17,7 +17,7 @@
       }
     },
     "products": {
-      "type": "crud_table",
+      "type": "products_admin",
       "title_key": "module.products.title",
       "subtitle_key": "module.products.subtitle",
       "data_source": "products",
@@ -32,24 +32,14 @@
       "form_id": "raw_material_form",
       "visible_to": ["platform_admin", "mahajan"]
     },
-    "mandiplace": {
-      "type": "product_grid",
-      "title_key": "module.mandiplace.title",
-      "subtitle_key": "module.mandiplace.subtitle",
+    "manditrade": {
+      "type": "manditrade",
+      "title_key": "module.manditrade.title",
+      "subtitle_key": "module.manditrade.subtitle",
       "data_source": "products",
       "visible_to": ["platform_admin", "manufacturer"],
       "filters": {
-        "sales_channels.mandiplace.enabled": true
-      }
-    },
-    "suta_mandi": {
-      "type": "product_grid",
-      "title_key": "module.suta_mandi.title",
-      "subtitle_key": "module.suta_mandi.subtitle",
-      "data_source": "products",
-      "visible_to": ["manufacturer"],
-      "filters": {
-        "sales_channels.suta_mandi.enabled": true
+        "sales_channels.manditrade.enabled": true
       }
     },
     "orders": {
@@ -70,6 +60,12 @@
       "type": "system",
       "title_key": "module.system_health.title",
       "subtitle_key": "module.system_health.subtitle",
+      "visible_to": ["platform_admin"]
+    },
+    "admin_configuration": {
+      "type": "admin_configuration",
+      "title_key": "module.admin_configuration.title",
+      "subtitle_key": "module.admin_configuration.subtitle",
       "visible_to": ["platform_admin"]
     },
     "shipments": {

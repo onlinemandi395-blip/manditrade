@@ -9,7 +9,6 @@ from components.detail_panel import render_detail_panel
 from components.empty_state import render_empty_state
 from components.form_renderer import render_form
 from components.html_renderer import inject_css
-from components.product_grid import render_product_grid
 from components.sidebar import render_sidebar
 from components.table_renderer import render_table
 from components.topbar import render_topbar
@@ -30,7 +29,11 @@ from services.google_oauth_service import GoogleOAuthService
 from services.integration_status_service import IntegrationStatusService
 from services.rbac_service import RBACService
 from services.session_service import SessionService
+from modules.admin_configuration import render_admin_configuration
 from modules.login import render_login_page
+from modules.marketplace import render_marketplace_page
+from modules.manditrade import render_manditrade_page
+from modules.products import render_products_page
 
 
 CSS_FILE = Path(__file__).resolve().parent.parent / "assets" / "styles" / "design.css"
@@ -176,7 +179,7 @@ def render_app() -> None:
             )
             st.success(f"Added {product.get('product_name', product.get('product_id', 'product'))} to cart.")
 
-        render_product_grid(products, on_add_to_cart=on_add_to_cart)
+        render_marketplace_page(products, on_add_to_cart=on_add_to_cart)
         cart = cart_service.get_cart()
         if cart.get("items"):
             with st.container(border=True):
@@ -191,6 +194,13 @@ def render_app() -> None:
                     )
                     cart_service.clear_cart()
                     st.success(f"Order {order.get('order_id', '')} created.")
+    elif page_definition.get("type") == "manditrade":
+        products = page_service.filter_rows(datasets.get(page_definition.get("data_source", ""), []), page_definition.get("filters", {}))
+        render_manditrade_page(products)
+    elif page_definition.get("type") == "products_admin":
+        render_products_page(data_service, notification_service, session_service)
+    elif page_definition.get("type") == "admin_configuration":
+        render_admin_configuration(auth_service, data_service, notification_service, session_service)
     elif page_definition.get("type") in {"crud_table", "table"}:
         source_name = str(page_definition.get("data_source", ""))
         render_table(datasets.get(source_name, []), caption=f"{source_name} collection")
