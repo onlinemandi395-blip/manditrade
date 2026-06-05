@@ -3,10 +3,12 @@
   "storage_mode": "local_json_first",
   "admin_drive_enabled": false,
   "collections": {
+    "users": "configs/users.json:users",
     "products": "configs/product_mapping.json:products",
     "raw_materials": "configs/seed_data.json:raw_materials",
     "orders": "configs/seed_data.json:orders",
     "notifications": "configs/seed_data.json:notifications",
+    "gmail_queue": "configs/seed_data.json:gmail_queue",
     "shipments": "configs/seed_data.json:shipments",
     "ledger": "configs/seed_data.json:ledger"
   }

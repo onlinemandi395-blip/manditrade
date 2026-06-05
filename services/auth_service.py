@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import streamlit as st
+
 
 class AuthService:
     def __init__(self, cache_service) -> None:
@@ -18,8 +20,30 @@ class AuthService:
     def get_registered_users(self) -> list[dict]:
         return list(self.cache_service.get_config("users").get("users", []))
 
+    def get_primary_admin(self) -> dict:
+        platform_section = dict(st.secrets.get("platform", {})) if "platform" in st.secrets else {}
+        legacy_admin = dict(st.secrets.get("admin", {})) if "admin" in st.secrets else {}
+        email = str(platform_section.get("primary_admin_email", "") or legacy_admin.get("admin_email", "")).strip().lower()
+        name = str(platform_section.get("primary_admin_name", "") or "Primary Admin").strip()
+        return {
+            "email": email,
+            "role": "platform_admin",
+            "status": "ACTIVE",
+            "display_name": name,
+        }
+
     def resolve_user(self, email: str) -> dict:
         normalized_email = email.strip().lower()
+        primary_admin = self.get_primary_admin()
+        if primary_admin.get("email") and normalized_email == primary_admin["email"]:
+            return {
+                "email": normalized_email,
+                "role": "platform_admin",
+                "status": "ACTIVE",
+                "display_name": primary_admin.get("display_name", "Primary Admin"),
+                "known_user": True,
+                "is_primary_admin": True,
+            }
         user_rows = self.get_registered_users()
         matched = next(
             (row for row in user_rows if str(row.get("email", "")).strip().lower() == normalized_email),
@@ -32,6 +56,7 @@ class AuthService:
                 "status": "ACTIVE",
                 "display_name": str(matched.get("display_name", normalized_email.split("@")[0] if normalized_email else "")),
                 "known_user": True,
+                "is_primary_admin": False,
             }
         return {
             "email": normalized_email,
@@ -39,6 +64,7 @@ class AuthService:
             "status": "ACTIVE",
             "display_name": normalized_email.split("@")[0] if normalized_email else "",
             "known_user": False,
+            "is_primary_admin": False,
         }
 
     def login(self, email: str, provider_id: str) -> dict:

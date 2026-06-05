@@ -25,7 +25,9 @@ from services.navigation_service import NavigationService
 from services.notification_service import NotificationService
 from services.order_service import OrderService
 from services.page_service import PageService
+from services.gmail_queue_service import GmailQueueService
 from services.google_oauth_service import GoogleOAuthService
+from services.integration_status_service import IntegrationStatusService
 from services.rbac_service import RBACService
 from services.session_service import SessionService
 from modules.login import render_login_page
@@ -103,6 +105,14 @@ def render_app() -> None:
     order_service = OrderService(data_service, notification_service)
     cart_service = CartService()
     admin_drive_service = AdminDriveService()
+    gmail_queue_service = GmailQueueService(data_service)
+    integration_status_service = IntegrationStatusService(
+        cache_service=cache_service,
+        admin_drive_service=admin_drive_service,
+        gmail_queue_service=gmail_queue_service,
+        oauth_service=oauth_service,
+        data_service=data_service,
+    )
     form_service = FormService(cache_service)
 
     navigation_items = navigation_service.get_navigation(role)
@@ -198,15 +208,20 @@ def render_app() -> None:
 
             render_form(form_definition, translator, _handle_submit)
     elif page_definition.get("type") == "system":
-        status = admin_drive_service.get_status()
+        status = integration_status_service.get_status()
         render_table(
             [
-                {"key": "connected", "value": status["connected"]},
-                {"key": "mode", "value": status["mode"]},
-                {"key": "source", "value": status["source"]},
+                {"key": "google_oauth_status", "value": status["google_oauth_status"]},
+                {"key": "google_drive_status", "value": status["google_drive_status"]},
+                {"key": "drive_root_status", "value": status["drive_root_status"]},
+                {"key": "gmail_status", "value": status["gmail_status"]},
+                {"key": "queue_count", "value": status["queue_count"]},
+                {"key": "notification_queue_count", "value": status["notification_queue_count"]},
+                {"key": "primary_admin_email", "value": status["primary_admin_email"]},
             ],
-            caption="Admin Drive runtime",
+            caption="Integration status",
         )
+        render_detail_panel("Cache Status", status["cache_status"])
     else:
         render_empty_state("Unsupported page type.")
 
