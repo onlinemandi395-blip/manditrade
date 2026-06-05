@@ -84,6 +84,9 @@
   "auth.current_role": "Current role",
   "auth.access_denied": "Access denied. Redirected to your allowed landing page.",
   "auth.unknown_user_note": "Unknown users continue as Public Buyer by default.",
+  "auth.google_not_configured": "Google Single Sign-On is not configured in Streamlit secrets.",
+  "auth.oauth_failed": "Google sign-in failed",
+  "auth.email_not_verified": "Google account email is not verified.",
   "login.feature.manufacturers": "Manufacturer Network",
   "login.feature.mahajans": "Mahajan Supply Network",
   "login.feature.marketplace": "Marketplace Commerce"

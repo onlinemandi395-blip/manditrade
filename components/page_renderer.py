@@ -25,6 +25,7 @@ from services.navigation_service import NavigationService
 from services.notification_service import NotificationService
 from services.order_service import OrderService
 from services.page_service import PageService
+from services.google_oauth_service import GoogleOAuthService
 from services.rbac_service import RBACService
 from services.session_service import SessionService
 from modules.login import render_login_page
@@ -44,21 +45,51 @@ def render_app() -> None:
     language_service = LanguageService(cache_service, language)
     translator = language_service.get_translator()
     auth_service = AuthService(cache_service)
+    oauth_service = GoogleOAuthService()
     rbac_service = RBACService(cache_service)
     navigation_service = NavigationService(cache_service, translator, rbac_service)
     page_service = PageService(cache_service, translator, rbac_service)
 
+    callback_error = oauth_service.get_callback_error()
+    if callback_error:
+        st.error(translator.t("auth.oauth_failed"))
+        oauth_service.clear_callback_params()
+
+    if oauth_service.has_callback() and not session_service.is_authenticated():
+        try:
+            identity = oauth_service.exchange_code_for_identity()
+            if not identity.get("email_verified", False):
+                raise ValueError(translator.t("auth.email_not_verified"))
+            resolved_user = auth_service.resolve_user(str(identity.get("email", "")))
+            role = str(resolved_user.get("role", auth_service.get_unknown_user_default_role()))
+            landing_page = navigation_service.get_default_route(role)
+            session_service.authenticate(
+                {
+                    **resolved_user,
+                    "display_name": identity.get("display_name") or resolved_user.get("display_name", ""),
+                    "photo_url": identity.get("photo_url", ""),
+                    "landing_page": landing_page,
+                }
+            )
+            oauth_service.clear_callback_params()
+            st.rerun()
+        except Exception as exc:
+            st.error(f"{translator.t('auth.oauth_failed')}: {exc}")
+            oauth_service.clear_callback_params()
+
     if not session_service.is_authenticated():
         render_login_page(
             auth_service=auth_service,
-            navigation_service=navigation_service,
-            session_service=session_service,
+            oauth_service=oauth_service,
             translator=translator,
             language_options=list(cache_service.get_config("languages").keys()),
+            current_language=language,
+            set_language=session_service.set_language,
         )
         return
 
     role = session_service.get_user_role()
+    user = session_service.get_user()
     data_service = DataService(cache_service)
     notification_service = NotificationService(data_service)
     order_service = OrderService(data_service, notification_service)
@@ -75,12 +106,11 @@ def render_app() -> None:
     if current_route not in valid_routes or not rbac_service.can_access(role, current_route):
         current_route = page_service.get_landing_page(role, navigation_service)
         session_service.set_route(current_route)
-    chosen = render_sidebar(navigation_items, current_route)
+    chosen = render_sidebar(navigation_items, current_route, user=user, role_label=translator.t(f"role.{role}"))
     if chosen != current_route:
         current_route = chosen
         session_service.set_route(current_route)
     with st.sidebar:
-        st.caption(f"{translator.t('auth.current_role')}: {translator.t(f'role.{role}')}")
         if st.button(translator.t("auth.logout"), use_container_width=True):
             session_service.logout()
             st.rerun()
