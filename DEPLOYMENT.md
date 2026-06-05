@@ -149,9 +149,23 @@ Recommended secrets:
 
 ```toml
 [google_drive]
+service_account_json = ""
 admin_db_root_folder_id = ""
 admin_db_root_folder_name = "MANDITRADE_DB"
 ```
+
+Expected setup:
+
+1. Create a Google Cloud service account with Drive API enabled.
+2. Download the service-account JSON key.
+3. Put the full JSON string into:
+   - `[google_drive].service_account_json`
+   - or env `GOOGLE_SERVICE_ACCOUNT_JSON`
+4. Create `MANDITRADE_DB` in Google Drive.
+5. Share that folder with the service-account email as `Editor`.
+6. Put the Drive folder ID into:
+   - `[google_drive].admin_db_root_folder_id`
+   - or env `ADMIN_DRIVE_ROOT_FOLDER_ID`
 
 Bootstrap and validation flow:
 
@@ -164,6 +178,7 @@ python scripts/validate_admin_drive_db.py
 Rules:
 
 - do not hardcode personal Drive IDs in code
+- Drive DB uses Service Account access, not a user refresh token
 - do not store role-owned databases in manufacturer/mahajan/public-buyer Drive
 - do not switch `storage.mode=canonical` until Admin Drive DB validation is healthy
 - do not delete legacy storage during bootstrap or validation
@@ -175,7 +190,6 @@ Rules:
 python scripts/validate_release_env.py
 python scripts/cleanup_test_data.py --dry-run
 python scripts/create_release_snapshot.py
-python -m pytest tests/ -q
-python -m compileall app.py modules services utils components schemas bootstrap scripts
+python -m compileall app.py modules services utils components schemas bootstrap scripts constants
 python -c "import app; print('app import ok')"
 ```

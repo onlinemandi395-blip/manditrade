@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -33,6 +34,11 @@ def _build_service() -> AdminDriveDatabaseService:
         oauth_config["google_oauth"]["client_secret"] = google_secret_overrides.get("client_secret", oauth_config["google_oauth"]["client_secret"])
         oauth_config["google_oauth"]["redirect_uri"] = google_secret_overrides.get("redirect_uri", oauth_config["google_oauth"]["redirect_uri"])
     google_drive_secret_overrides = dict(st.secrets["google_drive"]) if "google_drive" in st.secrets else {}
+    service_account_present = bool(
+        str(google_drive_secret_overrides.get("service_account_json", "") or "").strip()
+        or str(os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "") or "").strip()
+        or str(system_config.get("storage", {}).get("service_account_json", "") or "").strip()
+    )
     root_name = str(
         google_drive_secret_overrides.get("admin_db_root_folder_name")
         or system_config.get("storage", {}).get("admin_db_root_folder_name")
@@ -52,7 +58,7 @@ def _build_service() -> AdminDriveDatabaseService:
         manufacturer_root_prefix=system_config.get("storage", {}).get("manufacturer_root_prefix", "MANDITRADE_"),
         shared_zone_name=system_config.get("storage", {}).get("shared_zone_name", "shared_zone"),
         private_zone_name=system_config.get("storage", {}).get("private_zone_name", "private_zone"),
-        use_drive_api=bool(system_config.get("storage", {}).get("use_drive_api", False)),
+        use_drive_api=bool(system_config.get("storage", {}).get("use_drive_api", False) or service_account_present),
         safe_drive_write_service=None,
         logging_service=None,
         runtime_metrics_service=None,

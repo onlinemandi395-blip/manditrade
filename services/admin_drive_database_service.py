@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from google.oauth2 import service_account
 from googleapiclient.http import MediaInMemoryUpload
 
 
@@ -45,19 +47,25 @@ class AdminDriveDatabaseService:
     def resolve_root_config(self) -> dict[str, Any]:
         storage_cfg = self.system_config.setdefault("storage", {})
         google_secret = dict(self.secret_overrides.get("google_drive", {}) or {})
+        env_root_id = str(os.getenv("ADMIN_DRIVE_ROOT_FOLDER_ID", "")).strip()
+        env_root_name = str(os.getenv("ADMIN_DRIVE_ROOT_FOLDER_NAME", "")).strip()
         root_id = str(
             google_secret.get("admin_db_root_folder_id")
+            or env_root_id
             or storage_cfg.get("admin_db_root_folder_id")
             or ""
         ).strip()
         root_name = str(
             google_secret.get("admin_db_root_folder_name")
+            or env_root_name
             or storage_cfg.get("admin_db_root_folder_name")
             or self.drive_path_service.ROOT_FOLDER_NAME
         ).strip() or self.drive_path_service.ROOT_FOLDER_NAME
         source = "local_fallback"
         if google_secret.get("admin_db_root_folder_id") or google_secret.get("admin_db_root_folder_name"):
             source = "streamlit_secrets"
+        elif env_root_id or env_root_name:
+            source = "environment"
         elif storage_cfg.get("admin_db_root_folder_id") or storage_cfg.get("admin_db_root_folder_name"):
             source = "system_config"
         runtime_status = self.runtime_status()
@@ -71,6 +79,49 @@ class AdminDriveDatabaseService:
             "drive_api_requested": runtime_status["drive_api_requested"],
             "drive_api_ready": runtime_status["drive_api_ready"],
             "runtime_reason": runtime_status["reason"],
+        }
+
+    def resolve_service_account_config(self) -> dict[str, Any]:
+        storage_cfg = self.system_config.setdefault("storage", {})
+        google_secret = dict(self.secret_overrides.get("google_drive", {}) or {})
+        source = "missing"
+        raw_value: Any = google_secret.get("service_account_json")
+        if raw_value:
+            source = "streamlit_secrets"
+        else:
+            raw_value = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "")
+            if raw_value:
+                source = "environment"
+            else:
+                raw_value = storage_cfg.get("service_account_json", "")
+                if raw_value:
+                    source = "system_config"
+
+        if isinstance(raw_value, dict):
+            info = raw_value
+            error = ""
+        else:
+            raw_text = str(raw_value or "").strip()
+            if raw_text:
+                try:
+                    info = json.loads(raw_text.replace("\\n", "\n"))
+                    error = ""
+                except json.JSONDecodeError as exc:
+                    info = {}
+                    error = f"Invalid service account JSON: {exc.msg}"
+            else:
+                info = {}
+                error = "Missing GOOGLE_SERVICE_ACCOUNT_JSON"
+        client_email = str(info.get("client_email", "") or "").strip()
+        if not error and not client_email:
+            error = "Service account JSON is missing client_email."
+        return {
+            "source": source,
+            "configured": bool(info),
+            "client_email": client_email,
+            "project_id": str(info.get("project_id", "") or "").strip(),
+            "info": info,
+            "error": error,
         }
 
     def ensure_database_root(self, *, allow_create: bool = True) -> dict[str, Any]:
@@ -147,6 +198,7 @@ class AdminDriveDatabaseService:
         runtime_status = self.runtime_status()
         if runtime_status["drive_api_requested"] and not runtime_status["drive_api_ready"]:
             warnings.append(runtime_status["reason"])
+        smoke_result: dict[str, Any] = {}
         if not root["exists"]:
             errors.append("Configured admin DB root is not reachable.")
         if not tree["all_present"]:
@@ -154,22 +206,33 @@ class AdminDriveDatabaseService:
         if bootstrap["missing"]:
             warnings.append(f"Missing bootstrap JSON files: {len(bootstrap['missing'])}")
         required_media = [
-            self.drive_path_service.db_root / self.drive_path_service.FOLDER_TREE["media"] / "products",
-            self.drive_path_service.db_root / self.drive_path_service.FOLDER_TREE["media"] / "raw_materials",
-            self.drive_path_service.db_root / self.drive_path_service.FOLDER_TREE["media"] / "payment_proofs",
+            "15_media/products",
+            "15_media/raw_materials",
+            "15_media/payment_proofs",
         ]
-        media_ok = all(path.exists() for path in required_media)
+        if runtime_status["drive_api_ready"]:
+            tree_status = self.get_database_tree_status()
+            present_paths = {item.get("logical_path", "") for item in tree_status.get("items", []) if item.get("exists")}
+            media_ok = all(path in present_paths for path in required_media)
+        else:
+            media_ok = all((self.drive_path_service.db_root / Path(path)).exists() for path in required_media)
         if not media_ok:
             errors.append("Required media folders are missing.")
         sample_partition = self.drive_path_service.db_root / self.drive_path_service.FOLDER_TREE["orders"] / "marketplace" / self.drive_path_service.current_year_month() / "marketplace_orders.json"
+        if runtime_status["drive_api_ready"]:
+            smoke_result = self.create_smoke_record()
+            if not smoke_result.get("success", False):
+                errors.append("Drive smoke write failed.")
         report = {
             "generated_at": datetime.now(UTC).isoformat(),
             "status": "PASS" if not errors else "FAIL",
             "runtime": runtime_status,
             "root": root,
+            "service_account": self.resolve_service_account_config(),
             "folder_tree": tree,
             "bootstrap_files": bootstrap,
             "media_ok": media_ok,
+            "smoke_test": smoke_result,
             "month_partition_sample": str(sample_partition),
             "errors": errors,
             "warnings": warnings,
@@ -187,6 +250,7 @@ class AdminDriveDatabaseService:
             "generated_at": datetime.now(UTC).isoformat(),
             "mode": "dry_run" if dry_run else "execute",
             "runtime": self.runtime_status(),
+            "service_account": self.resolve_service_account_config(),
             "root": root,
             "folder_tree": tree,
             "bootstrap_files": bootstrap,
@@ -226,6 +290,7 @@ class AdminDriveDatabaseService:
         report = {
             "generated_at": datetime.now(UTC).isoformat(),
             "runtime": self.runtime_status(),
+            "service_account": self.resolve_service_account_config(),
             "root": root,
             "folders": tree["folders"],
             "bootstrap_files": sorted(str(path) for path in self.drive_path_service.bootstrap_file_definitions()),
@@ -233,11 +298,75 @@ class AdminDriveDatabaseService:
         self._write_report(report, prefix="admin_drive_db_structure", latest_name="latest_admin_drive_db_structure.json")
         return report
 
+    def create_smoke_record(self) -> dict[str, Any]:
+        runtime = self.runtime_status()
+        payload = {
+            "schema_version": 1,
+            "status": "OK",
+            "created_at": datetime.now(UTC).isoformat(),
+            "runtime_backend": runtime,
+        }
+        target = self.drive_path_service.get_runtime_path("") / "drive_smoke_test.json"
+        if runtime.get("drive_api_ready", False):
+            try:
+                root = self.ensure_database_root(allow_create=True)
+                client = self._build_admin_drive_client()
+                folder_id = self._resolve_drive_folder_chain(
+                    client,
+                    root["root_folder_id"],
+                    ("14_runtime",),
+                    allow_create=True,
+                )
+                drive_file = self._upsert_drive_json_file(
+                    client,
+                    parent_id=folder_id,
+                    file_name="drive_smoke_test.json",
+                    payload=payload,
+                )
+                return {
+                    "success": True,
+                    "mode": "GOOGLE_DRIVE",
+                    "path": f"{root.get('root_folder_name', self.drive_path_service.ROOT_FOLDER_NAME)}/14_runtime/drive_smoke_test.json",
+                    "file_id": drive_file.get("id", ""),
+                    "web_view_link": drive_file.get("webViewLink", ""),
+                    "payload": payload,
+                    "message": "Smoke record created through the Google Drive service account runtime.",
+                    "runtime_ready": True,
+                }
+            except Exception as exc:  # noqa: BLE001
+                return {
+                    "success": False,
+                    "mode": "GOOGLE_DRIVE",
+                    "path": "",
+                    "file_id": "",
+                    "payload": payload,
+                    "message": self._friendly_drive_error(exc),
+                    "runtime_ready": False,
+                }
+
+        self.safe_drive_write_service.replace_document(target, payload)
+        return {
+            "success": True,
+            "mode": "LOCAL_MIRROR",
+            "path": str(target),
+            "file_id": "",
+            "payload": payload,
+            "message": "Google Drive is not connected. Using local canonical mirror fallback.",
+            "runtime_ready": False,
+        }
+
     def get_database_tree_status(self) -> dict[str, Any]:
         runtime = self.runtime_status()
         root = self.ensure_database_root(allow_create=False)
         mode = "GOOGLE_DRIVE" if self._should_use_drive_api() else "LOCAL_MIRROR"
         required_entries: list[tuple[str, str]] = [(folder, "folder") for folder in self.drive_path_service.FOLDER_TREE.values()]
+        required_entries.extend(
+            [
+                ("15_media/products", "folder"),
+                ("15_media/raw_materials", "folder"),
+                ("15_media/payment_proofs", "folder"),
+            ]
+        )
         required_entries.extend(
             [
                 ("00_config/navigation_config.json", "json"),
@@ -278,6 +407,7 @@ class AdminDriveDatabaseService:
                 "path": root.get("root_path", str(self.drive_path_service.db_root)),
                 "exists": root.get("exists", False),
             },
+            "service_account": self.resolve_service_account_config(),
             "items": sorted(items, key=lambda item: item.get("logical_path", "")),
             "missing": missing,
             "warnings": warnings,
@@ -313,14 +443,15 @@ class AdminDriveDatabaseService:
 
     def _get_local_tree_items(self) -> list[dict[str, Any]]:
         items: list[dict[str, Any]] = []
-        for folder in self.drive_path_service.FOLDER_TREE.values():
+        for folder in self.drive_path_service.canonical_relative_folders():
+            logical_path = folder.as_posix()
             target = self.drive_path_service.db_root / folder
             stat = target.stat() if target.exists() else None
             items.append(
                 {
                     "name": target.name,
                     "type": "folder",
-                    "logical_path": folder,
+                    "logical_path": logical_path,
                     "id": "",
                     "path": str(target),
                     "exists": target.exists(),
@@ -353,15 +484,17 @@ class AdminDriveDatabaseService:
             return items
         client = self._build_admin_drive_client()
         root_id = root.get("root_folder_id", "")
-        for folder in self.drive_path_service.FOLDER_TREE.values():
-            drive_item = self._find_drive_item(client, name=folder, parent_id=root_id, mime_type="application/vnd.google-apps.folder")
+        for folder in self.drive_path_service.canonical_relative_folders():
+            logical_path = folder.as_posix()
+            parent_id = self._resolve_drive_folder_chain(client, root_id, folder.parts[:-1], allow_create=False) if folder.parts[:-1] else root_id
+            drive_item = self._find_drive_item(client, name=folder.name, parent_id=parent_id, mime_type="application/vnd.google-apps.folder") if parent_id else None
             items.append(
                 {
-                    "name": folder,
+                    "name": folder.name,
                     "type": "folder",
-                    "logical_path": folder,
+                    "logical_path": logical_path,
                     "id": (drive_item or {}).get("id", ""),
-                    "path": f"{root.get('root_folder_name', self.drive_path_service.ROOT_FOLDER_NAME)}/{folder}",
+                    "path": f"{root.get('root_folder_name', self.drive_path_service.ROOT_FOLDER_NAME)}/{logical_path}",
                     "exists": bool(drive_item),
                     "last_modified": (drive_item or {}).get("modifiedTime", ""),
                     "record_count": None,
@@ -408,10 +541,18 @@ class AdminDriveDatabaseService:
                 "drive_api_ready": False,
                 "reason": "Drive API storage runtime is disabled.",
             }
+        service_account = self.resolve_service_account_config()
+        if service_account.get("error"):
+            return {
+                "runtime_backend": "local_path_mirror",
+                "drive_api_requested": True,
+                "drive_api_ready": False,
+                "reason": service_account["error"],
+            }
         try:
             self._build_admin_drive_client()
             return {
-                "runtime_backend": "google_drive_api",
+                "runtime_backend": "google_drive_service_account",
                 "drive_api_requested": True,
                 "drive_api_ready": True,
                 "reason": "",
@@ -429,15 +570,17 @@ class AdminDriveDatabaseService:
         return bool(status["drive_api_requested"] and status["drive_api_ready"])
 
     def _build_admin_drive_client(self):
-        if not self.drive_service or not self.auth_service or not self.security_service:
+        if not self.drive_service:
             raise RuntimeError("Admin Drive DB runtime hooks are not fully configured.")
         if not getattr(self.drive_service, "use_drive_api", False):
             raise RuntimeError("Drive API storage runtime is disabled.")
-        if not self.security_service.admin_token_ready():
-            raise RuntimeError("Admin runtime token is not provisioned for Admin Drive DB.")
-        refresh_token = self.security_service.decrypt_refresh_token(self.security_service.admin_token_file)
-        credentials_payload = self.security_service.build_runtime_credentials_payload(refresh_token=refresh_token)
-        credentials = self.auth_service.refresh_credentials(credentials_payload)
+        service_account_cfg = self.resolve_service_account_config()
+        if service_account_cfg.get("error"):
+            raise RuntimeError(service_account_cfg["error"])
+        credentials = service_account.Credentials.from_service_account_info(
+            service_account_cfg["info"],
+            scopes=["https://www.googleapis.com/auth/drive"],
+        )
         return self.drive_service.build_drive_client(credentials)
 
     def _ensure_drive_database_root(self, config: dict[str, Any], *, allow_create: bool) -> dict[str, Any]:
@@ -592,3 +735,35 @@ class AdminDriveDatabaseService:
         ).execute()
         files = response.get("files", [])
         return files[0] if files else None
+
+    def _upsert_drive_json_file(self, client, *, parent_id: str, file_name: str, payload: dict[str, Any]) -> dict[str, Any]:
+        existing_file = self._find_drive_item(client, name=file_name, parent_id=parent_id, mime_type=None)
+        media = MediaInMemoryUpload(json.dumps(payload).encode("utf-8"), mimetype="application/json", resumable=False)
+        if existing_file:
+            return client.files().update(
+                fileId=existing_file["id"],
+                media_body=media,
+                fields="id,name,parents,webViewLink,modifiedTime",
+            ).execute()
+        return client.files().create(
+            body={"name": file_name, "parents": [parent_id]},
+            media_body=media,
+            fields="id,name,parents,webViewLink,modifiedTime",
+        ).execute()
+
+    def _friendly_drive_error(self, exc: Exception) -> str:
+        message = str(exc)
+        lowered = message.lower()
+        if "missing google_service_account_json" in lowered:
+            return "Missing GOOGLE_SERVICE_ACCOUNT_JSON."
+        if "service account json is missing client_email" in lowered:
+            return "Service account JSON is missing client_email."
+        if "invalid service account json" in lowered:
+            return message
+        if "file not found" in lowered or "not found" in lowered:
+            return "Root folder not found or not shared with the service account."
+        if "permission" in lowered or "insufficient" in lowered or "forbidden" in lowered:
+            return "Permission denied. Share MANDITRADE_DB with the service account email as Editor and enable Drive API."
+        if "accessnotconfigured" in lowered or "api has not been used" in lowered:
+            return "Drive API is not enabled for the Google Cloud project."
+        return message

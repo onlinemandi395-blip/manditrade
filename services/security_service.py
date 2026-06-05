@@ -37,7 +37,7 @@ class SecurityService:
 
     def load_streamlit_secrets(self) -> dict[str, Any]:
         secrets = {}
-        for section in ("security", "google", "admin"):
+        for section in ("security", "google", "admin", "admin_token", "google_drive"):
             if section in st.secrets:
                 secrets[section] = dict(st.secrets[section])
         return secrets
@@ -51,8 +51,30 @@ class SecurityService:
     def get_admin_email(self) -> str | None:
         return self.load_streamlit_secrets().get("admin", {}).get("admin_email")
 
+    def get_admin_refresh_token_plain(self) -> str | None:
+        secrets = self.load_streamlit_secrets()
+        admin_token_section = secrets.get("admin_token", {})
+        admin_section = secrets.get("admin", {})
+        google_drive_section = secrets.get("google_drive", {})
+        return (
+            admin_token_section.get("refresh_token")
+            or admin_token_section.get("admin_refresh_token")
+            or admin_section.get("admin_refresh_token")
+            or google_drive_section.get("admin_refresh_token")
+        )
+
     def get_admin_token_secret(self) -> str | None:
-        return self.load_streamlit_secrets().get("admin_token", {}).get("encrypted_token")
+        secrets = self.load_streamlit_secrets()
+        admin_token_section = secrets.get("admin_token", {})
+        admin_section = secrets.get("admin", {})
+        google_drive_section = secrets.get("google_drive", {})
+        return (
+            admin_token_section.get("encrypted_token")
+            or admin_token_section.get("encrypted_admin_refresh_token")
+            or admin_section.get("encrypted_admin_refresh_token")
+            or admin_section.get("admin_refresh_token_encrypted")
+            or google_drive_section.get("encrypted_admin_refresh_token")
+        )
 
     def is_admin_identity(self, user: AuthUser | None) -> bool:
         if not user:
@@ -164,6 +186,9 @@ class SecurityService:
     def decrypt_refresh_token(self, source: Path | None = None) -> str:
         token_file = source or self.admin_token_file
         if source is None:
+            plain_refresh_token = self.get_admin_refresh_token_plain()
+            if plain_refresh_token and plain_refresh_token.strip():
+                return plain_refresh_token.strip()
             secret_token = self.get_admin_token_secret()
             if secret_token and secret_token.strip() != self.PLACEHOLDER_ADMIN_TOKEN:
                 return self.encryption_service.decrypt(secret_token.strip())
@@ -172,10 +197,14 @@ class SecurityService:
         return self.encryption_service.decrypt_from_file(token_file)
 
     def admin_token_exists(self) -> bool:
+        plain_refresh_token = self.get_admin_refresh_token_plain()
         secret_token = self.get_admin_token_secret()
-        return bool(secret_token and secret_token.strip()) or self.admin_token_file.exists()
+        return bool(plain_refresh_token and plain_refresh_token.strip()) or bool(secret_token and secret_token.strip()) or self.admin_token_file.exists()
 
     def admin_token_is_placeholder(self) -> bool:
+        plain_refresh_token = self.get_admin_refresh_token_plain()
+        if plain_refresh_token and plain_refresh_token.strip():
+            return plain_refresh_token.strip() == self.PLACEHOLDER_ADMIN_TOKEN
         secret_token = self.get_admin_token_secret()
         if secret_token and secret_token.strip():
             return secret_token.strip() == self.PLACEHOLDER_ADMIN_TOKEN
@@ -263,6 +292,7 @@ class SecurityService:
         return {
             "verification_configured": self.verification_is_configured(),
             "admin_token_file_present": self.admin_token_file.exists(),
+            "admin_plain_refresh_token_present": bool((self.get_admin_refresh_token_plain() or "").strip()),
             "admin_token_secret_present": bool((self.get_admin_token_secret() or "").strip()),
             "admin_token_placeholder": self.admin_token_is_placeholder(),
             "admin_token_ready": self.admin_token_ready(),

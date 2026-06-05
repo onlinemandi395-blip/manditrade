@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from datetime import UTC, datetime
 
 import streamlit as st
@@ -103,6 +104,7 @@ def build_app_context() -> dict:
     system_config["storage"].setdefault("admin_drive_db_enabled", True)
     system_config["storage"].setdefault("admin_db_root_folder_id", "")
     system_config["storage"].setdefault("admin_db_root_folder_name", "MANDITRADE_DB")
+    system_config["storage"].setdefault("service_account_json", "")
     system_config.setdefault(
         "public_payment",
         {
@@ -146,6 +148,12 @@ def build_app_context() -> dict:
         )
     oauth_config_fallback_active = not oauth_secrets_override_active
     google_drive_secret_overrides = dict(st.secrets["google_drive"]) if "google_drive" in st.secrets else {}
+    service_account_present = bool(
+        str(google_drive_secret_overrides.get("service_account_json", "") or "").strip()
+        or str(os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "") or "").strip()
+        or str(system_config["storage"].get("service_account_json", "") or "").strip()
+    )
+    drive_service.use_drive_api = bool(drive_service.use_drive_api or service_account_present)
 
     auth_service = AuthService(oauth_config=oauth_config, enable_mock_auth=system_config["security"]["enable_mock_auth"])
     security_secret_overrides = dict(st.secrets["security"]) if "security" in st.secrets else {}

@@ -18,11 +18,11 @@ Status meanings:
 | Navigation Simplification | `PARTIAL` | Visible nav is consolidated around `orders`, `my_orders`, `shipments`, and `admin_drive_db`, while older aliases still exist for compatibility behind the scenes. |
 | Orders Consolidation | `PARTIAL` | Admin now has a single Orders hub and role-specific My Orders hub, but some deeper workflow actions still live inside legacy pages. |
 | My Orders | `DONE` | Manufacturer and mahajan sidebars now expose one `My Orders` route backed by the shared order hub. |
-| Admin Drive DB Page | `DONE` | Dedicated route and page exist with validation, bootstrap, structure report, smoke record, and navigation inspector. |
-| Smoke Record | `DONE` | Smoke record action now reports local mirror vs Drive-connected behavior explicitly and shows the written path. |
+| Admin Drive DB Page | `DONE` | Dedicated route and page exist with validation, bootstrap, structure report, smoke record, navigation inspector, and service-account status. |
+| Smoke Record | `DONE` | Smoke record action now reports service-account Drive write success or local-mirror fallback explicitly and shows the written path or Drive file ID. |
 | Shipments Consolidation | `DONE` | `Shipments` is now the single visible shipment route across active roles. |
 | Identity Governance | `PARTIAL` | Admin manufacturer, mahajan, and worker governance screens now exist with completeness/trust summaries, but invitation analytics and deeper self-service completion are still maturing. |
-| Admin Drive DB | `PARTIAL` | Canonical root/services exist; live cutover remains operator-controlled. |
+| Admin Drive DB | `PARTIAL` | Canonical root/services exist and now prefer Google Drive service-account access; live cutover remains operator-controlled. |
 | Inventory Engine | `PARTIAL` | Unified inventory records, reservations, and movement ledger now exist across marketplace, MandiPlace, raw materials, and suta, and records are now warehouse-aware with default site fallback. |
 | Warehouses | `PARTIAL` | Warehouse records, default-site fallback, and role-specific warehouse management screens now exist, but deeper multi-warehouse allocation logic is still pending. |
 | Shipments | `PARTIAL` | Shipment records now link dispatch flows to source warehouses across marketplace, MandiPlace, and supply lanes, but optimization and richer courier execution remain future work. |

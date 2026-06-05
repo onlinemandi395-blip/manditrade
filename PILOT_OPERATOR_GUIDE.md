@@ -65,6 +65,8 @@ Open these areas in order:
   - required JSON bootstrap status
   - latest validation/bootstrap reports
   - canonical readiness summary
+- Drive DB uses a Google Service Account, not an admin refresh token
+- the Drive folder must be shared with the service-account email as `Editor`
 - Run:
   - `python scripts/bootstrap_admin_drive_db.py --dry-run`
   - `python scripts/bootstrap_admin_drive_db.py --execute`

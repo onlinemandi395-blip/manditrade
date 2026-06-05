@@ -125,12 +125,12 @@ def render_health_dashboard(app_context: dict) -> None:
                     )
                 )
             admin_token_status = app_context["google_runtime_diagnostic_service"].admin_token_status()
-            with st.expander("Admin Token Status", expanded=False):
+            with st.expander("Admin Runtime OAuth Token Status", expanded=False):
                 st.json(admin_token_status)
             if not admin_token_status["token_file_exists"] or admin_token_status["placeholder_detected"]:
-                st.warning("Long-lived admin runtime mode is disabled until configs/admin_token.enc is provisioned with a real encrypted refresh token.")
+                st.info("Drive DB no longer depends on an admin refresh token. This status only matters for legacy admin runtime OAuth flows.")
             elif admin_token_status["error"]:
-                st.warning("Admin token file exists but verification failed. Re-provision the admin token before relying on long-lived runtime mode.")
+                st.info("Legacy admin runtime OAuth token verification failed. This does not block Drive DB service-account mode.")
             col_a, col_b = st.columns(2)
             if col_a.button("Test Drive Access", use_container_width=True, disabled=not app_context.get("google_runtime_enabled", False)):
                 result = app_context["google_runtime_diagnostic_service"].test_drive_access(
