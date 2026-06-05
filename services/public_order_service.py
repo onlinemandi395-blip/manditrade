@@ -126,6 +126,15 @@ class PublicOrderService:
             "created_at": datetime.now(UTC).isoformat(),
             "updated_at": datetime.now(UTC).isoformat(),
         }
+        reserve_items = [{"product_id": item["product_id"], "qty": int(item["qty"])} for item in items]
+        self.dual_inventory_service.reserve_self_inventory(
+            seller_id,
+            reserve_items,
+            related_order_id=order["public_order_id"],
+            note="Marketplace checkout reserved stock",
+            created_by=buyer.get("email", ""),
+        )
+        order["inventory_reserved"] = True
         self.safe_drive_write_service.replace_document(self._order_path(order["public_order_id"], order["created_at"]), order)
         if self.settlement_service:
             self.settlement_service.ensure_transaction(
@@ -282,9 +291,6 @@ class PublicOrderService:
             )
             return updated
 
-        reserve_items = [{"product_id": item["product_id"], "qty": int(item["qty"])} for item in order.get("items", [])]
-        self.dual_inventory_service.reserve_self_inventory(order["assigned_seller_manufacturer_id"], reserve_items)
-
         def mutator(payload: dict[str, Any]) -> dict[str, Any]:
             payload["payment_status"] = "VERIFIED"
             payload["status"] = "PAID"
@@ -413,6 +419,9 @@ class PublicOrderService:
             order["assigned_seller_manufacturer_id"],
             [{"product_id": item["product_id"], "qty": int(item["qty"])} for item in order.get("items", [])],
             bucket="self_inventory",
+            related_order_id=public_order_id,
+            note="Marketplace order delivered",
+            created_by=getattr(acting_user, "email", ""),
         )
         updated = self._transition_order(
             public_order_id,

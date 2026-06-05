@@ -10,10 +10,11 @@ from components.ui_shell import render_metric_card, render_page_header
 
 def render_inventory_management(app_context: dict) -> None:
     user = app_context["current_user"]
+    inventory_service = app_context.get("inventory_service")
     render_page_header(
         "Inventory",
-        "Run self stock and mandi stock separately, with explicit transfer controls between both buckets.",
-        ["Dual Inventory", "Self -> Mandi", "Mandi -> Self"],
+        "Manage unified marketplace and mandi stock with explicit transfer controls, low-stock visibility, and movement history.",
+        ["Unified Inventory", "Marketplace + Mandi", "Transfers"],
         role=user.role.replace("_", " ").title() if user else "Inventory View",
         metrics=[("Split Model", "Self + mandi"), ("Control Mode", "Explicit transfers")],
         kicker="Digital Manpur Stock Plane",
@@ -25,6 +26,12 @@ def render_inventory_management(app_context: dict) -> None:
 
     dual_inventory_service = app_context["dual_inventory_service"]
     inventory = dual_inventory_service.list_inventory(user.manufacturer_code)
+    low_stock_records = [
+        item
+        for item in inventory.get("items", [])
+        if int(item.get("self_inventory", {}).get("available_qty", 0) or 0) <= 5
+        or int(item.get("mandi_inventory", {}).get("available_qty", 0) or 0) <= 5
+    ]
     render_metric_grid(
         [
             render_metric_card("Products Tracked", str(len(inventory.get("items", []))), "SUCCESS"),
@@ -38,6 +45,7 @@ def render_inventory_management(app_context: dict) -> None:
                 str(sum(int(item.get("mandi_inventory", {}).get("available_qty", 0)) for item in inventory.get("items", []))),
                 "PENDING",
             ),
+            render_metric_card("Low Stock", str(len(low_stock_records)), "WARNING"),
         ]
     )
     overview_tab, add_tab, transfer_tab = st.tabs(["Overview", "Add / Update Item", "Transfer Controls"])
@@ -52,6 +60,16 @@ def render_inventory_management(app_context: dict) -> None:
             """
         )
         st.dataframe(inventory.get("items", []), use_container_width=True)
+        if inventory_service:
+            owner_inventory_ids = {
+                row.get("inventory_id")
+                for row in inventory_service.get_inventory_for_owner(owner_role="manufacturer", owner_id=user.manufacturer_code, network="MARKETPLACE")
+                + inventory_service.get_inventory_for_owner(owner_role="manufacturer", owner_id=user.manufacturer_code, network="MANDIPLACE")
+            }
+            movement_rows = [row for row in inventory_service.movement_history() if row.get("inventory_id") in owner_inventory_ids]
+            if movement_rows:
+                st.caption("Recent inventory movements")
+                st.dataframe(movement_rows[:10], use_container_width=True)
     with add_tab:
         with st.form("add_inventory_item"):
             product_code = st.text_input("Product ID")

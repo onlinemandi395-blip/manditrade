@@ -25,6 +25,24 @@ def list_suta_materials(materials: list[dict[str, Any]]) -> list[dict[str, Any]]
     return [item for item in materials if is_suta_material(item) and item.get("status") == "ACTIVE"]
 
 
+def enrich_suta_materials(materials: list[dict[str, Any]], inventory_service) -> list[dict[str, Any]]:
+    enriched: list[dict[str, Any]] = []
+    for item in materials:
+        inventory = inventory_service.get_raw_material_inventory(str(item.get("raw_material_id", "")), network="SUTA_MANDI") if inventory_service else None
+        if inventory_service and not inventory:
+            inventory = inventory_service.sync_raw_material_record(item)
+        stock_state = inventory_service.stock_status(inventory) if inventory_service else "IN_STOCK"
+        enriched.append(
+            {
+                **item,
+                "inventory_record": inventory or {},
+                "stock_state": stock_state,
+                "stock_available": int((inventory or {}).get("available_qty", item.get("available_qty", 0) or 0) or 0),
+            }
+        )
+    return enriched
+
+
 def render_suta_mandi_dashboard(app_context: dict) -> None:
     user = app_context["current_user"]
     governance_service = app_context["governance_service"]
@@ -49,6 +67,8 @@ def render_suta_mandi_dashboard(app_context: dict) -> None:
 
     all_materials = governance_service.list_raw_materials()
     suta_materials = list_suta_materials(all_materials)
+    inventory_service = app_context.get("inventory_service")
+    suta_materials = enrich_suta_materials(suta_materials, inventory_service)
     orders = procurement_service.list_supply_orders(manufacturer_code=user.manufacturer_code)
     suta_orders = [item for item in orders if is_suta_material(next((mat for mat in all_materials if mat.get("raw_material_id") == item.get("raw_material_id")), {}))]
     cart_service = app_context.get("cart_service")
@@ -99,7 +119,8 @@ def render_suta_mandi_dashboard(app_context: dict) -> None:
                     "name": item.get("name", ""),
                     "category": item.get("category", ""),
                     "unit": item.get("unit", ""),
-                    "available_qty": item.get("available_qty", 0),
+                    "available_qty": item.get("stock_available", item.get("available_qty", 0)),
+                    "stock_state": item.get("stock_state", "IN_STOCK"),
                     "supply_price": item.get("supply_price", 0),
                     "mahajan_id": item.get("mahajan_id", ""),
                     "status": item.get("status", ""),
@@ -120,7 +141,7 @@ def render_suta_mandi_dashboard(app_context: dict) -> None:
                             subtitle=str(item.get("category", "SUTA")),
                             price_value=str(item.get("supply_price", 0)),
                             supplier_label=str(item.get("mahajan_id", "Admin routed")),
-                            availability_label=f"Qty {item.get('available_qty', 0)}",
+                            availability_label=f"{str(item.get('stock_state', 'IN_STOCK')).replace('_', ' ').title()} | Qty {item.get('stock_available', 0)}",
                             action_label="Request",
                             action_key=f"suta_add_{item.get('raw_material_id', index)}",
                             badges=trust_badge_service.badges_for_raw_material(item) if trust_badge_service else [],
@@ -143,11 +164,12 @@ def render_suta_mandi_dashboard(app_context: dict) -> None:
                     image=selected_image,
                     price_label="Supply",
                     price_value=str(selected_suta.get("supply_price", 0)),
-                    availability_label=f"Qty {selected_suta.get('available_qty', 0)}",
+                    availability_label=f"{str(selected_suta.get('stock_state', 'IN_STOCK')).replace('_', ' ').title()} | Qty {selected_suta.get('stock_available', 0)}",
                     metadata={
                         "MOQ": "1 lot",
                         "Supplier": str(selected_suta.get("mahajan_id", "Admin routed")),
                         "Packaging": "Admin coordinated",
+                        "Available Qty": str(selected_suta.get("stock_available", 0)),
                     },
                     badges=trust_badge_service.badges_for_raw_material(selected_suta) if trust_badge_service else [],
                     description=str(selected_suta.get("description", "") or "Yarn/raw-material sourcing lane for manufacturers."),

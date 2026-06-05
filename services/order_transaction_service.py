@@ -236,7 +236,13 @@ class OrderTransactionService:
                         source_id=rfq["rfq_id"],
                     )
             else:
-                self.dual_inventory_service.reserve_self_inventory(manufacturer_code, items)
+                self.dual_inventory_service.reserve_self_inventory(
+                    manufacturer_code,
+                    items,
+                    related_order_id=order_id,
+                    note="Private client order reserved",
+                    created_by=manufacturer_code,
+                )
                 order = self.order_state_service.transition(order, "MANUFACTURER_ACCEPTED", client_profile["email"], reason="Self inventory reserved")
                 order = self.order_state_service.transition(order, "READY_TO_CONFIRM", client_profile["email"], reason="Order ready for confirmation")
             self._save_order(manufacturer_code, order, order_path)
@@ -378,7 +384,14 @@ class OrderTransactionService:
             order["logistics"]["delivery_status"] = "DELIVERED"
             order["logistics"]["delivered_at"] = datetime.now(UTC).isoformat()
             order = self.order_state_service.transition(order, "DELIVERED", current_user.email, reason="Delivery confirmed")
-            self.dual_inventory_service.finalize_reserved(current_user.manufacturer_code, order.get("items", []), bucket="self_inventory")
+            self.dual_inventory_service.finalize_reserved(
+                current_user.manufacturer_code,
+                order.get("items", []),
+                bucket="self_inventory",
+                related_order_id=order_id,
+                note="Private client order delivered",
+                created_by=current_user.email,
+            )
             self._save_order(current_user.manufacturer_code, order, projection_path)
             context.state = "COMMITTED"
             self._write_journal(context)
@@ -405,7 +418,14 @@ class OrderTransactionService:
             self._register_target(context, self.domain_paths.private_self_inventory_path(current_user.manufacturer_code))
             order = self.drive_service.json_service.read_json(order_path, {})
             if order.get("status") in {"MANUFACTURER_ACCEPTED", "READY_TO_CONFIRM", "CONFIRMED"}:
-                self.dual_inventory_service.release_reserved(current_user.manufacturer_code, order.get("items", []), bucket="self_inventory")
+                self.dual_inventory_service.release_reserved(
+                    current_user.manufacturer_code,
+                    order.get("items", []),
+                    bucket="self_inventory",
+                    related_order_id=order_id,
+                    note="Private client order cancelled",
+                    created_by=current_user.email,
+                )
             order = self.order_state_service.transition(order, "CANCELLED", current_user.email, reason=reason or "Order cancelled")
             self._save_order(current_user.manufacturer_code, order, projection_path)
             context.state = "COMMITTED"

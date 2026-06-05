@@ -62,6 +62,125 @@ class ProcurementTransactionService:
         self.settlement_service = settlement_service
         self.invoice_service = invoice_service
 
+    def _inventory_service(self):
+        return getattr(self.dual_inventory_service, "inventory_service", None)
+
+    def _raw_material_record(self, raw_material_id: str) -> dict[str, Any]:
+        if not self.governance_service:
+            return {}
+        material_key = str(raw_material_id or "").strip().upper()
+        return next((item for item in self.governance_service.list_raw_materials() if item.get("raw_material_id") == material_key), {})
+
+    def _raw_material_network(self, raw_material_id: str) -> str:
+        material = self._raw_material_record(raw_material_id)
+        category = str(material.get("category", "")).strip().upper()
+        return "SUTA_MANDI" if category == "SUTA" else "RAW_MATERIALS"
+
+    def _reserve_supply_inventory(self, order: dict[str, Any], *, actor_email: str) -> None:
+        inventory_service = self._inventory_service()
+        if not inventory_service:
+            return
+        mahajan_id = str(order.get("mahajan_id", "")).strip().upper()
+        raw_material_id = str(order.get("raw_material_id", "")).strip().upper()
+        if not mahajan_id or not raw_material_id:
+            return
+        network = self._raw_material_network(raw_material_id)
+        item_type = "SUTA" if network == "SUTA_MANDI" else "RAW_MATERIAL"
+        inventory_service.reserve_order_items(
+            owner_role="mahajan",
+            owner_id=mahajan_id,
+            item_type=item_type,
+            network=network,
+            items=[{"raw_material_id": raw_material_id, "qty": order.get("qty", 0)}],
+            related_order_id=str(order.get("mandi_order_id", "")),
+            created_by=actor_email,
+            note="Supply order reserved stock",
+        )
+
+    def _release_supply_inventory(self, order: dict[str, Any], *, actor_email: str, note: str) -> None:
+        inventory_service = self._inventory_service()
+        if not inventory_service:
+            return
+        mahajan_id = str(order.get("mahajan_id", "")).strip().upper()
+        raw_material_id = str(order.get("raw_material_id", "")).strip().upper()
+        if not mahajan_id or not raw_material_id:
+            return
+        network = self._raw_material_network(raw_material_id)
+        item_type = "SUTA" if network == "SUTA_MANDI" else "RAW_MATERIAL"
+        inventory_service.release_order_reservations(
+            owner_role="mahajan",
+            owner_id=mahajan_id,
+            item_type=item_type,
+            network=network,
+            items=[{"raw_material_id": raw_material_id, "qty": order.get("qty", 0)}],
+            related_order_id=str(order.get("mandi_order_id", "")),
+            created_by=actor_email,
+            note=note,
+        )
+
+    def _mark_supply_inventory_dispatched(self, order: dict[str, Any], *, actor_email: str) -> None:
+        inventory_service = self._inventory_service()
+        if not inventory_service:
+            return
+        mahajan_id = str(order.get("mahajan_id", "")).strip().upper()
+        raw_material_id = str(order.get("raw_material_id", "")).strip().upper()
+        if not mahajan_id or not raw_material_id:
+            return
+        network = self._raw_material_network(raw_material_id)
+        item_type = "SUTA" if network == "SUTA_MANDI" else "RAW_MATERIAL"
+        record = inventory_service.get_inventory_by_keys(
+            owner_role="mahajan",
+            owner_id=mahajan_id,
+            item_type=item_type,
+            item_id=raw_material_id,
+            network=network,
+        )
+        if not record:
+            return
+        inventory_service.mark_dispatched(
+            inventory_id=record["inventory_id"],
+            qty=int(float(order.get("qty", 0) or 0)),
+            related_order_id=str(order.get("mandi_order_id", "")),
+            note="Supply order dispatched",
+            created_by=actor_email,
+        )
+
+    def _complete_supply_inventory(self, order: dict[str, Any], *, actor_email: str) -> None:
+        inventory_service = self._inventory_service()
+        if not inventory_service:
+            return
+        mahajan_id = str(order.get("mahajan_id", "")).strip().upper()
+        raw_material_id = str(order.get("raw_material_id", "")).strip().upper()
+        if not mahajan_id or not raw_material_id:
+            return
+        network = self._raw_material_network(raw_material_id)
+        item_type = "SUTA" if network == "SUTA_MANDI" else "RAW_MATERIAL"
+        inventory_service.confirm_order_items(
+            owner_role="mahajan",
+            owner_id=mahajan_id,
+            item_type=item_type,
+            network=network,
+            items=[{"raw_material_id": raw_material_id, "qty": order.get("qty", 0)}],
+            related_order_id=str(order.get("mandi_order_id", "")),
+            created_by=actor_email,
+            note="Supply order received",
+        )
+        record = inventory_service.get_inventory_by_keys(
+            owner_role="mahajan",
+            owner_id=mahajan_id,
+            item_type=item_type,
+            item_id=raw_material_id,
+            network=network,
+        )
+        if record:
+            inventory_service.mark_received(
+                inventory_id=record["inventory_id"],
+                qty=int(float(order.get("qty", 0) or 0)),
+                related_order_id=str(order.get("mandi_order_id", "")),
+                note="Supply order received",
+                created_by=actor_email,
+            )
+
     def _default_logistics(self) -> dict[str, Any]:
         return {
             "logistics_owner": "platform_admin",
@@ -578,6 +697,19 @@ class ProcurementTransactionService:
             "spread": breakdown.get("spread", 0),
             "commission_status": "DUE",
         }
+        inventory_items = [
+            {"product_id": item.get("product_id", ""), "qty": int(float(item.get("qty", 0) or 0))}
+            for item in order.get("items", [])
+            if item.get("product_id")
+        ]
+        if inventory_items:
+            self.dual_inventory_service.reserve_mandi_inventory(
+                str(order.get("supplier_manufacturer_id", "")).strip().upper(),
+                inventory_items,
+                related_order_id=mandiplace_order_id,
+                note="MandiPlace order reserved after manufacturer confirmation",
+                created_by=actor_email,
+            )
         order["payment_receiver"] = order.get("supplier_manufacturer_id", "")
         order["status"] = "MANUFACTURER_CONFIRMED"
         order.setdefault("internal_status_history", []).append({"status": "MANUFACTURER_CONFIRMED", "at": datetime.now(UTC).isoformat(), "actor": actor_email})
@@ -679,8 +811,24 @@ class ProcurementTransactionService:
             for item in order.get("items", [])
             if item.get("product_id")
         ]
-        if inventory_items:
-            self.dual_inventory_service.finalize_reserved(supplier_code, inventory_items, bucket="mandi_inventory")
+        inventory_service = self._inventory_service()
+        if inventory_items and inventory_service:
+            for item in inventory_items:
+                record = inventory_service.get_inventory_by_keys(
+                    owner_role="manufacturer",
+                    owner_id=supplier_code,
+                    item_type="PRODUCT",
+                    item_id=str(item.get("product_id", "")),
+                    network="MANDIPLACE",
+                )
+                if record:
+                    inventory_service.mark_dispatched(
+                        inventory_id=record["inventory_id"],
+                        qty=int(float(item.get("qty", 0) or 0)),
+                        related_order_id=mandiplace_order_id,
+                        note="MandiPlace order dispatched",
+                        created_by=actor_email,
+                    )
         order["status"] = "SUPPLIER_DISPATCHED"
         order.setdefault("courier", self._default_courier())
         if order["courier"]:
@@ -736,6 +884,38 @@ class ProcurementTransactionService:
             raise ValueError("MandiPlace order not found.")
         if order.get("requesting_manufacturer_id") != manufacturer_code:
             raise PermissionError("Manufacturer cannot receive another manufacturer's MandiPlace order.")
+        inventory_items = [
+            {"product_id": item.get("product_id", ""), "qty": int(float(item.get("qty", 0) or 0))}
+            for item in order.get("items", [])
+            if item.get("product_id")
+        ]
+        if inventory_items:
+            self.dual_inventory_service.finalize_reserved(
+                str(order.get("supplier_manufacturer_id", "")).strip().upper(),
+                inventory_items,
+                bucket="mandi_inventory",
+                related_order_id=mandiplace_order_id,
+                note="MandiPlace order received",
+                created_by=actor_email,
+            )
+            inventory_service = self._inventory_service()
+            if inventory_service:
+                for item in inventory_items:
+                    record = inventory_service.get_inventory_by_keys(
+                        owner_role="manufacturer",
+                        owner_id=str(order.get("supplier_manufacturer_id", "")).strip().upper(),
+                        item_type="PRODUCT",
+                        item_id=str(item.get("product_id", "")),
+                        network="MANDIPLACE",
+                    )
+                    if record:
+                        inventory_service.mark_received(
+                            inventory_id=record["inventory_id"],
+                            qty=int(float(item.get("qty", 0) or 0)),
+                            related_order_id=mandiplace_order_id,
+                            note="MandiPlace order received",
+                            created_by=actor_email,
+                        )
         order["status"] = "RECEIVED"
         order.setdefault("logistics", self._default_logistics())
         order["logistics"]["delivery_status"] = "DELIVERED"
@@ -887,6 +1067,7 @@ class ProcurementTransactionService:
             raise ValueError("Supply order not found.")
         if order.get("manufacturer_id") != manufacturer_code:
             raise PermissionError("Manufacturer cannot confirm another manufacturer's supply order.")
+        self._reserve_supply_inventory(order, actor_email=actor_email)
         order["status"] = "MANUFACTURER_CONFIRMED"
         order.setdefault("internal_status_history", []).append({"status": "MANUFACTURER_CONFIRMED", "at": datetime.now(UTC).isoformat(), "actor": actor_email})
         commission = dict(order.get("commission_object") or {})
@@ -991,6 +1172,7 @@ class ProcurementTransactionService:
             raise ValueError("Supply order not found.")
         if order.get("mahajan_id") != mahajan_id:
             raise PermissionError("Mahajan cannot dispatch another mahajan's order.")
+        self._mark_supply_inventory_dispatched(order, actor_email=actor_email)
         order["status"] = "MAHAJAN_DISPATCHED"
         order.setdefault("logistics", self._default_logistics())
         order["logistics"]["delivery_status"] = "DISPATCHED"
@@ -1008,6 +1190,7 @@ class ProcurementTransactionService:
             raise ValueError("Supply order not found.")
         if order.get("manufacturer_id") != manufacturer_code:
             raise PermissionError("Manufacturer cannot receive another manufacturer's supply order.")
+        self._complete_supply_inventory(order, actor_email=actor_email)
         order["status"] = "MANUFACTURER_RECEIVED"
         order.setdefault("logistics", self._default_logistics())
         order["logistics"]["delivery_status"] = "DELIVERED"
@@ -1039,6 +1222,8 @@ class ProcurementTransactionService:
             raise ValueError("Supply order not found.")
         if order.get("status") in {"MANUFACTURER_RECEIVED", "CLOSED"}:
             raise ValueError("Received or closed mandi orders cannot be cancelled.")
+        if order.get("status") == "MANUFACTURER_CONFIRMED":
+            self._release_supply_inventory(order, actor_email=admin_email, note="Supply order cancelled")
         order["status"] = "CANCELLED"
         if reason:
             order["cancellation_reason"] = reason
@@ -1177,7 +1362,13 @@ class ProcurementTransactionService:
             normalized_items = self._validate_available_items(available_items)
             self._register_target(context, rfq_path)
             self._register_target(context, inventory_path)
-            self.dual_inventory_service.reserve_mandi_inventory(current_user.manufacturer_code, [{"product_id": item["product_id"], "qty": item["qty"]} for item in normalized_items])
+            self.dual_inventory_service.reserve_mandi_inventory(
+                current_user.manufacturer_code,
+                [{"product_id": item["product_id"], "qty": item["qty"]} for item in normalized_items],
+                related_order_id=rfq_id,
+                note="RFQ supplier stock reserved",
+                created_by=current_user.email,
+            )
             response = {
                 "response_id": self.id_allocator_service.allocate("response"),
                 "supplier_manufacturer_id": current_user.manufacturer_code,

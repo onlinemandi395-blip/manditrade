@@ -37,6 +37,7 @@ from services.favorites_service import FavoritesService
 from services.id_allocator_service import IdAllocatorService
 from services.identity_governance_service import IdentityGovernanceService
 from services.image_service import ImageService
+from services.inventory_service import InventoryService
 from services.job_service import JobService
 from services.ledger_reminder_service import LedgerReminderService
 from services.ledger_service import LedgerService
@@ -249,7 +250,21 @@ def build_app_context() -> dict:
         id_allocator_service=id_allocator_service,
     )
     domain_paths_service = DomainPathsService(drive_service=drive_service, drive_path_service=drive_path_service)
-    dual_inventory_service = DualInventoryService(safe_drive_write_service=safe_drive_write_service, json_service=drive_service.json_service, domain_paths_service=domain_paths_service)
+    inventory_service = InventoryService(
+        drive_path_service=drive_path_service,
+        domain_paths_service=domain_paths_service,
+        safe_drive_write_service=safe_drive_write_service,
+        json_service=drive_service.json_service,
+        id_allocator_service=id_allocator_service,
+        governance_service=governance_service,
+        event_notification_service=event_notification_service,
+    )
+    dual_inventory_service = DualInventoryService(
+        safe_drive_write_service=safe_drive_write_service,
+        json_service=drive_service.json_service,
+        domain_paths_service=domain_paths_service,
+        inventory_service=inventory_service,
+    )
     trade_confirmation_service = TradeConfirmationService(safe_drive_write_service=safe_drive_write_service, json_service=drive_service.json_service, id_allocator_service=id_allocator_service, domain_paths_service=domain_paths_service)
     ledger_service = LedgerService(safe_drive_write_service=safe_drive_write_service, json_service=drive_service.json_service, id_allocator_service=id_allocator_service, domain_paths_service=domain_paths_service)
     public_orders_root = BASE_DIR / "data" / "public_orders"
@@ -616,6 +631,7 @@ def build_app_context() -> dict:
         "catalog_service": catalog_service,
         "product_catalog_service": product_catalog_service,
         "manufacturer_onboarding_service": manufacturer_onboarding_service,
+        "inventory_service": inventory_service,
         "dual_inventory_service": dual_inventory_service,
         "trade_confirmation_service": trade_confirmation_service,
         "ledger_service": ledger_service,

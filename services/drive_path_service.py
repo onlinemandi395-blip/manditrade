@@ -215,6 +215,8 @@ class DrivePathService:
 
     def path(self, logical_path: str, *, year_month: str | None = None) -> Path:
         normalized = str(logical_path or "").strip().lower()
+        if normalized.startswith("inventory."):
+            return self.get_inventory_path(normalized.split(".", 1)[1])
         if normalized == "orders.marketplace":
             return self.get_order_path("marketplace", year_month)
         if normalized == "orders.mandiplace":
@@ -234,6 +236,19 @@ class DrivePathService:
         if normalized.startswith("identity."):
             return self.get_registry_path(normalized.split(".", 1)[1])
         raise ValueError(f"Unsupported logical path: {logical_path}")
+
+    def get_inventory_path(self, name: str) -> Path:
+        normalized = str(name or "").strip().lower()
+        mapping = {
+            "manufacturer_inventory": self.db_root / self._folder("inventory") / "manufacturer_inventory.json",
+            "mandiplace_inventory": self.db_root / self._folder("inventory") / "mandiplace_inventory.json",
+            "raw_material_inventory": self.db_root / self._folder("inventory") / "raw_material_inventory.json",
+            "suta_inventory": self.db_root / self._folder("inventory") / "suta_inventory.json",
+            "movements": self.db_root / self._folder("inventory") / "inventory_movements.json",
+        }
+        target = mapping[normalized]
+        target.parent.mkdir(parents=True, exist_ok=True)
+        return target
 
     def bootstrap_file_definitions(self) -> dict[Path, dict[str, Any]]:
         records_envelope = lambda key="records": {"schema_version": 1, key: [], "updated_at": ""}

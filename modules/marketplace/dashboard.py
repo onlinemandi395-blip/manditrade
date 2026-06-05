@@ -17,6 +17,23 @@ from components.ui_shell import render_page_header, render_showcase_strip
 from modules.profile.dashboard import render_public_buyer_profile_setup
 
 
+def enrich_marketplace_products(products: list[dict[str, Any]], inventory_service) -> list[dict[str, Any]]:
+    enriched: list[dict[str, Any]] = []
+    for item in products:
+        inventory = inventory_service.get_marketplace_inventory_for_product(item) if inventory_service else None
+        stock_state = inventory_service.stock_status(inventory) if inventory_service else ("IN_STOCK" if item.get("visible", True) else "OUT_OF_STOCK")
+        stock_available = int((inventory or {}).get("available_qty", 0) or 0)
+        enriched.append(
+            {
+                **item,
+                "inventory_record": inventory or {},
+                "stock_state": stock_state,
+                "stock_available": stock_available,
+            }
+        )
+    return enriched
+
+
 def filter_marketplace_products(
     products: list[dict[str, Any]],
     *,
@@ -37,7 +54,7 @@ def filter_marketplace_products(
             or normalized_search in str(item.get("description", "")).lower()
         )
         and (max_price is None or float(item.get("approved_marketplace_price", item.get("marketplace_price", item.get("price", 0))) or 0) <= max_price)
-        and (not in_stock_only or bool(item.get("visible", True)))
+        and (not in_stock_only or str(item.get("stock_state", "IN_STOCK")).upper() != "OUT_OF_STOCK")
     ]
     if sort_by == "Price: Low to High":
         filtered.sort(key=lambda item: float(item.get("approved_marketplace_price", item.get("marketplace_price", item.get("price", 0))) or 0))
@@ -55,6 +72,8 @@ def render_marketplace_dashboard(app_context: dict) -> None:
     role = user.role if user else "public_browse"
     is_public_buyer = bool(user and user.role == "public_buyer")
     products = app_context["product_catalog_service"].list_products(include_pending=False, viewer_role="public_buyer")
+    inventory_service = app_context.get("inventory_service")
+    products = enrich_marketplace_products(products, inventory_service)
     image_service = app_context.get("image_service")
     favorites_service = app_context.get("favorites_service")
     trust_badge_service = app_context.get("trust_badge_service")
@@ -73,10 +92,10 @@ def render_marketplace_dashboard(app_context: dict) -> None:
     if not is_public_buyer:
         render_kpi_cards(
             [
-                {"label": "Public Products", "value": str(len(products)), "status": "SUCCESS"},
-                {"label": "Categories", "value": str(len(categories)), "status": "OPEN"},
-                {"label": "Flow", "value": "Instant Pay", "status": "PENDING"},
-            ]
+            {"label": "Public Products", "value": str(len(products)), "status": "SUCCESS"},
+            {"label": "Categories", "value": str(len(categories)), "status": "OPEN"},
+            {"label": "Low Stock", "value": str(len([item for item in products if item.get("stock_state") == "LOW_STOCK"])), "status": "WARNING"},
+        ]
         )
         render_showcase_strip(
             [
@@ -156,7 +175,7 @@ def render_marketplace_dashboard(app_context: dict) -> None:
                     subtitle=str(item.get("category", "General")),
                     price_label="Marketplace",
                     price_value=str(item.get("approved_marketplace_price", item.get("marketplace_price", item.get("price", 0)))),
-                    availability_label=f"MOQ {item.get('minimum_order_qty', 1)}",
+                    availability_label=f"{str(item.get('stock_state', 'IN_STOCK')).replace('_', ' ').title()} | Qty {item.get('stock_available', 0)}",
                     visibility_label="PUBLIC",
                     action_label="View Details",
                     action_key=f"marketplace_view_{item.get('product_id', start + index)}",
@@ -205,7 +224,8 @@ def render_marketplace_dashboard(app_context: dict) -> None:
                 metadata={
                     "Unit": str(selected.get("unit", "unit")),
                     "Dispatch": "Seller confirmed",
-                    "Availability": "In stock" if selected.get("visible", True) else "Check seller",
+                    "Availability": str(selected.get("stock_state", "IN_STOCK")).replace("_", " ").title(),
+                    "Available Qty": str(selected.get("stock_available", 0)),
                 },
                 badges=trust_badges,
                 description=str(selected.get("description", "") or "Public marketplace catalog product."),
@@ -216,7 +236,8 @@ def render_marketplace_dashboard(app_context: dict) -> None:
                 step=max(int(selected.get("minimum_order_qty", 1) or 1), 1),
                 value=max(int(selected.get("minimum_order_qty", 1) or 1), 1),
             )
-            if st.button("Add To Cart", use_container_width=True):
+            add_disabled = str(selected.get("stock_state", "IN_STOCK")).upper() == "OUT_OF_STOCK"
+            if st.button("Add To Cart", use_container_width=True, disabled=add_disabled):
                 try:
                     public_cart_service.add_item(buyer["public_buyer_id"], product_id=selected_product_id, qty=int(qty))
                 except ValueError as exc:

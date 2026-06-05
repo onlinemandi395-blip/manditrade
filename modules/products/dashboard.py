@@ -28,6 +28,7 @@ def render_products_dashboard(app_context: dict) -> None:
         viewer_code=viewer_code,
     )
     image_service = app_context.get("image_service")
+    inventory_service = app_context.get("inventory_service")
     render_platform_shell(
         title="Products",
         subtitle="Govern finished products for catalog selling, approvals, and pricing. Raw-material supply belongs on the Raw Materials and Mandi Orders pages.",
@@ -84,7 +85,12 @@ def render_products_dashboard(app_context: dict) -> None:
                         subtitle=str(item.get("category", "General")),
                         price_label="Marketplace",
                         price_value=str(item.get("approved_marketplace_price", item.get("suggested_marketplace_price", item.get("marketplace_price", item.get("mrp", 0))))),
-                        availability_label=str(item.get("status", "ACTIVE")),
+                        availability_label=(
+                            f"{inventory_service.stock_status(inventory_service.get_marketplace_inventory_for_product(item)).replace('_', ' ').title()} | "
+                            f"Qty {int((inventory_service.get_marketplace_inventory_for_product(item) or {}).get('available_qty', 0) or 0)}"
+                            if inventory_service
+                            else str(item.get("status", "ACTIVE"))
+                        ),
                         visibility_label=str(item.get("approved_visibility", item.get("visibility_request", "MANDI_NETWORK"))),
                         action_label="View Product",
                         action_key=f"products_preview_{item.get('product_id', index)}",

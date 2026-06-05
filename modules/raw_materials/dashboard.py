@@ -14,12 +14,32 @@ from components.responsive_layout import render_section_intro
 from utils.page_ui import render_empty_state
 
 
+def enrich_raw_materials(materials: list[dict], inventory_service) -> list[dict]:
+    enriched: list[dict] = []
+    for item in materials:
+        inventory = inventory_service.get_raw_material_inventory(str(item.get("raw_material_id", ""))) if inventory_service else None
+        if inventory_service and not inventory:
+            inventory = inventory_service.sync_raw_material_record(item)
+        stock_state = inventory_service.stock_status(inventory) if inventory_service else "IN_STOCK"
+        enriched.append(
+            {
+                **item,
+                "inventory_record": inventory or {},
+                "stock_state": stock_state,
+                "stock_available": int((inventory or {}).get("available_qty", item.get("available_qty", 0) or 0) or 0),
+            }
+        )
+    return enriched
+
+
 def render_raw_materials_dashboard(app_context: dict) -> None:
     user = app_context["current_user"]
     governance_service = app_context["governance_service"]
+    inventory_service = app_context.get("inventory_service")
     all_mahajans = governance_service.list_mahajans()
     mahajan = governance_service.get_mahajan_by_email(user.email) if user and user.role == "mahajan" else None
     materials = governance_service.list_raw_materials(mahajan_id=(mahajan or {}).get("mahajan_id")) if user and user.role == "mahajan" else governance_service.list_raw_materials()
+    materials = enrich_raw_materials(materials, inventory_service)
     supply_orders = app_context["procurement_transaction_service"].list_supply_orders(mahajan_id=(mahajan or {}).get("mahajan_id")) if user and user.role == "mahajan" else app_context["procurement_transaction_service"].list_supply_orders()
     image_service = app_context.get("image_service")
     trust_badge_service = app_context.get("trust_badge_service")
@@ -36,7 +56,7 @@ def render_raw_materials_dashboard(app_context: dict) -> None:
     render_kpi_cards(
         [
             {"label": "Active Raw Materials", "value": str(len([item for item in materials if item.get("status") == "ACTIVE"])), "status": "SUCCESS"},
-            {"label": "Low Stock", "value": str(len([item for item in materials if int(item.get("available_qty", 0) or 0) <= 10])), "status": "WARNING"},
+            {"label": "Low Stock", "value": str(len([item for item in materials if item.get("stock_state") == "LOW_STOCK"])), "status": "WARNING"},
             {"label": "Open Admin Requests", "value": str(len([item for item in supply_orders if item.get("status") not in {'CLOSED', 'CANCELLED'}])), "status": "PENDING"},
         ]
     )
@@ -65,7 +85,7 @@ def render_raw_materials_dashboard(app_context: dict) -> None:
                         subtitle=str(item.get("category", "RAW_MATERIAL")),
                         price_value=str(item.get("supply_price", 0)),
                         supplier_label=str(item.get("mahajan_id", "Admin routed")),
-                        availability_label=f"Qty {item.get('available_qty', 0)}",
+                        availability_label=f"{str(item.get('stock_state', 'IN_STOCK')).replace('_', ' ').title()} | Qty {item.get('stock_available', 0)}",
                         action_label="View Material",
                         action_key=f"raw_material_preview_{item.get('raw_material_id', index)}",
                         badges=trust_badge_service.badges_for_raw_material(item) if trust_badge_service else [],
@@ -82,11 +102,12 @@ def render_raw_materials_dashboard(app_context: dict) -> None:
                 image=selected_image,
                 price_label="Supply",
                 price_value=str(selected_material.get("supply_price", 0)),
-                availability_label=f"Qty {selected_material.get('available_qty', 0)}",
+                availability_label=f"{str(selected_material.get('stock_state', 'IN_STOCK')).replace('_', ' ').title()} | Qty {selected_material.get('stock_available', 0)}",
                 metadata={
                     "Supplier": str(selected_material.get("mahajan_id", "Admin managed")),
                     "Unit": str(selected_material.get("unit", "kg")),
                     "Procurement": "Admin routed",
+                    "Available Qty": str(selected_material.get("stock_available", 0)),
                 },
                 badges=trust_badge_service.badges_for_raw_material(selected_material) if trust_badge_service else [],
                 description=str(selected_material.get("description", "") or "Raw-material supply input for admin/mahajan-managed sourcing."),
@@ -139,7 +160,7 @@ def render_raw_materials_dashboard(app_context: dict) -> None:
                 image_file_ref=image_file_ref,
                 image_alt_text=image_alt_text or name,
             ) if image_service else {"image_url": image_url}
-            governance_service.upsert_raw_material(
+            saved = governance_service.upsert_raw_material(
                 {
                     "raw_material_id": raw_material_id,
                     "mahajan_id": owner_id,
@@ -153,6 +174,8 @@ def render_raw_materials_dashboard(app_context: dict) -> None:
                     "status": "ACTIVE",
                 }
             )
+            if inventory_service:
+                inventory_service.sync_raw_material_record(saved)
             st.success("Raw material saved.")
             st.rerun()
     with activity_tab:
