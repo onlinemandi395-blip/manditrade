@@ -86,6 +86,14 @@ def render_app() -> None:
             current_language=language,
             set_language=session_service.set_language,
         )
+        if oauth_service.is_debug_enabled() or bool(app_config.get("debug_auth", False)):
+            with st.expander("OAuth Debug", expanded=False):
+                st.write(
+                    {
+                        **oauth_service.get_debug_snapshot(),
+                        "current_session_user": session_service.get_user(),
+                    }
+                )
         return
 
     role = session_service.get_user_role()
