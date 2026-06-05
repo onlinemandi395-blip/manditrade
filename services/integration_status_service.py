@@ -19,14 +19,28 @@ class IntegrationStatusService:
         gmail_enabled = self.gmail_queue_service.is_enabled()
         gmail_sender = self.gmail_queue_service.get_sender_email()
         platform = self._get_platform_config()
+        users = self.data_service.list_collection("users")
+        products = self.data_service.list_collection("products")
+        orders = self.data_service.list_collection("orders")
+        notifications = self.data_service.list_collection("notifications")
         return {
             "google_oauth_status": "configured" if self.oauth_service.is_configured() else "missing",
             "google_drive_status": "connected" if drive_status.get("connected") else "disconnected",
             "drive_root_status": drive_status.get("root_folder_id") or drive_status.get("root_folder_name") or "missing",
+            "drive_mode": drive_status.get("mode", "user_oauth_drive"),
+            "admin_token_status": "available" if drive_status.get("admin_token_available") else "missing",
+            "drive_write_test": drive_status.get("drive_write_test", "FAIL"),
+            "gmail_send_scope": drive_status.get("gmail_send_scope", "missing"),
             "cache_status": self.cache_service.get_cache_status(),
             "gmail_status": "enabled" if gmail_enabled and gmail_sender else "disabled",
             "queue_count": len(self.data_service.list_collection("gmail_queue")),
-            "notification_queue_count": len(self.data_service.list_collection("notifications")),
+            "notification_queue_count": len(notifications),
             "primary_admin_email": str(platform.get("primary_admin_email", "") or dict(st.secrets.get("admin", {})).get("admin_email", "")),
             "primary_admin_name": str(platform.get("primary_admin_name", "") or ""),
+            "loaded_collection_count": len(self.cache_service.get_config("database").get("collections", {})),
+            "users_count": len(users),
+            "product_mapping_count": len(products),
+            "order_count": len(orders),
+            "language_selected": st.session_state.get("mt_next_language", "en"),
+            "available_languages": sorted((self.cache_service.get_config("languages") or {}).keys()),
         }

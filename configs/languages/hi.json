@@ -87,6 +87,8 @@
   "auth.google_not_configured": "Google Single Sign-On is not configured in Streamlit secrets.",
   "auth.oauth_failed": "Google sign-in failed",
   "auth.email_not_verified": "Google account email is not verified.",
+  "auth.signing_in": "Signing in with Google...",
+  "auth.error": "Authentication error",
   "login.feature.manufacturers": "Manufacturer Network",
   "login.feature.mahajans": "Mahajan Supply Network",
   "login.feature.marketplace": "Marketplace Commerce"

@@ -65,11 +65,13 @@ def render_app() -> None:
             resolved_user = auth_service.resolve_user(str(identity.get("email", "")))
             role = str(resolved_user.get("role", auth_service.get_unknown_user_default_role()))
             landing_page = navigation_service.get_default_route(role)
+            oauth_service.persist_admin_token(identity, resolved_user)
             session_service.authenticate(
                 {
                     **resolved_user,
                     "display_name": identity.get("display_name") or resolved_user.get("display_name", ""),
                     "photo_url": identity.get("photo_url", ""),
+                    "oauth_token": identity.get("oauth_token", {}),
                     "landing_page": landing_page,
                 }
             )
@@ -212,11 +214,21 @@ def render_app() -> None:
         render_table(
             [
                 {"key": "google_oauth_status", "value": status["google_oauth_status"]},
+                {"key": "drive_mode", "value": status["drive_mode"]},
                 {"key": "google_drive_status", "value": status["google_drive_status"]},
                 {"key": "drive_root_status", "value": status["drive_root_status"]},
+                {"key": "admin_token_status", "value": status["admin_token_status"]},
+                {"key": "drive_write_test", "value": status["drive_write_test"]},
+                {"key": "gmail_send_scope", "value": status["gmail_send_scope"]},
                 {"key": "gmail_status", "value": status["gmail_status"]},
+                {"key": "loaded_collection_count", "value": status["loaded_collection_count"]},
+                {"key": "users_count", "value": status["users_count"]},
+                {"key": "product_mapping_count", "value": status["product_mapping_count"]},
+                {"key": "order_count", "value": status["order_count"]},
                 {"key": "queue_count", "value": status["queue_count"]},
                 {"key": "notification_queue_count", "value": status["notification_queue_count"]},
+                {"key": "language_selected", "value": status["language_selected"]},
+                {"key": "available_languages", "value": ", ".join(status["available_languages"])},
                 {"key": "primary_admin_email", "value": status["primary_admin_email"]},
             ],
             caption="Integration status",

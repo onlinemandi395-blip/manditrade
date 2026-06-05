@@ -15,6 +15,7 @@ class SessionService:
                 "status": "ACTIVE",
                 "display_name": "",
                 "photo_url": "",
+                "oauth_token": {},
                 "landing_page": app_config.get("default_landing", {}).get(app_config.get("default_role", "public_buyer"), "marketplace"),
             },
         )
@@ -35,6 +36,7 @@ class SessionService:
             "status": str(user.get("status", "ACTIVE")),
             "display_name": str(user.get("display_name", "")),
             "photo_url": str(user.get("photo_url", "")),
+            "oauth_token": dict(user.get("oauth_token", {}) or {}),
             "landing_page": str(user.get("landing_page", "marketplace")),
         }
         st.session_state["mt_next_route"] = st.session_state["mt_next_user"]["landing_page"]
@@ -47,6 +49,7 @@ class SessionService:
             "status": "ACTIVE",
             "display_name": "",
             "photo_url": "",
+            "oauth_token": {},
             "landing_page": self.app_config.get("default_landing", {}).get(self.app_config.get("default_role", "public_buyer"), "marketplace"),
         }
         st.session_state["mt_next_route"] = st.session_state["mt_next_user"]["landing_page"]
