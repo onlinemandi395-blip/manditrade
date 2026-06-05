@@ -59,6 +59,7 @@ class ProductCatalogService:
         image_alt_text: str = "",
         image_status: str = "",
         created_by_email: str = "",
+        source_ids: list[str] | None = None,
     ) -> dict[str, Any]:
         created_at = datetime.now(UTC).isoformat()
         client_price = float(suggested_client_price if suggested_client_price is not None else suggested_mrp or 0)
@@ -101,6 +102,7 @@ class ProductCatalogService:
             "created_by_manufacturer_id": created_by,
             "created_by_email": created_by_email.strip().lower(),
             "public_seller_manufacturer_id": created_by,
+            "source_ids": [str(item).strip().upper() for item in (source_ids or []) if str(item).strip()],
             "approved_by": "",
             "admin_note": "",
             "created_at": created_at,
@@ -225,11 +227,11 @@ class ProductCatalogService:
             "suggested_mandi_price", "suggested_client_price", "suggested_marketplace_price", "suggested_mrp",
             "approved_mandi_price", "approved_client_price", "approved_marketplace_price", "approved_mrp",
             "visibility_request", "approved_visibility", "minimum_order_qty", "available_for_public_sale",
-            "available_for_mandi_network", "image_url", "image_file_ref", "thumbnail_url", "image_alt_text", "image_status", "public_seller_manufacturer_id", "visible", "admin_note", "status",
+            "available_for_mandi_network", "image_url", "image_file_ref", "thumbnail_url", "image_alt_text", "image_status", "public_seller_manufacturer_id", "visible", "admin_note", "status", "source_ids",
         }
         for key, value in updates.items():
             if key in allowed_fields:
-                product[key] = value
+                product[key] = [str(item).strip().upper() for item in value if str(item).strip()] if key == "source_ids" and isinstance(value, list) else value
         if self.image_service:
             product.update(self.image_service.normalize_image_metadata(product))
         if updates.get("approved_mandi_price") is not None:
@@ -362,6 +364,7 @@ class ProductCatalogService:
         item["suggested_marketplace_price"] = float(item.get("suggested_marketplace_price", item["suggested_client_price"]) or 0)
         item["approved_client_price"] = float(item.get("approved_client_price", item.get("approved_mrp", client_price)) or 0) if item.get("status") == "ACTIVE" else item.get("approved_client_price")
         item["approved_marketplace_price"] = float(item.get("approved_marketplace_price", marketplace_price) or 0) if item.get("status") == "ACTIVE" else item.get("approved_marketplace_price")
+        item["source_ids"] = [str(value).strip().upper() for value in item.get("source_ids", []) or [] if str(value).strip()]
         if self.image_service:
             item.update(self.image_service.normalize_image_metadata(item, image_alt_text=str(item.get("image_alt_text") or item.get("name") or "Product")))
         return item
@@ -437,14 +440,14 @@ class ProductCatalogService:
             for key in {
                 "client_price", "marketplace_price", "suggested_client_price", "suggested_marketplace_price",
                 "approved_client_price", "approved_marketplace_price", "created_by", "created_by_manufacturer_id",
-                "created_by_email", "public_seller_manufacturer_id", "visible",
+                "created_by_email", "public_seller_manufacturer_id", "visible", "source_ids",
             }:
                 result.pop(key, None)
             result["supply_price"] = result.get("mandi_price", 0)
         elif viewer_role == "public_buyer" or not viewer_role:
             for key in {
                 "mandi_price", "client_price", "suggested_mandi_price", "suggested_client_price", "approved_mandi_price",
-                "approved_client_price", "created_by", "created_by_manufacturer_id", "created_by_email", "public_seller_manufacturer_id", "visible",
+                "approved_client_price", "created_by", "created_by_manufacturer_id", "created_by_email", "public_seller_manufacturer_id", "visible", "source_ids",
             }:
                 result.pop(key, None)
             result["price"] = result.get("marketplace_price", 0)

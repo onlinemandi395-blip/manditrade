@@ -106,7 +106,7 @@ DEFAULT_NAVIGATION_CONFIG: dict[str, Any] = {
         ],
         ROLE_PLATFORM_ADMIN: [
             {"group": "Platform", "items": [{"label": "Dashboard", "icon": "", "route": "dashboard"}, {"label": "My Profile", "icon": "", "route": "my_profile"}, {"label": "Notifications", "icon": "", "route": "notifications"}, {"label": "My Actions", "icon": "", "route": "my_actions"}, {"label": "System Health", "icon": "", "route": "system_health"}, {"label": "Admin Drive DB", "icon": "", "route": "admin_drive_db"}]},
-            {"group": "Ecosystem", "items": [{"label": "Manufacturers", "icon": "", "route": "manufacturers"}, {"label": "Mahajans", "icon": "", "route": "mahajans"}, {"label": "Workers", "icon": "", "route": "workers"}, {"label": "Products", "icon": "", "route": "products"}, {"label": "Procurement Sources", "icon": "", "route": "procurement_sources"}]},
+            {"group": "Sourcing", "items": [{"label": "Products", "icon": "", "route": "products"}, {"label": "Procurement Sources", "icon": "", "route": "procurement_sources"}, {"label": "Workers", "icon": "", "route": "workers"}]},
             {"group": "Operations", "items": [{"label": "Orders", "icon": "", "route": "orders"}, {"label": "Inventory", "icon": "", "route": "inventory"}, {"label": "Warehouses", "icon": "", "route": "warehouses"}, {"label": "Shipments", "icon": "", "route": "shipments"}]},
             {"group": "Finance", "items": [{"label": "Payments", "icon": "", "route": "payments"}, {"label": "Ledger", "icon": "", "route": "ledger"}, {"label": "Platform Commission", "icon": "", "route": "platform_commission"}]},
             {"group": "Insights", "items": [{"label": "Analytics", "icon": "", "route": "analytics"}]},

@@ -29,6 +29,10 @@ class GovernanceService:
         return self.governance_root / "admin_profiles.json"
 
     @property
+    def procurement_sources_path(self) -> Path:
+        return self.governance_root / "procurement_sources.json"
+
+    @property
     def mahajans_path(self) -> Path:
         return self.governance_root / "mahajans.json"
 
@@ -89,6 +93,11 @@ class GovernanceService:
             self.safe_drive_write_service.replace_document(
                 self.admin_profiles_path,
                 {"schema_version": "1.0", "profiles": []},
+            )
+        if not self.procurement_sources_path.exists():
+            self.safe_drive_write_service.replace_document(
+                self.procurement_sources_path,
+                {"schema_version": "1.0", "procurement_sources": []},
             )
         if not self.mahajans_path.exists():
             self.safe_drive_write_service.replace_document(
@@ -317,6 +326,97 @@ class GovernanceService:
         payload.setdefault("schema_version", "1.0")
         self.safe_drive_write_service.replace_document(self.admin_profiles_path, payload)
         return normalized
+
+    def list_procurement_sources(
+        self,
+        *,
+        include_legacy: bool = True,
+        active_only: bool = False,
+        source_type: str | None = None,
+        product_id: str | None = None,
+    ) -> list[dict[str, Any]]:
+        self.ensure_files()
+        rows = self.json_service.read_json(self.procurement_sources_path, {"procurement_sources": []}).get("procurement_sources", [])
+        normalized_rows = [self._normalize_procurement_source_shape(item) for item in rows]
+        if include_legacy:
+            merged: dict[str, dict[str, Any]] = {item.get("source_id", ""): item for item in normalized_rows if item.get("source_id")}
+            for item in self._legacy_manufacturers_as_sources():
+                merged.setdefault(item["source_id"], item)
+            for item in self._legacy_mahajans_as_sources():
+                merged.setdefault(item["source_id"], item)
+            normalized_rows = list(merged.values())
+        if active_only:
+            normalized_rows = [item for item in normalized_rows if str(item.get("status", "")).upper() == "ACTIVE"]
+        if source_type:
+            source_type_key = str(source_type).strip().upper()
+            normalized_rows = [item for item in normalized_rows if str(item.get("source_type", "")).upper() == source_type_key]
+        if product_id:
+            product_key = str(product_id).strip().upper()
+            normalized_rows = [
+                item
+                for item in normalized_rows
+                if product_key in {str(value).strip().upper() for value in item.get("products_supported", []) or []}
+            ]
+        return sorted(
+            normalized_rows,
+            key=lambda item: (
+                0 if str(item.get("status", "")).upper() == "ACTIVE" else 1,
+                str(item.get("business_name", "")).strip().lower(),
+                str(item.get("source_id", "")).strip().lower(),
+            ),
+        )
+
+    def generate_next_procurement_source_id(self) -> str:
+        self.ensure_files()
+        highest_suffix = 0
+        for item in self.list_procurement_sources(include_legacy=False):
+            source_id = str(item.get("source_id") or "").strip().upper()
+            match = re.fullmatch(r"SRC(\d+)", source_id)
+            if match:
+                highest_suffix = max(highest_suffix, int(match.group(1)))
+        return f"SRC{highest_suffix + 1:03d}"
+
+    def get_procurement_source(self, source_id: str) -> dict[str, Any] | None:
+        self.ensure_files()
+        source_key = str(source_id or "").strip().upper()
+        return next((item for item in self.list_procurement_sources(include_legacy=True) if item.get("source_id") == source_key), None)
+
+    def upsert_procurement_source(self, source: dict[str, Any]) -> dict[str, Any]:
+        self.ensure_files()
+        payload = self.json_service.read_json(self.procurement_sources_path, {"procurement_sources": []})
+        source_id = str(source.get("source_id") or "").strip().upper()
+        if not source_id:
+            raise ValueError("Procurement source ID is required.")
+        now = datetime.now(UTC).isoformat()
+        existing = next((item for item in payload.get("procurement_sources", []) if str(item.get("source_id", "")).strip().upper() == source_id), None)
+        normalized = self._normalize_procurement_source_shape({**(existing or {}), **source, "source_id": source_id})
+        normalized["created_at"] = (existing or {}).get("created_at") or normalized.get("created_at") or now
+        normalized["updated_at"] = now
+        if existing:
+            existing.update(normalized)
+        else:
+            payload.setdefault("procurement_sources", []).append(normalized)
+        payload.setdefault("schema_version", "1.0")
+        self.safe_drive_write_service.replace_document(self.procurement_sources_path, payload)
+        self._audit(
+            "UPSERT_PROCUREMENT_SOURCE",
+            "procurement_source",
+            source_id,
+            {"status": normalized.get("status", ""), "source_type": normalized.get("source_type", "")},
+        )
+        return normalized
+
+    def archive_procurement_source(self, source_id: str) -> bool:
+        source_key = str(source_id or "").strip().upper()
+        if source_key.startswith("MANU-") or source_key.startswith("MAHAJAN-"):
+            raise ValueError("Legacy manufacturer/mahajan source aliases cannot be archived from Procurement Sources.")
+        return self._archive_record(
+            path=self.procurement_sources_path,
+            list_key="procurement_sources",
+            matcher=lambda item: str(item.get("source_id", "")).strip().upper() == source_key,
+            entity_type="procurement_source",
+            entity_id=source_key,
+        )
 
     def list_mahajans(self) -> list[dict[str, Any]]:
         self.ensure_files()
@@ -897,6 +997,87 @@ class GovernanceService:
             message=f"{entity_type.title()} {entity_id} was archived.",
         )
         return True
+
+    def _normalize_procurement_source_shape(self, source: dict[str, Any]) -> dict[str, Any]:
+        normalized_source_id = str(source.get("source_id") or "").strip().upper()
+        supported_products = source.get("products_supported", []) or source.get("source_ids", []) or []
+        if isinstance(supported_products, str):
+            supported_products = [item.strip().upper() for item in supported_products.split(",") if item.strip()]
+        else:
+            supported_products = [str(item).strip().upper() for item in supported_products if str(item).strip()]
+        return {
+            "source_id": normalized_source_id,
+            "source_type": str(source.get("source_type") or "EXTERNAL").strip().upper(),
+            "business_name": str(source.get("business_name") or source.get("name") or "").strip(),
+            "contact_person": str(source.get("contact_person") or source.get("owner_name") or source.get("contact_name") or "").strip(),
+            "mobile": str(source.get("mobile") or source.get("phone") or source.get("contact_mobile") or "").strip(),
+            "email": str(source.get("email") or source.get("owner_email") or "").strip().lower(),
+            "city": str(source.get("city") or "").strip(),
+            "state": str(source.get("state") or ((source.get("address") or {}).get("state")) or "").strip(),
+            "products_supported": supported_products,
+            "status": str(source.get("status") or "ACTIVE").strip().upper(),
+            "legacy_entity_type": str(source.get("legacy_entity_type") or "").strip().upper(),
+            "legacy_entity_id": str(source.get("legacy_entity_id") or "").strip().upper(),
+            "notes": str(source.get("notes") or "").strip(),
+            "created_at": str(source.get("created_at") or "").strip(),
+            "updated_at": str(source.get("updated_at") or "").strip(),
+        }
+
+    def _legacy_manufacturers_as_sources(self) -> list[dict[str, Any]]:
+        sources: list[dict[str, Any]] = []
+        for item in self.list_manufacturers():
+            manufacturer_code = str(item.get("manufacturer_code") or "").strip().upper()
+            if not manufacturer_code:
+                continue
+            normalized = self._normalize_procurement_source_shape(
+                {
+                    "source_id": f"MANU-{manufacturer_code}",
+                    "source_type": "MANUFACTURER",
+                    "business_name": item.get("business_name") or item.get("manufacturer_name") or manufacturer_code,
+                    "contact_person": item.get("contact_person") or item.get("owner_name") or "",
+                    "mobile": item.get("mobile") or "",
+                    "email": item.get("owner_email") or "",
+                    "city": item.get("city") or ((item.get("address") or {}).get("city")) or "",
+                    "state": ((item.get("address") or {}).get("state")) or "",
+                    "products_supported": item.get("product_categories") or [],
+                    "status": item.get("status") or "PENDING",
+                    "legacy_entity_type": "MANUFACTURER",
+                    "legacy_entity_id": manufacturer_code,
+                    "notes": "Legacy manufacturer identity exposed as a procurement source for compatibility.",
+                    "created_at": item.get("created_at") or "",
+                    "updated_at": item.get("updated_at") or "",
+                }
+            )
+            sources.append(normalized)
+        return sources
+
+    def _legacy_mahajans_as_sources(self) -> list[dict[str, Any]]:
+        sources: list[dict[str, Any]] = []
+        for item in self.list_mahajans():
+            mahajan_id = str(item.get("mahajan_id") or "").strip().upper()
+            if not mahajan_id:
+                continue
+            normalized = self._normalize_procurement_source_shape(
+                {
+                    "source_id": f"MAHAJAN-{mahajan_id}",
+                    "source_type": "MAHAJAN",
+                    "business_name": item.get("business_name") or mahajan_id,
+                    "contact_person": item.get("owner_name") or "",
+                    "mobile": item.get("mobile") or "",
+                    "email": item.get("email") or "",
+                    "city": item.get("city") or ((item.get("address") or {}).get("city")) or "",
+                    "state": ((item.get("address") or {}).get("state")) or "",
+                    "products_supported": item.get("raw_material_categories") or [],
+                    "status": item.get("status") or "PENDING",
+                    "legacy_entity_type": "MAHAJAN",
+                    "legacy_entity_id": mahajan_id,
+                    "notes": "Legacy mahajan identity exposed as a procurement source for compatibility.",
+                    "created_at": item.get("created_at") or "",
+                    "updated_at": item.get("updated_at") or "",
+                }
+            )
+            sources.append(normalized)
+        return sources
 
     def _audit(self, action: str, entity_type: str, entity_id: str, details: dict[str, Any]) -> None:
         if not self.audit_service:

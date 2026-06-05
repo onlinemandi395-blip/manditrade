@@ -480,7 +480,10 @@ class ProcurementTransactionService:
                 visible = bool(mandi_inventory.get("visible_to_mandi", True))
                 available_qty = int(mandi_inventory.get("available_qty", 0) or 0) - int(mandi_inventory.get("reserved_qty", 0) or 0)
                 required_qty = int(float(request_item.get("qty", 0) or 0))
-                owner_matches = str(product_catalog.get(product_id, {}).get("created_by_manufacturer_id") or product_catalog.get(product_id, {}).get("created_by") or "").strip()
+                product_row = product_catalog.get(product_id, {})
+                owner_matches = str(product_row.get("created_by_manufacturer_id") or product_row.get("created_by") or "").strip()
+                configured_sources = {str(item).strip().upper() for item in product_row.get("source_ids", []) or [] if str(item).strip()}
+                source_match = not configured_sources or supplier_code in configured_sources or f"MANU-{supplier_code}" in configured_sources
                 price = float(product_catalog.get(product_id, {}).get("approved_mandi_price", product_catalog.get(product_id, {}).get("mandi_price", 0)) or 0)
                 availability_rows.append(
                     {
@@ -490,10 +493,11 @@ class ProcurementTransactionService:
                         "required_qty": required_qty,
                         "visible_to_mandi": visible,
                         "estimated_price": price,
+                        "source_match": source_match,
                     }
                 )
                 estimated_price += price
-                if product_id not in product_ids or owner_matches != supplier_code or not visible or available_qty < required_qty:
+                if product_id not in product_ids or owner_matches != supplier_code or not source_match or not visible or available_qty < required_qty:
                     supported = False
             if supported and availability_rows:
                 eligible.append(

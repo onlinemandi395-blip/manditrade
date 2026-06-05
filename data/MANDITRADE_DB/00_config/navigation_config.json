@@ -27,13 +27,11 @@
         ]
       },
       {
-        "group": "Ecosystem",
+        "group": "Sourcing",
         "items": [
-          {"label": "Manufacturers", "icon": "", "route": "manufacturers"},
-          {"label": "Mahajans", "icon": "", "route": "mahajans"},
-          {"label": "Workers", "icon": "", "route": "workers"},
           {"label": "Products", "icon": "", "route": "products"},
-          {"label": "Procurement Sources", "icon": "", "route": "procurement_sources"}
+          {"label": "Procurement Sources", "icon": "", "route": "procurement_sources"},
+          {"label": "Workers", "icon": "", "route": "workers"}
         ]
       },
       {

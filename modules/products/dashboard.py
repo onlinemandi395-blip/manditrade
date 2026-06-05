@@ -27,6 +27,7 @@ def render_products_dashboard(app_context: dict) -> None:
         viewer_role=viewer_role,
         viewer_code=viewer_code,
     )
+    governance_service = app_context.get("governance_service")
     image_service = app_context.get("image_service")
     inventory_service = app_context.get("inventory_service")
     render_platform_shell(
@@ -44,6 +45,7 @@ def render_products_dashboard(app_context: dict) -> None:
             {"label": "Catalog Products", "value": str(len(products)), "status": "SUCCESS"},
             {"label": "Proposed", "value": str(len([item for item in products if item.get("status") == "PROPOSED"])), "status": "PENDING"},
             {"label": "Active", "value": str(len([item for item in products if item.get("status") == "ACTIVE"])), "status": "OPEN"},
+            {"label": "Source Mapped", "value": str(len([item for item in products if item.get("source_ids")])), "status": "INFO"},
         ]
     )
     render_metric_button_row(
@@ -106,6 +108,8 @@ def render_products_dashboard(app_context: dict) -> None:
         with activity_tab:
             st.markdown("### Manage Approved Products")
             approved_products = [item for item in products if item.get("status") == "ACTIVE"]
+            active_procurement_sources = governance_service.list_procurement_sources(include_legacy=True, active_only=True) if governance_service else []
+            procurement_source_lookup = {item.get("source_id", ""): item for item in active_procurement_sources if item.get("source_id")}
             if not approved_products:
                 st.info("No approved products are available for admin updates yet.")
             else:
@@ -126,6 +130,12 @@ def render_products_dashboard(app_context: dict) -> None:
                     available_for_public_sale = col1.checkbox("Available For Public Sale?", value=bool(selected.get("available_for_public_sale", False)))
                     available_for_mandi_network = col2.checkbox("Available For Mandi Network?", value=bool(selected.get("available_for_mandi_network", True)))
                     public_seller_manufacturer_id = col2.text_input("Public Seller Manufacturer ID", value=selected.get("public_seller_manufacturer_id", selected.get("created_by_manufacturer_id", "")))
+                    source_ids = st.multiselect(
+                        "Procurement Sources",
+                        list(procurement_source_lookup.keys()),
+                        default=[item for item in (selected.get("source_ids", []) or []) if item in set(procurement_source_lookup.keys())],
+                        format_func=lambda source_id: f"{source_id} - {(procurement_source_lookup.get(source_id) or {}).get('business_name', source_id)}",
+                    )
                     visible = col1.checkbox("Visible to Active Catalog?", value=bool(selected.get("visible", True)))
                     image_url = st.text_input("Product Image URL", value=selected.get("image_url", ""))
                     image_alt_text = st.text_input("Image Alt Text", value=selected.get("image_alt_text", selected.get("name", "")))
@@ -151,6 +161,7 @@ def render_products_dashboard(app_context: dict) -> None:
                             "available_for_public_sale": available_for_public_sale,
                             "available_for_mandi_network": available_for_mandi_network,
                             "public_seller_manufacturer_id": public_seller_manufacturer_id,
+                            "source_ids": source_ids,
                             "visible": visible,
                             "image_url": image_url,
                             "image_file_ref": image_file_ref,

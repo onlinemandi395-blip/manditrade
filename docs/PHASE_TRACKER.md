@@ -15,13 +15,14 @@ Status meanings:
 | RBAC | `DONE` | Active runtime roles are `platform_admin`, `manufacturer`, `mahajan`, `public_buyer`, and `worker`. |
 | JSON Navigation Config | `DONE` | Sidebar navigation now resolves from `configs/navigation_config.json` first in local/runtime-mirror mode, with Drive-preferred loading only when real Drive runtime is ready and built-in fallback kept as safety. |
 | Drive Navigation Source | `DONE` | Admin Drive DB now exposes navigation source, path, roles, load time, and config errors through a navigation inspector. |
-| Navigation Simplification | `PARTIAL` | Visible nav is consolidated around `orders`, `my_orders`, `shipments`, and `admin_drive_db`, while older aliases still exist for compatibility behind the scenes. |
+| Navigation Simplification | `PARTIAL` | Visible nav is consolidated around `orders`, `my_orders`, `shipments`, `procurement_sources`, and `admin_drive_db`, while older aliases still exist for compatibility behind the scenes. |
 | Orders Consolidation | `PARTIAL` | Admin now has a single Orders hub and role-specific My Orders hub, but some deeper workflow actions still live inside legacy pages. |
 | My Orders | `DONE` | Manufacturer and mahajan sidebars now expose one `My Orders` route backed by the shared order hub. |
 | Admin Drive DB Page | `DONE` | Dedicated route and page exist with validation, bootstrap, structure report, smoke record, navigation inspector, and service-account status. |
 | Smoke Record | `DONE` | Smoke record action now reports service-account Drive write success or local-mirror fallback explicitly and shows the written path or Drive file ID. |
 | Shipments Consolidation | `DONE` | `Shipments` is now the single visible shipment route across active roles. |
-| Identity Governance | `PARTIAL` | Admin manufacturer, mahajan, and worker governance screens now exist with completeness/trust summaries, but invitation analytics and deeper self-service completion are still maturing. |
+| Identity Governance | `PARTIAL` | Legacy manufacturer and mahajan identity-governance surfaces still exist for compatibility, but the admin-first procurement-source abstraction is now the preferred sourcing model. |
+| Procurement Sources | `DONE` | Admin can now create and manage manual procurement sources, view legacy manufacturer/mahajan aliases as compatibility sources, and map products directly to `source_ids`. |
 | Admin Drive DB | `PARTIAL` | Canonical root/services exist and now prefer Google Drive service-account access; live cutover remains operator-controlled. |
 | Inventory Engine | `PARTIAL` | Unified inventory records, reservations, and movement ledger now exist across marketplace, MandiPlace, raw materials, and suta, and records are now warehouse-aware with default site fallback. |
 | Warehouses | `PARTIAL` | Warehouse records, default-site fallback, and role-specific warehouse management screens now exist, but deeper multi-warehouse allocation logic is still pending. |
