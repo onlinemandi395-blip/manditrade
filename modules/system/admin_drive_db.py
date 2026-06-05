@@ -5,6 +5,7 @@ from pathlib import Path
 
 import streamlit as st
 
+from components.data_grid import render_data_grid
 from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
 from components.toast_manager import push_toast
@@ -56,40 +57,38 @@ def render_admin_drive_db_dashboard(app_context: dict) -> None:
     latest_bootstrap = service.load_latest_bootstrap_report()
     latest_structure = service._read_report(service.reports_dir / "latest_admin_drive_db_structure.json")
     validation = latest_validation or service.validate_database_tree(persist=False)
+    tree_status = service.get_database_tree_status()
     runtime = validation.get("runtime", root)
     nav_info = get_navigation_runtime_info("platform_admin", app_context)
     canonical_readiness = "READY" if validation.get("status") == "PASS" and not validation.get("critical_errors") else "NOT READY"
     render_metric_grid(
         [
-            render_metric_card("Drive Config", "CONNECTED" if root.get("root_folder_name") else "MISSING", "SUCCESS" if root.get("root_folder_name") else "WARNING"),
+            render_metric_card("Mode", "Google Drive" if tree_status.get("mode") == "GOOGLE_DRIVE" else "Local Mirror", "SUCCESS" if tree_status.get("mode") == "GOOGLE_DRIVE" else "OPEN"),
+            render_metric_card("Root Folder", root.get("root_folder_name", "MANDITRADE_DB") or "MANDITRADE_DB", "SUCCESS"),
+            render_metric_card("Connection", "Connected" if runtime.get("drive_api_ready", False) else "Not Connected", "SUCCESS" if runtime.get("drive_api_ready", False) else "WARNING"),
             render_metric_card("Validation", validation.get("status", "UNKNOWN"), "SUCCESS" if validation.get("status") == "PASS" else "WARNING"),
-            render_metric_card("Bootstrap", latest_bootstrap.get("recommendation", "UNKNOWN"), "SUCCESS" if latest_bootstrap.get("recommendation") == "PASS" else "PENDING"),
-            render_metric_card("Canonical Readiness", canonical_readiness, "SUCCESS" if canonical_readiness == "READY" else "WARNING"),
         ]
     )
-    render_section_intro("Admin Drive Runtime", "This page reports the active root, validation state, local mirror fallback, and safe bootstrap status. It does not auto-switch storage mode.")
-    st.json(
-        {
-            "drive_mode": app_context["drive_service"].describe_runtime_mode(),
-            "storage_mode": app_context["system_config"]["storage"].get("mode", "compatibility"),
-            "root_folder_name": root.get("root_folder_name", ""),
-            "root_folder_id": root.get("root_folder_id", ""),
-            "connection_status": "REACHABLE" if validation.get("root", {}).get("exists", False) else "UNREACHABLE",
-            "runtime_backend": runtime.get("runtime_backend", ""),
-            "drive_api_requested": runtime.get("drive_api_requested", False),
-            "drive_api_ready": runtime.get("drive_api_ready", False),
-            "runtime_reason": runtime.get("reason", root.get("runtime_reason", "")),
-            "local_mirror_fallback": runtime.get("runtime_backend") == "local_path_mirror",
-            "bootstrap_status": latest_bootstrap.get("recommendation", "MISSING"),
-            "validation_status": validation.get("status", "UNKNOWN"),
-            "files_count": len(service.drive_path_service.bootstrap_file_definitions()),
-            "canonical_readiness": canonical_readiness,
-            "navigation_source": nav_info.get("source", "UNKNOWN"),
-            "navigation_config_path": nav_info.get("path", ""),
-        },
-        expanded=False,
-    )
-    col1, col2, col3 = st.columns(3)
+    render_section_intro("Connection Status", "Use this page to confirm whether Admin Drive is truly connected or whether the app is currently using the local canonical mirror.")
+    status_col1, status_col2 = st.columns(2)
+    with status_col1:
+        st.write(f"Mode: {'Google Drive' if tree_status.get('mode') == 'GOOGLE_DRIVE' else 'Local Mirror'}")
+        st.write(f"Root Folder: {root.get('root_folder_name', 'MANDITRADE_DB') or 'MANDITRADE_DB'}")
+        st.write(f"Root Folder ID: {root.get('root_folder_id', '') or 'Not available'}")
+    with status_col2:
+        st.write(f"Connection: {'Connected' if runtime.get('drive_api_ready', False) else 'Not Connected'}")
+        st.write(f"Last Checked: {tree_status.get('last_checked', '')}")
+        st.write(f"Bootstrap Status: {latest_bootstrap.get('recommendation', 'MISSING')}")
+        st.write(f"Validation Status: {validation.get('status', 'UNKNOWN')}")
+    if runtime.get("drive_api_ready", False):
+        st.success("Google Drive is connected and Admin Drive DB metadata is being read live.")
+    else:
+        st.warning("Google Drive is not connected. The app is using local mirror. Missing admin token, root folder, or permissions may be the cause.")
+        if runtime.get("reason"):
+            st.caption(f"Runtime detail: {runtime.get('reason')}")
+
+    render_section_intro("Actions", "Use these actions to inspect, bootstrap, validate, and smoke-test the canonical Admin Drive root. No action auto-switches storage mode.")
+    col1, col2, col3, col4, col5 = st.columns(5)
     if col1.button("Validate Admin Drive DB", use_container_width=True):
         report = service.validate_database_tree(persist=True)
         push_toast(f"Validation finished with status {report.get('status', 'UNKNOWN')}.", tone="success", title="Admin Drive DB")
@@ -102,7 +101,6 @@ def render_admin_drive_db_dashboard(app_context: dict) -> None:
         report = service.bootstrap(dry_run=False)
         push_toast(f"Bootstrap execute finished with recommendation {report.get('recommendation', 'UNKNOWN')}.", tone="success", title="Admin Drive DB")
         st.rerun()
-    col4, col5 = st.columns(2)
     if col4.button("Create Smoke Record", use_container_width=True):
         smoke = _create_smoke_record(app_context)
         st.session_state["admin_drive_db_smoke_result"] = smoke
@@ -110,12 +108,50 @@ def render_admin_drive_db_dashboard(app_context: dict) -> None:
         st.rerun()
     if col5.button("Refresh", use_container_width=True):
         st.rerun()
-    if st.button("Generate Structure Report", use_container_width=True):
-        service.generate_structure_report()
-        push_toast("Structure report generated.", tone="info", title="Admin Drive DB")
+
+    extra_col1, extra_col2 = st.columns(2)
+    if extra_col1.button("Bootstrap Missing Folders", use_container_width=True):
+        report = service.bootstrap(dry_run=False)
+        push_toast(f"Missing folders/bootstrap ensured with recommendation {report.get('recommendation', 'UNKNOWN')}.", tone="success", title="Admin Drive DB")
         st.rerun()
-    st.markdown("### Validation Report")
-    st.json(validation, expanded=False)
+    if extra_col2.button("Open Root Folder", use_container_width=True):
+        if tree_status.get("mode") == "GOOGLE_DRIVE" and root.get("root_folder_id"):
+            st.session_state["admin_drive_db_root_hint"] = f"https://drive.google.com/drive/folders/{root.get('root_folder_id')}"
+        else:
+            st.session_state["admin_drive_db_root_hint"] = tree_status.get("root", {}).get("path", root.get("root_path", ""))
+        st.rerun()
+
+    root_hint = st.session_state.get("admin_drive_db_root_hint", "")
+    if root_hint:
+        st.info(f"Open Root Folder target: {root_hint}")
+
+    render_section_intro("Live Drive Explorer", "See the required Admin Drive DB tree, key files, and whether each entry exists in live Google Drive metadata or the local canonical mirror.")
+    explorer_rows = [
+        {
+            "name": item.get("name", ""),
+            "type": item.get("type", ""),
+            "logical_path": item.get("logical_path", ""),
+            "id": item.get("id", ""),
+            "path": item.get("path", ""),
+            "record_count": item.get("record_count"),
+            "last_modified": item.get("last_modified", ""),
+            "status": item.get("status", "UNKNOWN"),
+        }
+        for item in tree_status.get("items", [])
+    ]
+    render_data_grid(
+        page_key="admin_drive_db_explorer",
+        rows=explorer_rows,
+        search_fields=["name", "logical_path", "path", "status", "type"],
+        status_field="status",
+        search_placeholder="Search folders and files",
+    )
+
+    if tree_status.get("missing"):
+        st.warning("Missing entries: " + ", ".join(tree_status.get("missing", [])))
+    if tree_status.get("warnings"):
+        st.info("Warnings: " + " | ".join(tree_status.get("warnings", [])))
+
     st.markdown("### Navigation Inspector")
     st.json(
         {
@@ -128,13 +164,10 @@ def render_admin_drive_db_dashboard(app_context: dict) -> None:
             "nav_item_count": nav_info.get("nav_item_count", 0),
             "nav_groups": nav_info.get("nav_groups", []),
             "config_errors": nav_info.get("errors", []),
+            "warnings": nav_info.get("warnings", []),
         },
         expanded=False,
     )
-    st.markdown("### Bootstrap Report")
-    st.json(latest_bootstrap or {}, expanded=False)
-    st.markdown("### Structure Report")
-    st.json(latest_structure or {}, expanded=False)
     smoke_result = st.session_state.get("admin_drive_db_smoke_result")
     if smoke_result:
         st.markdown("### Smoke Record Result")
@@ -142,14 +175,17 @@ def render_admin_drive_db_dashboard(app_context: dict) -> None:
             st.success(smoke_result.get("message", "Smoke record created."))
         else:
             st.warning(smoke_result.get("message", "Google Drive runtime is not connected."))
-        st.json(
-            {
-                "path_written": smoke_result.get("path", ""),
-                "runtime_ready": smoke_result.get("runtime_ready", False),
-                "local_mirror_fallback": not smoke_result.get("runtime_ready", False),
-                "payload": smoke_result.get("payload", {}),
-            },
-            expanded=False,
-        )
-    if not runtime.get("drive_api_ready", False):
-        st.warning(runtime.get("reason") or "Admin Drive DB is using local mirror fallback because runtime Drive API access is not ready.")
+        st.write(f"Result: {'Success' if smoke_result.get('payload') else 'Failed'}")
+        st.write("Target: MANDITRADE_DB/14_runtime/drive_smoke_test.json")
+        st.write(f"Mode: {'Google Drive' if smoke_result.get('runtime_ready') else 'Local Mirror'}")
+        st.write(f"File ID / Local Path: {smoke_result.get('path', '')}")
+        st.write(f"Timestamp: {smoke_result.get('payload', {}).get('created_at', '')}")
+        st.write(f"Message: {smoke_result.get('message', '')}")
+
+    with st.expander("Advanced Details", expanded=False):
+        st.markdown("### Validation Report")
+        st.json(validation, expanded=False)
+        st.markdown("### Bootstrap Report")
+        st.json(latest_bootstrap or {}, expanded=False)
+        st.markdown("### Structure Report")
+        st.json(latest_structure or {}, expanded=False)

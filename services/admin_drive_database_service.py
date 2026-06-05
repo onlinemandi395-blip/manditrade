@@ -233,6 +233,57 @@ class AdminDriveDatabaseService:
         self._write_report(report, prefix="admin_drive_db_structure", latest_name="latest_admin_drive_db_structure.json")
         return report
 
+    def get_database_tree_status(self) -> dict[str, Any]:
+        runtime = self.runtime_status()
+        root = self.ensure_database_root(allow_create=False)
+        mode = "GOOGLE_DRIVE" if self._should_use_drive_api() else "LOCAL_MIRROR"
+        required_entries: list[tuple[str, str]] = [(folder, "folder") for folder in self.drive_path_service.FOLDER_TREE.values()]
+        required_entries.extend(
+            [
+                ("00_config/navigation_config.json", "json"),
+                ("14_runtime/drive_smoke_test.json", "json"),
+            ]
+        )
+        items: list[dict[str, Any]] = []
+        missing: list[str] = []
+        warnings: list[str] = []
+        if mode == "GOOGLE_DRIVE":
+            items = self._get_drive_tree_items(root)
+        else:
+            items = self._get_local_tree_items()
+        seen = {item["logical_path"]: item for item in items}
+        for logical_path, expected_type in required_entries:
+            if logical_path not in seen:
+                missing.append(logical_path)
+                items.append(
+                    {
+                        "name": Path(logical_path).name or logical_path,
+                        "type": expected_type,
+                        "logical_path": logical_path,
+                        "id": "",
+                        "path": str(self.drive_path_service.db_root / Path(logical_path)),
+                        "exists": False,
+                        "last_modified": "",
+                        "record_count": None,
+                        "status": "MISSING",
+                    }
+                )
+        if runtime.get("reason"):
+            warnings.append(runtime["reason"])
+        return {
+            "mode": mode,
+            "root": {
+                "name": root.get("root_folder_name", self.drive_path_service.ROOT_FOLDER_NAME),
+                "id": root.get("root_folder_id", ""),
+                "path": root.get("root_path", str(self.drive_path_service.db_root)),
+                "exists": root.get("exists", False),
+            },
+            "items": sorted(items, key=lambda item: item.get("logical_path", "")),
+            "missing": missing,
+            "warnings": warnings,
+            "last_checked": datetime.now(UTC).isoformat(),
+        }
+
     def _write_report(self, report: dict[str, Any], *, prefix: str, latest_name: str) -> None:
         timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
         target = self.reports_dir / f"{prefix}_{timestamp}.json"
@@ -244,6 +295,109 @@ class AdminDriveDatabaseService:
         if not path.exists():
             return {}
         return self.json_service.read_json(path, {})
+
+    def _count_json_records(self, path: Path) -> int | None:
+        if not path.exists() or path.suffix.lower() != ".json":
+            return None
+        try:
+            payload = self.json_service.read_json(path, {})
+        except Exception:
+            return None
+        if isinstance(payload, dict):
+            for key, value in payload.items():
+                if key in {"schema_version", "updated_at", "settings"}:
+                    continue
+                if isinstance(value, list):
+                    return len(value)
+        return None
+
+    def _get_local_tree_items(self) -> list[dict[str, Any]]:
+        items: list[dict[str, Any]] = []
+        for folder in self.drive_path_service.FOLDER_TREE.values():
+            target = self.drive_path_service.db_root / folder
+            stat = target.stat() if target.exists() else None
+            items.append(
+                {
+                    "name": target.name,
+                    "type": "folder",
+                    "logical_path": folder,
+                    "id": "",
+                    "path": str(target),
+                    "exists": target.exists(),
+                    "last_modified": datetime.fromtimestamp(stat.st_mtime, UTC).isoformat() if stat else "",
+                    "record_count": None,
+                    "status": "OK" if target.exists() else "MISSING",
+                }
+            )
+        for relative in [Path("00_config/navigation_config.json"), Path("14_runtime/drive_smoke_test.json")]:
+            target = self.drive_path_service.db_root / relative
+            stat = target.stat() if target.exists() else None
+            items.append(
+                {
+                    "name": target.name,
+                    "type": "json",
+                    "logical_path": relative.as_posix(),
+                    "id": "",
+                    "path": str(target),
+                    "exists": target.exists(),
+                    "last_modified": datetime.fromtimestamp(stat.st_mtime, UTC).isoformat() if stat else "",
+                    "record_count": self._count_json_records(target),
+                    "status": "OK" if target.exists() else "MISSING",
+                }
+            )
+        return items
+
+    def _get_drive_tree_items(self, root: dict[str, Any]) -> list[dict[str, Any]]:
+        items: list[dict[str, Any]] = []
+        if not root.get("exists"):
+            return items
+        client = self._build_admin_drive_client()
+        root_id = root.get("root_folder_id", "")
+        for folder in self.drive_path_service.FOLDER_TREE.values():
+            drive_item = self._find_drive_item(client, name=folder, parent_id=root_id, mime_type="application/vnd.google-apps.folder")
+            items.append(
+                {
+                    "name": folder,
+                    "type": "folder",
+                    "logical_path": folder,
+                    "id": (drive_item or {}).get("id", ""),
+                    "path": f"{root.get('root_folder_name', self.drive_path_service.ROOT_FOLDER_NAME)}/{folder}",
+                    "exists": bool(drive_item),
+                    "last_modified": (drive_item or {}).get("modifiedTime", ""),
+                    "record_count": None,
+                    "status": "OK" if drive_item else "MISSING",
+                }
+            )
+        for relative in [Path("00_config/navigation_config.json"), Path("14_runtime/drive_smoke_test.json")]:
+            parent_id = self._resolve_drive_folder_chain(client, root_id, relative.parts[:-1], allow_create=False)
+            drive_item = self._find_drive_item(client, name=relative.name, parent_id=parent_id, mime_type=None) if parent_id else None
+            record_count = None
+            if drive_item:
+                file_id = drive_item.get("id", "")
+                try:
+                    content = client.files().get_media(fileId=file_id).execute()
+                    payload = json.loads(content.decode("utf-8"))
+                    if isinstance(payload, dict):
+                        for key, value in payload.items():
+                            if isinstance(value, list):
+                                record_count = len(value)
+                                break
+                except Exception:
+                    record_count = None
+            items.append(
+                {
+                    "name": relative.name,
+                    "type": "json",
+                    "logical_path": relative.as_posix(),
+                    "id": (drive_item or {}).get("id", ""),
+                    "path": f"{root.get('root_folder_name', self.drive_path_service.ROOT_FOLDER_NAME)}/{relative.as_posix()}",
+                    "exists": bool(drive_item),
+                    "last_modified": (drive_item or {}).get("modifiedTime", ""),
+                    "record_count": record_count,
+                    "status": "OK" if drive_item else "MISSING",
+                }
+            )
+        return items
 
     def runtime_status(self) -> dict[str, Any]:
         drive_api_requested = bool(self.drive_service and getattr(self.drive_service, "use_drive_api", False))
@@ -434,7 +588,7 @@ class AdminDriveDatabaseService:
         response = client.files().list(
             q=" and ".join(query_parts),
             pageSize=10,
-            fields="files(id,name,mimeType,parents)",
+            fields="files(id,name,mimeType,parents,modifiedTime,webViewLink)",
         ).execute()
         files = response.get("files", [])
         return files[0] if files else None

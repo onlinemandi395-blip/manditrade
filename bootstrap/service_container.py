@@ -22,6 +22,7 @@ from services.connected_accounts_service import ConnectedAccountsService
 from services.delivery_service import DeliveryService
 from services.dead_letter_service import DeadLetterService
 from services.domain_paths_service import DomainPathsService
+from services.drive_config_service import DriveConfigService
 from services.drive_path_service import DrivePathService
 from services.drive_service import DriveService
 from services.dual_inventory_service import DualInventoryService
@@ -82,6 +83,9 @@ from utils.paths import APP_RUNTIME_DIR, BASE_DIR, DATA_DIR, GOVERNANCE_DIR, MAN
 
 
 def build_app_context() -> dict:
+    drive_config_service = DriveConfigService()
+    drive_config_service.ensure_canonical_config_dir()
+    drive_config_service.seed_from_legacy(remove_legacy=False, overwrite=False)
     config_service = ConfigService()
     config_issues = config_service.validate()
     system_config = load_config("system_config.json")
@@ -584,6 +588,7 @@ def build_app_context() -> dict:
 
     return {
         "config_service": config_service,
+        "drive_config_service": drive_config_service,
         "config_issues": config_issues,
         "system_config": system_config,
         "oauth_config": oauth_config,

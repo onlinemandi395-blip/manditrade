@@ -5,7 +5,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from utils.paths import CONFIGS_DIR
+from services.drive_config_service import DriveConfigService
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -15,5 +15,6 @@ def _load_json(path: Path) -> dict[str, Any]:
 
 @lru_cache(maxsize=8)
 def load_config(name: str) -> dict[str, Any]:
-    return _load_json(CONFIGS_DIR / name)
+    service = DriveConfigService()
+    return _load_json(service.resolve_config_path(name))
 

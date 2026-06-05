@@ -351,24 +351,7 @@ def render_health_dashboard(app_context: dict) -> None:
             },
             expanded=False,
         )
-        col1, col2 = st.columns(2)
-        if col1.button("Validate Admin Drive DB", use_container_width=True):
-            report = admin_drive_database_service.validate_database_tree(persist=True)
-            push_toast(f"Admin Drive DB validation finished with status {report.get('status', 'UNKNOWN')}.", tone="success", title="Admin Drive DB")
-            st.rerun()
-        if col2.button("Bootstrap Dry Run", use_container_width=True):
-            report = admin_drive_database_service.bootstrap(dry_run=True)
-            push_toast(f"Admin Drive DB dry run completed with recommendation {report.get('recommendation', 'UNKNOWN')}.", tone="info", title="Admin Drive DB")
-            st.rerun()
-        col3, col4 = st.columns(2)
-        if col3.button("Bootstrap Execute if Safe", use_container_width=True):
-            report = admin_drive_database_service.bootstrap(dry_run=False)
-            push_toast(f"Admin Drive DB bootstrap execute completed with recommendation {report.get('recommendation', 'UNKNOWN')}.", tone="success", title="Admin Drive DB")
-            st.rerun()
-        if col4.button("Generate DB Structure Report", use_container_width=True):
-            admin_drive_database_service.generate_structure_report()
-            push_toast("Admin Drive DB structure report generated.", tone="info", title="Admin Drive DB")
-            st.rerun()
+        st.info("Use the `Admin Drive DB` page from the sidebar for full explorer, smoke test, and bootstrap controls.")
 
     with events_tab:
         search_value = st.text_input("Search locks / events / stress summaries", key="health_events_search")

@@ -6,11 +6,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Iterable
 
+from services.drive_config_service import DriveConfigService
 from constants.navigation_icons import NAV_ICON_MAP, get_nav_icon, normalize_nav_label
 from constants.roles import ROLE_MAHAJAN, ROLE_MANUFACTURER, ROLE_PENDING_USER, ROLE_PLATFORM_ADMIN, ROLE_PUBLIC_BUYER, ROLE_UNAUTHENTICATED, ROLE_WORKER
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-LOCAL_NAVIGATION_CONFIG_PATH = BASE_DIR / "configs" / "navigation_config.json"
+LOCAL_NAVIGATION_CONFIG_PATH = DriveConfigService().canonical_config_path("navigation_config.json")
 
 NAV_ALIAS_MAP: dict[str, str] = {
     "Mandiplace": "MandiPlace",
@@ -28,7 +29,6 @@ NAV_ALIAS_MAP: dict[str, str] = {
     "Supply Requests": "Mandi Orders",
     "Supply Orders": "Mandi Orders",
     "Public Orders": "Marketplace Orders",
-    "System Health": "Admin Drive DB",
     "Procurement Source": "Procurement Sources",
 }
 
@@ -210,17 +210,38 @@ def _normalize_group(group: dict[str, Any]) -> dict[str, Any]:
     return {"group": str(group.get("group") or "General"), "items": normalized_items}
 
 
+def _dedupe_groups(groups: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[str]]:
+    seen_routes: set[str] = set()
+    deduped_groups: list[dict[str, Any]] = []
+    warnings: list[str] = []
+    for group in groups:
+        deduped_items: list[dict[str, str]] = []
+        for item in group.get("items", []) or []:
+            route = str(item.get("route", "")).strip()
+            if route in seen_routes:
+                warnings.append(f"Duplicate nav route removed: {route}")
+                continue
+            seen_routes.add(route)
+            deduped_items.append(item)
+        if deduped_items:
+            deduped_groups.append({"group": group.get("group", "General"), "items": deduped_items})
+    return deduped_groups, warnings
+
+
 def validate_navigation_config(config: dict[str, Any] | None) -> dict[str, Any]:
     fallback = _default_navigation_config()
     if not isinstance(config, dict):
         return fallback
     roles: dict[str, list[dict[str, Any]]] = {}
+    role_warnings: dict[str, list[str]] = {}
     source_roles = config.get("roles") if isinstance(config.get("roles"), dict) else {}
     for role in fallback["roles"]:
         raw_groups = source_roles.get(role, fallback["roles"][role])
         groups = [_normalize_group(group) for group in raw_groups if isinstance(group, dict)]
         groups = [group for group in groups if group["items"]]
-        roles[role] = groups or deepcopy(fallback["roles"][role])
+        deduped_groups, warnings = _dedupe_groups(groups)
+        roles[role] = deduped_groups or deepcopy(fallback["roles"][role])
+        role_warnings[role] = warnings
     default_routes = dict(fallback["default_routes"])
     raw_defaults = config.get("default_routes") if isinstance(config.get("default_routes"), dict) else {}
     for role, built_in_route in fallback["default_routes"].items():
@@ -232,6 +253,7 @@ def validate_navigation_config(config: dict[str, Any] | None) -> dict[str, Any]:
         "updated_at": str(config.get("updated_at") or _now_iso()),
         "roles": roles,
         "default_routes": default_routes,
+        "_warnings": role_warnings,
     }
 
 
@@ -367,6 +389,7 @@ def get_navigation_runtime_info(role_key: str, app_context: dict | None = None) 
             "nav_groups": [{"group": group, "items": [item["label"] for item in items]} for group, items in groups],
             "nav_item_count": len(flatten_navigation_groups(groups)),
             "config_roles": sorted(role for role in config["roles"] if role not in {ROLE_UNAUTHENTICATED, ROLE_PENDING_USER}),
+            "warnings": list(config.get("_warnings", {}).get(role_key, [])),
         }
     )
     return metadata
