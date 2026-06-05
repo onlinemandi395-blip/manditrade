@@ -107,21 +107,21 @@ DEFAULT_NAVIGATION_CONFIG: dict[str, Any] = {
         ROLE_PLATFORM_ADMIN: [
             {"group": "Platform", "items": [{"label": "Dashboard", "icon": "", "route": "dashboard"}, {"label": "My Profile", "icon": "", "route": "my_profile"}, {"label": "Notifications", "icon": "", "route": "notifications"}, {"label": "My Actions", "icon": "", "route": "my_actions"}, {"label": "System Health", "icon": "", "route": "system_health"}, {"label": "Admin Drive DB", "icon": "", "route": "admin_drive_db"}]},
             {"group": "Sourcing", "items": [{"label": "Products", "icon": "", "route": "products"}, {"label": "Procurement Sources", "icon": "", "route": "procurement_sources"}, {"label": "Workers", "icon": "", "route": "workers"}]},
-            {"group": "Operations", "items": [{"label": "Orders", "icon": "", "route": "orders"}, {"label": "Inventory", "icon": "", "route": "inventory"}, {"label": "Warehouses", "icon": "", "route": "warehouses"}, {"label": "Shipments", "icon": "", "route": "shipments"}]},
-            {"group": "Finance", "items": [{"label": "Payments", "icon": "", "route": "payments"}, {"label": "Ledger", "icon": "", "route": "ledger"}, {"label": "Platform Commission", "icon": "", "route": "platform_commission"}]},
+            {"group": "Operations", "items": [{"label": "Orders", "icon": "", "route": "orders"}, {"label": "Inventory", "icon": "", "route": "inventory"}, {"label": "Shipments", "icon": "", "route": "shipments"}]},
+            {"group": "Finance", "items": [{"label": "Ledger", "icon": "", "route": "ledger"}]},
             {"group": "Insights", "items": [{"label": "Analytics", "icon": "", "route": "analytics"}]},
         ],
         ROLE_MAHAJAN: [
             {"group": "Core", "items": [{"label": "Dashboard", "icon": "", "route": "dashboard"}, {"label": "My Profile", "icon": "", "route": "my_profile"}, {"label": "Notifications", "icon": "", "route": "notifications"}, {"label": "My Actions", "icon": "", "route": "my_actions"}]},
-            {"group": "Supply Network", "items": [{"label": "Warehouses", "icon": "", "route": "warehouses"}, {"label": "Raw Materials", "icon": "", "route": "raw_materials"}, {"label": "Shipments", "icon": "", "route": "shipments"}, {"label": "My Orders", "icon": "", "route": "my_orders"}]},
-            {"group": "Finance", "items": [{"label": "Payments", "icon": "", "route": "payments"}, {"label": "Ledger", "icon": "", "route": "ledger"}]},
+            {"group": "Supply Network", "items": [{"label": "Raw Materials", "icon": "", "route": "raw_materials"}, {"label": "Shipments", "icon": "", "route": "shipments"}, {"label": "My Orders", "icon": "", "route": "my_orders"}]},
+            {"group": "Finance", "items": [{"label": "Ledger", "icon": "", "route": "ledger"}]},
             {"group": "Operations", "items": [{"label": "Jobs", "icon": "", "route": "jobs"}]},
         ],
         ROLE_MANUFACTURER: [
             {"group": "Core", "items": [{"label": "Dashboard", "icon": "", "route": "dashboard"}, {"label": "My Profile", "icon": "", "route": "my_profile"}, {"label": "Notifications", "icon": "", "route": "notifications"}, {"label": "My Actions", "icon": "", "route": "my_actions"}]},
-            {"group": "Product Operations", "items": [{"label": "Products", "icon": "", "route": "products"}, {"label": "Warehouses", "icon": "", "route": "warehouses"}, {"label": "Inventory", "icon": "", "route": "inventory"}, {"label": "Shipments", "icon": "", "route": "shipments"}]},
+            {"group": "Product Operations", "items": [{"label": "Products", "icon": "", "route": "products"}, {"label": "Inventory", "icon": "", "route": "inventory"}, {"label": "Shipments", "icon": "", "route": "shipments"}]},
             {"group": "Commerce", "items": [{"label": "Marketplace", "icon": "", "route": "marketplace"}, {"label": "MandiPlace", "icon": "", "route": "mandiplace"}, {"label": "Raw Materials", "icon": "", "route": "raw_materials"}, {"label": "Suta Mandi", "icon": "", "route": "suta_mandi"}, {"label": "My Orders", "icon": "", "route": "my_orders"}]},
-            {"group": "Finance", "items": [{"label": "Payments", "icon": "", "route": "payments"}, {"label": "Ledger", "icon": "", "route": "ledger"}]},
+            {"group": "Finance", "items": [{"label": "Ledger", "icon": "", "route": "ledger"}]},
             {"group": "Operations", "items": [{"label": "Jobs", "icon": "", "route": "jobs"}]},
         ],
         ROLE_PUBLIC_BUYER: [

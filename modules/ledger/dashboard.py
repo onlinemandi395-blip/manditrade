@@ -16,8 +16,8 @@ def render_ledger_dashboard(app_context: dict) -> None:
     page_key = "ledger"
     render_page_header(
         "Ledger / Khata",
-        "Keep bilateral udhar simple: due amount, paid amount, balance, reminders, and notes.",
-        ["Khata", "Due Dates", "Reminder History"],
+        "Keep sales, procurement, outstanding balance, margin visibility, and settlement notes in one place without pretending the platform is a payment gateway.",
+        ["Khata", "Margin View", "Settlement Notes"],
         role=user.role.replace("_", " ").title() if user else "Manufacturer View",
         metrics=[("Readability", "High contrast"), ("Motion", "Minimal by design")],
         kicker="Digital Manpur Ledger Surface",
@@ -58,10 +58,10 @@ def render_ledger_dashboard(app_context: dict) -> None:
             {"label": "Overview", "value": str(len(ledgers)), "tab_name": "Overview"},
             {"label": "Entries", "value": str(pending_entries), "tab_name": "Entries"},
             {"label": "Due/Overdue", "value": str(overdue_entries), "tab_name": "Due/Overdue"},
-            {"label": "Payments", "value": "Add Payment", "tab_name": "Payments"},
+            {"label": "Settlements", "value": "Record", "tab_name": "Settlements"},
         ],
     )
-    render_section_intro("Khata Snapshot", "Both marketplace and mandi dues stay visible here without turning the product into full accounting software. Partial payments reduce balance without making admin the payment receiver.")
+    render_section_intro("Khata Snapshot", "Both marketplace and sourcing dues stay visible here without turning the product into a payment gateway. This is the finance surface that matters right now.")
     render_html(
         """
         <div class="mt-surface-note">
@@ -70,10 +70,20 @@ def render_ledger_dashboard(app_context: dict) -> None:
         </div>
         """
     )
-    overview_tab, entries_tab, due_tab, payments_tab = st.tabs(["Overview", "Entries", "Due/Overdue", "Payments"])
+    overview_tab, entries_tab, due_tab, payments_tab = st.tabs(["Overview", "Entries", "Due/Overdue", "Settlements"])
     with overview_tab:
         if ledgers:
             render_3d_panel("".join(render_mobile_record_card(item) for item in ledgers[:4]), "Latest Ledger Relationships", tone="subtle")
+            if user.role == "platform_admin":
+                total_sale_amount = 0.0
+                total_procurement_amount = 0.0
+                for entry in app_context["governance_service"].list_supply_ledger_entries():
+                    sale_amount = float(entry.get("manufacturer_bill_amount", entry.get("sale_amount", 0)) or 0)
+                    procurement_amount = float(entry.get("amount_due_to_mahajan", entry.get("procurement_amount", 0)) or 0)
+                    total_sale_amount += sale_amount
+                    total_procurement_amount += procurement_amount
+                margin = round(total_sale_amount - total_procurement_amount, 2)
+                st.caption(f"Derived sourcing margin: sale {round(total_sale_amount, 2)} - procurement {round(total_procurement_amount, 2)} = {margin}")
         else:
             render_empty_state("No ledger relationships found yet.")
     with entries_tab:
@@ -100,7 +110,7 @@ def render_ledger_dashboard(app_context: dict) -> None:
             render_empty_state("No due or overdue ledger entries right now.")
     with payments_tab:
         if user.role in {"mahajan", "platform_admin"}:
-            st.info("Supply-ledger payment settlement remains supervisory on this screen.")
+            st.info("Settlement visibility remains supervisory on this screen. No separate payment gateway workflow is assumed.")
             st.dataframe(ledgers, use_container_width=True)
             return
         payable_rows = []

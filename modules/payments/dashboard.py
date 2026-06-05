@@ -13,12 +13,11 @@ from utils.page_ui import render_empty_state, render_metric_button_row
 def render_payments_dashboard(app_context: dict) -> None:
     user = app_context["current_user"]
     settlement_service = app_context.get("settlement_service")
-    dispute_service = app_context.get("dispute_service")
     page_key = "payments"
     render_platform_shell(
-        title="Payments",
-        subtitle="Track direct seller and supplier payments and keep follow-up communication organised from one place.",
-        badges=["Payment Follow-Up", "Email Reminders"],
+        title="Payments (Legacy View)",
+        subtitle="This route is now compatibility-only. Core settlement tracking is shifting into Ledger so the platform stays focused on sourcing rather than acting like a payment gateway.",
+        badges=["Legacy Route", "Ledger First"],
         role=user.role.replace("_", " ").title() if user else None,
         breadcrumbs=["Workspace", "Finance", "Payments"],
     )
@@ -29,8 +28,8 @@ def render_payments_dashboard(app_context: dict) -> None:
     reminder_ready = bool(manufacturer_code and user.role in {"manufacturer", "admin_as_manufacturer"})
     render_kpi_cards(
         [
+            {"label": "Primary Finance Surface", "value": "Ledger", "status": "SUCCESS"},
             {"label": "Reminder Channel", "value": "Email", "status": "OPEN"},
-            {"label": "Trigger", "value": "Send Now" if reminder_ready else "View Only", "status": "SUCCESS"},
         ]
     )
     render_metric_button_row(
@@ -43,8 +42,8 @@ def render_payments_dashboard(app_context: dict) -> None:
     )
     overview_tab, pending_tab, verified_tab, disputed_tab = st.tabs(["Overview", "Pending", "Verified", "Failed/Disputed"])
     with overview_tab:
-        render_section_intro("Direct Payment Model", "Payments go directly to the seller, manufacturer, or supplier. Platform admin supervises commission and status but is not the default payment receiver.")
-        st.info("This page stays role-safe: buyers and workers get payment visibility, while reminder triggers stay limited to manufacturer-linked sessions.")
+        render_section_intro("Legacy Payment Visibility", "Payments still happen directly between parties, but this page is being phased down in favor of ledger-backed settlement visibility.")
+        st.info("Use Ledger for the primary finance workflow. This route remains only so older links and habits do not break suddenly.")
         if settlement_service and user.role in {"manufacturer", "mahajan", "public_buyer"}:
             owner_id = user.manufacturer_code if user.role == "manufacturer" else user.email
             summary = settlement_service.summarize(role=user.role, owner_id=owner_id)

@@ -39,16 +39,13 @@
         "items": [
           {"label": "Orders", "icon": "", "route": "orders"},
           {"label": "Inventory", "icon": "", "route": "inventory"},
-          {"label": "Warehouses", "icon": "", "route": "warehouses"},
           {"label": "Shipments", "icon": "", "route": "shipments"}
         ]
       },
       {
         "group": "Finance",
         "items": [
-          {"label": "Payments", "icon": "", "route": "payments"},
-          {"label": "Ledger", "icon": "", "route": "ledger"},
-          {"label": "Platform Commission", "icon": "", "route": "platform_commission"}
+          {"label": "Ledger", "icon": "", "route": "ledger"}
         ]
       },
       {
@@ -72,7 +69,6 @@
         "group": "Product Operations",
         "items": [
           {"label": "Products", "icon": "", "route": "products"},
-          {"label": "Warehouses", "icon": "", "route": "warehouses"},
           {"label": "Inventory", "icon": "", "route": "inventory"},
           {"label": "Shipments", "icon": "", "route": "shipments"}
         ]
@@ -90,7 +86,6 @@
       {
         "group": "Finance",
         "items": [
-          {"label": "Payments", "icon": "", "route": "payments"},
           {"label": "Ledger", "icon": "", "route": "ledger"}
         ]
       },
@@ -114,7 +109,6 @@
       {
         "group": "Supply Network",
         "items": [
-          {"label": "Warehouses", "icon": "", "route": "warehouses"},
           {"label": "Raw Materials", "icon": "", "route": "raw_materials"},
           {"label": "Shipments", "icon": "", "route": "shipments"},
           {"label": "My Orders", "icon": "", "route": "my_orders"}
@@ -123,7 +117,6 @@
       {
         "group": "Finance",
         "items": [
-          {"label": "Payments", "icon": "", "route": "payments"},
           {"label": "Ledger", "icon": "", "route": "ledger"}
         ]
       },

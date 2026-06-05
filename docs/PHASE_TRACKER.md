@@ -25,7 +25,7 @@ Status meanings:
 | Procurement Sources | `DONE` | Admin can now create and manage manual procurement sources, view legacy manufacturer/mahajan aliases as compatibility sources, and map products directly to `source_ids`. |
 | Admin Drive DB | `PARTIAL` | Canonical root/services exist and now prefer Google Drive service-account access; live cutover remains operator-controlled. |
 | Inventory Engine | `PARTIAL` | Unified inventory records, reservations, and movement ledger now exist across marketplace, MandiPlace, raw materials, and suta, and records are now warehouse-aware with default site fallback. |
-| Warehouses | `PARTIAL` | Warehouse records, default-site fallback, and role-specific warehouse management screens now exist, but deeper multi-warehouse allocation logic is still pending. |
+| Warehouses | `PARTIAL` | Warehouse records still exist for compatibility, but primary admin navigation now treats them as a hidden legacy layer rather than a core sourcing module. |
 | Shipments | `PARTIAL` | Shipment records now link dispatch flows to source warehouses across marketplace, MandiPlace, and supply lanes, but optimization and richer courier execution remain future work. |
 | Sidebar | `DONE` | Readable icon + label nav restored and icon-only experiment removed. |
 | Marketplace | `PARTIAL` | Public buyer browse/cart flow is stable, and product cards now show live stock state with reservation on order creation. |
@@ -35,7 +35,7 @@ Status meanings:
 | MandiPlace | `PARTIAL` | Dedicated card-first cleanup is in place for requester/admin/supplier views, and supplier stock is now reservation-driven, but some action tabs still rely on older form-first patterns. |
 | Packaging | `PARTIAL` | Catalogs and order attachment flow exist; visibility is now clearer on procurement cards/details and shipment records. |
 | Courier | `PARTIAL` | Catalogs and logistics attachment flow exist; booking/tracking visibility is now clearer on procurement cards/details and shipment records. |
-| Finance | `PARTIAL` | Settlement/invoice/dispute layer exists, but it is still a JSON-first operational system. |
+| Finance | `PARTIAL` | Settlement/invoice/dispute data still exists, but visible workflow is being simplified toward ledger-first settlement tracking instead of a full payment-gateway style module. |
 | Notifications | `PARTIAL` | In-app notifications and Gmail queue exist; UI/ops polish is still ongoing. |
 | Jobs | `PARTIAL` | Job and worker lifecycle exists; worker identity governance is stronger now, but lower-traffic job screens still need cleanup. |
 | Operations | `PARTIAL` | Operations/health dashboards exist; shell simplification and page consistency remain in progress. |
