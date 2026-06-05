@@ -49,6 +49,8 @@ def render_platform_shell(
         role=role,
         metrics=metrics,
         kicker=kicker,
+        primary_actions=primary_actions,
+        secondary_actions=secondary_actions,
     )
     if app_context and st.session_state.get("show_command_palette", False):
         render_command_palette(app_context)

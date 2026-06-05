@@ -9,6 +9,7 @@ from components.filter_bar import render_filter_bar
 from components.kpi_cards import render_kpi_cards
 from components.platform_shell import render_platform_shell
 from components.product_card import render_product_card
+from components.raw_material_card import render_raw_material_card
 from components.responsive_layout import render_section_intro
 from utils.page_ui import render_empty_state
 
@@ -57,22 +58,23 @@ def render_raw_materials_dashboard(app_context: dict) -> None:
             for index, item in enumerate(preview_cards):
                 with card_columns[index % len(card_columns)]:
                     image = image_service.get_display_image(item, label=str(item.get("name", "Raw Material"))) if image_service else {"src": "", "alt": str(item.get("name", "Raw Material")), "status": "NONE"}
-                    render_product_card(
+                    clicked = render_raw_material_card(
                         item=item,
-                        variant="RAW_MATERIAL",
                         image=image,
                         title=str(item.get("name", item.get("raw_material_id", "Raw Material"))),
                         subtitle=str(item.get("category", "RAW_MATERIAL")),
-                        price_label="Supply",
                         price_value=str(item.get("supply_price", 0)),
+                        supplier_label=str(item.get("mahajan_id", "Admin routed")),
                         availability_label=f"Qty {item.get('available_qty', 0)}",
-                        visibility_label=str(item.get("status", "ACTIVE")),
                         action_label="View Material",
                         action_key=f"raw_material_preview_{item.get('raw_material_id', index)}",
                         badges=trust_badge_service.badges_for_raw_material(item) if trust_badge_service else [],
                         supporting_text=str(item.get("description", "") or "Supply-layer input for mandi and manufacturing sourcing."),
                     )
-            selected_material = preview_cards[0]
+                    if clicked:
+                        st.session_state["raw_material_selected_id"] = item.get("raw_material_id", "")
+            selected_material_id = str(st.session_state.get("raw_material_selected_id") or preview_cards[0].get("raw_material_id", ""))
+            selected_material = next((item for item in preview_cards if item.get("raw_material_id") == selected_material_id), preview_cards[0])
             selected_image = image_service.get_display_image(selected_material, label=str(selected_material.get("name", "Raw Material"))) if image_service else {"src": "", "alt": str(selected_material.get("name", "Raw Material")), "status": "NONE"}
             render_catalog_detail_drawer(
                 title=str(selected_material.get("name", "Raw Material")),

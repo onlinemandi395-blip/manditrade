@@ -140,28 +140,31 @@ def render_marketplace_dashboard(app_context: dict) -> None:
         )
     if not filtered:
         render_empty_state_block("No public products match the current search/filter.", icon="[]", cta="Adjust search or category")
-    st.markdown("<div class='mt-public-product-grid mt-card-grid'>", unsafe_allow_html=True)
-    for index, item in enumerate(filtered[:8]):
-        image = image_service.get_display_image(item, label=str(item.get("name", "Product"))) if image_service else {"src": "", "alt": str(item.get("name", "Product")), "status": "NONE"}
-        trust_badges = trust_badge_service.badges_for_marketplace_product(item) if trust_badge_service else []
-        clicked = render_product_card(
-            item=item,
-            variant="MARKETPLACE_PRODUCT",
-            image=image,
-            title=str(item.get("name", "Product")),
-            subtitle=str(item.get("category", "General")),
-            price_label="Marketplace",
-            price_value=str(item.get("approved_marketplace_price", item.get("marketplace_price", item.get("price", 0)))),
-            availability_label=f"MOQ {item.get('minimum_order_qty', 1)}",
-            visibility_label="PUBLIC",
-            action_label="View Details",
-            action_key=f"marketplace_view_{item.get('product_id', index)}",
-            badges=trust_badges,
-            supporting_text=str(item.get("description", "") or "Public marketplace product."),
-        )
-        if clicked:
-            st.session_state["marketplace_selected_product"] = item.get("product_id", "")
-    st.markdown("</div>", unsafe_allow_html=True)
+    preview_count = min(len(filtered), 12)
+    for start in range(0, preview_count, 4):
+        row_items = filtered[start : start + 4]
+        columns = st.columns(len(row_items))
+        for index, item in enumerate(row_items):
+            image = image_service.get_display_image(item, label=str(item.get("name", "Product"))) if image_service else {"src": "", "alt": str(item.get("name", "Product")), "status": "NONE"}
+            trust_badges = trust_badge_service.badges_for_marketplace_product(item) if trust_badge_service else []
+            with columns[index]:
+                clicked = render_product_card(
+                    item=item,
+                    variant="MARKETPLACE_PRODUCT",
+                    image=image,
+                    title=str(item.get("name", "Product")),
+                    subtitle=str(item.get("category", "General")),
+                    price_label="Marketplace",
+                    price_value=str(item.get("approved_marketplace_price", item.get("marketplace_price", item.get("price", 0)))),
+                    availability_label=f"MOQ {item.get('minimum_order_qty', 1)}",
+                    visibility_label="PUBLIC",
+                    action_label="View Details",
+                    action_key=f"marketplace_view_{item.get('product_id', start + index)}",
+                    badges=trust_badges,
+                    supporting_text=str(item.get("description", "") or "Public marketplace product."),
+                )
+                if clicked:
+                    st.session_state["marketplace_selected_product"] = item.get("product_id", "")
 
     if not user:
         st.info("Sign in from the sidebar to continue.")

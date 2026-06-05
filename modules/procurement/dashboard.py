@@ -5,12 +5,12 @@ from typing import Any
 import streamlit as st
 
 from components.kpi_cards import render_kpi_cards
+from components.order_card import render_order_card
 from components.platform_shell import render_platform_shell
 from components.filter_bar import render_filter_bar
 from components.order_detail_view import build_order_detail_payload, render_order_detail_view
 from components.product_card import render_product_card
 from components.responsive_layout import render_section_intro
-from components.ui_shell import render_metric_card
 from utils.deep_links import build_deep_link_target
 from utils.export_utils import export_rows_to_csv_bytes, export_rows_to_json_bytes
 from utils.page_ui import get_active_filter, render_empty_state, render_metric_button_row, render_status_chip
@@ -282,6 +282,42 @@ def _render_orders_table(page_key: str, orders: list[dict[str, Any]]) -> list[di
     return visible_orders
 
 
+def _render_supply_order_card_grid(
+    *,
+    orders: list[dict[str, Any]],
+    materials_by_id: dict[str, dict[str, Any]],
+    mahajans_by_id: dict[str, dict[str, Any]],
+    session_key: str,
+    action_label: str = "View Detail",
+) -> None:
+    preview = orders[:8]
+    if not preview:
+        return
+    for start in range(0, len(preview), 4):
+        row_items = preview[start : start + 4]
+        columns = st.columns(len(row_items))
+        for index, order in enumerate(row_items):
+            material = materials_by_id.get(str(order.get("raw_material_id") or ""), {})
+            supplier = mahajans_by_id.get(str(order.get("mahajan_id") or ""), {}).get("business_name", order.get("mahajan_id", "Admin Routed")) or "Admin Routed"
+            packaging = str((order.get("packaging") or {}).get("packaging_name", "") or "")
+            courier = str((order.get("courier") or {}).get("provider_name", "") or "")
+            with columns[index]:
+                clicked = render_order_card(
+                    order_id=str(order.get("mandi_order_id", "")),
+                    supplier=supplier,
+                    quantity=f"{order.get('qty', 0)} {order.get('unit', '')}".strip(),
+                    price=str(order.get("manufacturer_unit_price", order.get("mahajan_unit_price", 0))),
+                    status=MANDI_TIMELINE_LABELS.get(str(order.get("status", "")), str(order.get("status", ""))),
+                    packaging=packaging,
+                    courier=courier,
+                    action_label=action_label,
+                    action_key=f"{session_key}_{order.get('mandi_order_id', start + index)}",
+                    supporting_text=str(material.get("name", order.get("raw_material_id", "Raw Material"))),
+                )
+                if clicked:
+                    st.session_state[session_key] = order.get("mandi_order_id", "")
+
+
 def _get_default_order_id(orders: list[dict[str, Any]], session_key: str) -> str | None:
     if not orders:
         return None
@@ -401,9 +437,96 @@ def _render_mandiplace_detail(order: dict[str, Any], *, manufacturer_code: str =
     )
 
 
+def _manufacturer_name(manufacturers_by_id: dict[str, dict[str, Any]], manufacturer_code: str) -> str:
+    row = manufacturers_by_id.get(str(manufacturer_code or "").strip(), {})
+    return str(row.get("business_name", manufacturer_code) or manufacturer_code or "Unassigned")
+
+
+def _get_default_mandiplace_order_id(orders: list[dict[str, Any]], session_key: str) -> str | None:
+    if not orders:
+        return None
+    requested_id = str(st.session_state.get(session_key, "") or "").strip()
+    if requested_id and any(item.get("mandiplace_order_id") == requested_id for item in orders):
+        return requested_id
+    return str(orders[0].get("mandiplace_order_id", "")) or None
+
+
+def _mandiplace_packaging_status(order: dict[str, Any]) -> str:
+    packaging = dict(order.get("packaging") or {})
+    return "Added" if packaging.get("packaging_service_id") or packaging.get("packaging_name") else "Not Added"
+
+
+def _mandiplace_courier_status(order: dict[str, Any]) -> str:
+    courier = dict(order.get("courier") or {})
+    if courier.get("status"):
+        return str(courier.get("status"))
+    if courier.get("courier_service_id") or courier.get("provider_name"):
+        return "Booked"
+    return "Not Booked"
+
+
+def _render_mandiplace_order_card_grid(
+    *,
+    orders: list[dict[str, Any]],
+    manufacturers_by_id: dict[str, dict[str, Any]],
+    session_key: str,
+    role_view: str,
+    action_label: str = "View Detail",
+) -> None:
+    preview = orders[:8]
+    if not preview:
+        return
+    for start in range(0, len(preview), 4):
+        row_items = preview[start : start + 4]
+        columns = st.columns(len(row_items))
+        for index, order in enumerate(row_items):
+            requester = _manufacturer_name(manufacturers_by_id, str(order.get("requesting_manufacturer_id", "")))
+            supplier = _manufacturer_name(manufacturers_by_id, str(order.get("supplier_manufacturer_id", "")))
+            items = list(order.get("items", []))
+            item_summary = items[0].get("name", items[0].get("product_id", "Product")) if items else "Product"
+            item_qty = items[0].get("qty", order.get("qty_total", 0)) if items else order.get("qty_total", 0)
+            item_unit = items[0].get("unit", "") if items else ""
+            title = item_summary
+            subtitle = ""
+            if role_view == "admin":
+                subtitle = f"Requester: {requester}"
+                supplier_label = f"Supplier: {supplier}"
+                next_action = (get_mandiplace_order_role_actions("platform_admin", order) or ["Review"])[0]
+                price_value = str(order.get("manufacturer_unit_price", order.get("supplier_unit_price", 0)))
+            elif role_view == "supplier":
+                subtitle = f"Deliver to: {items[0].get('requested_location', '')}" if items else ""
+                supplier_label = f"My quote: {order.get('supplier_unit_price', 0)}"
+                next_action = (get_mandiplace_order_role_actions("manufacturer", order, manufacturer_code=str(order.get("supplier_manufacturer_id", ""))) or ["Review"])[0]
+                price_value = str(order.get("supplier_unit_price", 0))
+            else:
+                subtitle = f"Supplier: {supplier}"
+                supplier_label = f"Status owner: {requester}"
+                next_action = (get_mandiplace_order_role_actions("manufacturer", order, manufacturer_code=str(order.get("requesting_manufacturer_id", ""))) or ["Review"])[0]
+                price_value = str(order.get("cost_breakdown", {}).get("final_payable", order.get("manufacturer_unit_price", 0)))
+            with columns[index]:
+                clicked = render_order_card(
+                    order_id=str(order.get("mandiplace_order_id", "")),
+                    supplier=supplier_label,
+                    quantity=f"{item_qty} {item_unit}".strip(),
+                    price=price_value,
+                    status=MANDIPLACE_TIMELINE_LABELS.get(str(order.get("status", "")), str(order.get("status", ""))),
+                    title=title,
+                    subtitle=subtitle,
+                    packaging=_mandiplace_packaging_status(order),
+                    courier=_mandiplace_courier_status(order),
+                    next_action=next_action,
+                    action_label=action_label,
+                    action_key=f"{session_key}_{order.get('mandiplace_order_id', start + index)}",
+                    supporting_text=f"Requester: {requester}" if role_view != "admin" else f"Supplier: {supplier}",
+                )
+                if clicked:
+                    st.session_state[session_key] = order.get("mandiplace_order_id", "")
+
+
 def _render_mandiplace_admin(app_context: dict, user, service) -> None:
     governance_service = app_context["governance_service"]
     orders = service.list_mandiplace_orders()
+    manufacturers_by_id = _index_by(governance_service.list_manufacturers(), "manufacturer_code")
     packaging_services = [item for item in governance_service.list_packaging_services() if item.get("status") == "ACTIVE"]
     courier_services = [item for item in governance_service.list_courier_services() if item.get("status") == "ACTIVE"]
     render_platform_shell(
@@ -415,27 +538,54 @@ def _render_mandiplace_admin(app_context: dict, user, service) -> None:
     )
     render_kpi_cards(
         [
-            {"label": "Open Requests", "value": str(len([item for item in orders if item.get("status") in {"REQUESTED_BY_MANUFACTURER", "ADMIN_REVIEWING"}])), "status": "PENDING"},
-            {"label": "Assigned", "value": str(len([item for item in orders if item.get("status") == "SUPPLIER_ASSIGNED"])), "status": "OPEN"},
-            {"label": "In Transit", "value": str(len([item for item in orders if item.get("status") == "IN_TRANSIT"])), "status": "WARNING"},
-            {"label": "Closed", "value": str(len([item for item in orders if item.get("status") == "CLOSED"])), "status": "SUCCESS"},
+            {"label": "New Requests", "value": str(len([item for item in orders if item.get("status") in {"REQUESTED_BY_MANUFACTURER", "ADMIN_REVIEWING"}])), "status": "PENDING"},
+            {"label": "Needs Supplier", "value": str(len([item for item in orders if item.get("status") in {"REQUESTED_BY_MANUFACTURER", "ADMIN_REVIEWING"} and not item.get("supplier_manufacturer_id")])), "status": "OPEN"},
+            {"label": "Pricing / Logistics", "value": str(len([item for item in orders if item.get("status") in {"SUPPLIER_QUOTED", "ADMIN_PRICE_SET", "PACKAGING_SELECTED"}])), "status": "WARNING"},
+            {"label": "Delivery Tracking", "value": str(len([item for item in orders if item.get("status") in {"SUPPLIER_DISPATCHED", "IN_TRANSIT", "DELIVERED", "RECEIVED"}])), "status": "SUCCESS"},
         ]
     )
     overview_tab, assign_tab, pricing_tab, orders_tab = st.tabs(["Overview", "Assign Supplier", "Pricing & Logistics", "Orders"])
     with overview_tab:
         render_section_intro("Manufacturer Procurement Control", "Manufacturers request products through admin. Supplier co-manufacturer assignment, packaging, courier, and closing stay controlled here.")
         if orders:
-            selected_id = st.selectbox("Review MandiPlace Order", [item["mandiplace_order_id"] for item in orders], key="mandiplace_admin_detail")
+            _render_mandiplace_order_card_grid(
+                orders=orders,
+                manufacturers_by_id=manufacturers_by_id,
+                session_key="mandiplace_admin_selected",
+                role_view="admin",
+                action_label="Open Detail",
+            )
+            default_id = _get_default_mandiplace_order_id(orders, "mandiplace_admin_selected")
+            selected_id = st.selectbox("Review MandiPlace Order", [item["mandiplace_order_id"] for item in orders], key="mandiplace_admin_detail", index=[item["mandiplace_order_id"] for item in orders].index(default_id) if default_id else 0)
             selected = next(item for item in orders if item["mandiplace_order_id"] == selected_id)
             _render_mandiplace_detail(selected)
-        st.dataframe(orders, use_container_width=True)
+        else:
+            render_empty_state("No manufacturer procurement orders yet.")
     with assign_tab:
         pending = [item for item in orders if item.get("status") in {"REQUESTED_BY_MANUFACTURER", "ADMIN_REVIEWING"}]
         if pending:
             selected_id = st.selectbox("Order To Assign", [item["mandiplace_order_id"] for item in pending], key="assign_manufacturer_supplier")
             candidates = service.list_eligible_manufacturer_suppliers(mandiplace_order_id=selected_id)
             if candidates:
-                st.dataframe(candidates, use_container_width=True)
+                candidate_columns = st.columns(min(len(candidates), 3))
+                for index, candidate in enumerate(candidates[:6]):
+                    availability = candidate.get("availability", [])
+                    with candidate_columns[index % len(candidate_columns)]:
+                        render_order_card(
+                            order_id=str(selected_id),
+                            supplier=f"City: {candidate.get('city', '') or 'NA'}",
+                            quantity=", ".join(f"{row.get('available_qty', 0)} avail" for row in availability[:2]) or "Availability pending",
+                            price=str(candidate.get("estimated_price", 0)),
+                            status="Eligible",
+                            title=str(candidate.get("business_name", candidate.get("manufacturer_code", "Supplier"))),
+                            subtitle=str(candidate.get("manufacturer_code", "")),
+                            packaging="Admin decides",
+                            courier="Admin decides",
+                            next_action="Assign Supplier",
+                            action_label="Candidate Ready",
+                            action_key=f"candidate_{selected_id}_{candidate.get('manufacturer_code', index)}",
+                            supporting_text=", ".join(f"{row.get('product_name', '')}: need {row.get('required_qty', 0)}" for row in availability[:2]),
+                        )
                 selected_supplier = st.selectbox("Eligible Supplier", [item["manufacturer_code"] for item in candidates], format_func=lambda code: f"{code} | {next((row.get('business_name', '') for row in candidates if row['manufacturer_code'] == code), '')}")
                 if st.button("Assign Supplier", use_container_width=True):
                     service.assign_manufacturer_supplier(mandiplace_order_id=selected_id, supplier_manufacturer_id=selected_supplier, admin_email=user.email)
@@ -448,6 +598,13 @@ def _render_mandiplace_admin(app_context: dict, user, service) -> None:
     with pricing_tab:
         quoted = [item for item in orders if item.get("status") in {"SUPPLIER_QUOTED", "ADMIN_PRICE_SET", "PACKAGING_SELECTED"}]
         if quoted:
+            _render_mandiplace_order_card_grid(
+                orders=quoted,
+                manufacturers_by_id=manufacturers_by_id,
+                session_key="mandiplace_admin_pricing_selected",
+                role_view="admin",
+                action_label="Manage Order",
+            )
             selected_id = st.selectbox("Manage Pricing", [item["mandiplace_order_id"] for item in quoted], key="manage_mandiplace_price")
             selected = next(item for item in quoted if item["mandiplace_order_id"] == selected_id)
             manufacturer_price = st.number_input("Manufacturer Unit Price", min_value=0.0, step=1.0, value=float(selected.get("manufacturer_unit_price", selected.get("supplier_unit_price", 0)) or 0))
@@ -484,19 +641,27 @@ def _render_mandiplace_admin(app_context: dict, user, service) -> None:
             st.info("No quoted or priceable MandiPlace orders are available right now.")
     with orders_tab:
         if orders:
-            selected_id = st.selectbox("Order Detail", [item["mandiplace_order_id"] for item in orders], key="mandiplace_admin_orders")
+            _render_mandiplace_order_card_grid(
+                orders=orders,
+                manufacturers_by_id=manufacturers_by_id,
+                session_key="mandiplace_admin_orders_selected",
+                role_view="admin",
+            )
+            default_id = _get_default_mandiplace_order_id(orders, "mandiplace_admin_orders_selected")
+            selected_id = st.selectbox("Order Detail", [item["mandiplace_order_id"] for item in orders], key="mandiplace_admin_orders", index=[item["mandiplace_order_id"] for item in orders].index(default_id) if default_id else 0)
             selected = next(item for item in orders if item["mandiplace_order_id"] == selected_id)
             _render_mandiplace_detail(selected)
             if selected.get("status") == "RECEIVED" and st.button("Close Order", use_container_width=True, key=f"close_mpo_{selected_id}"):
                 service.close_mandiplace_order(mandiplace_order_id=selected_id, admin_email=user.email)
                 st.success("MandiPlace order closed.")
                 st.rerun()
-            st.dataframe(orders, use_container_width=True)
         else:
             render_empty_state("No manufacturer procurement orders yet.")
 
 
 def _render_mandiplace_manufacturer(app_context: dict, user, service) -> None:
+    governance_service = app_context["governance_service"]
+    manufacturers_by_id = _index_by(governance_service.list_manufacturers(), "manufacturer_code")
     products = [
         item
         for item in app_context["product_catalog_service"].list_products(viewer_role="manufacturer", viewer_code=user.manufacturer_code or "")
@@ -513,21 +678,52 @@ def _render_mandiplace_manufacturer(app_context: dict, user, service) -> None:
     render_kpi_cards(
         [
             {"label": "My Requests", "value": str(len([item for item in orders if item.get("requesting_manufacturer_id") == (user.manufacturer_code or "")])), "status": "OPEN"},
-            {"label": "Assigned To Me", "value": str(len([item for item in orders if item.get("supplier_manufacturer_id") == (user.manufacturer_code or "")])), "status": "PENDING"},
+            {"label": "Awaiting Admin Review", "value": str(len([item for item in orders if item.get("requesting_manufacturer_id") == (user.manufacturer_code or "") and item.get("status") in {"REQUESTED_BY_MANUFACTURER", "ADMIN_REVIEWING"}])), "status": "PENDING"},
             {"label": "Awaiting My Confirmation", "value": str(len([item for item in orders if item.get("requesting_manufacturer_id") == (user.manufacturer_code or "") and item.get("status") == "COURIER_BOOKED"])), "status": "WARNING"},
-            {"label": "In Transit", "value": str(len([item for item in orders if item.get("status") == "IN_TRANSIT"])), "status": "WARNING"},
+            {"label": "In Transit", "value": str(len([item for item in orders if item.get("requesting_manufacturer_id") == (user.manufacturer_code or "") and item.get("status") in {"SUPPLIER_DISPATCHED", "IN_TRANSIT", "DELIVERED"}])), "status": "WARNING"},
         ]
     )
     overview_tab, request_tab, responses_tab, orders_tab = st.tabs(["Overview", "Create Request", "Actions", "Orders"])
     with overview_tab:
         render_section_intro("Admin-Routed Manufacturer Procurement", "You can request MandiPlace products here, but supplier manufacturer assignment stays under admin control.")
         if orders:
-            selected_id = st.selectbox("Review Order", [item["mandiplace_order_id"] for item in orders], key="mandiplace_manufacturer_detail")
+            requester_orders = [item for item in orders if item.get("requesting_manufacturer_id") == (user.manufacturer_code or "")]
+            if requester_orders:
+                _render_mandiplace_order_card_grid(
+                    orders=requester_orders,
+                    manufacturers_by_id=manufacturers_by_id,
+                    session_key="mandiplace_manufacturer_selected",
+                    role_view="requester",
+                    action_label="Open Detail",
+                )
+            default_id = _get_default_mandiplace_order_id(orders, "mandiplace_manufacturer_selected")
+            selected_id = st.selectbox("Review Order", [item["mandiplace_order_id"] for item in orders], key="mandiplace_manufacturer_detail", index=[item["mandiplace_order_id"] for item in orders].index(default_id) if default_id else 0)
             selected = next(item for item in orders if item["mandiplace_order_id"] == selected_id)
             _render_mandiplace_detail(selected, manufacturer_code=user.manufacturer_code or "")
-        st.dataframe(orders, use_container_width=True)
+        else:
+            render_empty_state("No MandiPlace orders available yet.")
     with request_tab:
         if products:
+            preview_products = products[:4]
+            preview_columns = st.columns(min(len(preview_products), 4))
+            for index, item in enumerate(preview_products):
+                with preview_columns[index % len(preview_columns)]:
+                    image = app_context.get("image_service").get_display_image(item, label=str(item.get("name", "Product"))) if app_context.get("image_service") else {"src": "", "alt": str(item.get("name", "Product")), "status": "NONE"}
+                    render_product_card(
+                        item=item,
+                        variant="MANDIPLACE_PRODUCT",
+                        image=image,
+                        title=str(item.get("name", "Product")),
+                        subtitle=str(item.get("category", "MandiPlace")),
+                        price_label="Mandi",
+                        price_value=str(item.get("approved_mandi_price", item.get("mandi_price", 0))),
+                        availability_label=f"MOQ {item.get('minimum_order_qty', 1)}",
+                        visibility_label="ADMIN ROUTED",
+                        action_label="View Product",
+                        action_key=f"mandiplace_request_preview_{item.get('product_id', index)}",
+                        badges=[],
+                        supporting_text="Supplier assignment stays with admin.",
+                    )
             product_id = st.selectbox("Product", [item["product_id"] for item in products], format_func=lambda pid: f"{pid} | {next((row.get('name', '') for row in products if row['product_id'] == pid), '')}")
             selected_product = next(item for item in products if item["product_id"] == product_id)
             qty = st.number_input("Qty", min_value=1.0, step=1.0, value=1.0)
@@ -557,6 +753,15 @@ def _render_mandiplace_manufacturer(app_context: dict, user, service) -> None:
     with responses_tab:
         as_supplier = [item for item in orders if item.get("supplier_manufacturer_id") == (user.manufacturer_code or "")]
         as_requester = [item for item in orders if item.get("requesting_manufacturer_id") == (user.manufacturer_code or "")]
+        if as_supplier:
+            render_section_intro("Assigned To Me", "These requests were routed to you as the supplier manufacturer.")
+            _render_mandiplace_order_card_grid(
+                orders=as_supplier,
+                manufacturers_by_id=manufacturers_by_id,
+                session_key="mandiplace_supplier_selected",
+                role_view="supplier",
+                action_label="Open Supplier View",
+            )
         quote_ready = [item for item in as_supplier if item.get("status") == "SUPPLIER_ASSIGNED"]
         if quote_ready:
             selected_id = st.selectbox("Quote Assigned Order", [item["mandiplace_order_id"] for item in quote_ready], key="supplier_quote_mpo")
@@ -595,11 +800,20 @@ def _render_mandiplace_manufacturer(app_context: dict, user, service) -> None:
                 st.rerun()
         if not any([quote_ready, confirm_ready, dispatch_ready, receive_ready]):
             st.info("No MandiPlace actions are waiting on your role right now.")
-    with orders_tab:
-        if orders:
-            st.dataframe(orders, use_container_width=True)
-        else:
-            render_empty_state("No MandiPlace orders available yet.")
+        with orders_tab:
+            if orders:
+                _render_mandiplace_order_card_grid(
+                    orders=orders,
+                    manufacturers_by_id=manufacturers_by_id,
+                    session_key="mandiplace_manufacturer_orders_selected",
+                    role_view="requester",
+                )
+                default_id = _get_default_mandiplace_order_id(orders, "mandiplace_manufacturer_orders_selected")
+                selected_id = st.selectbox("Order Detail", [item["mandiplace_order_id"] for item in orders], key="mandiplace_manufacturer_orders", index=[item["mandiplace_order_id"] for item in orders].index(default_id) if default_id else 0)
+                selected = next(item for item in orders if item["mandiplace_order_id"] == selected_id)
+                _render_mandiplace_detail(selected, manufacturer_code=user.manufacturer_code or "")
+            else:
+                render_empty_state("No MandiPlace orders available yet.")
 
 
 def render_procurement_dashboard(app_context: dict) -> None:
@@ -643,10 +857,10 @@ def render_procurement_dashboard(app_context: dict) -> None:
         orders = service.list_supply_orders()
         render_kpi_cards(
             [
-                {"label": "Open Requests", "value": str(len(filter_supply_orders(orders, "OPEN_REQUESTS"))), "status": "PENDING"},
-                {"label": "Awaiting Mahajan Quote", "value": str(len(filter_supply_orders(orders, "AWAITING_MAHAJAN_QUOTE"))), "status": "OPEN"},
-                {"label": "Awaiting Manufacturer Confirmation", "value": str(len(filter_supply_orders(orders, "AWAITING_MANUFACTURER_CONFIRMATION"))), "status": "WARNING"},
-                {"label": "Closed", "value": str(len(filter_supply_orders(orders, "CLOSED"))), "status": "SUCCESS"},
+                {"label": "Open Orders", "value": str(len(filter_supply_orders(orders, "OPEN_REQUESTS"))), "status": "PENDING"},
+                {"label": "In Progress", "value": str(len([item for item in orders if item.get("status") in {"SENT_TO_MAHAJAN", "MAHAJAN_QUOTED", "ADMIN_PRICE_SET", "MANUFACTURER_CONFIRMED", "MAHAJAN_DISPATCHED"}])), "status": "OPEN"},
+                {"label": "Delivered", "value": str(len([item for item in orders if item.get("status") in {"MANUFACTURER_RECEIVED", "CLOSED"}])), "status": "SUCCESS"},
+                {"label": "Cancelled", "value": str(len([item for item in orders if item.get("status") == "CANCELLED"])), "status": "ERROR"},
             ]
         )
         _render_mandi_order_filters(page_key, orders)
@@ -654,6 +868,13 @@ def render_procurement_dashboard(app_context: dict) -> None:
         with overview_tab:
             render_section_intro("Admin Supply Control", "Admin controls the full mandi supply lane: manufacturer demand, mahajan assignment, downstream pricing, ledger creation, and final closure.")
             if orders:
+                _render_supply_order_card_grid(
+                    orders=orders,
+                    materials_by_id=materials_by_id,
+                    mahajans_by_id=mahajans_by_id,
+                    session_key="admin_mandi_selected",
+                    action_label="Open Timeline",
+                )
                 default_id = _get_default_order_id(orders, "deep_link::mandi_orders")
                 selected_id = st.selectbox("Review Mandi Order", [item["mandi_order_id"] for item in orders], key="admin_mandi_detail", index=[item["mandi_order_id"] for item in orders].index(default_id) if default_id else 0)
                 selected = next(item for item in orders if item["mandi_order_id"] == selected_id)
@@ -668,7 +889,6 @@ def render_procurement_dashboard(app_context: dict) -> None:
                 _render_logistics_console(order=selected, service=service, user=user, form_scope="admin_overview")
             else:
                 render_empty_state("No mandi orders are available yet.")
-            st.dataframe(orders, use_container_width=True)
         with requests_tab:
             pending = [item for item in orders if item.get("status") in {"REQUESTED_BY_MANUFACTURER", "ADMIN_REVIEWING"}]
             st.dataframe(pending, use_container_width=True)
@@ -708,6 +928,13 @@ def render_procurement_dashboard(app_context: dict) -> None:
         with orders_tab:
             visible_orders = _render_orders_table(page_key, orders)
             if visible_orders:
+                _render_supply_order_card_grid(
+                    orders=visible_orders,
+                    materials_by_id=materials_by_id,
+                    mahajans_by_id=mahajans_by_id,
+                    session_key="admin_mandi_orders_selected",
+                    action_label="View Detail",
+                )
                 default_id = _get_default_order_id(visible_orders, "deep_link::mandi_orders")
                 selected_id = st.selectbox("Mandi Order Detail", [item["mandi_order_id"] for item in visible_orders], key="admin_order_ops", index=[item["mandi_order_id"] for item in visible_orders].index(default_id) if default_id else 0)
                 selected = next(item for item in visible_orders if item["mandi_order_id"] == selected_id)
@@ -743,12 +970,12 @@ def render_procurement_dashboard(app_context: dict) -> None:
             st.info("Your mahajan profile is not linked yet. Ask admin to activate your supplier record.")
             return
         orders = service.list_supply_orders(mahajan_id=mahajan.get("mahajan_id"))
-        render_metric_grid(
+        render_kpi_cards(
             [
-                render_metric_card("Open Requests", str(len(filter_supply_orders(orders, "OPEN_REQUESTS"))), "OPEN"),
-                render_metric_card("Awaiting Mahajan Quote", str(len(filter_supply_orders(orders, "AWAITING_MAHAJAN_QUOTE"))), "PENDING"),
-                render_metric_card("Dispatched", str(len(filter_supply_orders(orders, "DISPATCHED"))), "SUCCESS"),
-                render_metric_card("Closed", str(len(filter_supply_orders(orders, "CLOSED"))), "SUCCESS"),
+                {"label": "Open Orders", "value": str(len(filter_supply_orders(orders, "OPEN_REQUESTS"))), "status": "OPEN"},
+                {"label": "In Progress", "value": str(len([item for item in orders if item.get("status") in {"SENT_TO_MAHAJAN", "MAHAJAN_QUOTED", "MANUFACTURER_CONFIRMED"}])), "status": "PENDING"},
+                {"label": "Delivered", "value": str(len([item for item in orders if item.get("status") in {"MAHAJAN_DISPATCHED", "MANUFACTURER_RECEIVED", "CLOSED"}])), "status": "SUCCESS"},
+                {"label": "Cancelled", "value": str(len([item for item in orders if item.get("status") == "CANCELLED"])), "status": "ERROR"},
             ]
         )
         _render_mandi_order_filters(page_key, orders)
@@ -756,6 +983,13 @@ def render_procurement_dashboard(app_context: dict) -> None:
         with overview_tab:
             render_section_intro("Mahajan Supply Orders", "Mahajan works only on raw-material supply assigned by admin. Finished product selling stays outside this page.")
             if orders:
+                _render_supply_order_card_grid(
+                    orders=orders,
+                    materials_by_id=materials_by_id,
+                    mahajans_by_id=mahajans_by_id,
+                    session_key="mahajan_mandi_selected",
+                    action_label="Open Timeline",
+                )
                 default_id = _get_default_order_id(orders, "deep_link::mandi_orders")
                 selected_id = st.selectbox("Review Assigned Supply Order", [item["mandi_order_id"] for item in orders], key="mahajan_mandi_detail", index=[item["mandi_order_id"] for item in orders].index(default_id) if default_id else 0)
                 selected = next(item for item in orders if item["mandi_order_id"] == selected_id)
@@ -768,7 +1002,6 @@ def render_procurement_dashboard(app_context: dict) -> None:
                     mandi_ledger_entries=[],
                 )
                 st.caption(f"Deep link target: {build_deep_link_target('SUPPLY_ORDER', selected_id)['route']}")
-            st.dataframe(orders, use_container_width=True)
         with requests_tab:
             awaiting = [item for item in orders if item.get("status") == "SENT_TO_MAHAJAN"]
             st.dataframe(awaiting, use_container_width=True)
@@ -796,6 +1029,13 @@ def render_procurement_dashboard(app_context: dict) -> None:
             visible_orders = _render_orders_table(page_key, orders)
             dispatchable = [item for item in visible_orders if item.get("status") == "MANUFACTURER_CONFIRMED"]
             if visible_orders:
+                _render_supply_order_card_grid(
+                    orders=visible_orders,
+                    materials_by_id=materials_by_id,
+                    mahajans_by_id=mahajans_by_id,
+                    session_key="mahajan_mandi_orders_selected",
+                    action_label="View Detail",
+                )
                 default_id = _get_default_order_id(visible_orders, "deep_link::mandi_orders")
                 selected_id = st.selectbox("Assigned Order Detail", [item["mandi_order_id"] for item in visible_orders], key="mahajan_order_ops", index=[item["mandi_order_id"] for item in visible_orders].index(default_id) if default_id else 0)
                 selected = next(item for item in visible_orders if item["mandi_order_id"] == selected_id)
@@ -820,12 +1060,12 @@ def render_procurement_dashboard(app_context: dict) -> None:
     if user.role in {"manufacturer", "admin_as_manufacturer"}:
         orders = service.list_supply_orders(manufacturer_code=user.manufacturer_code or "")
         materials = [item for item in all_materials if item.get("status") == "ACTIVE"]
-        render_metric_grid(
+        render_kpi_cards(
             [
-                render_metric_card("Open Requests", str(len(filter_supply_orders(orders, "OPEN_REQUESTS"))), "PENDING"),
-                render_metric_card("Awaiting Manufacturer Confirmation", str(len(filter_supply_orders(orders, "AWAITING_MANUFACTURER_CONFIRMATION"))), "OPEN"),
-                render_metric_card("Dispatched", str(len(filter_supply_orders(orders, "DISPATCHED"))), "WARNING"),
-                render_metric_card("Received", str(len(filter_supply_orders(orders, "RECEIVED"))), "SUCCESS"),
+                {"label": "Open Orders", "value": str(len(filter_supply_orders(orders, "OPEN_REQUESTS"))), "status": "PENDING"},
+                {"label": "In Progress", "value": str(len(filter_supply_orders(orders, "AWAITING_MANUFACTURER_CONFIRMATION"))), "status": "OPEN"},
+                {"label": "Delivered", "value": str(len(filter_supply_orders(orders, "DISPATCHED"))), "status": "WARNING"},
+                {"label": "Cancelled", "value": str(len([item for item in orders if item.get("status") == "CANCELLED"])), "status": "ERROR"},
             ]
         )
         _render_mandi_order_filters(page_key, orders)
@@ -833,6 +1073,13 @@ def render_procurement_dashboard(app_context: dict) -> None:
         with overview_tab:
             render_section_intro("Admin-Controlled Raw Material Supply", "Request raw materials here. Finished products that you sell through Marketplace or MandiPlace stay on the Products page.")
             if orders:
+                _render_supply_order_card_grid(
+                    orders=orders,
+                    materials_by_id=materials_by_id,
+                    mahajans_by_id=mahajans_by_id,
+                    session_key="manufacturer_mandi_selected",
+                    action_label="Open Timeline",
+                )
                 default_id = _get_default_order_id(orders, "deep_link::mandi_orders")
                 selected_id = st.selectbox("Review My Mandi Order", [item["mandi_order_id"] for item in orders], key="manufacturer_mandi_detail", index=[item["mandi_order_id"] for item in orders].index(default_id) if default_id else 0)
                 selected = next(item for item in orders if item["mandi_order_id"] == selected_id)
@@ -845,7 +1092,6 @@ def render_procurement_dashboard(app_context: dict) -> None:
                     mandi_ledger_entries=_get_mandi_ledger_entries(service, user.manufacturer_code or ""),
                 )
                 _render_logistics_console(order=selected, service=service, user=user, form_scope="manufacturer_overview")
-            st.dataframe(orders, use_container_width=True)
         with requests_tab:
             if not materials:
                 st.info("No raw materials are available yet. Ask admin to onboard a mahajan supply catalog first.")
@@ -924,6 +1170,13 @@ def render_procurement_dashboard(app_context: dict) -> None:
         with orders_tab:
             visible_orders = _render_orders_table(page_key, orders)
             if visible_orders:
+                _render_supply_order_card_grid(
+                    orders=visible_orders,
+                    materials_by_id=materials_by_id,
+                    mahajans_by_id=mahajans_by_id,
+                    session_key="manufacturer_mandi_orders_selected",
+                    action_label="View Detail",
+                )
                 default_id = _get_default_order_id(visible_orders, "deep_link::mandi_orders")
                 selected_id = st.selectbox("My Order Detail", [item["mandi_order_id"] for item in visible_orders], key="manufacturer_order_ops", index=[item["mandi_order_id"] for item in visible_orders].index(default_id) if default_id else 0)
                 selected = next(item for item in visible_orders if item["mandi_order_id"] == selected_id)

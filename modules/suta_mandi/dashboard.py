@@ -9,7 +9,7 @@ from components.data_grid import render_data_grid
 from components.filter_bar import render_filter_bar
 from components.kpi_cards import render_kpi_cards
 from components.platform_shell import render_platform_shell
-from components.product_card import render_product_card
+from components.raw_material_card import render_raw_material_card
 from components.responsive_layout import render_section_intro
 from utils.page_ui import render_empty_state
 from utils.page_ui import render_metric_button_row
@@ -113,17 +113,15 @@ def render_suta_mandi_dashboard(app_context: dict) -> None:
                 for index, item in enumerate(preview_cards):
                     with card_columns[index % len(card_columns)]:
                         image = image_service.get_display_image(item, label=str(item.get("name", "Suta"))) if image_service else {"src": "", "alt": str(item.get("name", "Suta")), "status": "NONE"}
-                        if render_product_card(
+                        if render_raw_material_card(
                             item=item,
-                            variant="SUTA_MANDI",
                             image=image,
                             title=str(item.get("name", "Suta")),
                             subtitle=str(item.get("category", "SUTA")),
-                            price_label="Supply",
                             price_value=str(item.get("supply_price", 0)),
+                            supplier_label=str(item.get("mahajan_id", "Admin routed")),
                             availability_label=f"Qty {item.get('available_qty', 0)}",
-                            visibility_label=str(item.get("status", "ACTIVE")),
-                            action_label="Add To Request Cart",
+                            action_label="Request",
                             action_key=f"suta_add_{item.get('raw_material_id', index)}",
                             badges=trust_badge_service.badges_for_raw_material(item) if trust_badge_service else [],
                             supporting_text=str(item.get("description", "") or "Admin-curated yarn sourcing supply."),

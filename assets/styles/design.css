@@ -1,0 +1,151 @@
+.mt-page,
+.mt-platform-shell,
+.mt-shell-section {
+  display: grid;
+  gap: 1rem;
+}
+
+.mt-platform-shell__topbar {
+  position: static;
+  padding: 0.75rem 0.9rem;
+  border-radius: 16px;
+  background: rgba(10, 20, 34, 0.88);
+}
+
+.mt-hero,
+.mt-hero-panel,
+.mt-panel,
+.mt-card,
+.mt-record-card,
+.mt-glass-card,
+.mt-product-card {
+  background: rgba(10, 20, 34, 0.94);
+  border-radius: 16px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
+}
+
+.mt-hero,
+.mt-hero-panel {
+  min-height: 0;
+  padding: 1.1rem 1.15rem;
+  margin-bottom: 0.85rem;
+}
+
+.mt-page-hero__actions,
+.mt-platform-shell__actions,
+.mt-badge-row,
+.mt-chip-row {
+  gap: 0.45rem;
+}
+
+.mt-grid {
+  gap: 0.9rem;
+}
+
+.mt-card-grid {
+  gap: 0.9rem;
+  margin: 0.8rem 0 1rem 0;
+}
+
+.mt-kpi-card,
+.mt-card--metric {
+  min-height: 0;
+  padding: 0.95rem 1rem;
+}
+
+.mt-card__label {
+  font-size: 0.78rem;
+}
+
+.mt-card__value {
+  font-size: 1.3rem;
+  margin: 0.4rem 0 0.55rem 0;
+}
+
+.mt-status-chip,
+.mt-price-chip,
+.mt-chip,
+.mt-availability-chip,
+.mt-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0.3rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.76rem;
+}
+
+.mt-product-card h3,
+.mt-order-card h3 {
+  margin: 0.7rem 0 0.4rem 0;
+  font-size: 1rem;
+}
+
+.mt-product-thumbnail {
+  height: 132px;
+  background-color: rgba(255, 255, 255, 0.03);
+  background-size: cover;
+  background-position: center;
+}
+
+.mt-order-card {
+  padding: 0.95rem 1rem;
+}
+
+.mt-order-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.45rem;
+}
+
+.mt-order-card__subtitle {
+  margin: 0 0 0.35rem 0;
+  color: #bfd0df;
+  font-size: 0.84rem;
+}
+
+.mt-mandiplace-card {
+  border-left: 3px solid rgba(56, 189, 248, 0.35);
+}
+
+.mt-order-stage-chip {
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.18);
+  color: #d7effd;
+}
+
+.mt-logistics-mini {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.mt-procurement-detail {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.mt-public-product-grid .stButton,
+.mt-card-grid .stButton {
+  margin-top: 0.55rem;
+}
+
+.mt-public-marketplace-toolbar {
+  margin: 0 0 1rem 0;
+}
+
+@media (max-width: 1023px) {
+  .mt-grid--metrics,
+  .mt-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767px) {
+  .mt-grid--metrics,
+  .mt-grid--actions,
+  .mt-grid--stack,
+  .mt-card-grid,
+  .mt-hero__metrics {
+    grid-template-columns: 1fr;
+  }
+}
