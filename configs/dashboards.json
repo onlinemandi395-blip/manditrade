@@ -1,0 +1,80 @@
+{
+  "dashboards": {
+    "platform_admin": {
+      "cards": [
+        {
+          "id": "products_count",
+          "title_key": "dashboard.products",
+          "icon": "[PD]",
+          "data_source": "products",
+          "metric": "count",
+          "route": "products"
+        },
+        {
+          "id": "orders_count",
+          "title_key": "dashboard.orders",
+          "icon": "[OR]",
+          "data_source": "orders",
+          "metric": "count",
+          "route": "orders"
+        },
+        {
+          "id": "shipments_count",
+          "title_key": "dashboard.shipments",
+          "icon": "[SH]",
+          "data_source": "shipments",
+          "metric": "count",
+          "route": "shipments"
+        }
+      ]
+    },
+    "manufacturer": {
+      "cards": [
+        {
+          "id": "my_products",
+          "title_key": "dashboard.my_products",
+          "icon": "[PD]",
+          "data_source": "products",
+          "metric": "count",
+          "route": "products"
+        }
+      ]
+    },
+    "mahajan": {
+      "cards": [
+        {
+          "id": "raw_materials",
+          "title_key": "dashboard.raw_materials",
+          "icon": "[RM]",
+          "data_source": "raw_materials",
+          "metric": "count",
+          "route": "raw_materials"
+        }
+      ]
+    },
+    "public_buyer": {
+      "cards": [
+        {
+          "id": "catalog_count",
+          "title_key": "dashboard.products",
+          "icon": "[MK]",
+          "data_source": "products",
+          "metric": "count",
+          "route": "marketplace"
+        }
+      ]
+    },
+    "worker": {
+      "cards": [
+        {
+          "id": "worker_notifications",
+          "title_key": "dashboard.notifications",
+          "icon": "[NT]",
+          "data_source": "notifications",
+          "metric": "count",
+          "route": "notifications"
+        }
+      ]
+    }
+  }
+}

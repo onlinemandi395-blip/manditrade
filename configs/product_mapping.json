@@ -1,0 +1,130 @@
+{
+  "schema_version": 1,
+  "products": [
+    {
+      "product_id": "PROD_001",
+      "product_code": "TOWEL_001",
+      "product_name": "Premium Cotton Towel",
+      "status": "ACTIVE",
+      "category": "Textile",
+      "subcategory": "Towel",
+      "description": "Premium cotton towel",
+      "images": [
+        {
+          "file_id": "",
+          "thumbnail_url": "",
+          "view_url": ""
+        }
+      ],
+      "sales_channels": {
+        "marketplace": {
+          "enabled": true,
+          "price": 250
+        },
+        "mandiplace": {
+          "enabled": true,
+          "price": 220
+        },
+        "suta_mandi": {
+          "enabled": false,
+          "price": 0
+        }
+      },
+      "manufacturer_mapping": [
+        {
+          "manufacturer_id": "MFG_001",
+          "manufacturer_name": "ABC Towels Pvt Ltd",
+          "contact": {
+            "email": "abc@manufacturer.com",
+            "phone": "9999999999"
+          },
+          "inventory": {
+            "available_quantity": 5000,
+            "unit": "piece"
+          },
+          "priority": 1,
+          "active": true
+        }
+      ],
+      "mahajan_mapping": [
+        {
+          "mahajan_id": "MHJ_001",
+          "mahajan_name": "Patna Cotton Supplier",
+          "contact": {
+            "email": "mahajan1@example.com",
+            "phone": "7777777777"
+          },
+          "supplied_raw_materials": ["RAW_COTTON", "THREAD", "PACKAGING"],
+          "active": true
+        }
+      ],
+      "raw_material_requirements": [
+        {
+          "raw_material_id": "RM_001",
+          "name": "Cotton Thread",
+          "quantity_per_unit": 0.3,
+          "unit": "kg"
+        }
+      ],
+      "packaging_service": {
+        "service_id": "PKG_001",
+        "service_name": "Standard Packaging"
+      },
+      "courier_service": {
+        "service_id": "CRR_001",
+        "service_name": "Local Courier"
+      },
+      "workflow": {
+        "order_queue_enabled": true,
+        "notification_enabled": true,
+        "gmail_notifications": {
+          "marketplace_order": true,
+          "mandiplace_order": true,
+          "suta_mandi_order": true,
+          "dispatch": true,
+          "delivery": true
+        }
+      },
+      "order_routing": {
+        "marketplace": {
+          "queue": "marketplace_orders",
+          "notify": ["platform_admin", "manufacturer"]
+        },
+        "mandiplace": {
+          "queue": "mandiplace_orders",
+          "notify": ["platform_admin", "manufacturer"]
+        },
+        "suta_mandi": {
+          "queue": "suta_orders",
+          "notify": ["platform_admin", "manufacturer", "mahajan"]
+        }
+      },
+      "created_at": "2026-06-05T00:00:00Z",
+      "updated_at": "2026-06-05T00:00:00Z"
+    },
+    {
+      "product_id": "PROD_002",
+      "product_code": "BEDSHEET_001",
+      "product_name": "Soft Cotton Bedsheet",
+      "status": "ACTIVE",
+      "category": "Textile",
+      "subcategory": "Bedsheet",
+      "description": "Double-bed cotton bedsheet",
+      "images": [],
+      "sales_channels": {
+        "marketplace": {"enabled": true, "price": 780},
+        "mandiplace": {"enabled": true, "price": 710},
+        "suta_mandi": {"enabled": false, "price": 0}
+      },
+      "manufacturer_mapping": [],
+      "mahajan_mapping": [],
+      "raw_material_requirements": [],
+      "packaging_service": {},
+      "courier_service": {},
+      "workflow": {"order_queue_enabled": true, "notification_enabled": true, "gmail_notifications": {}},
+      "order_routing": {},
+      "created_at": "2026-06-05T00:00:00Z",
+      "updated_at": "2026-06-05T00:00:00Z"
+    }
+  ]
+}

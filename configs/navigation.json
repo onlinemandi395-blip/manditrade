@@ -1,0 +1,40 @@
+{
+  "navigation": {
+    "platform_admin": [
+      {"route": "dashboard", "icon": "[DB]", "label_key": "sidebar.dashboard"},
+      {"route": "products", "icon": "[PD]", "label_key": "sidebar.products"},
+      {"route": "marketplace", "icon": "[MK]", "label_key": "sidebar.marketplace"},
+      {"route": "mandiplace", "icon": "[MP]", "label_key": "sidebar.mandiplace"},
+      {"route": "raw_materials", "icon": "[RM]", "label_key": "sidebar.raw_materials"},
+      {"route": "orders", "icon": "[OR]", "label_key": "sidebar.orders"},
+      {"route": "shipments", "icon": "[SH]", "label_key": "sidebar.shipments"},
+      {"route": "ledger", "icon": "[LG]", "label_key": "sidebar.ledger"},
+      {"route": "notifications", "icon": "[NT]", "label_key": "sidebar.notifications"},
+      {"route": "system_health", "icon": "[HL]", "label_key": "sidebar.system_health"}
+    ],
+    "manufacturer": [
+      {"route": "dashboard", "icon": "[DB]", "label_key": "sidebar.dashboard"},
+      {"route": "products", "icon": "[PD]", "label_key": "sidebar.products"},
+      {"route": "marketplace", "icon": "[MK]", "label_key": "sidebar.marketplace"},
+      {"route": "mandiplace", "icon": "[MP]", "label_key": "sidebar.mandiplace"},
+      {"route": "suta_mandi", "icon": "[SM]", "label_key": "sidebar.suta_mandi"},
+      {"route": "orders", "icon": "[OR]", "label_key": "sidebar.orders"},
+      {"route": "notifications", "icon": "[NT]", "label_key": "sidebar.notifications"}
+    ],
+    "mahajan": [
+      {"route": "dashboard", "icon": "[DB]", "label_key": "sidebar.dashboard"},
+      {"route": "raw_materials", "icon": "[RM]", "label_key": "sidebar.raw_materials"},
+      {"route": "orders", "icon": "[OR]", "label_key": "sidebar.orders"},
+      {"route": "notifications", "icon": "[NT]", "label_key": "sidebar.notifications"}
+    ],
+    "public_buyer": [
+      {"route": "marketplace", "icon": "[MK]", "label_key": "sidebar.marketplace"},
+      {"route": "orders", "icon": "[OR]", "label_key": "sidebar.orders"},
+      {"route": "notifications", "icon": "[NT]", "label_key": "sidebar.notifications"}
+    ],
+    "worker": [
+      {"route": "dashboard", "icon": "[DB]", "label_key": "sidebar.dashboard"},
+      {"route": "notifications", "icon": "[NT]", "label_key": "sidebar.notifications"}
+    ]
+  }
+}

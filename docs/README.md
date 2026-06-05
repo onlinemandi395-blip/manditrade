@@ -1,2 +1,0 @@
-# manditrade
-manditrade

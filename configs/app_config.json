@@ -1,0 +1,15 @@
+{
+  "app_name": "MandiTrade Next",
+  "version": "0.1.0",
+  "default_role": "public_buyer",
+  "default_language": "en",
+  "default_landing": {
+    "platform_admin": "dashboard",
+    "manufacturer": "dashboard",
+    "mahajan": "dashboard",
+    "public_buyer": "marketplace",
+    "worker": "jobs"
+  },
+  "storage_mode": "local_json_first",
+  "admin_drive_enabled": false
+}

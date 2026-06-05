@@ -1,0 +1,90 @@
+{
+  "modules": {
+    "dashboard": {
+      "type": "dashboard",
+      "title_key": "module.dashboard.title",
+      "subtitle_key": "module.dashboard.subtitle",
+      "visible_to": ["platform_admin", "manufacturer", "mahajan", "worker"]
+    },
+    "marketplace": {
+      "type": "product_grid",
+      "title_key": "module.marketplace.title",
+      "subtitle_key": "module.marketplace.subtitle",
+      "data_source": "products",
+      "visible_to": ["platform_admin", "manufacturer", "public_buyer"],
+      "filters": {
+        "sales_channels.marketplace.enabled": true
+      }
+    },
+    "products": {
+      "type": "crud_table",
+      "title_key": "module.products.title",
+      "subtitle_key": "module.products.subtitle",
+      "data_source": "products",
+      "form_id": "product_form",
+      "visible_to": ["platform_admin", "manufacturer"]
+    },
+    "raw_materials": {
+      "type": "crud_table",
+      "title_key": "module.raw_materials.title",
+      "subtitle_key": "module.raw_materials.subtitle",
+      "data_source": "raw_materials",
+      "form_id": "raw_material_form",
+      "visible_to": ["platform_admin", "mahajan"]
+    },
+    "mandiplace": {
+      "type": "product_grid",
+      "title_key": "module.mandiplace.title",
+      "subtitle_key": "module.mandiplace.subtitle",
+      "data_source": "products",
+      "visible_to": ["platform_admin", "manufacturer"],
+      "filters": {
+        "sales_channels.mandiplace.enabled": true
+      }
+    },
+    "suta_mandi": {
+      "type": "product_grid",
+      "title_key": "module.suta_mandi.title",
+      "subtitle_key": "module.suta_mandi.subtitle",
+      "data_source": "products",
+      "visible_to": ["manufacturer"],
+      "filters": {
+        "sales_channels.suta_mandi.enabled": true
+      }
+    },
+    "orders": {
+      "type": "table",
+      "title_key": "module.orders.title",
+      "subtitle_key": "module.orders.subtitle",
+      "data_source": "orders",
+      "visible_to": ["platform_admin", "manufacturer", "mahajan", "public_buyer"]
+    },
+    "notifications": {
+      "type": "table",
+      "title_key": "module.notifications.title",
+      "subtitle_key": "module.notifications.subtitle",
+      "data_source": "notifications",
+      "visible_to": ["platform_admin", "manufacturer", "mahajan", "public_buyer", "worker"]
+    },
+    "system_health": {
+      "type": "system",
+      "title_key": "module.system_health.title",
+      "subtitle_key": "module.system_health.subtitle",
+      "visible_to": ["platform_admin"]
+    },
+    "shipments": {
+      "type": "table",
+      "title_key": "module.shipments.title",
+      "subtitle_key": "module.shipments.subtitle",
+      "data_source": "shipments",
+      "visible_to": ["platform_admin", "manufacturer", "mahajan"]
+    },
+    "ledger": {
+      "type": "table",
+      "title_key": "module.ledger.title",
+      "subtitle_key": "module.ledger.subtitle",
+      "data_source": "ledger",
+      "visible_to": ["platform_admin", "manufacturer", "mahajan", "public_buyer"]
+    }
+  }
+}

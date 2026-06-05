@@ -1,52 +1,26 @@
 from __future__ import annotations
 
-from html import escape
-from typing import Any
-
 import streamlit as st
 
-from components.html_renderer import render_html
 
-
-CARD_VARIANTS = {"MARKETPLACE_PRODUCT", "MANDIPLACE_PRODUCT", "RAW_MATERIAL", "SUTA_MANDI"}
-
-
-def render_product_card(
-    *,
-    item: dict[str, Any],
-    variant: str,
-    image: dict[str, str],
-    title: str,
-    subtitle: str,
-    price_label: str,
-    price_value: str,
-    availability_label: str,
-    visibility_label: str,
-    action_label: str,
-    action_key: str,
-    badges: list[str] | None = None,
-    supporting_text: str = "",
-) -> bool:
-    normalized_variant = variant if variant in CARD_VARIANTS else "MARKETPLACE_PRODUCT"
-    badge_html = "".join(f"<span class='mt-chip'>{escape(badge)}</span>" for badge in (badges or [])[:3])
-    supporting_html = f"<p>{escape(supporting_text)}</p>" if supporting_text else ""
-    render_html(
-        f"""
-        <article class="mt-product-card" data-variant="{escape(normalized_variant)}">
-          <div class="mt-product-thumbnail" style="background-image:url('{escape(image['src'])}');" role="img" aria-label="{escape(image['alt'])}"></div>
-          <div class="mt-chip-row">
-            <span class="mt-chip">{escape(subtitle)}</span>
-            <span class="mt-availability-chip">{escape(availability_label)}</span>
-            <span class="mt-chip">{escape(visibility_label)}</span>
-          </div>
-          <h3>{escape(title)}</h3>
-          {supporting_html}
-          <div class="mt-chip-row">
-            <span class="mt-price-chip">{escape(price_label)}: {escape(price_value)}</span>
-            <span class="mt-chip">{escape(str(item.get('unit', 'unit')))}</span>
-          </div>
-          <div class="mt-chip-row">{badge_html}</div>
-        </article>
-        """
-    )
-    return st.button(action_label, key=action_key, use_container_width=True)
+def render_product_card(product: dict, *, on_add_to_cart=None) -> None:
+    image_url = ""
+    for image in product.get("images", []) or []:
+        image_url = image.get("thumbnail_url") or image.get("view_url") or ""
+        if image_url:
+            break
+    price = ((product.get("sales_channels") or {}).get("marketplace") or {}).get("price", 0)
+    with st.container(border=True):
+        media = st.empty()
+        if image_url:
+            media.image(image_url, use_container_width=True)
+        else:
+            media.markdown("<div class='mt-product-card__media'>No Image</div>", unsafe_allow_html=True)
+        st.markdown(f"#### {product.get('product_name', product.get('product_id', 'Product'))}")
+        st.caption(product.get("category", "General"))
+        st.write(f"Price: {price}")
+        cols = st.columns(2)
+        if cols[0].button("Add to Cart", key=f"cart_{product.get('product_id', '')}", use_container_width=True):
+            if on_add_to_cart:
+                on_add_to_cart(product)
+        cols[1].button("View Details", key=f"detail_{product.get('product_id', '')}", use_container_width=True)
