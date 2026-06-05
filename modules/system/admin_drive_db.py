@@ -40,6 +40,12 @@ def render_admin_drive_db_dashboard(app_context: dict) -> None:
     runtime = validation.get("runtime", root)
     nav_info = get_navigation_runtime_info("platform_admin", app_context)
     canonical_readiness = "READY" if validation.get("status") == "PASS" and not validation.get("critical_errors") else "NOT READY"
+    if latest_bootstrap.get("status") in {"FAILED", "PARTIAL"} or tree_status.get("missing"):
+        recommended_next_action = "Bootstrap Missing Folders"
+    elif validation.get("status") != "PASS":
+        recommended_next_action = "Validate DB"
+    else:
+        recommended_next_action = "Create Smoke Record"
     render_metric_grid(
         [
             render_metric_card("Drive Mode", "Service Account" if tree_status.get("mode") == "GOOGLE_DRIVE" else "Local Mirror", "SUCCESS" if tree_status.get("mode") == "GOOGLE_DRIVE" else "OPEN"),
@@ -59,8 +65,9 @@ def render_admin_drive_db_dashboard(app_context: dict) -> None:
     with status_col2:
         st.write(f"Connection: {'Connected' if runtime.get('drive_api_ready', False) else 'Not Connected'}")
         st.write(f"Last Checked: {tree_status.get('last_checked', '')}")
-        st.write(f"Bootstrap Status: {latest_bootstrap.get('recommendation', 'MISSING')}")
+        st.write(f"Bootstrap Status: {latest_bootstrap.get('status', 'MISSING')}")
         st.write(f"Validation Status: {validation.get('status', 'UNKNOWN')}")
+        st.write(f"Recommended Next Action: {recommended_next_action}")
     if runtime.get("drive_api_ready", False):
         st.success("Google Drive is connected through the configured service account, and Admin Drive DB metadata is being read live.")
     else:
@@ -145,6 +152,17 @@ def render_admin_drive_db_dashboard(app_context: dict) -> None:
     if tree_status.get("warnings"):
         st.info("Warnings: " + " | ".join(tree_status.get("warnings", [])))
 
+    st.markdown("### Bootstrap Report")
+    bootstrap_view = {
+        "status": latest_bootstrap.get("status", "MISSING"),
+        "folders_created": latest_bootstrap.get("folders_created", 0),
+        "files_created": latest_bootstrap.get("files_created", 0),
+        "already_existing": latest_bootstrap.get("already_existing", {}),
+        "errors": latest_bootstrap.get("errors", []),
+        "timestamp": latest_bootstrap.get("generated_at", ""),
+    }
+    st.json(bootstrap_view, expanded=False)
+
     st.markdown("### Navigation Inspector")
     st.json(
         {
@@ -174,7 +192,7 @@ def render_admin_drive_db_dashboard(app_context: dict) -> None:
         st.write(f"Mode: {'Service Account' if smoke_result.get('mode') == 'GOOGLE_DRIVE' else 'Local Mirror'}")
         st.write(f"File ID: {smoke_result.get('file_id', '') or 'Not available'}")
         st.write(f"Path / Location: {smoke_result.get('path', '')}")
-        st.write(f"Timestamp: {smoke_result.get('payload', {}).get('created_at', '')}")
+        st.write(f"Timestamp: {smoke_result.get('last_updated', '')}")
         st.write(f"Message: {smoke_result.get('message', '')}")
 
     with st.expander("Advanced Details", expanded=False):

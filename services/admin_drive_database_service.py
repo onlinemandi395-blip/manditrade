@@ -175,6 +175,9 @@ class AdminDriveDatabaseService:
             "15_media/products",
             "15_media/raw_materials",
             "15_media/payment_proofs",
+            "15_media/delivery_proofs",
+            "15_media/job_images",
+            "15_media/profile_images",
         ]
         if runtime_status["drive_api_ready"]:
             tree_status = self.get_database_tree_status()
@@ -212,14 +215,39 @@ class AdminDriveDatabaseService:
         root = self.ensure_database_root(allow_create=not dry_run)
         tree = self.ensure_folder_tree(allow_create=not dry_run)
         bootstrap = self.ensure_required_json_files(allow_create=not dry_run)
+        folder_rows = tree.get("folders", [])
+        folder_created = len([item for item in folder_rows if item.get("created")])
+        folder_existing = len([item for item in folder_rows if item.get("exists") and not item.get("created")])
+        file_created = len(bootstrap.get("created", []))
+        file_existing = len(bootstrap.get("existing", []))
+        errors: list[str] = []
+        if not root.get("exists"):
+            errors.append("Configured admin DB root is not reachable.")
+        if not tree.get("all_present", False):
+            errors.append("Canonical folder tree is incomplete.")
+        if bootstrap.get("missing"):
+            errors.append(f"Missing bootstrap files: {len(bootstrap.get('missing', []))}")
+        status = "SUCCESS"
+        if errors:
+            status = "FAILED" if not dry_run else "PARTIAL"
+        elif dry_run and (folder_created or file_created or bootstrap.get("missing")):
+            status = "PARTIAL"
         report = {
             "generated_at": datetime.now(UTC).isoformat(),
             "mode": "dry_run" if dry_run else "execute",
+            "status": status,
             "runtime": self.runtime_status(),
             "service_account": self.resolve_service_account_config(),
             "root": root,
             "folder_tree": tree,
             "bootstrap_files": bootstrap,
+            "folders_created": folder_created,
+            "files_created": file_created,
+            "already_existing": {
+                "folders": folder_existing,
+                "files": file_existing,
+            },
+            "errors": errors,
             "recommendation": "PASS" if root["exists"] and tree["all_present"] and not bootstrap["missing"] else "REVIEW",
         }
         self._write_report(
@@ -227,6 +255,8 @@ class AdminDriveDatabaseService:
             prefix="admin_drive_db_bootstrap",
             latest_name=f"latest_admin_drive_db_bootstrap_{'dry_run' if dry_run else 'execute'}.json",
         )
+        if not dry_run:
+            self.validate_database_tree(persist=True)
         return report
 
     def load_latest_validation_report(self) -> dict[str, Any]:
@@ -266,11 +296,16 @@ class AdminDriveDatabaseService:
 
     def create_smoke_record(self) -> dict[str, Any]:
         runtime = self.runtime_status()
+        smoke_record = {
+            "smoke_test_id": datetime.now(UTC).strftime("SMOKE-%Y%m%d%H%M%S"),
+            "created_at": datetime.now(UTC).isoformat(),
+            "created_by": "platform_admin_service_account" if runtime.get("drive_api_ready", False) else "local_mirror",
+            "message": "Admin Drive DB write successful",
+        }
         payload = {
             "schema_version": 1,
-            "status": "OK",
-            "created_at": datetime.now(UTC).isoformat(),
-            "runtime_backend": runtime,
+            "records": [smoke_record],
+            "updated_at": datetime.now(UTC).isoformat(),
         }
         target = self.drive_path_service.get_runtime_path("") / "drive_smoke_test.json"
         if runtime.get("drive_api_ready", False):
@@ -297,6 +332,7 @@ class AdminDriveDatabaseService:
                     "web_view_link": drive_file.get("webViewLink", ""),
                     "payload": payload,
                     "message": "Smoke record created through the Google Drive service account runtime.",
+                    "last_updated": drive_file.get("modifiedTime", payload["updated_at"]),
                     "runtime_ready": True,
                 }
             except Exception as exc:  # noqa: BLE001
@@ -318,6 +354,7 @@ class AdminDriveDatabaseService:
             "file_id": "",
             "payload": payload,
             "message": "Google Drive is not connected. Using local canonical mirror fallback.",
+            "last_updated": payload["updated_at"],
             "runtime_ready": False,
         }
 
@@ -331,6 +368,9 @@ class AdminDriveDatabaseService:
                 ("15_media/products", "folder"),
                 ("15_media/raw_materials", "folder"),
                 ("15_media/payment_proofs", "folder"),
+                ("15_media/delivery_proofs", "folder"),
+                ("15_media/job_images", "folder"),
+                ("15_media/profile_images", "folder"),
             ]
         )
         required_entries.extend(

@@ -305,6 +305,7 @@ class DrivePathService:
             jobs_root / "assignments.json": records_envelope("assignments"),
             self.db_root / self._folder("notifications") / "email_queue" / "gmail_queue.json": records_envelope("emails"),
             self.db_root / self._folder("notifications") / "dead_letter" / "failed_notifications.json": records_envelope("failures"),
+            self.db_root / self._folder("runtime") / "drive_smoke_test.json": records_envelope("records"),
             intelligence_root / "alerts.json": records_envelope("alerts"),
             intelligence_root / "recommendations.json": records_envelope("recommendations"),
             intelligence_root / "kpis.json": records_envelope("kpis"),
