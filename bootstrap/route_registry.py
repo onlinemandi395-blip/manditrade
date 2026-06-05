@@ -17,6 +17,7 @@ from modules.admin.packaging_services import render_packaging_services_dashboard
 from modules.admin.courier_services import render_courier_services_dashboard
 from modules.admin.inventory_summary import render_inventory_summary_dashboard
 from modules.admin.manufacturers import render_manufacturers_dashboard
+from modules.admin.workers import render_workers_admin_dashboard
 from modules.mahajan.dashboard import render_mahajan_dashboard
 from modules.admin.product_approvals import render_product_approvals_dashboard
 from modules.inventory.management import render_inventory_management
@@ -52,6 +53,7 @@ ROUTE_GROUPS = {
         "My Actions",
         "Manufacturers",
         "Mahajans",
+        "Workers",
         "Products",
         "Product Approvals",
         "Marketplace",
@@ -208,6 +210,8 @@ def render_route(section: str, app_context: dict) -> None:
         render_dispatch_management(app_context)
     elif section == "Mahajans":
         render_mahajans_dashboard(app_context)
+    elif section == "Workers":
+        render_workers_admin_dashboard(app_context)
     elif section == "Raw Materials":
         render_raw_materials_dashboard(app_context)
     elif section == "Operations Center":

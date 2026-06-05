@@ -4,6 +4,39 @@ from typing import Any
 
 
 class TrustBadgeService:
+    def verification_badges(self, entity: dict[str, Any]) -> list[str]:
+        badges: list[str] = []
+        legal = entity.get("legal", {}) or {}
+        banking = entity.get("banking", {}) or {}
+        address = entity.get("address", {}) or {}
+        if str(legal.get("gstin") or entity.get("gstin") or "").strip():
+            badges.append("Verified GST")
+        if str(legal.get("pan") or entity.get("pan") or "").strip():
+            badges.append("Verified PAN")
+        if (
+            str(banking.get("account_holder_name") or entity.get("account_holder_name") or "").strip()
+            and str(banking.get("account_number") or entity.get("account_number") or "").strip()
+            and str(banking.get("ifsc") or entity.get("ifsc") or "").strip()
+        ):
+            badges.append("Verified Bank")
+        if (
+            str(address.get("line1") or entity.get("address_line1") or "").strip()
+            and str(address.get("city") or entity.get("city") or "").strip()
+            and str(address.get("state") or entity.get("state") or "").strip()
+        ):
+            badges.append("Verified Address")
+        return self._dedupe(badges)
+
+    def identity_tier(self, entity: dict[str, Any]) -> str:
+        badge_count = len(self.verification_badges(entity))
+        if badge_count >= 4:
+            return "Trusted"
+        if badge_count == 3:
+            return "Gold"
+        if badge_count == 2:
+            return "Silver"
+        return "Bronze"
+
     def badges_for_marketplace_product(self, product: dict[str, Any]) -> list[str]:
         badges: list[str] = []
         visibility = str(product.get("approved_visibility") or product.get("visibility_request") or "").upper()
@@ -38,17 +71,19 @@ class TrustBadgeService:
         return self._dedupe(badges)
 
     def badges_for_manufacturer(self, manufacturer: dict[str, Any]) -> list[str]:
-        badges: list[str] = []
+        badges: list[str] = self.verification_badges(manufacturer)
         if str(manufacturer.get("status") or "").upper() == "ACTIVE":
             badges.append("Verified Manufacturer")
         if bool(manufacturer.get("available_for_public_sale", False)):
             badges.append("Marketplace Seller")
         if self._average_rating(manufacturer) >= 4:
             badges.append("High Fulfillment")
+        identity_tier = self.identity_tier(manufacturer)
+        badges.append(identity_tier)
         return self._dedupe(badges)
 
     def badges_for_supplier_summary(self, entity: dict[str, Any]) -> list[str]:
-        badges: list[str] = []
+        badges: list[str] = self.verification_badges(entity)
         status = str(entity.get("status") or "").upper()
         if status in {"ACTIVE", "APPROVED"}:
             badges.append("Verified Supplier")
@@ -56,6 +91,8 @@ class TrustBadgeService:
             badges.append("Repeat Supplier")
         if str(entity.get("city") or "").strip():
             badges.append(f"Ships From {str(entity.get('city')).strip()}")
+        identity_tier = self.identity_tier(entity)
+        badges.append(identity_tier)
         return self._dedupe(badges)
 
     def badges_for_marketplace_order(self, order: dict[str, Any]) -> list[str]:

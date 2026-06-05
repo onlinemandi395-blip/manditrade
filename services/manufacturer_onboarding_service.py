@@ -30,13 +30,14 @@ class ManufacturerOnboardingService:
             f"1. Sign in to MandiTrade with Google using {owner_email or 'the approved manufacturer email'}.\n"
             f"2. Share your manufacturer code with admin: {code}\n"
             f"3. Share your first-time manufacturer onboarding secret with admin: {secret}\n"
-            f"4. Ask admin to map your Google account to this manufacturer workspace.\n"
-            f"5. After account mapping, start with Products, Inventory, Marketplace Orders, and Mandi Orders.\n\n"
+            f"4. Complete the invited manufacturer profile after first sign-in.\n"
+            f"5. Wait for admin approval before operational access becomes ACTIVE.\n\n"
             f"Admin checklist:\n"
             f"- Verify Google email matches expected owner email.\n"
             f"- Confirm secret matches the onboarding packet.\n"
-            f"- Ensure manufacturer status stays ACTIVE.\n"
-            f"- Share post-onboarding navigation: Products, Inventory, Marketplace Orders, Mandi Orders, Ledger / Khata."
+            f"- Review profile completeness, GST/PAN/bank/address readiness.\n"
+            f"- Approve status to ACTIVE only after identity validation.\n"
+            f"- Share post-approval navigation: Products, Inventory, Marketplace Orders, Mandi Orders, Ledger / Khata."
         )
 
     def create_manufacturer(
@@ -45,7 +46,9 @@ class ManufacturerOnboardingService:
         manufacturer_code: str = "",
         manufacturer_name: str = "",
         business_name: str = "",
+        brand_name: str = "",
         owner_name: str = "",
+        contact_person: str = "",
         owner_email: str,
         mobile: str = "",
         alternate_mobile: str = "",
@@ -68,15 +71,17 @@ class ManufacturerOnboardingService:
         business_description: str = "",
         created_by: str,
         subscription_plan: str = "basic",
+        status: str = "PENDING",
     ) -> dict[str, Any]:
         normalized_code = manufacturer_code.strip().upper() if manufacturer_code.strip() else self.generate_next_manufacturer_code()
         normalized_business_name = (business_name or manufacturer_name).strip()
+        normalized_status = str(status or "PENDING").strip().upper()
         paths = self.drive_service.initialize_manufacturer_workspace(
             manufacturer_code=normalized_code,
             manufacturer_name=normalized_business_name,
             owner_email=owner_email.strip(),
             city=city.strip(),
-            status="ACTIVE",
+            status=normalized_status,
         )
         onboarding_secret = self.generate_onboarding_secret()
         manufacturer = self._build_manufacturer_record(
@@ -84,7 +89,9 @@ class ManufacturerOnboardingService:
                 "manufacturer_code": normalized_code,
                 "manufacturer_name": normalized_business_name,
                 "business_name": normalized_business_name,
+                "brand_name": brand_name,
                 "owner_name": owner_name,
+                "contact_person": contact_person,
                 "owner_email": owner_email,
                 "mobile": mobile,
                 "alternate_mobile": alternate_mobile,
@@ -111,7 +118,7 @@ class ManufacturerOnboardingService:
                 },
                 "google_drive_connected_status": google_drive_connected_status,
                 "business_description": business_description,
-                "status": "ACTIVE",
+                "status": normalized_status,
                 "subscription_plan": subscription_plan,
                 "manufacturer_onboarding_secret": onboarding_secret,
                 "created_by": created_by,
@@ -160,7 +167,9 @@ class ManufacturerOnboardingService:
                 "manufacturer_code": manufacturer["manufacturer_code"],
                 "manufacturer_name": manufacturer.get("manufacturer_name", ""),
                 "business_name": manufacturer.get("business_name", ""),
+                "brand_name": manufacturer.get("brand_name", ""),
                 "owner_name": manufacturer.get("owner_name", ""),
+                "contact_person": manufacturer.get("contact_person", ""),
                 "owner_email": manufacturer.get("owner_email", ""),
                 "mobile": manufacturer.get("mobile", ""),
                 "alternate_mobile": manufacturer.get("alternate_mobile", ""),
@@ -191,6 +200,7 @@ class ManufacturerOnboardingService:
         manufacturer_code = str(payload.get("manufacturer_code") or existing.get("manufacturer_code") or "").strip().upper()
         business_name = str(payload.get("business_name") or payload.get("manufacturer_name") or existing.get("business_name") or existing.get("manufacturer_name") or "").strip()
         owner_name = str(payload.get("owner_name") or existing.get("owner_name") or "").strip()
+        contact_person = str(payload.get("contact_person") or existing.get("contact_person") or owner_name).strip()
         owner_email = str(payload.get("owner_email") or existing.get("owner_email") or "").strip().lower()
         mobile = str(payload.get("mobile") or existing.get("mobile") or "").strip()
         alternate_mobile = str(payload.get("alternate_mobile") or existing.get("alternate_mobile") or "").strip()
@@ -241,7 +251,9 @@ class ManufacturerOnboardingService:
             "manufacturer_code": manufacturer_code,
             "business_name": business_name,
             "manufacturer_name": business_name,
+            "brand_name": str(payload.get("brand_name") or existing.get("brand_name") or "").strip(),
             "owner_name": owner_name,
+            "contact_person": contact_person,
             "owner_email": owner_email,
             "mobile": mobile,
             "alternate_mobile": alternate_mobile,

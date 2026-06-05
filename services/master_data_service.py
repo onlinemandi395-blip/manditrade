@@ -2,6 +2,17 @@ from __future__ import annotations
 
 
 class MasterDataService:
+    RAW_MATERIAL_CATEGORIES = [
+        "Cotton",
+        "Yarn",
+        "Fabric Inputs",
+        "Dyes / Chemicals",
+        "Packaging Material",
+        "Agri Produce",
+        "Metals",
+        "Construction Inputs",
+        "General Bulk Supply",
+    ]
     PRODUCT_CATEGORIES = [
         "Grocery / Kirana",
         "Grains / Rice / Wheat",
@@ -79,3 +90,6 @@ class MasterDataService:
 
     def get_indian_states_and_union_territories(self) -> list[str]:
         return list(self.INDIAN_STATES_AND_UTS)
+
+    def get_raw_material_categories(self) -> list[str]:
+        return list(self.RAW_MATERIAL_CATEGORIES)

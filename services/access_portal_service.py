@@ -8,6 +8,7 @@ from uuid import uuid4
 
 class AccessPortalService:
     BLOCKING_REQUEST_STATUSES = {"BLOCKED", "REJECTED", "DISABLED", "SUSPENDED"}
+    ACTIVE_STATUSES = {"ACTIVE"}
 
     def __init__(
         self,
@@ -170,7 +171,10 @@ class AccessPortalService:
             None,
         )
         if manufacturer:
-            return {"role": "manufacturer", "manufacturer_code": manufacturer.get("manufacturer_code"), "status": manufacturer.get("status", "ACTIVE"), "client_id": None, "public_buyer_id": None, "worker_id": None}
+            manufacturer_status = str(manufacturer.get("status", "PENDING")).strip().upper()
+            if manufacturer_status in self.ACTIVE_STATUSES:
+                return {"role": "manufacturer", "manufacturer_code": manufacturer.get("manufacturer_code"), "status": manufacturer_status, "client_id": None, "public_buyer_id": None, "worker_id": None}
+            return {"role": "pending_user", "manufacturer_code": manufacturer.get("manufacturer_code"), "status": manufacturer_status, "client_id": None, "public_buyer_id": None, "worker_id": None}
 
         request = self.find_latest_request(email_key, preferred_role_key or None)
         if request and request.get("status") == "READY_FOR_GOOGLE_SIGNIN":
@@ -184,33 +188,46 @@ class AccessPortalService:
                 "public_buyer_id": None,
                 "worker_id": None,
             }
+        if request:
+            return {
+                "role": "pending_user",
+                "manufacturer_code": request.get("manufacturer_code") or manufacturer_code,
+                "status": request.get("status", "PENDING_ADMIN_REVIEW"),
+                "client_id": None,
+                "public_buyer_id": None,
+                "worker_id": None,
+            }
 
         mahajan = self.governance_service.get_mahajan_by_email(email_key) if hasattr(self.governance_service, "get_mahajan_by_email") else None
-        if mahajan and str(mahajan.get("status", "ACTIVE")).upper() in {"ACTIVE", "INVITED"}:
-            return {"role": "mahajan", "manufacturer_code": None, "status": mahajan.get("status", "ACTIVE"), "client_id": None, "public_buyer_id": None, "worker_id": None}
+        if mahajan:
+            mahajan_status = str(mahajan.get("status", "PENDING")).strip().upper()
+            if mahajan_status in self.ACTIVE_STATUSES:
+                return {"role": "mahajan", "manufacturer_code": None, "status": mahajan_status, "client_id": None, "public_buyer_id": None, "worker_id": None}
+            return {"role": "pending_user", "manufacturer_code": None, "status": mahajan_status, "client_id": None, "public_buyer_id": None, "worker_id": None}
 
         worker = self.worker_service.get_worker_by_email(email_key)
         if worker:
-            return {"role": "worker", "manufacturer_code": None, "status": worker.get("status", "ACTIVE"), "client_id": None, "public_buyer_id": None, "worker_id": worker.get("worker_id")}
+            worker_status = str(worker.get("status", "PENDING")).strip().upper()
+            if worker_status in self.ACTIVE_STATUSES:
+                return {"role": "worker", "manufacturer_code": None, "status": worker_status, "client_id": None, "public_buyer_id": None, "worker_id": worker.get("worker_id")}
+            return {"role": "pending_user", "manufacturer_code": None, "status": worker_status, "client_id": None, "public_buyer_id": None, "worker_id": worker.get("worker_id")}
 
         public_buyer = self.public_buyer_service.get_by_email(email_key)
         if public_buyer:
             return {"role": "public_buyer", "manufacturer_code": None, "status": public_buyer.get("status", "ACTIVE"), "client_id": None, "public_buyer_id": public_buyer.get("public_buyer_id"), "worker_id": None}
 
         if preferred_role_key == "worker":
-            self.worker_service.upsert_worker(
-                linked_email=email_key,
-                name=display_name or email_key,
-                mobile="",
+            request = self.submit_signup_request(
+                requested_role="worker",
+                email=email_key,
+                full_name=display_name or email_key,
                 city="",
+                mobile="",
                 area="",
                 skills=[],
                 preferred_work_type=["Daily Wage"],
-                available=True,
-                public_profile_opt_in=False,
             )
-            worker = self.worker_service.get_worker_by_email(email_key)
-            return {"role": "worker", "manufacturer_code": None, "status": "SELF_REGISTERED", "client_id": None, "public_buyer_id": None, "worker_id": (worker or {}).get("worker_id")}
+            return {"role": "pending_user", "manufacturer_code": None, "status": request.get("status", "PENDING_ADMIN_REVIEW"), "client_id": None, "public_buyer_id": None, "worker_id": None}
 
         if preferred_role_key == "public_buyer":
             buyer = self.public_buyer_service.register_or_get(email=email_key, full_name=display_name or email_key)
@@ -247,14 +264,18 @@ class AccessPortalService:
                 updates: dict[str, Any] = {}
                 if not manufacturer.get("owner_email"):
                     updates["owner_email"] = email
-                if manufacturer.get("status") != "ACTIVE":
-                    updates["status"] = "ACTIVE"
                 if updates:
                     self.governance_service.update_manufacturer(manufacturer_code, updates)
-                self._mark_request_status(request["request_id"], "ACTIVE")
-                return {"role": "manufacturer", "manufacturer_code": manufacturer_code, "status": "ACTIVE", "client_id": None, "public_buyer_id": None, "worker_id": None}
+                manufacturer_status = str((manufacturer | updates).get("status", "PENDING")).strip().upper()
+                if manufacturer_status in self.ACTIVE_STATUSES:
+                    self._mark_request_status(request["request_id"], "ACTIVE")
+                    return {"role": "manufacturer", "manufacturer_code": manufacturer_code, "status": "ACTIVE", "client_id": None, "public_buyer_id": None, "worker_id": None}
+                self._mark_request_status(request["request_id"], "PENDING_ADMIN_APPROVAL")
+                return {"role": "pending_user", "manufacturer_code": manufacturer_code, "status": manufacturer_status, "client_id": None, "public_buyer_id": None, "worker_id": None}
 
         if role == "worker":
+            existing_worker = self.worker_service.get_worker_by_email(email)
+            worker_status = str((existing_worker or {}).get("status") or "PENDING").strip().upper()
             self.worker_service.upsert_worker(
                 linked_email=email,
                 name=request.get("full_name") or display_name or email,
@@ -265,10 +286,15 @@ class AccessPortalService:
                 preferred_work_type=request.get("preferred_work_type", ["Daily Wage"]),
                 available=True,
                 public_profile_opt_in=True,
+                state=request.get("state", ""),
+                status=worker_status,
             )
-            self._mark_request_status(request["request_id"], "ACTIVE")
             worker = self.worker_service.get_worker_by_email(email)
-            return {"role": "worker", "manufacturer_code": None, "status": "ACTIVE", "client_id": None, "public_buyer_id": None, "worker_id": (worker or {}).get("worker_id")}
+            if worker_status in self.ACTIVE_STATUSES:
+                self._mark_request_status(request["request_id"], "ACTIVE")
+                return {"role": "worker", "manufacturer_code": None, "status": "ACTIVE", "client_id": None, "public_buyer_id": None, "worker_id": (worker or {}).get("worker_id")}
+            self._mark_request_status(request["request_id"], "PENDING_ADMIN_APPROVAL")
+            return {"role": "pending_user", "manufacturer_code": None, "status": worker_status, "client_id": None, "public_buyer_id": None, "worker_id": (worker or {}).get("worker_id")}
 
         if role == "mahajan":
             self._mark_request_status(request["request_id"], "ACTIVE")

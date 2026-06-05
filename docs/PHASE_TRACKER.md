@@ -11,8 +11,9 @@ Status meanings:
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| Auth | `PARTIAL` | Google sign-in flow exists, but deployment/runtime provisioning still needs environment-level validation. |
+| Auth | `PARTIAL` | Google sign-in flow exists, and invited identities now stay approval-gated until ACTIVE, but deployment/runtime provisioning still needs environment-level validation. |
 | RBAC | `DONE` | Active runtime roles are `platform_admin`, `manufacturer`, `mahajan`, `public_buyer`, and `worker`. |
+| Identity Governance | `PARTIAL` | Admin manufacturer, mahajan, and worker governance screens now exist with completeness/trust summaries, but invitation analytics and deeper self-service completion are still maturing. |
 | Admin Drive DB | `PARTIAL` | Canonical root/services exist; live cutover remains operator-controlled. |
 | Sidebar | `DONE` | Readable icon + label nav restored and icon-only experiment removed. |
 | Marketplace | `PARTIAL` | Public buyer browse/cart flow is stable and now acts as the reference commerce UI. |
@@ -24,7 +25,7 @@ Status meanings:
 | Courier | `PARTIAL` | Catalogs and logistics attachment flow exist; booking/tracking visibility is now clearer on procurement cards/details. |
 | Finance | `PARTIAL` | Settlement/invoice/dispute layer exists, but it is still a JSON-first operational system. |
 | Notifications | `PARTIAL` | In-app notifications and Gmail queue exist; UI/ops polish is still ongoing. |
-| Jobs | `PARTIAL` | Job and worker lifecycle exists; lower-traffic screens still need cleanup. |
+| Jobs | `PARTIAL` | Job and worker lifecycle exists; worker identity governance is stronger now, but lower-traffic job screens still need cleanup. |
 | Operations | `PARTIAL` | Operations/health dashboards exist; shell simplification and page consistency remain in progress. |
 | Release tools | `PARTIAL` | Validation/bootstrap/migration/release scripts exist; final operator runbooks still matter. |
 | Client role | `REMOVED` | Not part of live RBAC anymore. |

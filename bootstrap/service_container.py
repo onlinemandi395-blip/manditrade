@@ -35,6 +35,7 @@ from services.google_runtime_diagnostic_service import GoogleRuntimeDiagnosticSe
 from services.governance_service import GovernanceService
 from services.favorites_service import FavoritesService
 from services.id_allocator_service import IdAllocatorService
+from services.identity_governance_service import IdentityGovernanceService
 from services.image_service import ImageService
 from services.job_service import JobService
 from services.ledger_reminder_service import LedgerReminderService
@@ -179,6 +180,7 @@ def build_app_context() -> dict:
     session_state_service = SessionStateService()
     image_service = ImageService()
     trust_badge_service = TrustBadgeService()
+    identity_governance_service = IdentityGovernanceService(trust_badge_service=trust_badge_service)
     event_bus = EventBus()
     event_dispatcher = EventDispatcher(APP_RUNTIME_DIR / "events", id_allocator_service=id_allocator_service, dead_letter_service=dead_letter_service, logging_service=logging_service, runtime_metrics_service=runtime_metrics_service)
     safe_drive_write_service = SafeDriveWriteService(
@@ -601,6 +603,7 @@ def build_app_context() -> dict:
         "image_service": image_service,
         "favorites_service": favorites_service,
         "trust_badge_service": trust_badge_service,
+        "identity_governance_service": identity_governance_service,
         "cart_service": cart_service,
         "session_state_service": session_state_service,
         "dead_letter_service": dead_letter_service,

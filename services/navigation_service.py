@@ -29,7 +29,7 @@ ROLE_NAVIGATION_MAP: dict[str, list[tuple[str, list[str]]]] = {
     ],
     ROLE_PLATFORM_ADMIN: [
         ("Core", ["Dashboard", "My Profile", "Notifications", "My Actions"]),
-        ("Ecosystem", ["Manufacturers", "Mahajans", "Products", "Product Approvals"]),
+        ("Ecosystem", ["Manufacturers", "Mahajans", "Workers", "Products", "Product Approvals"]),
         ("Marketplace", ["Marketplace", "Marketplace Orders"]),
         ("Mandi Network", ["MandiPlace", "Mandi Orders"]),
         ("Supply Network", ["Raw Materials", "Supply Orders"]),

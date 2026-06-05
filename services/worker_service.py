@@ -38,9 +38,13 @@ class WorkerService:
                     "name": worker.get("name"),
                     "city": worker.get("city"),
                     "area": worker.get("area"),
+                    "state": worker.get("state", ""),
                     "skills": worker.get("skills", []),
                     "preferred_work_type": worker.get("preferred_work_type", []),
                     "available": worker.get("available", False),
+                    "availability_status": worker.get("availability_status", "AVAILABLE"),
+                    "daily_rate": worker.get("daily_rate", 0),
+                    "monthly_rate": worker.get("monthly_rate", 0),
                     "status": worker.get("status", "ACTIVE"),
                 }
             )
@@ -64,6 +68,13 @@ class WorkerService:
         preferred_work_type: list[str],
         available: bool,
         public_profile_opt_in: bool,
+        state: str = "",
+        availability_status: str = "AVAILABLE",
+        daily_rate: float = 0.0,
+        monthly_rate: float = 0.0,
+        status: str | None = None,
+        notes: str = "",
+        worker_id: str = "",
     ) -> dict[str, Any]:
         self.ensure_file()
         payload = self.json_service.read_json(self.workers_path, {"workers": []})
@@ -71,8 +82,8 @@ class WorkerService:
         existing = next((item for item in payload.get("workers", []) if item.get("linked_email", "").strip().lower() == linked_email_key), None)
         if existing is None:
             existing = {
-                "worker_id": self.id_allocator_service.allocate("worker"),
-                "status": "ACTIVE",
+                "worker_id": worker_id.strip() or self.id_allocator_service.allocate("worker"),
+                "status": "PENDING",
                 "created_at": datetime.now(UTC).isoformat(),
             }
             payload["workers"].append(existing)
@@ -83,9 +94,15 @@ class WorkerService:
                 "mobile": mobile.strip(),
                 "city": city.strip(),
                 "area": area.strip(),
+                "state": state.strip(),
                 "skills": [item.strip() for item in skills if item.strip()],
                 "preferred_work_type": [item.strip() for item in preferred_work_type if item.strip()],
                 "available": bool(available),
+                "availability_status": str(availability_status or ("AVAILABLE" if available else "BUSY")).strip().upper(),
+                "daily_rate": float(daily_rate or 0),
+                "monthly_rate": float(monthly_rate or 0),
+                "status": str(status or existing.get("status") or "PENDING").strip().upper(),
+                "notes": notes.strip(),
                 "public_profile_opt_in": bool(public_profile_opt_in),
                 "updated_at": datetime.now(UTC).isoformat(),
             }

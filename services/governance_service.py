@@ -324,6 +324,20 @@ class GovernanceService:
             raise ValueError("Mahajan email is required.")
         now = datetime.now(UTC).isoformat()
         existing = next((item for item in payload.get("mahajans", []) if item.get("mahajan_id") == mahajan_id), None)
+        categories = mahajan.get("raw_material_categories", (existing or {}).get("raw_material_categories", [])) or []
+        states_served = mahajan.get("states_served", (existing or {}).get("states_served", [])) or []
+        if isinstance(categories, str):
+            categories = [item.strip() for item in categories.split(",") if item.strip()]
+        else:
+            categories = [str(item).strip() for item in categories if str(item).strip()]
+        if isinstance(states_served, str):
+            states_served = [item.strip() for item in states_served.split(",") if item.strip()]
+        else:
+            states_served = [str(item).strip() for item in states_served if str(item).strip()]
+        existing_address = (existing or {}).get("address", {}) or {}
+        address = mahajan.get("address", {}) or {}
+        banking = mahajan.get("banking", {}) or {}
+        existing_banking = (existing or {}).get("banking", {}) or {}
         normalized = {
             "mahajan_id": mahajan_id,
             "business_name": str(mahajan.get("business_name") or (existing or {}).get("business_name") or "").strip(),
@@ -331,7 +345,25 @@ class GovernanceService:
             "email": email,
             "mobile": str(mahajan.get("mobile") or (existing or {}).get("mobile") or "").strip(),
             "city": str(mahajan.get("city") or (existing or {}).get("city") or "").strip(),
-            "status": str(mahajan.get("status") or (existing or {}).get("status") or "INVITED").strip().upper(),
+            "coverage_area": str(mahajan.get("coverage_area") or (existing or {}).get("coverage_area") or "").strip(),
+            "states_served": states_served,
+            "raw_material_categories": categories,
+            "minimum_order_qty": float(mahajan.get("minimum_order_qty") or (existing or {}).get("minimum_order_qty") or 0),
+            "rating": float(mahajan.get("rating") or (existing or {}).get("rating") or 0),
+            "status": str(mahajan.get("status") or (existing or {}).get("status") or "PENDING").strip().upper(),
+            "address": {
+                "line1": str(address.get("line1") or existing_address.get("line1") or "").strip(),
+                "line2": str(address.get("line2") or existing_address.get("line2") or "").strip(),
+                "city": str(address.get("city") or mahajan.get("city") or existing_address.get("city") or (existing or {}).get("city") or "").strip(),
+                "state": str(address.get("state") or existing_address.get("state") or "").strip(),
+                "pin_code": str(address.get("pin_code") or existing_address.get("pin_code") or "").strip(),
+            },
+            "banking": {
+                "account_holder_name": str(banking.get("account_holder_name") or existing_banking.get("account_holder_name") or "").strip(),
+                "account_number": str(banking.get("account_number") or existing_banking.get("account_number") or "").strip(),
+                "ifsc": str(banking.get("ifsc") or existing_banking.get("ifsc") or "").strip().upper(),
+                "upi_id": str(banking.get("upi_id") or existing_banking.get("upi_id") or "").strip(),
+            },
             "notes": str(mahajan.get("notes") or (existing or {}).get("notes") or "").strip(),
             "created_at": (existing or {}).get("created_at") or now,
             "updated_at": now,

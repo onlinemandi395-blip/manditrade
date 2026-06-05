@@ -74,7 +74,9 @@ def _render_profile_form(*, prefix: str, defaults: dict, submit_label: str) -> t
     with st.form(f"{prefix}_manufacturer_profile_form"):
         col1, col2 = st.columns(2)
         business_name = col1.text_input("Business / Manufacturer Name", value=defaults.get("business_name", defaults.get("manufacturer_name", "")))
-        owner_name = col2.text_input("Owner Name", value=defaults.get("owner_name", ""))
+        brand_name = col2.text_input("Brand Name", value=defaults.get("brand_name", ""))
+        owner_name = col1.text_input("Owner Name", value=defaults.get("owner_name", ""))
+        contact_person = col2.text_input("Contact Person", value=defaults.get("contact_person", defaults.get("owner_name", "")))
         owner_email = col1.text_input("Owner Email", value=defaults.get("owner_email", ""))
         mobile = col2.text_input("Mobile Number", value=defaults.get("mobile", ""))
         alternate_mobile = col1.text_input("Alternate Mobile Number", value=defaults.get("alternate_mobile", ""))
@@ -115,7 +117,9 @@ def _render_profile_form(*, prefix: str, defaults: dict, submit_label: str) -> t
     payload = {
         "business_name": business_name.strip(),
         "manufacturer_name": business_name.strip(),
+        "brand_name": brand_name.strip(),
         "owner_name": owner_name.strip(),
+        "contact_person": contact_person.strip(),
         "owner_email": owner_email.strip(),
         "mobile": mobile.strip(),
         "alternate_mobile": alternate_mobile.strip(),
@@ -167,7 +171,7 @@ def render_manufacturer_onboarding(app_context: dict) -> None:
                 render_metric_card("Workspace", current_user.manufacturer_code or "Not mapped", "OPEN"),
             ]
         )
-        render_section_intro("Manufacturer Profile", "Dashboard no longer contains onboarding forms. This route is the only place where the manufacturer profile form is rendered.")
+        render_section_intro("Manufacturer Profile", "Dashboard no longer contains onboarding forms. This route is where invited manufacturers can complete profile details before admin activation.")
         if not manufacturer:
             st.info("No manufacturer registry record is linked to this account yet.")
             return
@@ -190,7 +194,7 @@ def render_manufacturer_onboarding(app_context: dict) -> None:
         )
         if submitted:
             onboarding_service.update_manufacturer(current_user.manufacturer_code or "", payload)
-            st.success("Manufacturer profile saved with ACTIVE status.")
+            st.success("Manufacturer profile saved. Admin approval may still be required before full activation.")
             st.rerun()
         return
 
@@ -207,7 +211,7 @@ def render_manufacturer_onboarding(app_context: dict) -> None:
             render_metric_card("Active Manufacturers", str(len([item for item in manufacturers if item.get("status") == "ACTIVE"])), "SUCCESS"),
         ]
     )
-    render_section_intro("First-Time Setup", "Onboarding does not require approval. New manufacturer profiles are saved directly as ACTIVE once the form is complete.")
+    render_section_intro("First-Time Setup", "New manufacturer profiles now follow invite -> profile completion -> admin approval before full ACTIVE access.")
 
     next_code = onboarding_service.generate_next_manufacturer_code()
     with st.form("manufacturer_onboarding_create_code"):

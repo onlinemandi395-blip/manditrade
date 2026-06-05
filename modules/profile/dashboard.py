@@ -6,6 +6,7 @@ from components.responsive_layout import render_section_intro
 from components.three_d_cards import render_metric_grid
 from components.html_renderer import render_html
 from components.ui_shell import render_3d_panel, render_metric_card, render_mobile_record_card, render_page_header, render_same_tab_link_button
+from constants.roles import ROLE_PENDING_USER
 from modules.onboarding.manufacturer_onboarding import _address_of as manufacturer_address_of
 from modules.onboarding.manufacturer_onboarding import _render_profile_form as render_manufacturer_profile_form
 from services.master_data_service import MasterDataService
@@ -117,7 +118,10 @@ def _render_worker_profile_form(current_user, worker: dict | None) -> tuple[bool
         mobile = col1.text_input("Mobile Number", value=worker.get("mobile", ""))
         city = col2.text_input("City", value=worker.get("city", ""))
         area = col1.text_input("Area", value=worker.get("area", ""))
-        available = col2.checkbox("Available for Work", value=worker.get("available", True))
+        state = col2.text_input("State", value=worker.get("state", ""))
+        available = col1.checkbox("Available for Work", value=worker.get("available", True))
+        daily_rate = col2.number_input("Daily Rate", min_value=0.0, value=float(worker.get("daily_rate", 0) or 0), step=50.0)
+        monthly_rate = col1.number_input("Monthly Rate", min_value=0.0, value=float(worker.get("monthly_rate", 0) or 0), step=500.0)
         public_profile_opt_in = st.checkbox("Allow manufacturers to see public worker profile", value=worker.get("public_profile_opt_in", True))
         skills = st.text_input("Skills", value=skills_text, help="Comma-separated skills like Loading, Packaging, Driver.")
         preferred_work_type = st.multiselect("Preferred Work Type", WORK_TYPES, default=selected_types)
@@ -129,9 +133,13 @@ def _render_worker_profile_form(current_user, worker: dict | None) -> tuple[bool
         "mobile": mobile.strip(),
         "city": city.strip(),
         "area": area.strip(),
+        "state": state.strip(),
         "skills": [item.strip() for item in skills.split(",") if item.strip()],
         "preferred_work_type": preferred_work_type,
         "available": available,
+        "availability_status": "AVAILABLE" if available else "BUSY",
+        "daily_rate": float(daily_rate or 0),
+        "monthly_rate": float(monthly_rate or 0),
         "public_profile_opt_in": public_profile_opt_in,
     }
 
@@ -441,12 +449,14 @@ def _render_public_buyer_profile(app_context: dict) -> None:
 
 def _render_mahajan_profile(app_context: dict) -> None:
     current_user = app_context["current_user"]
+    governance_service = app_context["governance_service"]
+    mahajan = governance_service.get_mahajan_by_email(current_user.email) if current_user else None
     render_page_header("My Profile", "Maintain your supplier identity, contact details, and admin-linked supply context from one place.", ["Mahajan", "Supplier Profile"])
     render_metric_grid(
         [
             render_metric_card("Role", "Mahajan", "SUCCESS"),
             render_metric_card("Email", current_user.email, "OPEN"),
-            render_metric_card("Profile", "Active", "PENDING"),
+            render_metric_card("Profile", (mahajan or {}).get("status", "PENDING"), "PENDING"),
         ]
     )
     render_metric_button_row(
@@ -460,13 +470,61 @@ def _render_mahajan_profile(app_context: dict) -> None:
     )
     profile_tab, business_tab, connected_tab, security_tab = st.tabs(["Profile", "Business Details", "Connected Accounts", "Security"])
     with profile_tab:
-        st.info("Mahajan supplier profile is active for this email.")
+        st.json(mahajan or {"email": current_user.email}, expanded=False)
     with business_tab:
-        st.info("Raw-material business details can be expanded here without exposing marketplace or manufacturer-selling data.")
+        st.info("Raw-material business details remain admin-governed, but this profile now reflects your linked supplier identity.")
     with connected_tab:
         st.info("This account stays scoped to the admin supply channel.")
     with security_tab:
         st.info("Mahajan access does not unlock manufacturers, marketplace management, or platform diagnostics.")
+
+
+def _render_pending_identity_profile(app_context: dict) -> None:
+    current_user = app_context["current_user"]
+    access_portal_service = app_context["access_portal_service"]
+    governance_service = app_context["governance_service"]
+    worker_service = app_context["worker_service"]
+    request = access_portal_service.find_latest_request(current_user.email)
+    requested_role = (request or {}).get("requested_role", "")
+
+    render_page_header("My Profile", "Complete your identity profile while your access stays under admin review.", ["Pending Approval", requested_role or "Pending User"])
+    if not request:
+        st.info("No pending identity request is linked to this email yet.")
+        return
+
+    if requested_role == "manufacturer":
+        manufacturer_code = request.get("manufacturer_code") or getattr(current_user, "manufacturer_code", "")
+        manufacturer = governance_service.get_manufacturer(manufacturer_code) if manufacturer_code else None
+        if not manufacturer:
+            st.info("No manufacturer invitation is linked yet.")
+            return
+        submitted, payload = render_manufacturer_profile_form(
+            prefix="pending_manufacturer_profile",
+            defaults=manufacturer,
+            submit_label="Save Manufacturer Profile",
+        )
+        if submitted:
+            app_context["manufacturer_onboarding_service"].update_manufacturer(manufacturer_code, payload)
+            st.success("Manufacturer profile saved. Await admin approval for activation.")
+            st.rerun()
+        return
+
+    if requested_role == "worker":
+        worker = worker_service.get_worker_by_email(current_user.email)
+        submitted, payload = _render_worker_profile_form(current_user, worker)
+        if submitted:
+            worker_service.upsert_worker(**payload, status=(worker or {}).get("status", "PENDING"))
+            st.success("Worker profile saved. Await admin approval for activation.")
+            st.rerun()
+        return
+
+    if requested_role == "mahajan":
+        mahajan = governance_service.get_mahajan_by_email(current_user.email)
+        st.json(mahajan or request, expanded=False)
+        st.info("Mahajan profile completion is currently admin-led. Your invitation is saved and awaiting approval.")
+        return
+
+    st.info("Your access request is still under review.")
 
 
 def render_my_profile_dashboard(app_context: dict) -> None:
@@ -489,6 +547,9 @@ def render_my_profile_dashboard(app_context: dict) -> None:
         return
     if current_user.role == "public_buyer":
         _render_public_buyer_profile(app_context)
+        return
+    if current_user.role == ROLE_PENDING_USER:
+        _render_pending_identity_profile(app_context)
         return
     render_page_header("My Profile", "This account type does not have a dedicated profile form yet.", ["Profile"])
     st.info("No editable profile is available for this role right now.")

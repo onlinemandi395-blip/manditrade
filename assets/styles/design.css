@@ -18,7 +18,8 @@
 .mt-card,
 .mt-record-card,
 .mt-glass-card,
-.mt-product-card {
+.mt-product-card,
+.mt-actor-card {
   background: rgba(10, 20, 34, 0.94);
   border-radius: 16px;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
@@ -90,6 +91,11 @@
 
 .mt-order-card {
   padding: 0.95rem 1rem;
+}
+
+.mt-actor-card {
+  padding: 0.95rem 1rem;
+  border-left: 3px solid rgba(34, 197, 94, 0.25);
 }
 
 .mt-order-card__meta {
