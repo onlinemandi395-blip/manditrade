@@ -9,6 +9,8 @@ from typing import Any
 from google.oauth2 import service_account
 from googleapiclient.http import MediaInMemoryUpload
 
+from services.config_service import ConfigService
+
 
 class AdminDriveDatabaseService:
     INVALID_CANONICAL_MESSAGE = "Canonical storage mode requested, but validated Admin Drive DB report is missing."
@@ -37,6 +39,7 @@ class AdminDriveDatabaseService:
         self.security_service = security_service
         self.auth_service = auth_service
         self.logging_service = logging_service
+        self.config_service = ConfigService()
 
     @property
     def reports_dir(self) -> Path:
@@ -82,47 +85,10 @@ class AdminDriveDatabaseService:
         }
 
     def resolve_service_account_config(self) -> dict[str, Any]:
-        storage_cfg = self.system_config.setdefault("storage", {})
-        google_secret = dict(self.secret_overrides.get("google_drive", {}) or {})
-        source = "missing"
-        raw_value: Any = google_secret.get("service_account_json")
-        if raw_value:
-            source = "streamlit_secrets"
-        else:
-            raw_value = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "")
-            if raw_value:
-                source = "environment"
-            else:
-                raw_value = storage_cfg.get("service_account_json", "")
-                if raw_value:
-                    source = "system_config"
-
-        if isinstance(raw_value, dict):
-            info = raw_value
-            error = ""
-        else:
-            raw_text = str(raw_value or "").strip()
-            if raw_text:
-                try:
-                    info = json.loads(raw_text.replace("\\n", "\n"))
-                    error = ""
-                except json.JSONDecodeError as exc:
-                    info = {}
-                    error = f"Invalid service account JSON: {exc.msg}"
-            else:
-                info = {}
-                error = "Missing GOOGLE_SERVICE_ACCOUNT_JSON"
-        client_email = str(info.get("client_email", "") or "").strip()
-        if not error and not client_email:
-            error = "Service account JSON is missing client_email."
-        return {
-            "source": source,
-            "configured": bool(info),
-            "client_email": client_email,
-            "project_id": str(info.get("project_id", "") or "").strip(),
-            "info": info,
-            "error": error,
-        }
+        return self.config_service.get_google_drive_service_account_info(
+            google_drive_section=self.secret_overrides.get("google_drive", {}) or {},
+            system_config=self.system_config,
+        )
 
     def ensure_database_root(self, *, allow_create: bool = True) -> dict[str, Any]:
         config = self.resolve_root_config()

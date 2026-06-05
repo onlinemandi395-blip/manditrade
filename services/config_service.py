@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+import os
+import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -45,6 +48,91 @@ class ConfigService:
 
     def clear_cache(self) -> None:
         self.load_all.cache_clear()
+
+    def repair_service_account_json(self, raw: str) -> str:
+        text = str(raw or "").strip()
+        pattern = re.compile(r'("private_key"\s*:\s*")(.*?)(")', re.DOTALL)
+
+        def _repair(match: re.Match[str]) -> str:
+            prefix, value, suffix = match.groups()
+            repaired = (
+                value
+                .replace("\r\n", "\\n")
+                .replace("\n", "\\n")
+                .replace("\r", "\\n")
+                .replace("\t", "\\t")
+            )
+            return f"{prefix}{repaired}{suffix}"
+
+        return pattern.sub(_repair, text, count=1)
+
+    def get_google_drive_service_account_info(
+        self,
+        *,
+        google_drive_section: dict[str, Any] | None = None,
+        system_config: dict[str, Any] | None = None,
+        environment: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        google_drive_values = dict(google_drive_section or {})
+        storage_cfg = dict((system_config or {}).get("storage", {}) or {})
+        env = environment or os.environ
+
+        source = "MISSING"
+        raw_value: Any = google_drive_values.get("service_account_json")
+        if raw_value:
+            source = "INLINE_SERVICE_ACCOUNT_JSON"
+        else:
+            raw_value = env.get("GOOGLE_SERVICE_ACCOUNT_JSON", "")
+            if raw_value:
+                source = "ENVIRONMENT"
+            else:
+                raw_value = storage_cfg.get("service_account_json", "")
+                if raw_value:
+                    source = "SYSTEM_CONFIG"
+
+        raw_text = ""
+        if isinstance(raw_value, dict):
+            info = raw_value
+            error = ""
+        else:
+            raw_text = str(raw_value or "").strip()
+            info = {}
+            error = ""
+            if raw_text:
+                try:
+                    info = json.loads(raw_text)
+                except json.JSONDecodeError as exc:
+                    repaired = self.repair_service_account_json(raw_text)
+                    if repaired != raw_text:
+                        try:
+                            info = json.loads(repaired)
+                        except json.JSONDecodeError:
+                            error = "Inline service_account_json is invalid. Use triple single quotes and escape private_key newlines as \\n."
+                    if not info and not error:
+                        error = "Inline service_account_json is invalid. Use triple single quotes and escape private_key newlines as \\n."
+            else:
+                error = "Missing GOOGLE_SERVICE_ACCOUNT_JSON"
+
+        if info:
+            normalized = dict(info)
+            private_key = str(normalized.get("private_key", "") or "")
+            if private_key:
+                normalized["private_key"] = private_key.replace("\\n", "\n")
+            info = normalized
+
+        required_fields = ("type", "project_id", "private_key", "client_email", "token_uri")
+        missing_fields = [field for field in required_fields if not str((info or {}).get(field, "") or "").strip()]
+        if not error and missing_fields:
+            error = f"Service account JSON is missing required fields: {', '.join(missing_fields)}."
+
+        return {
+            "source": source,
+            "configured": bool(raw_text or info),
+            "client_email": str((info or {}).get("client_email", "") or "").strip(),
+            "project_id": str((info or {}).get("project_id", "") or "").strip(),
+            "info": info,
+            "error": error,
+        }
 
     def validate_streamlit_secrets(self, secrets: dict[str, Any]) -> list[str]:
         issues: list[str] = []

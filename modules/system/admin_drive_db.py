@@ -54,6 +54,7 @@ def render_admin_drive_db_dashboard(app_context: dict) -> None:
         st.write(f"Drive Mode: {'Service Account' if tree_status.get('mode') == 'GOOGLE_DRIVE' else 'Local Mirror'}")
         st.write(f"Root Folder: {root.get('root_folder_name', 'MANDITRADE_DB') or 'MANDITRADE_DB'}")
         st.write(f"Root Folder ID: {root.get('root_folder_id', '') or 'Not available'}")
+        st.write(f"Credential Source: {service_account.get('source', 'MISSING')}")
         st.write(f"Service Account Email: {service_account.get('client_email', '') or 'Not available'}")
     with status_col2:
         st.write(f"Connection: {'Connected' if runtime.get('drive_api_ready', False) else 'Not Connected'}")
