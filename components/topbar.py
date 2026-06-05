@@ -9,7 +9,7 @@ def render_topbar(app_name: str, version: str, role_label: str, language: str) -
         <section class="mt-topbar">
           <div class="mt-topbar__meta">
             <h1>{app_name}</h1>
-            <p>{role_label} • Language: {language.upper()} • Version {version}</p>
+            <p>{role_label} | Language: {language.upper()} | Version {version}</p>
           </div>
           <div class="mt-badge-row">
             <span class="mt-badge">JSON runtime</span>

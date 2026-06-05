@@ -70,5 +70,17 @@
   "notification.product_added.title": "Product added",
   "notification.product_added.message": "A product was added.",
   "notification.raw_material_added.title": "Raw material added",
-  "notification.raw_material_added.message": "A raw material was added."
+  "notification.raw_material_added.message": "A raw material was added.",
+  "auth.title": "Welcome to MandiTrade",
+  "auth.subtitle": "Marketplace, procurement and supply network",
+  "auth.login_google": "Continue with Google",
+  "auth.language": "Language",
+  "auth.email_label": "Email address",
+  "auth.email_placeholder": "you@example.com",
+  "auth.email_required": "Enter an email address to continue.",
+  "auth.login_success": "Login successful.",
+  "auth.unknown_user_note": "Unknown users continue as Public Buyer by default.",
+  "login.feature.manufacturers": "Manufacturer Network",
+  "login.feature.mahajans": "Mahajan Supply Network",
+  "login.feature.marketplace": "Marketplace Commerce"
 }

@@ -13,7 +13,11 @@ class CacheService:
     def load_all_configs(self) -> dict:
         cache = {
             "app_config": self.config_loader_service.load("app_config"),
+            "auth": self.config_loader_service.load("auth"),
+            "permissions": self.config_loader_service.load("permissions"),
+            "role_views": self.config_loader_service.load("role_views"),
             "roles": self.config_loader_service.load("roles"),
+            "users": self.config_loader_service.load("users"),
             "navigation": self.config_loader_service.load("navigation"),
             "modules": self.config_loader_service.load("modules"),
             "dashboards": self.config_loader_service.load("dashboards"),

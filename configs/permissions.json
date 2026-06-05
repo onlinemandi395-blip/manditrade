@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "platform_admin": [
+      "*"
+    ],
+    "manufacturer": [
+      "dashboard",
+      "products",
+      "marketplace",
+      "mandiplace",
+      "suta_mandi",
+      "orders",
+      "shipments",
+      "notifications",
+      "ledger"
+    ],
+    "mahajan": [
+      "dashboard",
+      "raw_materials",
+      "orders",
+      "shipments",
+      "notifications",
+      "ledger"
+    ],
+    "public_buyer": [
+      "marketplace",
+      "orders",
+      "notifications"
+    ],
+    "worker": [
+      "dashboard",
+      "notifications"
+    ]
+  }
+}

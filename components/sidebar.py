@@ -6,8 +6,6 @@ import streamlit as st
 def render_sidebar(navigation_items: list[dict], selected_route: str) -> str:
     chosen = selected_route
     with st.sidebar:
-        st.markdown("## Navigation")
-        st.caption("JSON-driven")
         for item in navigation_items:
             label = f"{item.get('icon', '')} {item.get('label', item.get('route', ''))}".strip()
             route = str(item.get("route", "dashboard"))

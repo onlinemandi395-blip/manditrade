@@ -16,7 +16,7 @@ class PageService:
                 "subtitle_key": "module.dashboard.subtitle",
                 "visible_to": [role],
             }
-        if not self.rbac_service.can_access(role, definition.get("visible_to", [])):
+        if not self.rbac_service.can_access(role, route):
             return {
                 "type": "dashboard",
                 "title_key": "module.dashboard.title",

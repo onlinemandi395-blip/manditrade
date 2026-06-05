@@ -8,7 +8,7 @@
     "manufacturer": "dashboard",
     "mahajan": "dashboard",
     "public_buyer": "marketplace",
-    "worker": "jobs"
+    "worker": "dashboard"
   },
   "storage_mode": "local_json_first",
   "admin_drive_enabled": false

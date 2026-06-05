@@ -14,6 +14,7 @@ from components.sidebar import render_sidebar
 from components.table_renderer import render_table
 from components.topbar import render_topbar
 from services.admin_drive_service import AdminDriveService
+from services.auth_service import AuthService
 from services.cache_service import CacheService
 from services.cart_service import CartService
 from services.config_loader_service import ConfigLoaderService
@@ -26,6 +27,7 @@ from services.order_service import OrderService
 from services.page_service import PageService
 from services.rbac_service import RBACService
 from services.session_service import SessionService
+from modules.login import render_login_page
 
 
 CSS_FILE = Path(__file__).resolve().parent.parent / "assets" / "styles" / "design.css"
@@ -38,12 +40,24 @@ def render_app() -> None:
     cache_service.load_all_configs()
     app_config = cache_service.get_config("app_config")
     session_service = SessionService(app_config)
-    role = session_service.get_role()
     language = session_service.get_language()
     language_service = LanguageService(cache_service, language)
     translator = language_service.get_translator()
+    auth_service = AuthService(cache_service)
     rbac_service = RBACService(cache_service)
     navigation_service = NavigationService(cache_service, translator, rbac_service)
+
+    if not session_service.is_authenticated():
+        render_login_page(
+            auth_service=auth_service,
+            navigation_service=navigation_service,
+            session_service=session_service,
+            translator=translator,
+            language_options=list(cache_service.get_config("languages").keys()),
+        )
+        return
+
+    role = session_service.get_role()
     data_service = DataService(cache_service)
     notification_service = NotificationService(data_service)
     order_service = OrderService(data_service, notification_service)
