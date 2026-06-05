@@ -11,5 +11,6 @@
     "worker": "dashboard"
   },
   "storage_mode": "local_json_first",
-  "admin_drive_enabled": false
+  "admin_drive_enabled": false,
+  "debug_auth": true
 }

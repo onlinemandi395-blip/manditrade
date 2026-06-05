@@ -6,7 +6,10 @@ class RBACService:
         self.cache_service = cache_service
 
     def get_permissions(self, role: str) -> list[str]:
-        return list(self.cache_service.get_config("permissions").get("permissions", {}).get(role, []))
+        permissions = self.cache_service.get_config("permissions").get("permissions", {})
+        if role in permissions:
+            return list(permissions.get(role, []))
+        return list(permissions.get("public_buyer", []))
 
     def can_access(self, role: str, route: str) -> bool:
         permissions = self.get_permissions(role)

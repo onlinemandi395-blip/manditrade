@@ -46,6 +46,7 @@ def render_app() -> None:
     auth_service = AuthService(cache_service)
     rbac_service = RBACService(cache_service)
     navigation_service = NavigationService(cache_service, translator, rbac_service)
+    page_service = PageService(cache_service, translator, rbac_service)
 
     if not session_service.is_authenticated():
         render_login_page(
@@ -57,25 +58,32 @@ def render_app() -> None:
         )
         return
 
-    role = session_service.get_role()
+    role = session_service.get_user_role()
     data_service = DataService(cache_service)
     notification_service = NotificationService(data_service)
     order_service = OrderService(data_service, notification_service)
     cart_service = CartService()
     admin_drive_service = AdminDriveService()
-    page_service = PageService(cache_service, translator, rbac_service)
     form_service = FormService(cache_service)
 
     navigation_items = navigation_service.get_navigation(role)
-    current_route = session_service.get_route()
+    current_route = session_service.get_current_route_or_landing()
     valid_routes = [item.get("route", "") for item in navigation_items]
-    if current_route not in valid_routes:
-        current_route = navigation_service.get_default_route(role)
+    if not navigation_items:
+        st.error(translator.t("auth.access_denied"))
+        return
+    if current_route not in valid_routes or not rbac_service.can_access(role, current_route):
+        current_route = page_service.get_landing_page(role, navigation_service)
         session_service.set_route(current_route)
     chosen = render_sidebar(navigation_items, current_route)
     if chosen != current_route:
         current_route = chosen
         session_service.set_route(current_route)
+    with st.sidebar:
+        st.caption(f"{translator.t('auth.current_role')}: {translator.t(f'role.{role}')}")
+        if st.button(translator.t("auth.logout"), use_container_width=True):
+            session_service.logout()
+            st.rerun()
 
     render_topbar(
         app_name=app_config.get("app_name", "MandiTrade Next"),
@@ -85,6 +93,11 @@ def render_app() -> None:
     )
 
     page_definition = page_service.get_page_definition(current_route, role)
+    if not rbac_service.can_access(role, current_route):
+        current_route = page_service.get_landing_page(role, navigation_service)
+        session_service.set_route(current_route)
+        page_definition = page_service.get_page_definition(current_route, role)
+        st.warning(translator.t("auth.access_denied"))
     st.markdown(f"<div class='mt-shell'><h2 class='mt-page-title'>{translator.t(page_definition.get('title_key', ''))}</h2><p class='mt-page-subtitle'>{translator.t(page_definition.get('subtitle_key', ''))}</p></div>", unsafe_allow_html=True)
 
     datasets = {
@@ -158,3 +171,15 @@ def render_app() -> None:
         )
     else:
         render_empty_state("Unsupported page type.")
+
+    if bool(app_config.get("debug_auth", False)):
+        with st.expander("Auth Runtime Debug", expanded=False):
+            st.write(
+                {
+                    "user": session_service.get_user(),
+                    "permissions": rbac_service.get_permissions(role),
+                    "landing_page": page_service.get_landing_page(role, navigation_service),
+                    "filtered_nav_count": len(navigation_items),
+                    "current_route": current_route,
+                }
+            )

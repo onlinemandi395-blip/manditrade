@@ -3,22 +3,26 @@
     {
       "email": "admin@example.com",
       "role": "platform_admin",
-      "status": "ACTIVE"
+      "status": "ACTIVE",
+      "display_name": "Admin"
     },
     {
       "email": "manufacturer@example.com",
       "role": "manufacturer",
-      "status": "ACTIVE"
+      "status": "ACTIVE",
+      "display_name": "Manufacturer"
     },
     {
       "email": "mahajan@example.com",
       "role": "mahajan",
-      "status": "ACTIVE"
+      "status": "ACTIVE",
+      "display_name": "Mahajan"
     },
     {
       "email": "worker@example.com",
       "role": "worker",
-      "status": "ACTIVE"
+      "status": "ACTIVE",
+      "display_name": "Worker"
     }
   ]
 }

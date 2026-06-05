@@ -15,9 +15,12 @@ class AuthService:
     def get_unknown_user_default_role(self) -> str:
         return str(self.get_auth_config().get("unknown_user_default_role", "public_buyer"))
 
+    def get_registered_users(self) -> list[dict]:
+        return list(self.cache_service.get_config("users").get("users", []))
+
     def resolve_user(self, email: str) -> dict:
         normalized_email = email.strip().lower()
-        user_rows = self.cache_service.get_config("users").get("users", [])
+        user_rows = self.get_registered_users()
         matched = next(
             (row for row in user_rows if str(row.get("email", "")).strip().lower() == normalized_email),
             None,
@@ -27,11 +30,20 @@ class AuthService:
                 "email": normalized_email,
                 "role": str(matched.get("role", self.get_unknown_user_default_role())),
                 "status": "ACTIVE",
+                "display_name": str(matched.get("display_name", normalized_email.split("@")[0] if normalized_email else "")),
                 "known_user": True,
             }
         return {
             "email": normalized_email,
             "role": self.get_unknown_user_default_role(),
             "status": "ACTIVE",
+            "display_name": normalized_email.split("@")[0] if normalized_email else "",
             "known_user": False,
+        }
+
+    def login(self, email: str, provider_id: str) -> dict:
+        user = self.resolve_user(email)
+        return {
+            **user,
+            "provider_id": provider_id,
         }
