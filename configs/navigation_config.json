@@ -1,0 +1,203 @@
+{
+  "schema_version": 1,
+  "updated_at": "",
+  "roles": {
+    "unauthenticated": [
+      {
+        "group": "General",
+        "items": [
+          {
+            "label": "Dashboard",
+            "icon": "",
+            "route": "dashboard"
+          }
+        ]
+      }
+    ],
+    "platform_admin": [
+      {
+        "group": "Core",
+        "items": [
+          {"label": "Dashboard", "icon": "", "route": "dashboard"},
+          {"label": "My Profile", "icon": "", "route": "my_profile"},
+          {"label": "Notifications", "icon": "", "route": "notifications"},
+          {"label": "My Actions", "icon": "", "route": "my_actions"}
+        ]
+      },
+      {
+        "group": "Ecosystem",
+        "items": [
+          {"label": "Manufacturers", "icon": "", "route": "manufacturers"},
+          {"label": "Mahajans", "icon": "", "route": "mahajans"},
+          {"label": "Workers", "icon": "", "route": "workers"},
+          {"label": "Products", "icon": "", "route": "products"},
+          {"label": "Product Approvals", "icon": "", "route": "product_approvals"}
+        ]
+      },
+      {
+        "group": "Commerce",
+        "items": [
+          {"label": "Marketplace", "icon": "", "route": "marketplace"},
+          {"label": "MandiPlace", "icon": "", "route": "mandiplace"},
+          {"label": "Raw Materials", "icon": "", "route": "raw_materials"},
+          {"label": "Orders", "icon": "", "route": "orders"}
+        ]
+      },
+      {
+        "group": "Finance",
+        "items": [
+          {"label": "Payments", "icon": "", "route": "payments"},
+          {"label": "Ledger", "icon": "", "route": "ledger"},
+          {"label": "Platform Commission", "icon": "", "route": "platform_commission"},
+          {"label": "Finance Operations", "icon": "", "route": "finance_operations"}
+        ]
+      },
+      {
+        "group": "Operations",
+        "items": [
+          {"label": "Operations Center", "icon": "", "route": "operations_center"},
+          {"label": "Warehouses", "icon": "", "route": "warehouses"},
+          {"label": "Shipments", "icon": "", "route": "shipments"},
+          {"label": "Logistics", "icon": "", "route": "logistics"},
+          {"label": "Jobs", "icon": "", "route": "jobs"},
+          {"label": "Analytics", "icon": "", "route": "analytics"},
+          {"label": "Admin Drive DB", "icon": "", "route": "admin_drive_db"}
+        ]
+      }
+    ],
+    "manufacturer": [
+      {
+        "group": "Core",
+        "items": [
+          {"label": "Dashboard", "icon": "", "route": "dashboard"},
+          {"label": "My Profile", "icon": "", "route": "my_profile"},
+          {"label": "Notifications", "icon": "", "route": "notifications"},
+          {"label": "My Actions", "icon": "", "route": "my_actions"}
+        ]
+      },
+      {
+        "group": "Product Operations",
+        "items": [
+          {"label": "Products", "icon": "", "route": "products"},
+          {"label": "Warehouses", "icon": "", "route": "warehouses"},
+          {"label": "Inventory", "icon": "", "route": "inventory"},
+          {"label": "Shipments", "icon": "", "route": "shipments"}
+        ]
+      },
+      {
+        "group": "Commerce",
+        "items": [
+          {"label": "Marketplace", "icon": "", "route": "marketplace"},
+          {"label": "MandiPlace", "icon": "", "route": "mandiplace"},
+          {"label": "Raw Materials", "icon": "", "route": "raw_materials"},
+          {"label": "Suta Mandi", "icon": "", "route": "suta_mandi"},
+          {"label": "My Orders", "icon": "", "route": "my_orders"}
+        ]
+      },
+      {
+        "group": "Finance",
+        "items": [
+          {"label": "Payments", "icon": "", "route": "payments"},
+          {"label": "Ledger", "icon": "", "route": "ledger"}
+        ]
+      },
+      {
+        "group": "Operations",
+        "items": [
+          {"label": "Jobs", "icon": "", "route": "jobs"}
+        ]
+      }
+    ],
+    "mahajan": [
+      {
+        "group": "Core",
+        "items": [
+          {"label": "Dashboard", "icon": "", "route": "dashboard"},
+          {"label": "My Profile", "icon": "", "route": "my_profile"},
+          {"label": "Notifications", "icon": "", "route": "notifications"},
+          {"label": "My Actions", "icon": "", "route": "my_actions"}
+        ]
+      },
+      {
+        "group": "Supply Network",
+        "items": [
+          {"label": "Warehouses", "icon": "", "route": "warehouses"},
+          {"label": "Raw Materials", "icon": "", "route": "raw_materials"},
+          {"label": "Shipments", "icon": "", "route": "shipments"},
+          {"label": "My Orders", "icon": "", "route": "my_orders"}
+        ]
+      },
+      {
+        "group": "Finance",
+        "items": [
+          {"label": "Payments", "icon": "", "route": "payments"},
+          {"label": "Ledger", "icon": "", "route": "ledger"}
+        ]
+      },
+      {
+        "group": "Operations",
+        "items": [
+          {"label": "Jobs", "icon": "", "route": "jobs"}
+        ]
+      }
+    ],
+    "public_buyer": [
+      {
+        "group": "Core",
+        "items": [
+          {"label": "Dashboard", "icon": "", "route": "dashboard"},
+          {"label": "My Profile", "icon": "", "route": "my_profile"},
+          {"label": "Notifications", "icon": "", "route": "notifications"},
+          {"label": "My Actions", "icon": "", "route": "my_actions"}
+        ]
+      },
+      {
+        "group": "Marketplace",
+        "items": [
+          {"label": "Marketplace", "icon": "", "route": "marketplace"},
+          {"label": "My Orders", "icon": "", "route": "my_orders"}
+        ]
+      },
+      {
+        "group": "Operations",
+        "items": [
+          {"label": "Jobs", "icon": "", "route": "jobs"}
+        ]
+      }
+    ],
+    "worker": [
+      {
+        "group": "Core",
+        "items": [
+          {"label": "Dashboard", "icon": "", "route": "dashboard"},
+          {"label": "My Profile", "icon": "", "route": "my_profile"},
+          {"label": "Notifications", "icon": "", "route": "notifications"},
+          {"label": "My Actions", "icon": "", "route": "my_actions"}
+        ]
+      },
+      {
+        "group": "Work",
+        "items": [
+          {"label": "Jobs", "icon": "", "route": "jobs"}
+        ]
+      }
+    ],
+    "pending_user": [
+      {
+        "group": "General",
+        "items": [
+          {"label": "Dashboard", "icon": "", "route": "dashboard"}
+        ]
+      }
+    ]
+  },
+  "default_routes": {
+    "platform_admin": "dashboard",
+    "manufacturer": "dashboard",
+    "mahajan": "dashboard",
+    "public_buyer": "marketplace",
+    "worker": "jobs",
+    "pending_user": "dashboard",
+    "unauthenticated": "dashboard"
+  }
+}

@@ -29,6 +29,7 @@ from modules.notifications.dashboard import render_notifications_dashboard
 from modules.onboarding.manufacturer_onboarding import render_manufacturer_onboarding
 from modules.orders.dashboard import render_orders_dashboard
 from modules.orders.dispatch import render_dispatch_management
+from modules.orders.hub import render_my_orders_hub, render_orders_hub
 from modules.payments.dashboard import render_payments_dashboard
 from modules.profile.dashboard import render_my_profile_dashboard
 from modules.procurement.dashboard import render_procurement_dashboard
@@ -37,56 +38,56 @@ from modules.public_buyer.dashboard import render_public_buyer_dashboard
 from modules.public_orders.dashboard import render_public_orders_dashboard
 from modules.raw_materials.dashboard import render_raw_materials_dashboard
 from modules.suta_mandi.dashboard import render_suta_mandi_dashboard
+from modules.system.admin_drive_db import render_admin_drive_db_dashboard
 from modules.system.health_dashboard import render_health_dashboard
 from modules.logistics.dashboard import render_logistics_dashboard
 from modules.shipments.dashboard import render_shipments_dashboard
 from modules.workers.dashboard import render_workers_dashboard
 from modules.warehouses.dashboard import render_warehouses_dashboard
-from services.navigation_service import NAV_ALIAS_MAP, normalize_navigation_label
+from services.navigation_service import NAV_ALIAS_MAP, normalize_navigation_route
 
 
 ROUTE_GROUPS = {
-    "public": {"Dashboard"},
-    "shared_authenticated": {"Dashboard", "My Profile", "Notifications", "My Actions"},
+    "public": {"dashboard"},
+    "shared_authenticated": {"dashboard", "my_profile", "notifications", "my_actions"},
     ROLE_PLATFORM_ADMIN: {
-        "Dashboard",
-        "My Profile",
-        "Notifications",
-        "My Actions",
-        "Manufacturers",
-        "Mahajans",
-        "Workers",
-        "Products",
-        "Product Approvals",
-        "Marketplace",
-        "Marketplace Orders",
-        "MandiPlace",
-        "Mandi Orders",
-        "Raw Materials",
-        "Supply Orders",
-        "Payments",
-        "Ledger",
-        "Platform Commission",
-        "Finance Operations",
-        "Operations Center",
-        "Warehouses",
-        "Packaging Services",
-        "Courier Services",
-        "Shipments",
-        "Logistics",
-        "Jobs",
-        "System Health",
-        "Analytics",
+        "dashboard",
+        "my_profile",
+        "notifications",
+        "my_actions",
+        "manufacturers",
+        "mahajans",
+        "workers",
+        "products",
+        "product_approvals",
+        "marketplace",
+        "orders",
+        "mandiplace",
+        "raw_materials",
+        "payments",
+        "ledger",
+        "platform_commission",
+        "finance_operations",
+        "operations_center",
+        "warehouses",
+        "packaging_services",
+        "courier_services",
+        "shipments",
+        "logistics",
+        "jobs",
+        "system_health",
+        "analytics",
+        "admin_drive_db",
     },
-    ROLE_MAHAJAN: {"Dashboard", "My Profile", "Notifications", "My Actions", "Warehouses", "Raw Materials", "Shipments", "Mandi Orders", "Payments", "Ledger", "Jobs"},
-    ROLE_MANUFACTURER: {"Dashboard", "My Profile", "Notifications", "My Actions", "Products", "Warehouses", "Inventory", "Shipments", "Marketplace", "Marketplace Orders", "MandiPlace", "Mandi Orders", "Supply Requests", "Suta Mandi", "Payments", "Ledger", "Jobs"},
-    ROLE_PUBLIC_BUYER: {"Dashboard", "My Profile", "Notifications", "My Actions", "Marketplace", "Marketplace Orders", "Jobs"},
-    ROLE_WORKER: {"Dashboard", "My Profile", "Notifications", "My Actions", "Jobs"},
+    ROLE_MAHAJAN: {"dashboard", "my_profile", "notifications", "my_actions", "warehouses", "raw_materials", "shipments", "my_orders", "payments", "ledger", "jobs", "orders"},
+    ROLE_MANUFACTURER: {"dashboard", "my_profile", "notifications", "my_actions", "products", "warehouses", "inventory", "shipments", "marketplace", "mandiplace", "my_orders", "orders", "raw_materials", "suta_mandi", "payments", "ledger", "jobs"},
+    ROLE_PUBLIC_BUYER: {"dashboard", "my_profile", "notifications", "my_actions", "marketplace", "my_orders", "jobs"},
+    ROLE_WORKER: {"dashboard", "my_profile", "notifications", "my_actions", "jobs"},
 }
 
 
 def can_access_route(user, section: str, app_context: dict) -> bool:
-    normalized_section = normalize_navigation_label(section)
+    normalized_section = normalize_navigation_route(section)
     if not user:
         return normalized_section in ROUTE_GROUPS["public"]
     session_user = app_context.get("session_user") or user
@@ -101,7 +102,7 @@ def can_access_route(user, section: str, app_context: dict) -> bool:
     if role in ROUTE_GROUPS:
         return normalized_section in ROUTE_GROUPS[role]
     if role == ROLE_PENDING_USER:
-        return normalized_section == "Dashboard"
+        return normalized_section == "dashboard"
     return False
 
 
@@ -135,114 +136,101 @@ def render_dashboard(app_context: dict) -> None:
 
 
 def render_route(section: str, app_context: dict) -> None:
-    section = normalize_navigation_label(section)
+    section = normalize_navigation_route(section)
     user = app_context.get("current_user")
     session_user = app_context.get("session_user") or user
     is_admin_identity = app_context["security_service"].is_admin_identity(session_user)
     supervisor_mode = bool(is_admin_identity and getattr(user, "role", "") == ROLE_PLATFORM_ADMIN)
     if not user:
-        if section == "Marketplace":
+        if section == "marketplace":
             st.session_state["requested_role"] = ROLE_PUBLIC_BUYER
         render_login_page(app_context)
         return
     if not can_access_route(user, section, app_context):
         _render_access_denied(app_context)
         return
-    if section == "Dashboard":
+    if section == "dashboard":
         render_dashboard(app_context)
-    elif section == "My Actions":
+    elif section == "my_actions":
         render_actions_dashboard(app_context)
-    elif section == "Notifications":
+    elif section == "notifications":
         render_notifications_dashboard(app_context)
-    elif section in {"My Profile", "Profile"}:
+    elif section == "my_profile":
         render_my_profile_dashboard(app_context)
-    elif section == "Products":
+    elif section == "products":
         render_products_dashboard(app_context)
-    elif section == "MandiPlace":
+    elif section == "mandiplace":
         render_procurement_dashboard(app_context)
-    elif section == "Suta Mandi":
+    elif section == "suta_mandi":
         render_suta_mandi_dashboard(app_context)
-    elif section in {"Marketplace", "Marketplace Preview"}:
+    elif section == "marketplace":
         render_marketplace_dashboard(app_context)
-    elif section in {"Marketplace Orders", "Public Orders"}:
+    elif section == "orders":
         current_user = app_context.get("current_user")
-        if current_user and current_user.role == ROLE_PUBLIC_BUYER:
-            render_public_orders_dashboard(app_context, buyer_mode=True)
-        elif current_user and current_user.role in {ROLE_MANUFACTURER, "admin_as_manufacturer"}:
-            render_orders_dashboard(app_context)
+        if current_user and current_user.role == ROLE_PLATFORM_ADMIN:
+            render_orders_hub(app_context)
         else:
-            render_public_orders_dashboard(app_context, buyer_mode=False)
-    elif section == "My Orders":
-        current_user = app_context.get("current_user")
-        if current_user and current_user.role == ROLE_PUBLIC_BUYER:
-            render_public_orders_dashboard(app_context, buyer_mode=True)
-        else:
-            render_orders_dashboard(app_context)
-    elif section == "Inventory":
+            render_my_orders_hub(app_context)
+    elif section == "my_orders":
+        render_my_orders_hub(app_context)
+    elif section == "inventory":
         render_inventory_management(app_context)
-    elif section == "Warehouses":
+    elif section == "warehouses":
         render_warehouses_dashboard(app_context)
-    elif section == "Shipments":
+    elif section == "shipments":
         render_shipments_dashboard(app_context)
-    elif section in {"Supply Orders", "Supply Requests"}:
-        render_procurement_dashboard(app_context)
-    elif section == "Mandi Orders":
-        if "procurement_transaction_service" in app_context:
-            render_procurement_dashboard(app_context)
-        elif supervisor_mode:
-            render_admin_dashboard(app_context, section="Mandi Orders")
-        else:
-            _render_access_denied(app_context)
-    elif section in {"Ledger / Khata", "Ledger"}:
+    elif section == "ledger":
         if supervisor_mode:
             render_admin_dashboard(app_context, section="Ledger")
         else:
             render_ledger_dashboard(app_context)
-    elif section in {"Payments", "Platform Commission"}:
-        if section == "Platform Commission" and supervisor_mode:
+    elif section in {"payments", "platform_commission"}:
+        if section == "platform_commission" and supervisor_mode:
             render_commission_summary_dashboard(app_context)
-        elif section == "Platform Commission":
+        elif section == "platform_commission":
             render_commission_dashboard(app_context)
         elif supervisor_mode:
             render_admin_dashboard(app_context, section="Payments")
         else:
             render_payments_dashboard(app_context)
-    elif section == "Finance Operations":
+    elif section == "finance_operations":
         if "settlement_service" in app_context and "invoice_service" in app_context and "dispute_service" in app_context:
             render_finance_operations_dashboard(app_context)
         elif supervisor_mode:
             render_admin_dashboard(app_context, section="Finance Operations")
         else:
             _render_access_denied(app_context)
-    elif section == "Dispatch":
+    elif section == "dispatch":
         render_dispatch_management(app_context)
-    elif section == "Mahajans":
+    elif section == "mahajans":
         render_mahajans_dashboard(app_context)
-    elif section == "Workers":
+    elif section == "workers":
         render_workers_admin_dashboard(app_context)
-    elif section == "Raw Materials":
+    elif section == "raw_materials":
         render_raw_materials_dashboard(app_context)
-    elif section == "Operations Center":
+    elif section == "operations_center":
         render_operations_dashboard(app_context)
-    elif section == "Packaging Services":
+    elif section == "packaging_services":
         render_packaging_services_dashboard(app_context)
-    elif section == "Courier Services":
+    elif section == "courier_services":
         render_courier_services_dashboard(app_context)
-    elif section == "Logistics":
+    elif section == "logistics":
         render_logistics_dashboard(app_context)
-    elif section == "Jobs":
+    elif section == "jobs":
         render_jobs_dashboard(app_context)
-    elif section == "Analytics":
+    elif section == "analytics":
         render_analytics_dashboard(app_context)
-    elif section == "Product Approvals":
+    elif section == "product_approvals":
         render_product_approvals_dashboard(app_context)
-    elif section == "Manufacturers":
+    elif section == "manufacturers":
         render_manufacturers_dashboard(app_context)
-    elif section == "Inventory Summary":
+    elif section == "inventory_summary":
         render_inventory_summary_dashboard(app_context)
-    elif section in {"B2B Preview", "Ledger Summary", "Commission Summary"}:
-        render_admin_dashboard(app_context, section=section)
-    elif section == "Onboarding":
+    elif section == "onboarding":
         render_manufacturer_onboarding(app_context)
-    elif section == "System Health":
+    elif section == "system_health":
         render_health_dashboard(app_context)
+    elif section == "admin_drive_db":
+        render_admin_drive_db_dashboard(app_context)
+    else:
+        _render_access_denied(app_context)

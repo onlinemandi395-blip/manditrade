@@ -5,6 +5,7 @@ from html import escape
 import streamlit as st
 
 from components.html_renderer import render_html
+from services.navigation_service import get_navigation_label
 from utils.deep_links import activate_deep_link
 
 
@@ -39,7 +40,7 @@ def render_command_palette(app_context: dict) -> None:
         session_state.add_recent_search(query)
     quick_commands = _build_quick_commands(app_context, available_routes, query)
     route_matches = [
-        {"label": route, "entity_type": "route", "entity_id": route, "target": {"route": route, "source_id": route}}
+        {"label": get_navigation_label(route, app_context), "entity_type": "route", "entity_id": route, "target": {"route": route, "source_id": route}}
         for route in available_routes
         if not query.strip() or query.strip().lower() in route.lower()
     ][:8]
@@ -76,9 +77,9 @@ def _build_quick_commands(app_context: dict, available_routes: list[str], query:
     recovery_service = app_context.get("recovery_action_service")
     recovery_actions = recovery_service.list_available_actions(getattr(current_user, "role", "")) if recovery_service else []
     quick_items = [
-        {"label": "Create Job", "entity_type": "quick_action", "entity_id": "Jobs", "target": {"route": "Jobs", "source_id": "create_job"}},
-        {"label": "Create Product", "entity_type": "quick_action", "entity_id": "Products", "target": {"route": "Products", "source_id": "create_product"}},
-        {"label": "Create Raw Material", "entity_type": "quick_action", "entity_id": "Raw Materials", "target": {"route": "Raw Materials", "source_id": "create_raw_material"}},
+        {"label": "Create Job", "entity_type": "quick_action", "entity_id": "jobs", "target": {"route": "jobs", "source_id": "create_job"}},
+        {"label": "Create Product", "entity_type": "quick_action", "entity_id": "products", "target": {"route": "products", "source_id": "create_product"}},
+        {"label": "Create Raw Material", "entity_type": "quick_action", "entity_id": "raw_materials", "target": {"route": "raw_materials", "source_id": "create_raw_material"}},
     ]
     commands = []
     for item in quick_items:

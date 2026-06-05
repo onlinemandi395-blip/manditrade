@@ -821,13 +821,13 @@ def render_procurement_dashboard(app_context: dict) -> None:
     service = app_context["procurement_transaction_service"]
     governance_service = app_context["governance_service"]
     page_key = f"mandi_orders_{(user.role if user else 'public')}"
-    active_navigation = app_context["session_state_service"].get_navigation("Dashboard")
+    active_navigation = app_context["session_state_service"].get_navigation("dashboard")
 
     if not user:
         st.info("Sign in required.")
         return
 
-    if active_navigation == "MandiPlace":
+    if active_navigation == "mandiplace":
         if user.role == "platform_admin":
             _render_mandiplace_admin(app_context, user, service)
             return

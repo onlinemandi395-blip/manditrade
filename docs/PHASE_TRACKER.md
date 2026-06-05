@@ -13,6 +13,11 @@ Status meanings:
 | --- | --- | --- |
 | Auth | `PARTIAL` | Google sign-in flow exists, and invited identities now stay approval-gated until ACTIVE, but deployment/runtime provisioning still needs environment-level validation. |
 | RBAC | `DONE` | Active runtime roles are `platform_admin`, `manufacturer`, `mahajan`, `public_buyer`, and `worker`. |
+| JSON Navigation Config | `DONE` | Sidebar navigation now resolves from config with Admin Drive-root preference, local fallback, and built-in safety fallback. |
+| Drive Navigation Source | `PARTIAL` | Navigation config is seeded under the Admin Drive canonical config root, but live Drive API-backed editing still depends on runtime token readiness. |
+| Navigation Simplification | `PARTIAL` | Visible nav is consolidated around `orders`, `my_orders`, `shipments`, and `admin_drive_db`, while older aliases still exist for compatibility. |
+| Orders Consolidation | `PARTIAL` | Admin now has a single Orders hub and role-specific My Orders hub, but some deeper workflow actions still live inside legacy pages. |
+| Shipments Consolidation | `DONE` | `Shipments` is now the single visible shipment route across active roles. |
 | Identity Governance | `PARTIAL` | Admin manufacturer, mahajan, and worker governance screens now exist with completeness/trust summaries, but invitation analytics and deeper self-service completion are still maturing. |
 | Admin Drive DB | `PARTIAL` | Canonical root/services exist; live cutover remains operator-controlled. |
 | Inventory Engine | `PARTIAL` | Unified inventory records, reservations, and movement ledger now exist across marketplace, MandiPlace, raw materials, and suta, and records are now warehouse-aware with default site fallback. |
