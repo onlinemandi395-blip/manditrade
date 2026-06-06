@@ -27,6 +27,76 @@ def _get_owner_type_label(product: dict) -> str:
     return "Manufacturer"
 
 
+def _build_category_index(category_rows: list[dict]) -> dict[str, list[str]]:
+    index: dict[str, list[str]] = {}
+    for row in category_rows:
+        category = str(row.get("category", "")).strip()
+        if not category:
+            continue
+        subcategories = [
+            str(subcategory).strip()
+            for subcategory in (row.get("subcategories", []) or [])
+            if str(subcategory).strip()
+        ]
+        index[category] = subcategories
+    return index
+
+
+def _validate_category_selection(category: str, subcategory: str, category_index: dict[str, list[str]]) -> None:
+    normalized_category = str(category).strip()
+    normalized_subcategory = str(subcategory).strip()
+    if normalized_category not in category_index:
+        raise ValueError("Invalid category/subcategory selection.")
+    if normalized_subcategory not in category_index.get(normalized_category, []):
+        raise ValueError("Invalid category/subcategory selection.")
+
+
+def _ordered_product_images(images: list[dict]) -> list[dict]:
+    rows = [dict(image or {}) for image in (images or [])]
+    return sorted(rows, key=lambda image: (not bool(image.get("is_primary")), str(image.get("file_name", ""))))
+
+
+def _render_product_image_gallery(images: list[dict], media_service: MediaService, *, title: str) -> None:
+    ordered_images = _ordered_product_images(images)
+    if not ordered_images:
+        st.info("No product images available.")
+        return
+    st.markdown(f"#### {title}")
+    preview_columns = st.columns(3)
+    for index, image in enumerate(ordered_images):
+        with preview_columns[index % 3]:
+            renderable = media_service.get_renderable_image(image)
+            if renderable.get("render_mode") == "bytes" and renderable.get("bytes"):
+                st.image(renderable["bytes"], use_container_width=True)
+            elif renderable.get("render_mode") == "url" and renderable.get("url"):
+                st.image(renderable["url"], use_container_width=True)
+            else:
+                st.caption("Image unavailable")
+            st.caption(image.get("file_name", image.get("image_id", "Image")))
+            if image.get("is_primary"):
+                st.caption("Primary image")
+
+
+def _build_product_table_rows(products: list[dict]) -> list[dict]:
+    rows = []
+    for product in products:
+        rows.append(
+            {
+                "product_code": product.get("product_code", ""),
+                "product_name": product.get("product_name", ""),
+                "owner_email": ((product.get("owner") or {}).get("email", "")),
+                "owner_role": ((product.get("owner") or {}).get("role", "")),
+                "category": product.get("category", ""),
+                "subcategory": product.get("subcategory", ""),
+                "marketplace_price": ((product.get("sales_channels") or {}).get("marketplace") or {}).get("price", 0),
+                "manditrade_price": ((product.get("sales_channels") or {}).get("manditrade") or {}).get("price", 0),
+                "quantity": ((product.get("inventory") or {}).get("available_quantity", 0)),
+                "status": product.get("status", "ACTIVE"),
+            }
+        )
+    return rows
+
+
 def _archive_product(products: list[dict], product_id: str, current_user_email: str) -> None:
     for product in products:
         if product.get("product_id") == product_id:
@@ -142,7 +212,8 @@ def render_products_page(data_service, notification_service, session_service, ca
     users = data_service.get_collection_ref("users")
     categories_config = cache_service.get_config("categories")
     category_rows = categories_config.get("categories", [])
-    category_names = [row.get("category", "") for row in category_rows]
+    category_index = _build_category_index(category_rows)
+    category_names = list(category_index.keys())
     current_user_email = session_service.get_user().get("email", "")
     current_user_role = session_service.get_user().get("role", "")
     visible_products = (
@@ -156,25 +227,7 @@ def render_products_page(data_service, notification_service, session_service, ca
     tabs = st.tabs(["All Products", "Marketplace", "MandiTrade", "Inactive", "Add Product"])
 
     with tabs[0]:
-        render_table(
-            [
-                {
-                    "image_url": product.get("image_url", ""),
-                    "product_code": product.get("product_code", ""),
-                    "product_name": product.get("product_name", ""),
-                    "owner_email": ((product.get("owner") or {}).get("email", "")),
-                    "owner_role": ((product.get("owner") or {}).get("role", "")),
-                    "category": product.get("category", ""),
-                    "subcategory": product.get("subcategory", ""),
-                    "marketplace_price": ((product.get("sales_channels") or {}).get("marketplace") or {}).get("price", 0),
-                    "manditrade_price": ((product.get("sales_channels") or {}).get("manditrade") or {}).get("price", 0),
-                    "quantity": ((product.get("inventory") or {}).get("available_quantity", 0)),
-                    "status": product.get("status", "ACTIVE"),
-                }
-                for product in visible_products
-            ],
-            caption="All products",
-        )
+        render_table(_build_product_table_rows(visible_products), caption="All products")
         active_product_ids = [product.get("product_id", "") for product in visible_products if str(product.get("status", "")).upper() != "ARCHIVED"]
         if active_product_ids:
             archive_product_id = st.selectbox("Archive Product", options=[""] + active_product_ids, key="archive_product_id")
@@ -191,13 +244,10 @@ def render_products_page(data_service, notification_service, session_service, ca
             selected_edit_id = st.selectbox("Edit Product", options=[""] + editable_ids, key="edit_product_id")
             selected_product = next((product for product in visible_products if product.get("product_id") == selected_edit_id), None)
             if selected_product:
-                existing_images = selected_product.get("images", []) or []
+                existing_images = _ordered_product_images(selected_product.get("images", []) or [])
                 st.caption(f"Product Code: {selected_product.get('product_code', '')}")
                 if existing_images:
-                    st.image(
-                        [image.get("image_url") or image.get("thumbnail_link") or image.get("web_view_link") for image in existing_images if image.get("image_url") or image.get("thumbnail_link") or image.get("web_view_link")],
-                        width=120,
-                    )
+                    _render_product_image_gallery(existing_images, media_service, title="Current Product Images")
                 with st.form("edit_product_form"):
                     edit_product_name = st.text_input("Product Name", value=selected_product.get("product_name", ""))
                     edit_owner_type = st.selectbox(
@@ -214,7 +264,7 @@ def render_products_page(data_service, notification_service, session_service, ca
                         index=category_names.index(selected_product.get("category", "")) if selected_product.get("category", "") in category_names else 0,
                         key="edit_category",
                     )
-                    edit_subcategories = next((row.get("subcategories", []) for row in category_rows if row.get("category") == edit_category), [])
+                    edit_subcategories = category_index.get(edit_category, [])
                     edit_subcategory = st.selectbox(
                         "Subcategory",
                         options=edit_subcategories if edit_subcategories else [""],
@@ -243,6 +293,7 @@ def render_products_page(data_service, notification_service, session_service, ca
                     previous_product_snapshot = deepcopy(selected_product)
                     previous_users_snapshot = deepcopy(users)
                     try:
+                        _validate_category_selection(edit_category, edit_subcategory, category_index)
                         owner, _ = _resolve_or_create_owner(
                             users=users,
                             owner_email=edit_owner_email,
@@ -260,6 +311,8 @@ def render_products_page(data_service, notification_service, session_service, ca
                                 uploaded_by=current_user_email,
                                 product_code=selected_product.get("product_code", selected_product.get("product_id", "PROD")),
                             )
+                            for image in uploaded_images:
+                                media_service.clear_cached_image(str(image.get("file_id", "")))
                         _apply_product_values(
                             product=selected_product,
                             product_code=selected_product.get("product_code", selected_product.get("product_id", "")),
@@ -317,7 +370,9 @@ def render_products_page(data_service, notification_service, session_service, ca
 
     with tabs[3]:
         render_table(
-            [product for product in visible_products if str(product.get("status", "ACTIVE")).upper() != "ACTIVE"],
+            _build_product_table_rows(
+                [product for product in visible_products if str(product.get("status", "ACTIVE")).upper() != "ACTIVE"]
+            ),
             caption="Inactive / archived products",
         )
 
@@ -330,7 +385,7 @@ def render_products_page(data_service, notification_service, session_service, ca
             owner_display_name = st.text_input("Owner Display Name")
             owner_phone = st.text_input("Owner Phone")
             category = st.selectbox("Category", options=category_names if category_names else [""])
-            subcategories = next((row.get("subcategories", []) for row in category_rows if row.get("category") == category), [])
+            subcategories = category_index.get(category, [])
             subcategory = st.selectbox("Subcategory", options=subcategories if subcategories else [""])
             description = st.text_area("Description")
             unit = st.text_input("Unit", value="piece")
@@ -355,6 +410,7 @@ def render_products_page(data_service, notification_service, session_service, ca
             previous_users_snapshot = deepcopy(users)
             product_code = ""
             try:
+                _validate_category_selection(category, subcategory, category_index)
                 owner, owner_created = _resolve_or_create_owner(
                     users=users,
                     owner_email=owner_email,
@@ -371,6 +427,8 @@ def render_products_page(data_service, notification_service, session_service, ca
                     uploaded_by=current_user_email,
                     product_code=product_code,
                 )
+                for image in uploaded_images:
+                    media_service.clear_cached_image(str(image.get("file_id", "")))
                 record = {
                     "product_id": product_code,
                     "product_code": product_code,

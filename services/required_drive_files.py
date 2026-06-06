@@ -162,11 +162,18 @@ def build_required_drive_files(primary_admin_email: str, primary_admin_name: str
             "logical_path": "00_config/categories.json",
             "type": "config",
             "default_payload": {
+                "schema_version": 1,
                 "categories": [
-                    {"category": "Textile", "subcategories": ["Towel", "Bedsheet", "Curtain", "Blanket"]},
-                    {"category": "Raw Material", "subcategories": ["Cotton", "Thread", "Yarn", "Packaging"]},
-                    {"category": "Food Grain", "subcategories": ["Rice", "Wheat", "Pulses"]},
-                    {"category": "Industrial", "subcategories": ["Steel", "Machine Parts", "Tools"]},
+                    {"category": "Textile", "subcategories": ["Towel", "Bedsheet", "Curtain", "Blanket", "Fabric Roll", "Uniform"]},
+                    {"category": "Raw Material", "subcategories": ["Cotton", "Thread", "Yarn", "Packaging", "Dye", "Chemical"]},
+                    {"category": "Food Grain", "subcategories": ["Rice", "Wheat", "Pulses", "Maize", "Millet", "Flour"]},
+                    {"category": "Industrial", "subcategories": ["Steel", "Machine Parts", "Tools", "Motor", "Pump", "Rack"]},
+                    {"category": "Electronics", "subcategories": ["Mobile Accessories", "Wiring", "Switches", "LED", "Battery", "Charger"]},
+                    {"category": "Packaging", "subcategories": ["Box", "Carton", "Bag", "Tape", "Label", "Bubble Wrap"]},
+                    {"category": "Agriculture", "subcategories": ["Seeds", "Fertilizer", "Tools", "Irrigation", "Animal Feed"]},
+                    {"category": "Construction", "subcategories": ["Cement", "Sand", "Bricks", "Tiles", "Paint", "Hardware"]},
+                    {"category": "Furniture", "subcategories": ["Chair", "Table", "Rack", "Door", "Bed", "Cabinet"]},
+                    {"category": "Other", "subcategories": ["General"]},
                 ]
             },
         },

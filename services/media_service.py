@@ -20,6 +20,14 @@ class MediaService:
         self.performance_service = PerformanceService()
         st.session_state.setdefault(self.IMAGE_CACHE_KEY, {})
 
+    def clear_cached_image(self, file_id: str) -> None:
+        normalized_file_id = str(file_id or "").strip()
+        if not normalized_file_id:
+            return
+        image_cache = dict(st.session_state.get(self.IMAGE_CACHE_KEY, {}) or {})
+        image_cache.pop(normalized_file_id, None)
+        st.session_state[self.IMAGE_CACHE_KEY] = image_cache
+
     def upload_product_images(self, uploaded_files: list, *, uploaded_by: str, product_code: str) -> list[dict]:
         if not uploaded_files:
             return []
