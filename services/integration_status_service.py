@@ -47,7 +47,11 @@ class IntegrationStatusService:
             "language_selected": st.session_state.get("mt_next_language", "en"),
             "available_languages": loaded_languages,
             "language_files_loaded": len(loaded_languages),
+            "required_folders_count": len(drive_manifest.get("required_folders", [])),
+            "required_files_count": len(drive_manifest.get("required_files", [])),
+            "missing_files_count": len(drive_manifest.get("missing_files", [])),
             "required_files_status": "ok" if not drive_manifest.get("missing_files") else "missing",
             "required_files": drive_manifest.get("required_files", []),
+            "required_folders": drive_manifest.get("required_folders", []),
             "missing_files": drive_manifest.get("missing_files", []),
         }

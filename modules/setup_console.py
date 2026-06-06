@@ -18,6 +18,7 @@ def render_setup_console(admin_drive_service, drive_manifest: dict) -> None:
     status_cards[5].metric("Cache Status", "Loaded" if st.session_state.get("mt_next_cache") else "Empty")
 
     root_missing = not drive_manifest.get("root_folder_id")
+    setup_complete = not drive_manifest.get("missing_files") and not drive_manifest.get("missing_folders") and not root_missing
     cols = st.columns(5)
     if cols[0].button("Create Root Folder", use_container_width=True, disabled=not root_missing):
         try:
@@ -44,7 +45,9 @@ def render_setup_console(admin_drive_service, drive_manifest: dict) -> None:
     if cols[3].button("Reload Cache", use_container_width=True):
         admin_drive_service.clear_runtime_cache()
         st.rerun()
-    cols[4].button("Continue to App", use_container_width=True, disabled=bool(drive_manifest.get("missing_files") or drive_manifest.get("missing_folders")))
+    if cols[4].button("Continue to App", use_container_width=True, disabled=not setup_complete):
+        admin_drive_service.clear_runtime_cache()
+        st.rerun()
 
     st.markdown("### Required Folders")
     render_table(drive_manifest.get("required_folders", []), caption="Required Drive folders")

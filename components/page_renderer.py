@@ -103,6 +103,31 @@ def _render_missing_files_screen(drive_manifest: dict, session_service: SessionS
         _render_bootstrap_login(GoogleOAuthService(), session_service)
 
 
+def _render_root_setup_console(session_service: SessionService, admin_drive_service: AdminDriveService, errors: list[str]) -> None:
+    user = session_service.get_user()
+    is_admin = bool(user.get("is_authenticated")) and str(user.get("role", "")).strip().lower() == "platform_admin"
+    if is_admin:
+        st.warning("Drive setup incomplete. Root folder is missing or unreachable.")
+        for error in errors:
+            st.caption(error)
+        render_setup_console(
+            admin_drive_service,
+            {
+                "connected": True,
+                "root_folder_id": "",
+                "root_folder_name": "MANDITRADE_DB",
+                "required_folders": [],
+                "missing_folders": ["MANDITRADE_DB"],
+                "required_files": [],
+                "missing_files": [],
+            },
+        )
+    elif user.get("is_authenticated"):
+        st.error("Platform setup is incomplete. Please contact admin.")
+    else:
+        _render_bootstrap_login(GoogleOAuthService(), session_service)
+
+
 def render_app() -> None:
     inject_css(CSS_FILE)
     session_service = SessionService(BOOTSTRAP_APP_CONFIG)
@@ -141,8 +166,12 @@ def render_app() -> None:
         if not session_service.is_authenticated():
             _render_bootstrap_login(oauth_service, session_service)
             return
+        errors = drive_manifest.get("errors", [])
+        if any("root folder" in str(error).lower() for error in errors):
+            _render_root_setup_console(session_service, admin_drive_service, errors)
+            return
         st.error("Google Drive is not connected.\n\nExpected:\nMANDITRADE_DB root folder from Google Drive.\n\nFix:\nCheck Google OAuth token and Drive permissions.")
-        for error in drive_manifest.get("errors", []):
+        for error in errors:
             st.code(error)
         return
 
@@ -348,6 +377,9 @@ def render_app() -> None:
                 {"key": "users_count", "value": status["users_count"]},
                 {"key": "products_count", "value": status["products_count"]},
                 {"key": "order_count", "value": status["order_count"]},
+                {"key": "required_folders_count", "value": status["required_folders_count"]},
+                {"key": "required_files_count", "value": status["required_files_count"]},
+                {"key": "missing_files_count", "value": status["missing_files_count"]},
                 {"key": "notifications_count", "value": status["notification_queue_count"]},
                 {"key": "queue_count", "value": status["queue_count"]},
                 {"key": "language_files_loaded", "value": status["language_files_loaded"]},
@@ -357,6 +389,7 @@ def render_app() -> None:
             ],
             caption="Integration status",
         )
+        render_table(status["required_folders"], caption="Required Drive folders")
         render_table(status["required_files"], caption="Required Drive files")
         render_detail_panel("Cache Status", status["cache_status"])
     else:
