@@ -12,6 +12,12 @@ from components.html_renderer import inject_css
 from components.sidebar import render_sidebar
 from components.table_renderer import render_table
 from components.topbar import render_topbar
+from modules.admin_configuration import render_admin_configuration
+from modules.login import render_login_page
+from modules.manditrade import render_manditrade_page
+from modules.marketplace import render_marketplace_page
+from modules.products import render_products_page
+from modules.setup_console import render_setup_console
 from services.admin_drive_service import AdminDriveService
 from services.auth_service import AuthService
 from services.cache_service import CacheService
@@ -19,83 +25,101 @@ from services.cart_service import CartService
 from services.config_loader_service import ConfigLoaderService
 from services.data_service import DataService
 from services.form_service import FormService
+from services.gmail_queue_service import GmailQueueService
+from services.google_oauth_service import GoogleOAuthService
+from services.integration_status_service import IntegrationStatusService
 from services.language_service import LanguageService
 from services.navigation_service import NavigationService
 from services.notification_service import NotificationService
 from services.order_service import OrderService
 from services.page_service import PageService
-from services.gmail_queue_service import GmailQueueService
-from services.google_oauth_service import GoogleOAuthService
-from services.integration_status_service import IntegrationStatusService
 from services.rbac_service import RBACService
 from services.session_service import SessionService
-from modules.admin_configuration import render_admin_configuration
-from modules.login import render_login_page
-from modules.marketplace import render_marketplace_page
-from modules.manditrade import render_manditrade_page
-from modules.products import render_products_page
 
 
 CSS_FILE = Path(__file__).resolve().parent.parent / "assets" / "styles" / "design.css"
+BOOTSTRAP_APP_CONFIG = {
+    "default_role": "public_buyer",
+    "default_language": "en",
+    "default_landing": {
+        "platform_admin": "dashboard",
+        "public_buyer": "marketplace",
+    },
+}
+
+
+def _get_bootstrap_primary_admin() -> dict:
+    platform = dict(st.secrets.get("platform", {})) if "platform" in st.secrets else {}
+    return {
+        "email": str(platform.get("primary_admin_email", "")).strip().lower(),
+        "display_name": str(platform.get("primary_admin_name", "") or "Primary Admin").strip(),
+    }
+
+
+def _resolve_bootstrap_user(email: str) -> dict:
+    primary_admin = _get_bootstrap_primary_admin()
+    normalized_email = str(email).strip().lower()
+    if primary_admin["email"] and normalized_email == primary_admin["email"]:
+        return {
+            "email": normalized_email,
+            "role": "platform_admin",
+            "status": "ACTIVE",
+            "display_name": primary_admin["display_name"],
+            "known_user": True,
+            "is_primary_admin": True,
+        }
+    return {
+        "email": normalized_email,
+        "role": "public_buyer",
+        "status": "ACTIVE",
+        "display_name": normalized_email.split("@")[0] if normalized_email else "",
+        "known_user": False,
+        "is_primary_admin": False,
+    }
+
+
+def _render_bootstrap_login(oauth_service: GoogleOAuthService, session_service: SessionService) -> None:
+    st.markdown("## Welcome to MandiTrade")
+    st.caption("Google Drive powered commerce platform")
+    if not oauth_service.is_configured():
+        st.error("Google Single Sign-On is not configured in Streamlit secrets.")
+        return
+    st.link_button("Continue with Google", oauth_service.get_authorize_url(), use_container_width=True)
+    if oauth_service.is_debug_enabled():
+        with st.expander("OAuth Debug", expanded=False):
+            st.write({**oauth_service.get_debug_snapshot(), "current_session_user": session_service.get_user()})
+
+
+def _render_missing_files_screen(drive_manifest: dict, session_service: SessionService, admin_drive_service: AdminDriveService) -> None:
+    user = session_service.get_user()
+    is_admin = bool(user.get("is_authenticated")) and str(user.get("role", "")).strip().lower() == "platform_admin"
+    if is_admin:
+        render_setup_console(admin_drive_service, drive_manifest)
+    elif user.get("is_authenticated"):
+        st.error("Platform setup is incomplete. Please contact admin.")
+        render_table(drive_manifest.get("required_files", []), caption="Required Drive files")
+    else:
+        st.warning("Google Drive runtime is missing required JSON files.")
+        _render_bootstrap_login(GoogleOAuthService(), session_service)
 
 
 def render_app() -> None:
     inject_css(CSS_FILE)
-    config_loader = ConfigLoaderService()
-    drive_manifest = config_loader.validate_runtime()
-    if not drive_manifest.get("connected", False):
-        st.error("Google Drive is not connected.\n\nExpected:\nMANDITRADE_DB root folder from Google Drive.\n\nFix:\nCheck Google OAuth token and Drive permissions.")
-        for error in drive_manifest.get("errors", []):
-            st.code(error)
-        st.stop()
-    if drive_manifest.get("missing_files"):
-        st.error("Google Drive runtime is missing required JSON files.")
-        render_table(
-            [
-                {
-                    "logical_path": path,
-                    "status": "MISSING",
-                }
-                for path in drive_manifest["missing_files"]
-            ],
-            caption="Missing required Drive files",
-        )
-        current_user = dict(st.session_state.get("mt_next_user", {}) or {})
-        if str(current_user.get("role", "")).strip().lower() == "platform_admin" and bool(current_user.get("is_authenticated", False)):
-            if st.button("Create Missing Files", use_container_width=True):
-                try:
-                    result = AdminDriveService().create_missing_required_files()
-                    st.success(f"Created {len(result.get('created', []))} missing files.")
-                    st.rerun()
-                except Exception as exc:
-                    st.error(f"Create Missing Files failed: {exc}")
-        st.stop()
-    cache_service = CacheService(config_loader)
-    cache_service.load_all_configs()
-    app_config = cache_service.get_config("app_config")
-    session_service = SessionService(app_config)
-    language = session_service.get_language()
-    language_service = LanguageService(cache_service, language)
-    translator = language_service.get_translator()
-    auth_service = AuthService(cache_service)
+    session_service = SessionService(BOOTSTRAP_APP_CONFIG)
     oauth_service = GoogleOAuthService()
-    rbac_service = RBACService(cache_service)
-    navigation_service = NavigationService(cache_service, translator, rbac_service)
-    page_service = PageService(cache_service, translator, rbac_service)
+    admin_drive_service = AdminDriveService()
 
     callback_error = oauth_service.get_callback_error()
     if callback_error:
-        st.error(translator.t("auth.oauth_failed"))
+        st.error("Google sign-in failed.")
         oauth_service.clear_callback_params()
 
     if oauth_service.has_callback() and not session_service.is_authenticated():
         try:
             identity = oauth_service.exchange_code_for_identity()
             if not identity.get("email_verified", False):
-                raise ValueError(translator.t("auth.email_not_verified"))
-            resolved_user = auth_service.resolve_user(str(identity.get("email", "")))
-            role = str(resolved_user.get("role", auth_service.get_unknown_user_default_role()))
-            landing_page = navigation_service.get_default_route(role)
+                raise ValueError("Google account email is not verified.")
+            resolved_user = _resolve_bootstrap_user(str(identity.get("email", "")))
             oauth_service.persist_admin_token(identity, resolved_user)
             session_service.authenticate(
                 {
@@ -103,14 +127,58 @@ def render_app() -> None:
                     "display_name": identity.get("display_name") or resolved_user.get("display_name", ""),
                     "photo_url": identity.get("photo_url", ""),
                     "oauth_token": identity.get("oauth_token", {}),
-                    "landing_page": landing_page,
+                    "landing_page": "dashboard" if resolved_user.get("role") == "platform_admin" else "marketplace",
                 }
             )
             oauth_service.clear_callback_params()
             st.rerun()
         except Exception as exc:
-            st.error(f"{translator.t('auth.oauth_failed')}: {exc}")
+            st.error(f"Google sign-in failed: {exc}")
             oauth_service.clear_callback_params()
+
+    drive_manifest = admin_drive_service.get_runtime_manifest()
+    if not drive_manifest.get("connected", False):
+        if not session_service.is_authenticated():
+            _render_bootstrap_login(oauth_service, session_service)
+            return
+        st.error("Google Drive is not connected.\n\nExpected:\nMANDITRADE_DB root folder from Google Drive.\n\nFix:\nCheck Google OAuth token and Drive permissions.")
+        for error in drive_manifest.get("errors", []):
+            st.code(error)
+        return
+
+    if drive_manifest.get("missing_files"):
+        _render_missing_files_screen(drive_manifest, session_service, admin_drive_service)
+        return
+
+    config_loader = ConfigLoaderService()
+    cache_service = CacheService(config_loader)
+    cache_service.load_all_configs()
+    app_config = cache_service.get_config("app_config")
+
+    session_service = SessionService(app_config)
+    language = session_service.get_language()
+    language_service = LanguageService(cache_service, language)
+    translator = language_service.get_translator()
+    auth_service = AuthService(cache_service)
+    rbac_service = RBACService(cache_service)
+    navigation_service = NavigationService(cache_service, translator, rbac_service)
+    page_service = PageService(cache_service, translator, rbac_service)
+
+    if session_service.is_authenticated():
+        current_user = session_service.get_user()
+        resolved_user = auth_service.resolve_user(current_user.get("email", ""))
+        resolved_role = str(resolved_user.get("role", auth_service.get_unknown_user_default_role()))
+        landing_page = navigation_service.get_default_route(resolved_role)
+        if resolved_role != current_user.get("role") or current_user.get("landing_page") != landing_page:
+            session_service.authenticate(
+                {
+                    **resolved_user,
+                    "display_name": current_user.get("display_name") or resolved_user.get("display_name", ""),
+                    "photo_url": current_user.get("photo_url", ""),
+                    "oauth_token": current_user.get("oauth_token", {}),
+                    "landing_page": landing_page,
+                }
+            )
 
     if not session_service.is_authenticated():
         render_login_page(
@@ -123,12 +191,7 @@ def render_app() -> None:
         )
         if oauth_service.is_debug_enabled() or bool(app_config.get("debug_auth", False)):
             with st.expander("OAuth Debug", expanded=False):
-                st.write(
-                    {
-                        **oauth_service.get_debug_snapshot(),
-                        "current_session_user": session_service.get_user(),
-                    }
-                )
+                st.write({**oauth_service.get_debug_snapshot(), "current_session_user": session_service.get_user()})
         return
 
     role = session_service.get_user_role()
@@ -137,7 +200,6 @@ def render_app() -> None:
     notification_service = NotificationService(data_service)
     order_service = OrderService(data_service, notification_service)
     cart_service = CartService()
-    admin_drive_service = AdminDriveService()
     gmail_queue_service = GmailQueueService(data_service)
     integration_status_service = IntegrationStatusService(
         cache_service=cache_service,
@@ -218,16 +280,20 @@ def render_app() -> None:
                         items=cart["items"],
                         buyer_email=session_service.get_user().get("email", ""),
                     )
+                    data_service.persist_collection("orders")
                     cart_service.clear_cart()
                     st.success(f"Order {order.get('order_id', '')} created.")
     elif page_definition.get("type") == "manditrade":
         products = page_service.filter_rows(datasets.get(page_definition.get("data_source", ""), []), page_definition.get("filters", {}))
+
         def on_request(product: dict) -> None:
             order = order_service.create_manditrade_order(
                 product=product,
                 requesting_user_email=session_service.get_user().get("email", ""),
             )
+            data_service.persist_collection("orders")
             st.success(f"MandiTrade order {order.get('order_id', '')} created.")
+
         render_manditrade_page(products, on_request=on_request)
     elif page_definition.get("type") == "products_admin":
         render_products_page(data_service, notification_service, session_service, cache_service)
@@ -242,6 +308,7 @@ def render_app() -> None:
 
             def _handle_submit(values: dict) -> None:
                 created = data_service.create_record(form_definition.get("collection", source_name), values)
+                data_service.persist_collection(form_definition.get("collection", source_name))
                 notification_service.create_notification(
                     notification_type="PRODUCT_ADDED",
                     title=translator.t("notification.product_added.title"),
@@ -255,6 +322,17 @@ def render_app() -> None:
         status = integration_status_service.get_status()
         if status["google_drive_status"] != "connected" or status["required_files_status"] != "ok":
             st.error("Drive-only runtime is blocked. Required Google Drive files are missing or unavailable.")
+        refresh_cols = st.columns(2)
+        if refresh_cols[0].button("Create Missing Drive Files", use_container_width=True):
+            try:
+                result = admin_drive_service.create_missing_required_files()
+                st.success(f"Created {len(result.get('created', []))} missing files.")
+                st.rerun()
+            except Exception as exc:
+                st.error(f"Create Missing Drive Files failed: {exc}")
+        if refresh_cols[1].button("Refresh Validation", use_container_width=True):
+            admin_drive_service.clear_runtime_cache()
+            st.rerun()
         render_table(
             [
                 {"key": "google_oauth_status", "value": status["google_oauth_status"]},

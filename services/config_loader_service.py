@@ -39,4 +39,5 @@ class ConfigLoaderService:
         return self.admin_drive_service.read_json(logical_path)
 
     def load_language(self, code: str) -> dict[str, Any]:
-        return self.admin_drive_service.read_json(f"00_config/languages/{code}.json")
+        payload = self.admin_drive_service.read_json(f"00_config/languages/{code}.json")
+        return dict(payload.get("translations", payload))

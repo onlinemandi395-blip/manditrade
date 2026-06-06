@@ -45,11 +45,19 @@ def render_admin_configuration(auth_service, data_service, notification_service,
             if action_cols[0].button("Activate Admin", use_container_width=True):
                 if selected_admin:
                     selected_admin["status"] = "ACTIVE"
-                    st.success("Admin activated.")
+                    try:
+                        data_service.persist_collection("users")
+                        st.success("Admin activated.")
+                    except Exception as exc:
+                        st.error(f"Drive write failed: {exc}")
             if action_cols[1].button("Deactivate Admin", use_container_width=True):
                 if selected_admin:
                     selected_admin["status"] = "INACTIVE"
-                    st.success("Admin deactivated.")
+                    try:
+                        data_service.persist_collection("users")
+                        st.success("Admin deactivated.")
+                    except Exception as exc:
+                        st.error(f"Drive write failed: {exc}")
         with st.form("add_admin_form"):
             email = st.text_input("Admin Email")
             display_name = st.text_input("Display Name")
@@ -99,7 +107,7 @@ def render_admin_configuration(auth_service, data_service, notification_service,
         st.dataframe(manifest.get("required_files", []), use_container_width=True)
         if manifest.get("missing_files"):
             st.error("Required Drive files are missing.")
-            if st.button("Create Missing Files", use_container_width=True):
+            if st.button("Create Missing Drive Files", use_container_width=True):
                 try:
                     result = admin_drive_service.create_missing_required_files()
                     st.success(f"Created {len(result.get('created', []))} files/folders.")

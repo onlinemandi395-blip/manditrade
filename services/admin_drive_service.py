@@ -1,38 +1,15 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import streamlit as st
 
+from services.drive_path_resolver import DrivePathResolver
 from services.google_drive_service import GoogleDriveService
+from services.required_drive_files import build_required_drive_files
 
 
 class AdminDriveService:
-    REQUIRED_RUNTIME_FILES = [
-        "00_config/app_config.json",
-        "00_config/auth.json",
-        "00_config/permissions.json",
-        "00_config/role_views.json",
-        "00_config/navigation.json",
-        "00_config/modules.json",
-        "00_config/dashboards.json",
-        "00_config/forms.json",
-        "00_config/categories.json",
-        "00_config/database.json",
-        "00_config/languages/en.json",
-        "00_config/languages/hi.json",
-        "00_config/languages/mr.json",
-        "00_config/languages/bn.json",
-        "01_identity/users.json",
-        "02_catalog/products.json",
-        "05_orders/orders.json",
-        "06_shipments/shipments.json",
-        "07_ledger/ledger.json",
-        "09_notifications/notifications.json",
-        "09_notifications/gmail_queue.json",
-    ]
-
     def __init__(self) -> None:
         self.token_store_path = Path(__file__).resolve().parent.parent / "runtime" / "oauth" / "admin_user_token.json"
         self.google_drive_service = GoogleDriveService(self.token_store_path)
@@ -43,6 +20,17 @@ class AdminDriveService:
             "root_folder_id": str(secrets.get("root_folder_id", "") or "").strip(),
             "root_folder_name": str(secrets.get("root_folder_name", "") or "MANDITRADE_DB").strip(),
         }
+
+    def _get_platform_config(self) -> dict[str, str]:
+        secrets = dict(st.secrets.get("platform", {})) if "platform" in st.secrets else {}
+        return {
+            "primary_admin_email": str(secrets.get("primary_admin_email", "")).strip().lower(),
+            "primary_admin_name": str(secrets.get("primary_admin_name", "") or "Primary Admin").strip(),
+        }
+
+    def get_required_files_registry(self) -> list[dict]:
+        platform = self._get_platform_config()
+        return build_required_drive_files(platform["primary_admin_email"], platform["primary_admin_name"])
 
     def _get_user_token(self) -> dict:
         session_user = dict(st.session_state.get("mt_next_user", {}) or {})
@@ -56,6 +44,20 @@ class AdminDriveService:
         if not token:
             raise ValueError("Admin OAuth token required.")
         return self.google_drive_service.build_drive_client_from_user_oauth(token)
+
+    def get_required_folder_paths(self) -> list[str]:
+        folder_paths = {
+            "00_config",
+            "00_config/languages",
+            "01_identity",
+            "02_catalog",
+            "05_orders",
+            "06_shipments",
+            "07_ledger",
+            "09_notifications",
+            "14_runtime",
+        }
+        return sorted(folder_paths)
 
     def _resolve_root_folder(self, service):
         config = self._get_drive_config()
@@ -71,6 +73,50 @@ class AdminDriveService:
             raise FileNotFoundError(f"Google Drive root folder not found by name: {root_folder_name}")
         return root
 
+    def ensure_root_folder(self) -> dict:
+        service = self.build_client()
+        config = self._get_drive_config()
+        root_folder_id = config["root_folder_id"]
+        root_folder_name = config["root_folder_name"]
+        if root_folder_id:
+            root = service.files().get(fileId=root_folder_id, fields="id,name,mimeType").execute()
+            return {
+                "logical_path": root_folder_name,
+                "status": "FOUND",
+                "folder_id": root.get("id", ""),
+                "file_id": "",
+                "actual_path": root.get("name", root_folder_name),
+                "error": "",
+            }
+        root = self.google_drive_service.find_child(service, "root", root_folder_name)
+        if root:
+            return {
+                "logical_path": root_folder_name,
+                "status": "FOUND",
+                "folder_id": root.get("id", ""),
+                "file_id": "",
+                "actual_path": root.get("name", root_folder_name),
+                "error": "",
+            }
+        created = self.google_drive_service.find_or_create_folder(service, root_folder_name, None)
+        return {
+            "logical_path": root_folder_name,
+            "status": "CREATED",
+            "folder_id": created.get("id", ""),
+            "file_id": "",
+            "actual_path": created.get("name", root_folder_name),
+            "error": "",
+        }
+
+    def get_path_resolver(self) -> DrivePathResolver:
+        service = self.build_client()
+        root = self._resolve_root_folder(service)
+        return DrivePathResolver(self.google_drive_service, service, root)
+
+    def clear_runtime_cache(self) -> None:
+        st.session_state.pop("mt_next_cache", None)
+        st.session_state.pop("mt_next_data", None)
+
     def get_runtime_manifest(self) -> dict:
         config = self._get_drive_config()
         token = self._get_user_token()
@@ -85,8 +131,7 @@ class AdminDriveService:
                 "errors": ["Admin OAuth token required for Google Drive runtime."],
             }
         try:
-            service = self.build_client()
-            root = self._resolve_root_folder(service)
+            resolver = self.get_path_resolver()
         except Exception as exc:
             return {
                 "connected": False,
@@ -97,88 +142,85 @@ class AdminDriveService:
                 "missing_files": [],
                 "errors": [str(exc)],
             }
-
         required_files = []
         missing_files = []
-        for logical_path in self.REQUIRED_RUNTIME_FILES:
-            metadata = self.google_drive_service.resolve_logical_path(service, root["id"], logical_path)
-            row = {
-                "logical_path": logical_path,
-                "exists": bool(metadata),
-                "drive_file_id": (metadata or {}).get("id", ""),
-                "type": "folder" if (metadata or {}).get("mimeType") == "application/vnd.google-apps.folder" else "file",
-                "last_modified": (metadata or {}).get("modifiedTime", ""),
-            }
-            required_files.append(row)
-            if not metadata:
-                missing_files.append(logical_path)
+        required_folders = []
+        missing_folders = []
+        for folder_path in self.get_required_folder_paths():
+            folder_result = resolver.resolve_folder_path(folder_path)
+            required_folders.append(folder_result)
+            if folder_result["status"] != "FOUND":
+                missing_folders.append(folder_path)
+        for item in self.get_required_files_registry():
+            result = resolver.resolve_file_path(item["logical_path"])
+            required_files.append(result)
+            if result["status"] != "FOUND":
+                missing_files.append(item["logical_path"])
         return {
             "connected": True,
             "mode": "user_oauth_drive",
-            "root_folder_id": root["id"],
-            "root_folder_name": root["name"],
+            "root_folder_id": resolver.root_folder["id"],
+            "root_folder_name": resolver.root_folder["name"],
+            "required_folders": required_folders,
+            "missing_folders": missing_folders,
             "required_files": required_files,
             "missing_files": missing_files,
             "errors": [],
         }
 
     def read_json(self, logical_path: str) -> dict:
-        service = self.build_client()
-        root = self._resolve_root_folder(service)
-        return self.google_drive_service.read_json_by_path(service, root["id"], logical_path)
+        resolver = self.get_path_resolver()
+        file_result = resolver.resolve_file_path(logical_path)
+        if file_result["status"] != "FOUND":
+            raise FileNotFoundError(logical_path)
+        return self.google_drive_service.read_json_file(resolver.service, file_result["file_id"])
 
     def write_json(self, logical_path: str, payload: dict) -> dict:
-        service = self.build_client()
-        root = self._resolve_root_folder(service)
-        parent_path, file_name = logical_path.rsplit("/", 1)
-        parent = root
-        for part in [item for item in parent_path.split("/") if item]:
-            parent = self.google_drive_service.find_or_create_folder(service, part, parent["id"])
-        return self.google_drive_service.create_or_update_json_file(service, parent["id"], file_name, payload)
+        resolver = self.get_path_resolver()
+        return resolver.create_or_update_json_file(logical_path, payload)
 
     def create_missing_required_files(self) -> dict:
-        base_dir = Path(__file__).resolve().parent.parent
-        templates = {
-            "00_config/app_config.json": base_dir / "configs" / "app_config.json",
-            "00_config/auth.json": base_dir / "configs" / "auth.json",
-            "00_config/permissions.json": base_dir / "configs" / "permissions.json",
-            "00_config/role_views.json": base_dir / "configs" / "role_views.json",
-            "00_config/navigation.json": base_dir / "configs" / "navigation.json",
-            "00_config/modules.json": base_dir / "configs" / "modules.json",
-            "00_config/dashboards.json": base_dir / "configs" / "dashboards.json",
-            "00_config/forms.json": base_dir / "configs" / "forms.json",
-            "00_config/database.json": base_dir / "configs" / "database.json",
-            "00_config/categories.json": base_dir / "configs" / "categories.json",
-            "00_config/languages/en.json": base_dir / "configs" / "languages" / "en.json",
-            "00_config/languages/hi.json": base_dir / "configs" / "languages" / "hi.json",
-            "00_config/languages/mr.json": base_dir / "configs" / "languages" / "mr.json",
-            "00_config/languages/bn.json": base_dir / "configs" / "languages" / "bn.json",
-            "01_identity/users.json": base_dir / "configs" / "users.json",
-            "02_catalog/products.json": base_dir / "configs" / "products.json",
-            "05_orders/orders.json": None,
-            "06_shipments/shipments.json": None,
-            "07_ledger/ledger.json": None,
-            "09_notifications/notifications.json": None,
-            "09_notifications/gmail_queue.json": None,
-        }
+        resolver = self.get_path_resolver()
         created = []
         existing = []
-        for logical_path in self.REQUIRED_RUNTIME_FILES:
-            try:
-                existing_payload = self.read_json(logical_path)
-                if existing_payload is not None:
-                    existing.append(logical_path)
-                    continue
-            except Exception:
-                pass
-            template_path = templates.get(logical_path)
-            if template_path and template_path.exists():
-                payload = json.loads(template_path.read_text(encoding="utf-8"))
-            else:
-                top_key = Path(logical_path).stem
-                payload = {"schema_version": 1, top_key: []}
-            self.write_json(logical_path, payload)
-            created.append(logical_path)
+        for item in self.get_required_files_registry():
+            logical_path = item["logical_path"]
+            result = resolver.resolve_file_path(logical_path)
+            if result["status"] == "FOUND":
+                existing.append(logical_path)
+                if logical_path == "01_identity/users.json":
+                    payload = self.read_json(logical_path)
+                    users = list(payload.get("users", []))
+                    primary_admin = self._get_platform_config()
+                    if primary_admin["primary_admin_email"] and not any(str(user.get("email", "")).strip().lower() == primary_admin["primary_admin_email"] for user in users):
+                        users.append(
+                            {
+                                "user_id": f"USR_{len(users) + 1:04d}",
+                                "email": primary_admin["primary_admin_email"],
+                                "role": "platform_admin",
+                                "status": "ACTIVE",
+                                "display_name": primary_admin["primary_admin_name"],
+                                "source": "toml_primary_admin",
+                            }
+                        )
+                        resolver.create_or_update_json_file(logical_path, {"users": users})
+                continue
+            created_result = resolver.ensure_json_file(logical_path, item["default_payload"])
+            created.append(created_result)
+        self.clear_runtime_cache()
+        return {"created": created, "existing": existing}
+
+    def create_missing_required_folders(self) -> dict:
+        resolver = self.get_path_resolver()
+        created = []
+        existing = []
+        for folder_path in self.get_required_folder_paths():
+            result = resolver.resolve_folder_path(folder_path)
+            if result["status"] == "FOUND":
+                existing.append(folder_path)
+                continue
+            created.append(resolver.ensure_folder_path(folder_path))
+        self.clear_runtime_cache()
         return {"created": created, "existing": existing}
 
     def get_status(self) -> dict:
@@ -198,16 +240,14 @@ class AdminDriveService:
                 "missing_files": ["Google OAuth admin token"],
             }
         try:
-            service = self.build_client()
-            root = self._resolve_root_folder(service)
-            scopes = token.get("scopes", [])
             manifest = self.get_runtime_manifest()
+            scopes = token.get("scopes", [])
             return {
                 "connected": True,
                 "mode": "user_oauth_drive",
                 "source": "session_or_runtime_oauth",
-                "root_folder_id": root.get("id", config["root_folder_id"]),
-                "root_folder_name": root.get("name", config["root_folder_name"]),
+                "root_folder_id": manifest.get("root_folder_id", config["root_folder_id"]),
+                "root_folder_name": manifest.get("root_folder_name", config["root_folder_name"]),
                 "admin_token_available": True,
                 "drive_write_test": "PASS",
                 "gmail_send_scope": "available" if "https://www.googleapis.com/auth/gmail.send" in scopes else "missing",
