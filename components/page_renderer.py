@@ -42,6 +42,25 @@ CSS_FILE = Path(__file__).resolve().parent.parent / "assets" / "styles" / "desig
 def render_app() -> None:
     inject_css(CSS_FILE)
     config_loader = ConfigLoaderService()
+    drive_manifest = config_loader.validate_runtime()
+    if not drive_manifest.get("connected", False):
+        st.error("Google Drive is not connected.\n\nExpected:\nMANDITRADE_DB root folder from Google Drive.\n\nFix:\nCheck Google OAuth token and Drive permissions.")
+        for error in drive_manifest.get("errors", []):
+            st.code(error)
+        st.stop()
+    if drive_manifest.get("missing_files"):
+        st.error("Google Drive runtime is missing required JSON files.")
+        render_table(
+            [
+                {
+                    "logical_path": path,
+                    "status": "MISSING",
+                }
+                for path in drive_manifest["missing_files"]
+            ],
+            caption="Missing required Drive files",
+        )
+        st.stop()
     cache_service = CacheService(config_loader)
     cache_service.load_all_configs()
     app_config = cache_service.get_config("app_config")
@@ -221,6 +240,8 @@ def render_app() -> None:
             render_form(form_definition, translator, _handle_submit)
     elif page_definition.get("type") == "system":
         status = integration_status_service.get_status()
+        if status["google_drive_status"] != "connected" or status["required_files_status"] != "ok":
+            st.error("Drive-only runtime is blocked. Required Google Drive files are missing or unavailable.")
         render_table(
             [
                 {"key": "google_oauth_status", "value": status["google_oauth_status"]},
@@ -230,19 +251,22 @@ def render_app() -> None:
                 {"key": "admin_token_status", "value": status["admin_token_status"]},
                 {"key": "drive_write_test", "value": status["drive_write_test"]},
                 {"key": "gmail_send_scope", "value": status["gmail_send_scope"]},
+                {"key": "required_files_status", "value": status["required_files_status"]},
                 {"key": "gmail_status", "value": status["gmail_status"]},
                 {"key": "loaded_collection_count", "value": status["loaded_collection_count"]},
                 {"key": "users_count", "value": status["users_count"]},
-                {"key": "product_mapping_count", "value": status["product_mapping_count"]},
+                {"key": "products_count", "value": status["products_count"]},
                 {"key": "order_count", "value": status["order_count"]},
+                {"key": "notifications_count", "value": status["notification_queue_count"]},
                 {"key": "queue_count", "value": status["queue_count"]},
-                {"key": "notification_queue_count", "value": status["notification_queue_count"]},
+                {"key": "language_files_loaded", "value": status["language_files_loaded"]},
                 {"key": "language_selected", "value": status["language_selected"]},
                 {"key": "available_languages", "value": ", ".join(status["available_languages"])},
                 {"key": "primary_admin_email", "value": status["primary_admin_email"]},
             ],
             caption="Integration status",
         )
+        render_table(status["required_files"], caption="Required Drive files")
         render_detail_panel("Cache Status", status["cache_status"])
     else:
         render_empty_state("Unsupported page type.")

@@ -10,7 +10,7 @@
     "public_buyer": "marketplace",
     "worker": "dashboard"
   },
-  "storage_mode": "local_json_first",
-  "admin_drive_enabled": false,
+  "storage_mode": "drive_only",
+  "admin_drive_enabled": true,
   "debug_auth": true
 }

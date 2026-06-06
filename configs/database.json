@@ -1,15 +1,15 @@
 {
   "root": "MANDITRADE_DB",
-  "storage_mode": "local_json_first",
-  "admin_drive_enabled": false,
+  "storage_mode": "drive_only",
+  "admin_drive_enabled": true,
   "collections": {
-    "users": "configs/users.json:users",
-    "products": "configs/product_mapping.json:products",
-    "raw_materials": "configs/seed_data.json:raw_materials",
-    "orders": "configs/seed_data.json:orders",
-    "notifications": "configs/seed_data.json:notifications",
-    "gmail_queue": "configs/seed_data.json:gmail_queue",
-    "shipments": "configs/seed_data.json:shipments",
-    "ledger": "configs/seed_data.json:ledger"
+    "users": "users:users",
+    "products": "product_mapping:products",
+    "raw_materials": "raw_materials_data:raw_materials",
+    "orders": "orders_data:orders",
+    "notifications": "notifications_data:notifications",
+    "gmail_queue": "gmail_queue_data:gmail_queue",
+    "shipments": "shipments_data:shipments",
+    "ledger": "ledger_data:ledger"
   }
 }

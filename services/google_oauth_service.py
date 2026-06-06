@@ -30,8 +30,6 @@ class GoogleOAuthService:
 
     def _get_oauth_config(self) -> dict[str, str]:
         section = dict(st.secrets.get("google_oauth", {})) if "google_oauth" in st.secrets else {}
-        if not section and "google" in st.secrets:
-            section = dict(st.secrets.get("google", {}))
         return {
             "client_id": str(section.get("client_id", "")).strip(),
             "client_secret": str(section.get("client_secret", "")).strip(),

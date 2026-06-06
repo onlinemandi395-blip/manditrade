@@ -61,6 +61,36 @@ class GoogleDriveService:
             body["parents"] = [parent_id]
         return service.files().create(body=body, fields="id,name,mimeType,modifiedTime").execute()
 
+    def find_child(self, service, parent_id: str, name: str) -> dict[str, Any] | None:
+        query = f"'{parent_id}' in parents and name = '{name}' and trashed = false"
+        response = service.files().list(
+            q=query,
+            fields="files(id,name,mimeType,modifiedTime)",
+            spaces="drive",
+            pageSize=1,
+        ).execute()
+        files = response.get("files", [])
+        return files[0] if files else None
+
+    def resolve_logical_path(self, service, root_folder_id: str, logical_path: str) -> dict[str, Any] | None:
+        parts = [part for part in logical_path.split("/") if part]
+        if not parts:
+            return None
+        current_parent = root_folder_id
+        current_metadata: dict[str, Any] | None = None
+        for part in parts:
+            current_metadata = self.find_child(service, current_parent, part)
+            if not current_metadata:
+                return None
+            current_parent = current_metadata["id"]
+        return current_metadata
+
+    def read_json_by_path(self, service, root_folder_id: str, logical_path: str) -> dict[str, Any]:
+        metadata = self.resolve_logical_path(service, root_folder_id, logical_path)
+        if not metadata:
+            raise FileNotFoundError(logical_path)
+        return self.read_json_file(service, metadata["id"])
+
     def create_or_update_json_file(self, service, folder_id: str, file_name: str, payload: dict[str, Any]) -> dict[str, Any]:
         query = f"'{folder_id}' in parents and name = '{file_name}' and trashed = false"
         response = service.files().list(q=query, fields="files(id,name,modifiedTime)", spaces="drive", pageSize=1).execute()

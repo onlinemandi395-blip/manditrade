@@ -22,8 +22,7 @@ class AuthService:
 
     def get_primary_admin(self) -> dict:
         platform_section = dict(st.secrets.get("platform", {})) if "platform" in st.secrets else {}
-        legacy_admin = dict(st.secrets.get("admin", {})) if "admin" in st.secrets else {}
-        email = str(platform_section.get("primary_admin_email", "") or legacy_admin.get("admin_email", "")).strip().lower()
+        email = str(platform_section.get("primary_admin_email", "")).strip().lower()
         name = str(platform_section.get("primary_admin_name", "") or "Primary Admin").strip()
         return {
             "email": email,

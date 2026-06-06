@@ -20,11 +20,14 @@ class DataService:
             return cache_data[collection]
         database_config = self.cache_service.get_config("database")
         source = database_config.get("collections", {}).get(collection, "")
+        if not source:
+            raise KeyError(f"No Drive collection mapping configured for: {collection}")
         payload = []
         if ":" in source:
             config_name, key = source.split(":", 1)
-            config_name = config_name.replace("configs/", "").replace(".json", "")
             payload = deepcopy(self.cache_service.get_config(config_name).get(key, []))
+        else:
+            raise ValueError(f"Invalid Drive collection mapping for: {collection}")
         if collection == "products":
             payload = [self.normalize_product_record(item) for item in payload]
         cache_data[collection] = payload
