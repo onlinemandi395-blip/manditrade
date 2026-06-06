@@ -7,6 +7,7 @@ import streamlit as st
 
 from components.product_grid import render_product_grid
 from components.table_renderer import render_table
+from services.auth_service import is_bootstrap_admin
 from services.id_service import IdService
 from services.media_service import MediaService
 
@@ -313,7 +314,7 @@ def render_products_page(data_service, notification_service, session_service, ca
     category_names = list(category_index.keys())
     current_user_email = session_service.get_user().get("email", "")
     current_user_role = session_service.get_user().get("role", "")
-    is_admin = current_user_role == "platform_admin"
+    is_admin = current_user_role == "platform_admin" or is_bootstrap_admin(current_user_email)
     current_user_record = next((row for row in users if str(row.get("email", "")).strip().lower() == str(current_user_email).strip().lower()), {})
     if merged_categories_payload != categories_config and current_user_role == "platform_admin":
         try:
