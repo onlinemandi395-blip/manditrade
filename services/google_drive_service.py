@@ -23,7 +23,8 @@ class GoogleDriveService:
         self.token_store_path = token_store_path
 
     def build_drive_client_from_user_oauth(self, user_token: dict[str, Any]):
-        creds = Credentials.from_authorized_user_info(user_token, scopes=self.SCOPES)
+        token_scopes = list(user_token.get("scopes", []) or [])
+        creds = Credentials.from_authorized_user_info(user_token, scopes=token_scopes or self.SCOPES)
         if creds.expired and creds.refresh_token:
             creds.refresh(Request())
             if self.token_store_path:

@@ -169,13 +169,14 @@ class GoogleOAuthService:
         expires_at = ""
         if expires_in:
             expires_at = datetime.now(UTC).timestamp() + expires_in
+        granted_scopes = [scope for scope in str(token_data.get("scope", "") or "").split() if scope]
         return {
             "token": str(token_data.get("access_token", "") or ""),
             "refresh_token": str(token_data.get("refresh_token", "") or ""),
             "token_uri": self.TOKEN_URL,
             "client_id": config["client_id"],
             "client_secret": config["client_secret"],
-            "scopes": self.SCOPE.split(),
+            "scopes": granted_scopes or self.SCOPE.split(),
             "expiry": datetime.fromtimestamp(expires_at, UTC).isoformat() if expires_at else "",
         }
 
