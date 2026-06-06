@@ -87,12 +87,19 @@ class DataService:
         product.setdefault("description", "")
         product.setdefault("unit", "piece")
         images = [dict(image or {}) for image in (product.get("images", []) or [])]
+        for image in images:
+            if not image.get("direct_render_url") and image.get("file_id"):
+                image["direct_render_url"] = f"https://drive.google.com/uc?export=view&id={image.get('file_id', '')}"
+            if not image.get("web_content_link") and image.get("file_id"):
+                image["web_content_link"] = f"https://drive.google.com/uc?export=download&id={image.get('file_id', '')}"
         product["images"] = images
         primary_image = next((image for image in images if image.get("is_primary")), images[0] if images else {})
         if not product.get("image_url"):
             product["image_url"] = (
-                primary_image.get("image_url")
+                primary_image.get("direct_render_url")
+                or primary_image.get("image_url")
                 or primary_image.get("thumbnail_link")
+                or primary_image.get("web_content_link")
                 or primary_image.get("web_view_link")
                 or ""
             )

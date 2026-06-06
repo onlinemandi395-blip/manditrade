@@ -9,6 +9,8 @@
         {"name": "product_code_preview", "label_key": "field.product_code", "type": "readonly", "required": true},
         {"name": "owner_type", "label_key": "field.owner_type", "type": "select", "required": true},
         {"name": "owner_email", "label_key": "field.owner_email", "type": "text", "required": true},
+        {"name": "owner_display_name", "label_key": "field.owner_display_name", "type": "text"},
+        {"name": "owner_phone", "label_key": "field.owner_phone", "type": "text"},
         {"name": "category", "label_key": "field.category", "type": "select", "required": true},
         {"name": "subcategory", "label_key": "field.subcategory", "type": "select", "required": true},
         {"name": "description", "label_key": "field.description", "type": "text"},

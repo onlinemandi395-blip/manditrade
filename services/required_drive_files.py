@@ -119,8 +119,26 @@ def build_required_drive_files(primary_admin_email: str, primary_admin_name: str
                             {"id": "orders_count", "title_key": "dashboard.orders", "icon": "[OR]", "data_source": "orders", "metric": "count", "route": "orders"},
                         ]
                     },
-                    "manufacturer": {"cards": [{"id": "my_products", "title_key": "dashboard.my_products", "icon": "[PD]", "data_source": "products", "metric": "count", "route": "products"}]},
-                    "mahajan": {"cards": [{"id": "mahajan_products", "title_key": "dashboard.products", "icon": "[PD]", "data_source": "products", "metric": "count", "route": "products"}]},
+                    "manufacturer": {
+                        "cards": [
+                            {"id": "my_products", "title_key": "dashboard.my_products", "icon": "[PD]", "data_source": "products", "metric": "owned_products", "route": "products"},
+                            {"id": "orders_received", "title_key": "dashboard.orders_received", "icon": "[OR]", "data_source": "orders", "metric": "orders_received", "route": "orders"},
+                            {"id": "pending_orders", "title_key": "dashboard.pending_orders", "icon": "[OR]", "data_source": "orders", "metric": "pending_orders", "route": "orders"},
+                            {"id": "completed_orders", "title_key": "dashboard.completed_orders", "icon": "[OR]", "data_source": "orders", "metric": "completed_orders", "route": "orders"},
+                            {"id": "ledger_balance", "title_key": "dashboard.ledger_balance", "icon": "[LG]", "data_source": "ledger", "metric": "ledger_balance", "route": "ledger"},
+                            {"id": "unread_notifications", "title_key": "dashboard.unread_notifications", "icon": "[NT]", "data_source": "notifications", "metric": "unread_notifications", "route": "notifications"},
+                        ]
+                    },
+                    "mahajan": {
+                        "cards": [
+                            {"id": "mahajan_products", "title_key": "dashboard.my_products", "icon": "[PD]", "data_source": "products", "metric": "owned_products", "route": "products"},
+                            {"id": "orders_received", "title_key": "dashboard.orders_received", "icon": "[OR]", "data_source": "orders", "metric": "orders_received", "route": "orders"},
+                            {"id": "pending_orders", "title_key": "dashboard.pending_orders", "icon": "[OR]", "data_source": "orders", "metric": "pending_orders", "route": "orders"},
+                            {"id": "completed_orders", "title_key": "dashboard.completed_orders", "icon": "[OR]", "data_source": "orders", "metric": "completed_orders", "route": "orders"},
+                            {"id": "ledger_balance", "title_key": "dashboard.ledger_balance", "icon": "[LG]", "data_source": "ledger", "metric": "ledger_balance", "route": "ledger"},
+                            {"id": "unread_notifications", "title_key": "dashboard.unread_notifications", "icon": "[NT]", "data_source": "notifications", "metric": "unread_notifications", "route": "notifications"},
+                        ]
+                    },
                     "public_buyer": {"cards": [{"id": "catalog_count", "title_key": "dashboard.products", "icon": "[MK]", "data_source": "products", "metric": "count", "route": "marketplace"}]},
                     "worker": {"cards": [{"id": "worker_notifications", "title_key": "dashboard.notifications", "icon": "[NT]", "data_source": "notifications", "metric": "count", "route": "notifications"}]},
                 }

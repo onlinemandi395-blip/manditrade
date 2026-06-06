@@ -7,10 +7,10 @@ def render_product_card(product: dict, *, view: str = "marketplace", on_add_to_c
     images = [dict(image or {}) for image in (product.get("images", []) or [])]
     primary_image = next((image for image in images if image.get("is_primary")), images[0] if images else {})
     image_url = str(
-        product.get("image_url", "")
-        or primary_image.get("image_url", "")
+        primary_image.get("direct_render_url", "")
         or primary_image.get("thumbnail_link", "")
-        or primary_image.get("web_view_link", "")
+        or primary_image.get("web_content_link", "")
+        or product.get("image_url", "")
         or ""
     ).strip()
     marketplace = (product.get("sales_channels") or {}).get("marketplace", {})
@@ -43,9 +43,9 @@ def render_product_card(product: dict, *, view: str = "marketplace", on_add_to_c
             st.caption(f"Owner Role: {owner.get('role', '-')}")
             st.caption(f"Inventory: {inventory.get('available_quantity', 0)} {product.get('unit', 'piece')}")
         gallery_urls = [
-            image.get("image_url") or image.get("thumbnail_link") or image.get("web_view_link")
+            image.get("direct_render_url") or image.get("thumbnail_link") or image.get("web_content_link")
             for image in images
-            if image.get("image_url") or image.get("thumbnail_link") or image.get("web_view_link")
+            if image.get("direct_render_url") or image.get("thumbnail_link") or image.get("web_content_link")
         ]
         if len(gallery_urls) > 1:
             with st.expander(f"Gallery ({len(gallery_urls)})", expanded=False):

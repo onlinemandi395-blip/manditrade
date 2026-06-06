@@ -41,6 +41,8 @@ def _resolve_or_create_owner(
     users: list[dict],
     owner_email: str,
     owner_role: str,
+    owner_display_name: str,
+    owner_phone: str,
     current_user_email: str,
     data_service,
     id_service: IdService,
@@ -57,6 +59,10 @@ def _resolve_or_create_owner(
             )
         if str(existing.get("status", "ACTIVE")).upper() != "ACTIVE":
             raise ValueError("Owner email exists but is not ACTIVE.")
+        if owner_display_name.strip() and not str(existing.get("display_name", "")).strip():
+            existing["display_name"] = owner_display_name.strip()
+        if owner_phone.strip() and not str(existing.get("phone", "")).strip():
+            existing["phone"] = owner_phone.strip()
         return existing, False
     user_id = id_service.next_drive_id(data_service.admin_drive_service, "user", "USR")
     new_user = {
@@ -65,10 +71,13 @@ def _resolve_or_create_owner(
         "role": owner_role,
         "status": "ACTIVE",
         "display_name": "",
+        "phone": owner_phone.strip(),
         "source": "product_onboarding",
         "created_at": datetime.now(UTC).isoformat(),
         "created_by": current_user_email,
     }
+    if owner_display_name.strip():
+        new_user["display_name"] = owner_display_name.strip()
     data_service.upsert_user(new_user)
     return new_user, True
 
@@ -93,6 +102,7 @@ def _apply_product_values(
         "role": owner.get("role", ""),
         "display_name": owner.get("display_name", values["owner_email"].split("@")[0]),
         "user_id": owner.get("user_id", ""),
+        "phone": owner.get("phone", values.get("owner_phone", "")),
     }
     product["category"] = values["category"]
     product["subcategory"] = values["subcategory"]
@@ -122,6 +132,11 @@ def _persist_products_and_users(data_service) -> None:
     data_service.persist_collection("products")
 
 
+def _persist_notifications(data_service) -> None:
+    data_service.persist_collection("notifications")
+    data_service.persist_collection("gmail_queue")
+
+
 def render_products_page(data_service, notification_service, session_service, cache_service) -> None:
     products = data_service.get_collection_ref("products")
     users = data_service.get_collection_ref("users")
@@ -129,6 +144,12 @@ def render_products_page(data_service, notification_service, session_service, ca
     category_rows = categories_config.get("categories", [])
     category_names = [row.get("category", "") for row in category_rows]
     current_user_email = session_service.get_user().get("email", "")
+    current_user_role = session_service.get_user().get("role", "")
+    visible_products = (
+        products
+        if current_user_role == "platform_admin"
+        else [product for product in products if str(((product.get("owner") or {}).get("email", ""))).strip().lower() == str(current_user_email).strip().lower()]
+    )
     id_service = IdService()
     media_service = MediaService(data_service.admin_drive_service)
     next_product_code = id_service.preview_drive_id(data_service.admin_drive_service, "product", "PROD")
@@ -150,11 +171,11 @@ def render_products_page(data_service, notification_service, session_service, ca
                     "quantity": ((product.get("inventory") or {}).get("available_quantity", 0)),
                     "status": product.get("status", "ACTIVE"),
                 }
-                for product in products
+                for product in visible_products
             ],
             caption="All products",
         )
-        active_product_ids = [product.get("product_id", "") for product in products if str(product.get("status", "")).upper() != "ARCHIVED"]
+        active_product_ids = [product.get("product_id", "") for product in visible_products if str(product.get("status", "")).upper() != "ARCHIVED"]
         if active_product_ids:
             archive_product_id = st.selectbox("Archive Product", options=[""] + active_product_ids, key="archive_product_id")
             if st.button("Archive Selected Product", use_container_width=True) and archive_product_id:
@@ -165,10 +186,10 @@ def render_products_page(data_service, notification_service, session_service, ca
                     st.success("Product archived.")
                 except Exception as exc:
                     st.error(f"Drive write failed: {exc}")
-        editable_ids = [product.get("product_id", "") for product in products]
+        editable_ids = [product.get("product_id", "") for product in visible_products]
         if editable_ids:
             selected_edit_id = st.selectbox("Edit Product", options=[""] + editable_ids, key="edit_product_id")
-            selected_product = next((product for product in products if product.get("product_id") == selected_edit_id), None)
+            selected_product = next((product for product in visible_products if product.get("product_id") == selected_edit_id), None)
             if selected_product:
                 existing_images = selected_product.get("images", []) or []
                 st.caption(f"Product Code: {selected_product.get('product_code', '')}")
@@ -185,6 +206,8 @@ def render_products_page(data_service, notification_service, session_service, ca
                         index=list(OWNER_TYPES.keys()).index(_get_owner_type_label(selected_product)),
                     )
                     edit_owner_email = st.text_input("Owner Email", value=((selected_product.get("owner") or {}).get("email", ""))).strip().lower()
+                    edit_owner_display_name = st.text_input("Owner Display Name", value=((selected_product.get("owner") or {}).get("display_name", "")))
+                    edit_owner_phone = st.text_input("Owner Phone", value=((selected_product.get("owner") or {}).get("phone", "")))
                     edit_category = st.selectbox(
                         "Category",
                         options=category_names if category_names else [""],
@@ -224,6 +247,8 @@ def render_products_page(data_service, notification_service, session_service, ca
                             users=users,
                             owner_email=edit_owner_email,
                             owner_role=OWNER_TYPES[edit_owner_type],
+                            owner_display_name=edit_owner_display_name,
+                            owner_phone=edit_owner_phone,
                             current_user_email=current_user_email,
                             data_service=data_service,
                             id_service=id_service,
@@ -238,6 +263,7 @@ def render_products_page(data_service, notification_service, session_service, ca
                             values={
                                 "product_name": edit_product_name.strip(),
                                 "owner_email": edit_owner_email,
+                                "owner_phone": edit_owner_phone.strip(),
                                 "category": edit_category,
                                 "subcategory": edit_subcategory,
                                 "description": edit_description.strip(),
@@ -265,7 +291,7 @@ def render_products_page(data_service, notification_service, session_service, ca
         render_product_grid(
             [
                 product
-                for product in products
+                for product in visible_products
                 if ((product.get("sales_channels") or {}).get("marketplace") or {}).get("enabled")
                 and str(product.get("status", "ACTIVE")).upper() == "ACTIVE"
             ],
@@ -276,7 +302,7 @@ def render_products_page(data_service, notification_service, session_service, ca
         render_product_grid(
             [
                 product
-                for product in products
+                for product in visible_products
                 if ((product.get("sales_channels") or {}).get("manditrade") or {}).get("enabled")
                 and str(product.get("status", "ACTIVE")).upper() == "ACTIVE"
             ],
@@ -285,7 +311,7 @@ def render_products_page(data_service, notification_service, session_service, ca
 
     with tabs[3]:
         render_table(
-            [product for product in products if str(product.get("status", "ACTIVE")).upper() != "ACTIVE"],
+            [product for product in visible_products if str(product.get("status", "ACTIVE")).upper() != "ACTIVE"],
             caption="Inactive / archived products",
         )
 
@@ -295,6 +321,8 @@ def render_products_page(data_service, notification_service, session_service, ca
             product_name = st.text_input("Product Name")
             owner_type = st.selectbox("Owner Type", options=list(OWNER_TYPES.keys()))
             owner_email = st.text_input("Owner Email").strip().lower()
+            owner_display_name = st.text_input("Owner Display Name")
+            owner_phone = st.text_input("Owner Phone")
             category = st.selectbox("Category", options=category_names if category_names else [""])
             subcategories = next((row.get("subcategories", []) for row in category_rows if row.get("category") == category), [])
             subcategory = st.selectbox("Subcategory", options=subcategories if subcategories else [""])
@@ -325,6 +353,8 @@ def render_products_page(data_service, notification_service, session_service, ca
                     users=users,
                     owner_email=owner_email,
                     owner_role=OWNER_TYPES[owner_type],
+                    owner_display_name=owner_display_name,
+                    owner_phone=owner_phone,
                     current_user_email=current_user_email,
                     data_service=data_service,
                     id_service=id_service,
@@ -346,6 +376,7 @@ def render_products_page(data_service, notification_service, session_service, ca
                     values={
                         "product_name": product_name.strip(),
                         "owner_email": owner_email,
+                        "owner_phone": owner_phone.strip(),
                         "category": category,
                         "subcategory": subcategory,
                         "description": description.strip(),
@@ -368,6 +399,20 @@ def render_products_page(data_service, notification_service, session_service, ca
                     message=f"{product_name} was created.",
                     metadata={"to_email": owner_email, "product_id": record["product_id"]},
                 )
+                if owner_created:
+                    notification_service.create_notification(
+                        notification_type="OWNER_ONBOARDED",
+                        title="You have been onboarded to MandiTrade",
+                        message=f"You have been onboarded as a {OWNER_TYPES[owner_type]}.",
+                        metadata={"to_email": owner_email},
+                    )
+                    notification_service.create_notification(
+                        notification_type="OWNER_ONBOARDED",
+                        title="New owner onboarded",
+                        message=f"{owner_email} was onboarded as {OWNER_TYPES[owner_type]}.",
+                        metadata={"to_email": current_user_email},
+                    )
+                _persist_notifications(data_service)
                 st.success(
                     "Product saved."
                     + (" Owner onboarded automatically." if owner_created else "")

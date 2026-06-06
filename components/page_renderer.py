@@ -119,6 +119,49 @@ def _render_missing_files_screen(drive_manifest: dict, session_service: SessionS
         _render_bootstrap_login(GoogleOAuthService(), session_service)
 
 
+def _filter_role_rows(route: str, rows: list[dict], role: str, user_email: str) -> list[dict]:
+    normalized_email = str(user_email).strip().lower()
+    if role == "platform_admin":
+        return rows
+    if route == "orders":
+        return [
+            row
+            for row in rows
+            if normalized_email in {
+                str(row.get("buyer_email", "")).strip().lower(),
+                str(row.get("requester_email", "")).strip().lower(),
+                str(row.get("requesting_user_email", "")).strip().lower(),
+                str(row.get("owner_email", "")).strip().lower(),
+            }
+        ]
+    if route == "ledger":
+        return [
+            row
+            for row in rows
+            if normalized_email in {
+                str(((row.get("party_a") or {}).get("email", ""))).strip().lower(),
+                str(((row.get("party_b") or {}).get("email", ""))).strip().lower(),
+            }
+        ]
+    if route == "notifications":
+        return [
+            row
+            for row in rows
+            if str((row.get("metadata") or {}).get("to_email", "")).strip().lower() in {"", normalized_email}
+        ]
+    if route == "shipments":
+        return [
+            row
+            for row in rows
+            if normalized_email in {
+                str(row.get("owner_email", "")).strip().lower(),
+                str(row.get("buyer_email", "")).strip().lower(),
+                str(row.get("requester_email", "")).strip().lower(),
+            }
+        ]
+    return rows
+
+
 def _render_root_setup_console(session_service: SessionService, admin_drive_service: AdminDriveService, errors: list[str]) -> None:
     user = session_service.get_user()
     current_email = str(user.get("email", "")).strip().lower()
@@ -318,7 +361,7 @@ def render_app() -> None:
 
     if page_definition.get("type") == "dashboard":
         cards = cache_service.get_config("dashboards").get("dashboards", {}).get(role, {}).get("cards", [])
-        render_dashboard_cards(cards, datasets, translator)
+        render_dashboard_cards(cards, datasets, translator, current_user=user)
         render_detail_panel("Runtime", cache_service.get_cache_status())
     elif page_definition.get("type") == "product_grid":
         products = page_service.filter_rows(datasets.get(page_definition.get("data_source", ""), []), page_definition.get("filters", {}))
@@ -346,6 +389,9 @@ def render_app() -> None:
                         buyer_email=session_service.get_user().get("email", ""),
                     )
                     data_service.persist_collection("orders")
+                    data_service.persist_collection("ledger")
+                    data_service.persist_collection("notifications")
+                    data_service.persist_collection("gmail_queue")
                     cart_service.clear_cart()
                     st.success(f"Order {order.get('order_id', '')} created.")
     elif page_definition.get("type") == "manditrade":
@@ -357,6 +403,9 @@ def render_app() -> None:
                 requesting_user_email=session_service.get_user().get("email", ""),
             )
             data_service.persist_collection("orders")
+            data_service.persist_collection("ledger")
+            data_service.persist_collection("notifications")
+            data_service.persist_collection("gmail_queue")
             st.success(f"MandiTrade order {order.get('order_id', '')} created.")
 
         render_manditrade_page(products, on_request=on_request)
@@ -366,7 +415,7 @@ def render_app() -> None:
         render_admin_configuration(auth_service, data_service, notification_service, session_service)
     elif page_definition.get("type") in {"crud_table", "table"}:
         source_name = str(page_definition.get("data_source", ""))
-        render_table(datasets.get(source_name, []), caption=f"{source_name} collection")
+        render_table(_filter_role_rows(current_route, datasets.get(source_name, []), role, user.get("email", "")), caption=f"{source_name} collection")
         form_id = page_definition.get("form_id")
         if form_id:
             form_definition = form_service.get_form(form_id)

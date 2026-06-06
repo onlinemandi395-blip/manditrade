@@ -22,14 +22,14 @@
       "subtitle_key": "module.products.subtitle",
       "data_source": "products",
       "form_id": "product_form",
-      "visible_to": ["platform_admin", "manufacturer"]
+      "visible_to": ["platform_admin", "manufacturer", "mahajan"]
     },
     "manditrade": {
       "type": "manditrade",
       "title_key": "module.manditrade.title",
       "subtitle_key": "module.manditrade.subtitle",
       "data_source": "products",
-      "visible_to": ["platform_admin", "manufacturer"],
+      "visible_to": ["platform_admin", "manufacturer", "mahajan"],
       "filters": {
         "sales_channels.manditrade.enabled": true
       }
