@@ -98,10 +98,15 @@ class GoogleDriveService:
 
     def update_json_file(self, service, file_id: str, payload: dict[str, Any], file_name: str | None = None) -> dict[str, Any]:
         media = MediaInMemoryUpload(json.dumps(payload, indent=2, ensure_ascii=False).encode("utf-8"), mimetype="application/json", resumable=False)
-        body = {"mimeType": "application/json"}
+        body: dict[str, Any] = {}
         if file_name:
             body["name"] = file_name
-        return service.files().update(fileId=file_id, body=body, media_body=media, fields="id,name,modifiedTime").execute()
+        return service.files().update(
+            fileId=file_id,
+            body=body or None,
+            media_body=media,
+            fields="id,name,modifiedTime",
+        ).execute()
 
     def create_binary_file(self, service, folder_id: str, file_name: str, bytes_data: bytes, mime_type: str) -> dict[str, Any]:
         media = MediaInMemoryUpload(bytes_data, mimetype=mime_type, resumable=False)
