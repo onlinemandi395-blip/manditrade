@@ -21,8 +21,14 @@
 }
 
 [data-testid="stSidebar"] {
-  background: linear-gradient(180deg, #111c27 0%, #132231 100%);
-  border-right: 1px solid var(--mt-border);
+  background: linear-gradient(180deg, rgba(10, 18, 28, 0.52) 0%, rgba(15, 24, 36, 0.62) 100%);
+  border-right: 1px solid rgba(159, 177, 193, 0.14);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+[data-testid="stSidebar"] > div:first-child {
+  background: transparent !important;
 }
 
 .mt-shell {
