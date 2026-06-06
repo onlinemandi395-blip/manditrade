@@ -379,6 +379,7 @@ def render_app() -> None:
         version=app_config.get("version", "0.1.0"),
         role_label=translator.t(f"role.{role}"),
         language=language,
+        translator=translator,
     )
 
     page_definition = page_service.get_page_definition(current_route, role)
@@ -414,7 +415,7 @@ def render_app() -> None:
             )
             st.success(f"Added {product.get('product_name', product.get('product_id', 'product'))} to cart.")
 
-        render_marketplace_page(products, on_add_to_cart=on_add_to_cart, media_service=media_service)
+        render_marketplace_page(products, on_add_to_cart=on_add_to_cart, media_service=media_service, translator=translator)
         cart = cart_service.get_cart()
         if cart.get("items"):
             with st.container(border=True):
@@ -446,9 +447,9 @@ def render_app() -> None:
             data_service.persist_collection("gmail_queue")
             st.success(f"MandiTrade order {order.get('order_id', '')} created.")
 
-        render_manditrade_page(products, on_request=on_request, media_service=media_service)
+        render_manditrade_page(products, on_request=on_request, media_service=media_service, translator=translator)
     elif page_definition.get("type") == "products_admin":
-        render_products_page(data_service, notification_service, session_service, cache_service)
+        render_products_page(data_service, notification_service, session_service, cache_service, translator)
     elif page_definition.get("type") == "ledger_page":
         render_ledger_page(data_service, notification_service, session_service)
     elif page_definition.get("type") == "admin_configuration":
@@ -531,6 +532,20 @@ def render_app() -> None:
         render_table(status["required_folders"], caption="Required Drive folders")
         render_table(status["required_files"], caption="Required Drive files")
         render_table([status["theme_status"]], caption="Theme background trace")
+        render_table(
+            [
+                {
+                    "selected_language": language_service.get_current_language(),
+                    "available_languages": ", ".join(language_service.get_available_languages()),
+                    "loaded_key_counts": ", ".join(f"{code}:{count}" for code, count in language_service.get_key_count_map().items()),
+                    "missing_key_count": len(language_service.get_missing_keys_for_current_language()),
+                    "sample_sidebar_products": translator.t("sidebar.products"),
+                    "sample_module_products_title": translator.t("module.products.title"),
+                    "sample_auth_title": translator.t("auth.title"),
+                }
+            ],
+            caption="Language Runtime",
+        )
         render_theme_manager(theme_service, allow_set_default=(role == "platform_admin"), title="Theme Background Control")
         render_detail_panel("Cache Status", status["cache_status"])
     else:

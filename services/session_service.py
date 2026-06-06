@@ -4,6 +4,8 @@ import streamlit as st
 
 
 class SessionService:
+    LANGUAGE_KEY = "mt_language"
+
     def __init__(self, app_config: dict) -> None:
         self.app_config = app_config
         st.session_state.setdefault(
@@ -19,7 +21,10 @@ class SessionService:
                 "landing_page": app_config.get("default_landing", {}).get(app_config.get("default_role", "public_buyer"), "marketplace"),
             },
         )
-        st.session_state.setdefault("mt_next_language", app_config.get("default_language", "en"))
+        if "mt_next_language" in st.session_state and self.LANGUAGE_KEY not in st.session_state:
+            st.session_state[self.LANGUAGE_KEY] = st.session_state.get("mt_next_language", app_config.get("default_language", "en"))
+        st.session_state.setdefault(self.LANGUAGE_KEY, app_config.get("default_language", "en"))
+        st.session_state["mt_next_language"] = st.session_state[self.LANGUAGE_KEY]
         st.session_state.setdefault("mt_next_route", st.session_state["mt_next_user"].get("landing_page", "marketplace"))
 
     def is_authenticated(self) -> bool:
@@ -58,9 +63,10 @@ class SessionService:
         return str(self.get_user().get("role", self.app_config.get("default_role", "public_buyer")))
 
     def get_language(self) -> str:
-        return str(st.session_state.get("mt_next_language", self.app_config.get("default_language", "en")))
+        return str(st.session_state.get(self.LANGUAGE_KEY, self.app_config.get("default_language", "en")))
 
     def set_language(self, language: str) -> None:
+        st.session_state[self.LANGUAGE_KEY] = language
         st.session_state["mt_next_language"] = language
 
     def get_email(self) -> str:

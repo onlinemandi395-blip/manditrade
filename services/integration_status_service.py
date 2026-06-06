@@ -49,7 +49,7 @@ class IntegrationStatusService:
             "users_count": len(users),
             "products_count": len(products),
             "order_count": len(orders),
-            "language_selected": st.session_state.get("mt_next_language", "en"),
+            "language_selected": st.session_state.get("mt_language", st.session_state.get("mt_next_language", "en")),
             "available_languages": loaded_languages,
             "language_files_loaded": len(loaded_languages),
             "required_folders_count": len(drive_manifest.get("required_folders", [])),

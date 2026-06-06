@@ -18,8 +18,11 @@ def _matches_search(product: dict, query: str) -> bool:
     return query in haystack
 
 
-def render_manditrade_page(products: list[dict], on_request=None, media_service=None) -> None:
-    query = st.text_input("Search MandiTrade", key="manditrade_search").strip().lower()
+def render_manditrade_page(products: list[dict], on_request=None, media_service=None, translator=None) -> None:
+    query = st.text_input(
+        f"{translator.t('action.search') if translator else 'Search'} {translator.t('module.manditrade.title') if translator else 'MandiTrade'}",
+        key="manditrade_search",
+    ).strip().lower()
     manditrade_products = [
         product
         for product in products

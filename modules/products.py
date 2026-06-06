@@ -304,7 +304,7 @@ def _get_editable_status_options(is_admin: bool, current_status: str) -> list[st
     return [normalized_status or "PENDING_APPROVAL"]
 
 
-def render_products_page(data_service, notification_service, session_service, cache_service) -> None:
+def render_products_page(data_service, notification_service, session_service, cache_service, translator) -> None:
     products = data_service.get_collection_ref("products")
     users = data_service.get_collection_ref("users")
     categories_config = cache_service.get_config("categories")
@@ -339,8 +339,8 @@ def render_products_page(data_service, notification_service, session_service, ca
         render_table(_build_product_table_rows(visible_products), caption="All products")
         active_product_ids = [product.get("product_id", "") for product in visible_products if str(product.get("status", "")).upper() != "ARCHIVED"]
         if active_product_ids:
-            archive_product_id = st.selectbox("Archive Product", options=[""] + active_product_ids, key="archive_product_id")
-            if st.button("Archive Selected Product", use_container_width=True) and archive_product_id:
+            archive_product_id = st.selectbox(translator.t("action.archive"), options=[""] + active_product_ids, key="archive_product_id")
+            if st.button(translator.t("action.archive"), use_container_width=True) and archive_product_id:
                 _archive_product(products, archive_product_id, current_user_email)
                 try:
                     data_service.persist_collection("products")
@@ -350,7 +350,7 @@ def render_products_page(data_service, notification_service, session_service, ca
                     st.error(f"Drive write failed: {exc}")
         editable_ids = [product.get("product_id", "") for product in visible_products]
         if editable_ids:
-            selected_edit_id = st.selectbox("Edit Product", options=[""] + editable_ids, key="edit_product_id")
+            selected_edit_id = st.selectbox(translator.t("module.products.title"), options=[""] + editable_ids, key="edit_product_id")
             selected_product = next((product for product in visible_products if product.get("product_id") == selected_edit_id), None)
             if selected_product:
                 existing_images = _ordered_product_images(selected_product.get("images", []) or [])
@@ -363,13 +363,13 @@ def render_products_page(data_service, notification_service, session_service, ca
                 st.caption(f"Product Code: {selected_product.get('product_code', '')}")
                 if existing_images:
                     _render_product_image_gallery(existing_images, media_service, title="Current Product Images")
-                edit_product_name = st.text_input("Product Name", value=selected_product.get("product_name", ""), key="edit_product_name")
+                edit_product_name = st.text_input(translator.t("field.product_name"), value=selected_product.get("product_name", ""), key="edit_product_name")
                 edit_owner_email = str(selected_owner.get("email", "")).strip().lower()
                 edit_owner_display_name = str(selected_owner.get("display_name", "")).strip()
                 edit_owner_phone = str(selected_owner.get("phone", "")).strip()
                 if is_admin:
                     edit_owner_type = st.selectbox(
-                        "Owner Type",
+                        translator.t("field.owner_type"),
                         options=list(OWNER_TYPES.keys()),
                         index=list(OWNER_TYPES.keys()).index(owner_type_label),
                         key="edit_owner_type",
@@ -386,7 +386,7 @@ def render_products_page(data_service, notification_service, session_service, ca
                     if edit_owner_mode == "Select Existing" and edit_owner_candidates:
                         edit_owner_option_map = {row.get("email", ""): row for row in edit_owner_candidates}
                         edit_owner_choice = st.selectbox(
-                            "Existing Owner",
+                            translator.t("field.owner_email"),
                             options=list(edit_owner_option_map.keys()),
                             format_func=lambda value: _owner_option_label(edit_owner_option_map.get(value, {})),
                             index=next((idx for idx, value in enumerate(edit_owner_option_map.keys()) if str(value).strip().lower() == edit_owner_email), 0),
@@ -400,7 +400,7 @@ def render_products_page(data_service, notification_service, session_service, ca
                     else:
                         if edit_owner_mode == "Select Existing" and not edit_owner_candidates:
                             st.info("No existing active owners found for this role. Add a new owner.")
-                        edit_owner_email = st.text_input("Owner Email", value=edit_owner_email, key="edit_owner_email").strip().lower()
+                        edit_owner_email = st.text_input(translator.t("field.owner_email"), value=edit_owner_email, key="edit_owner_email").strip().lower()
                         edit_owner_display_name = st.text_input("Owner Display Name", value=edit_owner_display_name, key="edit_owner_display_name")
                         edit_owner_phone = st.text_input("Owner Phone", value=edit_owner_phone, key="edit_owner_phone")
                 else:
@@ -411,7 +411,7 @@ def render_products_page(data_service, notification_service, session_service, ca
                     st.caption(f"Owner: {edit_owner_email}")
                     st.caption(f"Owner Role: {edit_role_key}")
                 edit_category = st.selectbox(
-                    "Category",
+                    translator.t("field.category"),
                     options=category_names if category_names else [""],
                     index=category_names.index(selected_product.get("category", "")) if selected_product.get("category", "") in category_names else 0,
                     key="edit_category",
@@ -421,28 +421,28 @@ def render_products_page(data_service, notification_service, session_service, ca
                 if current_edit_subcategory not in edit_subcategories:
                     current_edit_subcategory = edit_subcategories[0] if edit_subcategories else ""
                 edit_subcategory = st.selectbox(
-                    "Subcategory",
+                    translator.t("field.subcategory"),
                     options=edit_subcategories if edit_subcategories else [""],
                     index=edit_subcategories.index(current_edit_subcategory) if current_edit_subcategory in edit_subcategories else 0,
                     key="edit_subcategory",
                 )
-                edit_description = st.text_area("Description", value=selected_product.get("description", ""), key="edit_description")
-                edit_unit = st.text_input("Unit", value=selected_product.get("unit", "piece"), key="edit_unit")
-                edit_available_quantity = st.number_input("Available Quantity", min_value=0.0, step=1.0, value=float((selected_product.get("inventory") or {}).get("available_quantity", 0)), key="edit_available_quantity")
-                edit_marketplace_enabled = st.checkbox("Marketplace Enabled", value=((selected_product.get("sales_channels") or {}).get("marketplace") or {}).get("enabled", False), key="edit_marketplace_enabled")
-                edit_admin_price = st.number_input("Admin Price", min_value=0.0, step=1.0, value=float(((selected_product.get("pricing") or {}).get("admin_price", 0))), key="edit_admin_price")
-                edit_marketplace_price = st.number_input("Marketplace Price", min_value=0.0, step=1.0, value=float(((selected_product.get("pricing") or {}).get("marketplace_price", 0))), key="edit_marketplace_price")
-                edit_manditrade_enabled = st.checkbox("MandiTrade Enabled", value=((selected_product.get("sales_channels") or {}).get("manditrade") or {}).get("enabled", False), key="edit_manditrade_enabled")
-                edit_manditrade_price = st.number_input("MandiTrade Price", min_value=0.0, step=1.0, value=float(((selected_product.get("pricing") or {}).get("manditrade_price", 0))), key="edit_manditrade_price")
+                edit_description = st.text_area(translator.t("field.description"), value=selected_product.get("description", ""), key="edit_description")
+                edit_unit = st.text_input(translator.t("field.unit"), value=selected_product.get("unit", "piece"), key="edit_unit")
+                edit_available_quantity = st.number_input(translator.t("field.quantity"), min_value=0.0, step=1.0, value=float((selected_product.get("inventory") or {}).get("available_quantity", 0)), key="edit_available_quantity")
+                edit_marketplace_enabled = st.checkbox(translator.t("field.available_marketplace"), value=((selected_product.get("sales_channels") or {}).get("marketplace") or {}).get("enabled", False), key="edit_marketplace_enabled")
+                edit_admin_price = st.number_input(translator.t("field.admin_price"), min_value=0.0, step=1.0, value=float(((selected_product.get("pricing") or {}).get("admin_price", 0))), key="edit_admin_price")
+                edit_marketplace_price = st.number_input(translator.t("field.marketplace_price"), min_value=0.0, step=1.0, value=float(((selected_product.get("pricing") or {}).get("marketplace_price", 0))), key="edit_marketplace_price")
+                edit_manditrade_enabled = st.checkbox(translator.t("field.available_manditrade"), value=((selected_product.get("sales_channels") or {}).get("manditrade") or {}).get("enabled", False), key="edit_manditrade_enabled")
+                edit_manditrade_price = st.number_input(translator.t("field.manditrade_price"), min_value=0.0, step=1.0, value=float(((selected_product.get("pricing") or {}).get("manditrade_price", 0))), key="edit_manditrade_price")
                 editable_statuses = _get_editable_status_options(is_admin, selected_product.get("status", "PENDING_APPROVAL"))
-                edit_status = st.selectbox("Status", options=editable_statuses, index=editable_statuses.index(str(selected_product.get("status", editable_statuses[0])).upper()) if str(selected_product.get("status", editable_statuses[0])).upper() in editable_statuses else 0, key="edit_status")
+                edit_status = st.selectbox(translator.t("field.status"), options=editable_statuses, index=editable_statuses.index(str(selected_product.get("status", editable_statuses[0])).upper()) if str(selected_product.get("status", editable_statuses[0])).upper() in editable_statuses else 0, key="edit_status")
                 edit_uploaded_files = st.file_uploader(
-                    "Product Images Upload",
+                    translator.t("field.product_images"),
                     accept_multiple_files=True,
                     type=["png", "jpg", "jpeg", "webp"],
                     key="edit_product_images",
                 )
-                updated = st.button("Update Product", use_container_width=True, key="update_product_button")
+                updated = st.button(translator.t("action.save"), use_container_width=True, key="update_product_button")
                 if updated:
                     if not edit_product_name.strip():
                         st.error("Product name is required.")
@@ -557,9 +557,9 @@ def render_products_page(data_service, notification_service, session_service, ca
 
     with tabs[6]:
         st.caption(f"Product Code: {next_product_code}")
-        product_name = st.text_input("Product Name", key="create_product_name")
+        product_name = st.text_input(translator.t("field.product_name"), key="create_product_name")
         if is_admin:
-            owner_type = st.selectbox("Owner Type", options=list(OWNER_TYPES.keys()), key="create_owner_type")
+            owner_type = st.selectbox(translator.t("field.owner_type"), options=list(OWNER_TYPES.keys()), key="create_owner_type")
             owner_role_key = OWNER_TYPES[owner_type]
             owner_mode = st.radio("Owner Selection Mode", options=["Select Existing", "Add New"], horizontal=True, key="create_owner_mode")
             owner_candidates = _owner_candidates_for_role(users, products, owner_role_key)
@@ -569,7 +569,7 @@ def render_products_page(data_service, notification_service, session_service, ca
             if owner_mode == "Select Existing" and owner_candidates:
                 owner_option_map = {row.get("email", ""): row for row in owner_candidates}
                 owner_choice = st.selectbox(
-                    "Existing Owner",
+                    translator.t("field.owner_email"),
                     options=list(owner_option_map.keys()),
                     format_func=lambda value: _owner_option_label(owner_option_map.get(value, {})),
                     key="create_existing_owner",
@@ -582,9 +582,9 @@ def render_products_page(data_service, notification_service, session_service, ca
             else:
                 if owner_mode == "Select Existing" and not owner_candidates:
                     st.info("No existing active owners found for this role. Add a new owner.")
-                owner_email = st.text_input("Owner Email", key="create_owner_email").strip().lower()
-                owner_display_name = st.text_input("Owner Display Name", key="create_owner_display_name")
-                owner_phone = st.text_input("Owner Phone", key="create_owner_phone")
+                owner_email = st.text_input(translator.t("field.owner_email"), key="create_owner_email").strip().lower()
+                owner_display_name = st.text_input(translator.t("field.owner_display_name"), key="create_owner_display_name")
+                owner_phone = st.text_input(translator.t("field.owner_phone"), key="create_owner_phone")
         else:
             owner_role_key = current_user_role
             owner_email = str(current_user_email).strip().lower()
@@ -592,25 +592,25 @@ def render_products_page(data_service, notification_service, session_service, ca
             owner_phone = str(current_user_record.get("phone", "")).strip()
             st.caption(f"Owner: {owner_email}")
             st.caption(f"Owner Role: {owner_role_key}")
-        category = st.selectbox("Category", options=category_names if category_names else [""], key="create_category")
+        category = st.selectbox(translator.t("field.category"), options=category_names if category_names else [""], key="create_category")
         subcategories = category_index.get(category, [])
-        subcategory = st.selectbox("Subcategory", options=subcategories if subcategories else [""], key="create_subcategory")
-        description = st.text_area("Description", key="create_description")
-        unit = st.text_input("Unit", value="piece", key="create_unit")
-        available_quantity = st.number_input("Available Quantity", min_value=0.0, step=1.0, key="create_available_quantity")
-        marketplace_enabled = st.checkbox("Marketplace Enabled", value=True, key="create_marketplace_enabled")
-        admin_price = st.number_input("Admin Price", min_value=0.0, step=1.0, key="create_admin_price")
-        marketplace_price = st.number_input("Marketplace Price", min_value=0.0, step=1.0, key="create_marketplace_price")
-        manditrade_enabled = st.checkbox("MandiTrade Enabled", value=True, key="create_manditrade_enabled")
-        manditrade_price = st.number_input("MandiTrade Price", min_value=0.0, step=1.0, key="create_manditrade_price")
+        subcategory = st.selectbox(translator.t("field.subcategory"), options=subcategories if subcategories else [""], key="create_subcategory")
+        description = st.text_area(translator.t("field.description"), key="create_description")
+        unit = st.text_input(translator.t("field.unit"), value="piece", key="create_unit")
+        available_quantity = st.number_input(translator.t("field.quantity"), min_value=0.0, step=1.0, key="create_available_quantity")
+        marketplace_enabled = st.checkbox(translator.t("field.available_marketplace"), value=True, key="create_marketplace_enabled")
+        admin_price = st.number_input(translator.t("field.admin_price"), min_value=0.0, step=1.0, key="create_admin_price")
+        marketplace_price = st.number_input(translator.t("field.marketplace_price"), min_value=0.0, step=1.0, key="create_marketplace_price")
+        manditrade_enabled = st.checkbox(translator.t("field.available_manditrade"), value=True, key="create_manditrade_enabled")
+        manditrade_price = st.number_input(translator.t("field.manditrade_price"), min_value=0.0, step=1.0, key="create_manditrade_price")
         uploaded_files = st.file_uploader(
-            "Product Images Upload",
+            translator.t("field.product_images"),
             accept_multiple_files=True,
             type=["png", "jpg", "jpeg", "webp"],
             key="create_product_images",
         )
-        status = st.selectbox("Status", options=["APPROVED", "PENDING_APPROVAL"] if is_admin else ["PENDING_APPROVAL"], index=0, key="create_status")
-        submitted = st.button("Save Product", use_container_width=True, key="save_product_button")
+        status = st.selectbox(translator.t("field.status"), options=["APPROVED", "PENDING_APPROVAL"] if is_admin else ["PENDING_APPROVAL"], index=0, key="create_status")
+        submitted = st.button(translator.t("action.add_product"), use_container_width=True, key="save_product_button")
 
         if submitted:
             if not product_name.strip():
@@ -717,13 +717,13 @@ def render_products_page(data_service, notification_service, session_service, ca
     if is_admin:
         with tabs[7]:
             pending_products = [product for product in products if str(product.get("status", "")).upper() == "PENDING_APPROVAL"]
-            render_table(_build_product_table_rows(pending_products), caption="Products awaiting approval")
-            selected_pending_id = st.selectbox("Select Pending Product", options=[""] + [product.get("product_id", "") for product in pending_products], key="approve_product_id")
+            render_table(_build_product_table_rows(pending_products), caption=translator.t("module.products.title"))
+            selected_pending_id = st.selectbox(translator.t("action.approve"), options=[""] + [product.get("product_id", "") for product in pending_products], key="approve_product_id")
             selected_pending = next((product for product in pending_products if product.get("product_id") == selected_pending_id), None)
             if selected_pending:
-                action = st.selectbox("Approval Action", options=["APPROVE", "REJECT", "REQUEST_CHANGES", "ARCHIVE"], key="approval_action")
-                rejection_reason = st.text_area("Reason / Notes", key="approval_reason")
-                if st.button("Apply Approval Action", use_container_width=True, key="apply_approval_action"):
+                action = st.selectbox(translator.t("action.approve"), options=["APPROVE", "REJECT", "REQUEST_CHANGES", "ARCHIVE"], key="approval_action")
+                rejection_reason = st.text_area(translator.t("field.description"), key="approval_reason")
+                if st.button(translator.t("action.approve"), use_container_width=True, key="apply_approval_action"):
                     approval = dict(selected_pending.get("approval", {}) or {})
                     now = datetime.now(UTC).isoformat()
                     if action == "APPROVE":
