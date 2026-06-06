@@ -6,21 +6,16 @@
     "manufacturer": [
       "dashboard",
       "products",
-      "marketplace",
-      "manditrade",
       "orders",
-      "shipments",
-      "notifications",
-      "ledger"
+      "ledger",
+      "notifications"
     ],
     "mahajan": [
       "dashboard",
       "products",
-      "manditrade",
       "orders",
-      "shipments",
-      "notifications",
-      "ledger"
+      "ledger",
+      "notifications"
     ],
     "public_buyer": [
       "marketplace",
@@ -28,7 +23,6 @@
       "notifications"
     ],
     "worker": [
-      "dashboard",
       "notifications"
     ]
   }

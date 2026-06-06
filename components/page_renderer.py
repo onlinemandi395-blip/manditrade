@@ -14,6 +14,7 @@ from components.table_renderer import render_table
 from components.theme_manager import render_theme_manager
 from components.topbar import render_topbar
 from modules.admin_configuration import render_admin_configuration
+from modules.notifications import render_notifications_page
 from modules.login import render_login_page
 from modules.ledger import render_ledger_page
 from modules.manditrade import render_manditrade_page
@@ -170,10 +171,23 @@ def _filter_role_rows(route: str, rows: list[dict], role: str, user_email: str) 
             }
         ]
     if route == "notifications":
+        normalized_role = str(role or "").strip().lower()
         return [
             row
             for row in rows
-            if str((row.get("metadata") or {}).get("to_email", "")).strip().lower() in {"", normalized_email}
+            if (
+                str(row.get("to_email", "")).strip().lower() == normalized_email
+                or normalized_email in {
+                    str(recipient or "").strip().lower()
+                    for recipient in (row.get("recipients", []) or [])
+                    if str(recipient or "").strip()
+                }
+                or (
+                    normalized_role in {"manufacturer", "mahajan"}
+                    and str(row.get("to_role", "")).strip().lower() == normalized_role
+                    and str(row.get("owner_email", "")).strip().lower() == normalized_email
+                )
+            )
         ]
     if route == "shipments":
         return [
@@ -408,11 +422,16 @@ def render_app() -> None:
         def on_add_to_cart(product: dict) -> None:
             cart_service.add_to_cart(product)
             notification_service.create_notification(
-                notification_type="PRODUCT_ADDED",
+                to_email=session_service.get_user().get("email", ""),
                 title=translator.t("notification.product_added.title"),
                 message=translator.t("notification.product_added.message"),
-                metadata={"product_id": product.get("product_id", "")},
+                event_type="PRODUCT_ADDED",
+                source_entity="product",
+                source_id=product.get("product_id", ""),
+                created_by=session_service.get_user().get("email", ""),
             )
+            data_service.persist_collection("notifications")
+            data_service.persist_collection("gmail_queue")
             st.success(f"Added {product.get('product_name', product.get('product_id', 'product'))} to cart.")
 
         render_marketplace_page(products, on_add_to_cart=on_add_to_cart, media_service=media_service, translator=translator)
@@ -450,6 +469,8 @@ def render_app() -> None:
         render_manditrade_page(products, on_request=on_request, media_service=media_service, translator=translator)
     elif page_definition.get("type") == "products_admin":
         render_products_page(data_service, notification_service, session_service, cache_service, translator)
+    elif current_route == "notifications":
+        render_notifications_page(notification_service, data_service, session_service, translator)
     elif page_definition.get("type") == "ledger_page":
         render_ledger_page(data_service, notification_service, session_service)
     elif page_definition.get("type") == "admin_configuration":
@@ -469,11 +490,16 @@ def render_app() -> None:
                 created = data_service.create_record(form_definition.get("collection", source_name), values)
                 data_service.persist_collection(form_definition.get("collection", source_name))
                 notification_service.create_notification(
-                    notification_type="PRODUCT_ADDED",
+                    to_email=session_service.get_user().get("email", ""),
                     title=translator.t("notification.product_added.title"),
                     message=translator.t("notification.product_added.message"),
-                    metadata={"record_id": created.get("id", "")},
+                    event_type="PRODUCT_ADDED",
+                    source_entity=form_definition.get("collection", source_name),
+                    source_id=created.get("id", ""),
+                    created_by=session_service.get_user().get("email", ""),
                 )
+                data_service.persist_collection("notifications")
+                data_service.persist_collection("gmail_queue")
                 st.success("Saved.")
 
             render_form(form_definition, translator, _handle_submit)

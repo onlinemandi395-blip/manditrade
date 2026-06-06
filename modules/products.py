@@ -677,30 +677,50 @@ def render_products_page(data_service, notification_service, session_service, ca
                 products.append(record)
                 _persist_products_and_users(data_service)
                 notification_service.create_notification(
-                    notification_type="PRODUCT_SUBMITTED",
+                    to_email=owner_email,
                     title="Product submitted",
                     message=f"{product_name} was submitted.",
-                    metadata={"to_email": owner_email, "product_id": record["product_id"]},
+                    event_type="PRODUCT_SUBMITTED",
+                    to_role=owner_role_key,
+                    owner_email=owner_email,
+                    source_entity="products",
+                    source_id=record["product_id"],
+                    created_by=current_user_email,
                 )
                 if not is_admin:
                     notification_service.create_notification(
-                        notification_type="PRODUCT_SUBMITTED",
+                        to_email="",
                         title="Product approval required",
                         message=f"{product_name} is awaiting approval.",
-                        metadata={"product_id": record["product_id"]},
+                        event_type="PRODUCT_SUBMITTED",
+                        to_role="platform_admin",
+                        owner_email=owner_email,
+                        source_entity="products",
+                        source_id=record["product_id"],
+                        created_by=current_user_email,
                     )
                 if owner_created:
                     notification_service.create_notification(
-                        notification_type="OWNER_ONBOARDED",
+                        to_email=owner_email,
                         title="You have been onboarded to MandiTrade",
                         message=f"You have been onboarded as a {owner_role_key}.",
-                        metadata={"to_email": owner_email},
+                        event_type="OWNER_ONBOARDED",
+                        to_role=owner_role_key,
+                        owner_email=owner_email,
+                        source_entity="users",
+                        source_id=owner.get("user_id", ""),
+                        created_by=current_user_email,
                     )
                     notification_service.create_notification(
-                        notification_type="OWNER_ONBOARDED",
+                        to_email=current_user_email,
                         title="New owner onboarded",
                         message=f"{owner_email} was onboarded as {owner_role_key}.",
-                        metadata={"to_email": current_user_email},
+                        event_type="OWNER_ONBOARDED",
+                        to_role=current_user_role,
+                        owner_email=owner_email,
+                        source_entity="users",
+                        source_id=owner.get("user_id", ""),
+                        created_by=current_user_email,
                     )
                 _persist_notifications(data_service)
                 st.success(
@@ -731,10 +751,15 @@ def render_products_page(data_service, notification_service, session_service, ca
                         approval["approved_by"] = current_user_email
                         approval["approved_at"] = now
                         notification_service.create_notification(
-                            notification_type="PRODUCT_APPROVED",
+                            to_email=((selected_pending.get("owner") or {}).get("email", "")),
                             title="Product approved",
                             message=f"{selected_pending.get('product_name', 'Product')} was approved.",
-                            metadata={"to_email": ((selected_pending.get('owner') or {}).get('email', '')), "product_id": selected_pending.get("product_id", "")},
+                            event_type="PRODUCT_APPROVED",
+                            to_role=((selected_pending.get("owner") or {}).get("role", "")),
+                            owner_email=((selected_pending.get("owner") or {}).get("email", "")),
+                            source_entity="products",
+                            source_id=selected_pending.get("product_id", ""),
+                            created_by=current_user_email,
                         )
                     elif action in {"REJECT", "REQUEST_CHANGES"}:
                         selected_pending["status"] = "REJECTED"
@@ -742,10 +767,15 @@ def render_products_page(data_service, notification_service, session_service, ca
                         approval["rejected_at"] = now
                         approval["rejection_reason"] = rejection_reason.strip() or ("Changes requested." if action == "REQUEST_CHANGES" else "")
                         notification_service.create_notification(
-                            notification_type="PRODUCT_REJECTED" if action == "REJECT" else "PRODUCT_CHANGES_REQUESTED",
+                            to_email=((selected_pending.get("owner") or {}).get("email", "")),
                             title="Product rejected" if action == "REJECT" else "Product changes requested",
                             message=f"{selected_pending.get('product_name', 'Product')} was rejected." if action == "REJECT" else f"Changes requested for {selected_pending.get('product_name', 'Product')}.",
-                            metadata={"to_email": ((selected_pending.get('owner') or {}).get('email', '')), "product_id": selected_pending.get("product_id", "")},
+                            event_type="PRODUCT_REJECTED" if action == "REJECT" else "PRODUCT_CHANGES_REQUESTED",
+                            to_role=((selected_pending.get("owner") or {}).get("role", "")),
+                            owner_email=((selected_pending.get("owner") or {}).get("email", "")),
+                            source_entity="products",
+                            source_id=selected_pending.get("product_id", ""),
+                            created_by=current_user_email,
                         )
                     else:
                         selected_pending["status"] = "ARCHIVED"

@@ -89,18 +89,26 @@ def render_admin_configuration(auth_service, data_service, notification_service,
                 try:
                     data_service.persist_collection("users")
                     notification_service.create_notification(
-                        notification_type="ADMIN_ADDED",
+                        to_email=normalized_email,
                         title="New admin added",
                         message=f"{record['display_name']} was added as admin.",
-                        metadata={"to_email": normalized_email},
+                        event_type="ADMIN_ADDED",
+                        source_entity="users",
+                        source_id=record["user_id"],
+                        created_by=session_service.get_user().get("email", ""),
                     )
                     if primary_admin.get("email"):
                         notification_service.create_notification(
-                            notification_type="ADMIN_ADDED",
+                            to_email=primary_admin["email"],
                             title="Admin registry updated",
                             message=f"{record['display_name']} was added as admin.",
-                            metadata={"to_email": primary_admin["email"]},
+                            event_type="ADMIN_ADDED",
+                            source_entity="users",
+                            source_id=record["user_id"],
+                            created_by=session_service.get_user().get("email", ""),
                         )
+                    data_service.persist_collection("notifications")
+                    data_service.persist_collection("gmail_queue")
                     st.success("Admin added.")
                 except Exception as exc:
                     users.pop()

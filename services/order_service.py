@@ -56,21 +56,38 @@ class OrderService:
                 metadata={"buyer_email": buyer_email, "product_id": record["product_id"]},
             )
             self.notification_service.create_notification(
-                notification_type="ORDER_CREATED",
+                to_email=owner.get("email", ""),
                 title="Order created",
                 message="A new marketplace order entered the queue.",
-                metadata={
-                    "order_id": record["order_id"],
-                    "source_channel": "marketplace",
-                    "to_email": owner.get("email", ""),
-                    "product_id": record["product_id"],
-                },
+                event_type="ORDER_CREATED",
+                to_role=owner.get("role", ""),
+                owner_email=owner.get("email", ""),
+                source_entity="orders",
+                source_id=record["order_id"],
+                metadata={"product_id": record["product_id"], "source_channel": "marketplace"},
+                created_by=buyer_email,
             )
             self.notification_service.create_notification(
-                notification_type="ORDER_CREATED",
+                to_email=buyer_email,
+                title="Marketplace order created",
+                message="Your marketplace order was created.",
+                event_type="ORDER_CREATED",
+                source_entity="orders",
+                source_id=record["order_id"],
+                metadata={"product_id": record["product_id"], "source_channel": "marketplace"},
+                created_by=buyer_email,
+            )
+            self.notification_service.create_notification(
+                to_email="",
                 title="Marketplace order routed",
-                message="Marketplace order routed through product manufacturer.",
-                metadata={"order_id": record["order_id"]},
+                message="Marketplace order routed through product owner.",
+                event_type="ORDER_CREATED",
+                to_role="platform_admin",
+                owner_email=owner.get("email", ""),
+                source_entity="orders",
+                source_id=record["order_id"],
+                metadata={"product_id": record["product_id"], "source_channel": "marketplace"},
+                created_by=buyer_email,
             )
             return record
 
@@ -113,15 +130,37 @@ class OrderService:
             )
             if owner.get("email"):
                 self.notification_service.create_notification(
-                    notification_type="ORDER_CREATED",
+                    to_email=owner.get("email", ""),
                     title="MandiTrade order routed",
                     message="A MandiTrade order was routed through product ownership.",
-                    metadata={"order_id": record["order_id"], "source_channel": "manditrade", "to_email": owner.get("email", "")},
+                    event_type="ORDER_CREATED",
+                    to_role=owner.get("role", ""),
+                    owner_email=owner.get("email", ""),
+                    source_entity="orders",
+                    source_id=record["order_id"],
+                    metadata={"source_channel": "manditrade"},
+                    created_by=requesting_user_email,
                 )
             self.notification_service.create_notification(
-                notification_type="ORDER_CREATED",
+                to_email=requesting_user_email,
                 title="MandiTrade order requested",
+                message="Your MandiTrade order request was created.",
+                event_type="ORDER_CREATED",
+                source_entity="orders",
+                source_id=record["order_id"],
+                metadata={"source_channel": "manditrade"},
+                created_by=requesting_user_email,
+            )
+            self.notification_service.create_notification(
+                to_email="",
+                title="MandiTrade order routed",
                 message="A MandiTrade order was routed to platform admin.",
-                metadata={"order_id": record["order_id"], "source_channel": "manditrade"},
+                event_type="ORDER_CREATED",
+                to_role="platform_admin",
+                owner_email=owner.get("email", ""),
+                source_entity="orders",
+                source_id=record["order_id"],
+                metadata={"source_channel": "manditrade"},
+                created_by=requesting_user_email,
             )
             return record

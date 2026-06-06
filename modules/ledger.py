@@ -48,16 +48,26 @@ def render_ledger_page(data_service, notification_service, session_service) -> N
                 )
                 data_service.persist_collection("ledger")
                 notification_service.create_notification(
-                    notification_type="PAYMENT_MARKED",
+                    to_email=owner_email,
                     title="Payment marked",
                     message=f"Payment of {payment_amount} recorded for {owner_email}.",
-                    metadata={"to_email": owner_email, "ledger_id": entry.get("ledger_id", "")},
+                    event_type="PAYMENT_MARKED",
+                    to_role=owner_role,
+                    owner_email=owner_email,
+                    source_entity="ledger",
+                    source_id=entry.get("ledger_id", ""),
+                    created_by=email,
                 )
                 notification_service.create_notification(
-                    notification_type="PAYMENT_MARKED",
+                    to_email=email,
                     title="Payment recorded",
                     message=f"Payment of {payment_amount} recorded.",
-                    metadata={"to_email": email, "ledger_id": entry.get("ledger_id", "")},
+                    event_type="PAYMENT_MARKED",
+                    to_role="platform_admin",
+                    owner_email=owner_email,
+                    source_entity="ledger",
+                    source_id=entry.get("ledger_id", ""),
+                    created_by=email,
                 )
                 data_service.persist_collection("notifications")
                 data_service.persist_collection("gmail_queue")

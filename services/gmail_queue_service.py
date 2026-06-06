@@ -21,12 +21,13 @@ class GmailQueueService:
         section = dict(st.secrets.get("gmail", {})) if "gmail" in st.secrets else {}
         return str(section.get("sender_email", "")).strip()
 
-    def enqueue(self, *, to_email: str, subject: str, body: str) -> dict:
+    def enqueue(self, *, to_email: str, subject: str, body: str, notification_id: str = "") -> dict:
         record = {
-            "gmail_queue_id": self.id_service.next("gmail_queue"),
+            "queue_id": self.id_service.next("gmail_queue"),
             "to_email": to_email,
             "subject": subject,
             "body": body,
+            "notification_id": notification_id,
             "status": "QUEUED",
             "created_at": datetime.now(UTC).isoformat(),
         }
