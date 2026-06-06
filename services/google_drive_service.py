@@ -91,15 +91,58 @@ class GoogleDriveService:
             raise FileNotFoundError(logical_path)
         return self.read_json_file(service, metadata["id"])
 
-    def create_or_update_json_file(self, service, folder_id: str, file_name: str, payload: dict[str, Any]) -> dict[str, Any]:
+    def create_json_file(self, service, folder_id: str, file_name: str, payload: dict[str, Any]) -> dict[str, Any]:
+        media = MediaInMemoryUpload(json.dumps(payload, indent=2, ensure_ascii=False).encode("utf-8"), mimetype="application/json", resumable=False)
+        body = {"name": file_name, "parents": [folder_id], "mimeType": "application/json"}
+        return service.files().create(body=body, media_body=media, fields="id,name,modifiedTime").execute()
+
+    def update_json_file(self, service, file_id: str, payload: dict[str, Any], file_name: str | None = None) -> dict[str, Any]:
+        media = MediaInMemoryUpload(json.dumps(payload, indent=2, ensure_ascii=False).encode("utf-8"), mimetype="application/json", resumable=False)
+        body = {"mimeType": "application/json"}
+        if file_name:
+            body["name"] = file_name
+        return service.files().update(fileId=file_id, body=body, media_body=media, fields="id,name,modifiedTime").execute()
+
+    def create_binary_file(self, service, folder_id: str, file_name: str, bytes_data: bytes, mime_type: str) -> dict[str, Any]:
+        media = MediaInMemoryUpload(bytes_data, mimetype=mime_type, resumable=False)
+        body = {"name": file_name, "parents": [folder_id]}
+        return service.files().create(
+            body=body,
+            media_body=media,
+            fields="id,name,mimeType,webViewLink,thumbnailLink",
+        ).execute()
+
+    def update_binary_file(self, service, file_id: str, bytes_data: bytes, mime_type: str, file_name: str | None = None) -> dict[str, Any]:
+        media = MediaInMemoryUpload(bytes_data, mimetype=mime_type, resumable=False)
+        body: dict[str, Any] = {}
+        if file_name:
+            body["name"] = file_name
+        return service.files().update(
+            fileId=file_id,
+            body=body or None,
+            media_body=media,
+            fields="id,name,mimeType,webViewLink,thumbnailLink",
+        ).execute()
+
+    def move_file(self, service, file_id: str, *, new_parent_id: str, old_parent_ids: str = "") -> dict[str, Any]:
+        return service.files().update(
+            fileId=file_id,
+            addParents=new_parent_id,
+            removeParents=old_parent_ids,
+            fields="id,parents",
+        ).execute()
+
+    def find_named_file(self, service, folder_id: str, file_name: str) -> dict[str, Any] | None:
         query = f"'{folder_id}' in parents and name = '{file_name}' and trashed = false"
         response = service.files().list(q=query, fields="files(id,name,modifiedTime)", spaces="drive", pageSize=1).execute()
         files = response.get("files", [])
-        media = MediaInMemoryUpload(json.dumps(payload, indent=2, ensure_ascii=False).encode("utf-8"), mimetype="application/json", resumable=False)
-        body = {"name": file_name, "parents": [folder_id], "mimeType": "application/json"}
-        if files:
-            return service.files().update(fileId=files[0]["id"], body=body, media_body=media, fields="id,name,modifiedTime").execute()
-        return service.files().create(body=body, media_body=media, fields="id,name,modifiedTime").execute()
+        return files[0] if files else None
+
+    def create_or_update_json_file(self, service, folder_id: str, file_name: str, payload: dict[str, Any]) -> dict[str, Any]:
+        existing = self.find_named_file(service, folder_id, file_name)
+        if existing:
+            return self.update_json_file(service, existing["id"], payload, file_name=file_name)
+        return self.create_json_file(service, folder_id, file_name, payload)
 
     def read_json_file(self, service, file_id: str) -> dict[str, Any]:
         content = service.files().get_media(fileId=file_id).execute()

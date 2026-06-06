@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from googleapiclient.http import MediaInMemoryUpload
-
 from services.id_service import IdService
 
 
@@ -23,17 +21,13 @@ class MediaService:
         for index, uploaded_file in enumerate(uploaded_files):
             image_id = self.id_service.next_drive_id(self.admin_drive_service, "image", "IMG")
             file_name = uploaded_file.name or f"{image_id}.bin"
-            media = MediaInMemoryUpload(
+            created = resolver.google_drive_service.create_binary_file(
+                resolver.service,
+                folder["folder_id"],
+                file_name,
                 uploaded_file.getvalue(),
-                mimetype=getattr(uploaded_file, "type", None) or "application/octet-stream",
-                resumable=False,
+                getattr(uploaded_file, "type", None) or "application/octet-stream",
             )
-            body = {"name": file_name, "parents": [folder["folder_id"]]}
-            created = resolver.service.files().create(
-                body=body,
-                media_body=media,
-                fields="id,name,mimeType,webViewLink,thumbnailLink",
-            ).execute()
             try:
                 resolver.service.permissions().create(
                     fileId=created["id"],
