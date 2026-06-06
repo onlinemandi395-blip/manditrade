@@ -3,6 +3,10 @@ from __future__ import annotations
 import streamlit as st
 
 from components.table_renderer import render_table
+from components.theme_manager import render_theme_manager
+from services.cache_service import CacheService
+from services.config_loader_service import ConfigLoaderService
+from services.theme_service import ThemeService
 
 
 def render_setup_console(admin_drive_service, drive_manifest: dict) -> None:
@@ -60,3 +64,5 @@ def render_setup_console(admin_drive_service, drive_manifest: dict) -> None:
     if theme_file:
         st.markdown("### Theme Config Trace")
         render_table([theme_file], caption="theme.json status")
+    theme_service = ThemeService(admin_drive_service, CacheService(ConfigLoaderService()))
+    render_theme_manager(theme_service, allow_set_default=True, title="Theme Background Setup")

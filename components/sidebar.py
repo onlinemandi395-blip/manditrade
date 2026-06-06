@@ -3,7 +3,7 @@ from __future__ import annotations
 import streamlit as st
 
 
-def render_sidebar(navigation_items: list[dict], selected_route: str, user: dict | None = None, role_label: str = "") -> str:
+def render_sidebar(navigation_items: list[dict], selected_route: str, user: dict | None = None, role_label: str = "", theme_service=None) -> str:
     chosen = selected_route
     with st.sidebar:
         if user:
@@ -18,6 +18,30 @@ def render_sidebar(navigation_items: list[dict], selected_route: str, user: dict
                 st.caption(email)
             if role_label:
                 st.caption(role_label)
+        if theme_service is not None:
+            backgrounds = theme_service.list_available_backgrounds()
+            if backgrounds:
+                options = [{"label": "Default Theme", "value": ""}] + [
+                    {"label": row.get("file_name", row.get("file_id", "Theme")), "value": row.get("file_id", "")}
+                    for row in backgrounds
+                ]
+                selected_background = theme_service.get_selected_background()
+                selected_value = selected_background.get("file_id", "") if selected_background.get("file_id") else ""
+                theme_choice = st.selectbox(
+                    "Theme",
+                    options=[row["value"] for row in options],
+                    format_func=lambda value: next((row["label"] for row in options if row["value"] == value), "Default Theme"),
+                    index=next((idx for idx, row in enumerate(options) if row["value"] == selected_value), 0),
+                    key="sidebar_theme_choice",
+                )
+                if theme_choice != selected_value:
+                    chosen_theme = next((row for row in backgrounds if row.get("file_id", "") == theme_choice), None)
+                    if theme_choice:
+                        theme_service.set_selected_background(chosen_theme)
+                    else:
+                        theme_service.clear_selected_background()
+                    theme_service.clear_theme_cache()
+                    st.rerun()
         for item in navigation_items:
             label = f"{item.get('icon', '')} {item.get('label', item.get('route', ''))}".strip()
             route = str(item.get("route", "dashboard"))

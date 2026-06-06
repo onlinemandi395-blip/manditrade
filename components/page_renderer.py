@@ -11,6 +11,7 @@ from components.form_renderer import render_form
 from components.html_renderer import inject_css, inject_inline_css
 from components.sidebar import render_sidebar
 from components.table_renderer import render_table
+from components.theme_manager import render_theme_manager
 from components.topbar import render_topbar
 from modules.admin_configuration import render_admin_configuration
 from modules.login import render_login_page
@@ -342,7 +343,7 @@ def render_app() -> None:
     if current_route not in valid_routes or not rbac_service.can_access(role, current_route):
         current_route = page_service.get_landing_page(role, navigation_service)
         session_service.set_route(current_route)
-    chosen = render_sidebar(navigation_items, current_route, user=user, role_label=translator.t(f"role.{role}"))
+    chosen = render_sidebar(navigation_items, current_route, user=user, role_label=translator.t(f"role.{role}"), theme_service=theme_service)
     if chosen != current_route:
         session_service.set_route(chosen)
         st.rerun()
@@ -498,12 +499,15 @@ def render_app() -> None:
                 {"key": "primary_admin_email", "value": status["primary_admin_email"]},
                 {"key": "theme_background_status", "value": status["theme_status"].get("status", "MISSING")},
                 {"key": "theme_background_message", "value": status["theme_status"].get("message", "")},
+                {"key": "theme_background_count", "value": status.get("theme_background_count", 0)},
+                {"key": "theme_active_background_id", "value": status.get("theme_active_background_id", "")},
             ],
             caption="Integration status",
         )
         render_table(status["required_folders"], caption="Required Drive folders")
         render_table(status["required_files"], caption="Required Drive files")
         render_table([status["theme_status"]], caption="Theme background trace")
+        render_theme_manager(theme_service, allow_set_default=(role == "platform_admin"), title="Theme Background Control")
         render_detail_panel("Cache Status", status["cache_status"])
     else:
         render_empty_state("Unsupported page type.")

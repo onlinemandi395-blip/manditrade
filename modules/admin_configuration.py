@@ -4,7 +4,11 @@ from datetime import UTC, datetime
 
 import streamlit as st
 
+from components.theme_manager import render_theme_manager
 from services.admin_drive_service import AdminDriveService
+from services.cache_service import CacheService
+from services.config_loader_service import ConfigLoaderService
+from services.theme_service import ThemeService
 
 
 def render_admin_configuration(auth_service, data_service, notification_service, session_service) -> None:
@@ -117,4 +121,6 @@ def render_admin_configuration(auth_service, data_service, notification_service,
         else:
             st.success("All required Drive files are present.")
     with tabs[2]:
-        st.info("Integrations remain status-driven for now.")
+        st.info("Integrations remain Drive-backed and status-driven.")
+        theme_service = ThemeService(admin_drive_service, CacheService(ConfigLoaderService()))
+        render_theme_manager(theme_service, allow_set_default=True, title="Theme Background Manager")

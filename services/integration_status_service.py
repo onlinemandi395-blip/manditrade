@@ -28,7 +28,9 @@ class IntegrationStatusService:
         notifications = self.data_service.list_collection("notifications")
         gmail_queue = self.data_service.list_collection("gmail_queue")
         loaded_languages = sorted((self.cache_service.get_config("languages") or {}).keys())
-        theme_status = ThemeService(self.admin_drive_service, self.cache_service).get_background_status()
+        theme_service = ThemeService(self.admin_drive_service, self.cache_service)
+        theme_status = theme_service.get_background_status()
+        available_backgrounds = theme_service.list_available_backgrounds()
         return {
             "google_oauth_status": "configured" if self.oauth_service.is_configured() else "missing",
             "google_drive_status": "connected" if drive_status.get("connected") else "disconnected",
@@ -58,4 +60,6 @@ class IntegrationStatusService:
             "required_folders": drive_manifest.get("required_folders", []),
             "missing_files": drive_manifest.get("missing_files", []),
             "theme_status": theme_status,
+            "theme_background_count": len(available_backgrounds),
+            "theme_active_background_id": theme_service.get_active_background_file_id(),
         }

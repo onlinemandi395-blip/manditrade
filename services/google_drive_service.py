@@ -144,6 +144,18 @@ class GoogleDriveService:
         files = response.get("files", [])
         return files[0] if files else None
 
+    def list_children(self, service, folder_id: str, mime_prefix: str | None = None) -> list[dict[str, Any]]:
+        query = f"'{folder_id}' in parents and trashed = false"
+        if mime_prefix:
+            query += f" and mimeType contains '{mime_prefix}'"
+        response = service.files().list(
+            q=query,
+            fields="files(id,name,mimeType,modifiedTime,thumbnailLink,webViewLink)",
+            spaces="drive",
+            pageSize=200,
+        ).execute()
+        return list(response.get("files", []))
+
     def create_or_update_json_file(self, service, folder_id: str, file_name: str, payload: dict[str, Any]) -> dict[str, Any]:
         existing = self.find_named_file(service, folder_id, file_name)
         if existing:
