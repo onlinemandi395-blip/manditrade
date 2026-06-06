@@ -170,6 +170,18 @@ def build_required_drive_files(primary_admin_email: str, primary_admin_name: str
             },
         },
         {
+            "logical_path": "00_config/id_counters.json",
+            "type": "config",
+            "default_payload": {
+                "schema_version": 1,
+                "counters": {
+                    "product": 0,
+                    "user": 0,
+                    "image": 0,
+                },
+            },
+        },
+        {
             "logical_path": "00_config/languages/en.json",
             "type": "language",
             "default_payload": {

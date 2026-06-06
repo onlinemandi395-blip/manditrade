@@ -56,6 +56,8 @@ class AdminDriveService:
             "07_ledger",
             "09_notifications",
             "14_runtime",
+            "15_media",
+            "15_media/products",
         }
         return sorted(folder_paths)
 

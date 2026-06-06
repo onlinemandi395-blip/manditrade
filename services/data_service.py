@@ -82,11 +82,16 @@ class DataService:
         product.setdefault("subcategory", "")
         product.setdefault("description", "")
         product.setdefault("unit", "piece")
+        images = [dict(image or {}) for image in (product.get("images", []) or [])]
+        product["images"] = images
+        primary_image = next((image for image in images if image.get("is_primary")), images[0] if images else {})
         if not product.get("image_url"):
-            for image in product.get("images", []) or []:
-                product["image_url"] = image.get("thumbnail_url") or image.get("view_url") or ""
-                if product["image_url"]:
-                    break
+            product["image_url"] = (
+                primary_image.get("image_url")
+                or primary_image.get("thumbnail_link")
+                or primary_image.get("web_view_link")
+                or ""
+            )
         sales_channels = dict(product.get("sales_channels", {}) or {})
         if "mandiplace" in sales_channels and "manditrade" not in sales_channels:
             sales_channels["manditrade"] = sales_channels.pop("mandiplace")
@@ -147,3 +152,13 @@ class DataService:
         product["created_by"] = product.get("created_by", "")
         product["updated_by"] = product.get("updated_by", "")
         return product
+
+    def upsert_user(self, user_record: dict) -> dict:
+        users = self.get_collection_ref("users")
+        email = str(user_record.get("email", "")).strip().lower()
+        existing = next((user for user in users if str(user.get("email", "")).strip().lower() == email), None)
+        if existing:
+            existing.update(user_record)
+            return existing
+        users.append(user_record)
+        return user_record

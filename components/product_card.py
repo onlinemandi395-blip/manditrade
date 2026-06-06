@@ -4,7 +4,15 @@ import streamlit as st
 
 
 def render_product_card(product: dict, *, view: str = "marketplace", on_add_to_cart=None) -> None:
-    image_url = str(product.get("image_url", "") or "").strip()
+    images = [dict(image or {}) for image in (product.get("images", []) or [])]
+    primary_image = next((image for image in images if image.get("is_primary")), images[0] if images else {})
+    image_url = str(
+        product.get("image_url", "")
+        or primary_image.get("image_url", "")
+        or primary_image.get("thumbnail_link", "")
+        or primary_image.get("web_view_link", "")
+        or ""
+    ).strip()
     marketplace = (product.get("sales_channels") or {}).get("marketplace", {})
     manditrade = (product.get("sales_channels") or {}).get("manditrade", {})
     owner = dict(product.get("owner", {}) or {})
@@ -16,7 +24,7 @@ def render_product_card(product: dict, *, view: str = "marketplace", on_add_to_c
         else:
             media.markdown("<div class='mt-product-card__media'>No Image</div>", unsafe_allow_html=True)
         st.markdown(f"#### {product.get('product_name', product.get('product_id', 'Product'))}")
-        st.caption(f"{product.get('category', 'General')} | {product.get('status', 'ACTIVE')}")
+        st.caption(f"{product.get('product_code', '')} | {product.get('category', 'General')} | {product.get('status', 'ACTIVE')}")
         if view == "marketplace":
             st.write(f"Marketplace Price: {marketplace.get('price', 0)}")
             if st.button("Add to Cart", key=f"cart_{product.get('product_id', '')}", use_container_width=True) and on_add_to_cart:
@@ -34,3 +42,11 @@ def render_product_card(product: dict, *, view: str = "marketplace", on_add_to_c
             st.caption(f"Owner: {owner.get('email', '-')}")
             st.caption(f"Owner Role: {owner.get('role', '-')}")
             st.caption(f"Inventory: {inventory.get('available_quantity', 0)} {product.get('unit', 'piece')}")
+        gallery_urls = [
+            image.get("image_url") or image.get("thumbnail_link") or image.get("web_view_link")
+            for image in images
+            if image.get("image_url") or image.get("thumbnail_link") or image.get("web_view_link")
+        ]
+        if len(gallery_urls) > 1:
+            with st.expander(f"Gallery ({len(gallery_urls)})", expanded=False):
+                st.image(gallery_urls, width=120)
