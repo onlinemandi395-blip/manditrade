@@ -3,6 +3,33 @@ from __future__ import annotations
 import streamlit as st
 
 
+def get_bootstrap_primary_admin() -> dict:
+    platform_section = dict(st.secrets.get("platform", {})) if "platform" in st.secrets else {}
+    admin_section = dict(st.secrets.get("admin", {})) if "admin" in st.secrets else {}
+    email = str(
+        platform_section.get("primary_admin_email", "")
+        or admin_section.get("email", "")
+        or admin_section.get("admin_email", "")
+    ).strip().lower()
+    name = str(
+        platform_section.get("primary_admin_name", "")
+        or admin_section.get("name", "")
+        or "Primary Admin"
+    ).strip()
+    return {
+        "email": email,
+        "role": "platform_admin",
+        "status": "ACTIVE",
+        "display_name": name,
+    }
+
+
+def is_bootstrap_admin(user_email: str) -> bool:
+    normalized_email = str(user_email).strip().lower()
+    primary_admin = get_bootstrap_primary_admin()
+    return bool(primary_admin.get("email")) and normalized_email == primary_admin["email"]
+
+
 class AuthService:
     def __init__(self, cache_service) -> None:
         self.cache_service = cache_service
@@ -21,15 +48,7 @@ class AuthService:
         return list(self.cache_service.get_config("users").get("users", []))
 
     def get_primary_admin(self) -> dict:
-        platform_section = dict(st.secrets.get("platform", {})) if "platform" in st.secrets else {}
-        email = str(platform_section.get("primary_admin_email", "")).strip().lower()
-        name = str(platform_section.get("primary_admin_name", "") or "Primary Admin").strip()
-        return {
-            "email": email,
-            "role": "platform_admin",
-            "status": "ACTIVE",
-            "display_name": name,
-        }
+        return get_bootstrap_primary_admin()
 
     def resolve_user(self, email: str) -> dict:
         normalized_email = email.strip().lower()

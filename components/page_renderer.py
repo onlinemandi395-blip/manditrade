@@ -19,7 +19,7 @@ from modules.marketplace import render_marketplace_page
 from modules.products import render_products_page
 from modules.setup_console import render_setup_console
 from services.admin_drive_service import AdminDriveService
-from services.auth_service import AuthService
+from services.auth_service import AuthService, get_bootstrap_primary_admin, is_bootstrap_admin
 from services.cache_service import CacheService
 from services.cart_service import CartService
 from services.config_loader_service import ConfigLoaderService
@@ -49,10 +49,10 @@ BOOTSTRAP_APP_CONFIG = {
 
 
 def _get_bootstrap_primary_admin() -> dict:
-    platform = dict(st.secrets.get("platform", {})) if "platform" in st.secrets else {}
+    primary_admin = get_bootstrap_primary_admin()
     return {
-        "email": str(platform.get("primary_admin_email", "")).strip().lower(),
-        "display_name": str(platform.get("primary_admin_name", "") or "Primary Admin").strip(),
+        "email": primary_admin.get("email", ""),
+        "display_name": primary_admin.get("display_name", "Primary Admin"),
     }
 
 
@@ -92,9 +92,24 @@ def _render_bootstrap_login(oauth_service: GoogleOAuthService, session_service: 
 
 def _render_missing_files_screen(drive_manifest: dict, session_service: SessionService, admin_drive_service: AdminDriveService) -> None:
     user = session_service.get_user()
-    is_admin = bool(user.get("is_authenticated")) and str(user.get("role", "")).strip().lower() == "platform_admin"
+    current_email = str(user.get("email", "")).strip().lower()
+    bootstrap_admin = is_bootstrap_admin(current_email)
+    is_admin = bool(user.get("is_authenticated")) and (
+        str(user.get("role", "")).strip().lower() == "platform_admin" or bootstrap_admin
+    )
     if is_admin:
         render_setup_console(admin_drive_service, drive_manifest)
+        with st.expander("Bootstrap Admin Debug", expanded=False):
+            st.write(
+                {
+                    "current_google_email": current_email,
+                    "primary_admin_email_from_toml": get_bootstrap_primary_admin().get("email", ""),
+                    "is_bootstrap_admin": bootstrap_admin,
+                    "current_session_role": user.get("role", ""),
+                    "drive_setup_complete": not bool(drive_manifest.get("missing_files")),
+                    "missing_file_count": len(drive_manifest.get("missing_files", [])),
+                }
+            )
     elif user.get("is_authenticated"):
         st.error("Platform setup is incomplete. Please contact admin.")
         render_table(drive_manifest.get("required_files", []), caption="Required Drive files")
@@ -105,7 +120,11 @@ def _render_missing_files_screen(drive_manifest: dict, session_service: SessionS
 
 def _render_root_setup_console(session_service: SessionService, admin_drive_service: AdminDriveService, errors: list[str]) -> None:
     user = session_service.get_user()
-    is_admin = bool(user.get("is_authenticated")) and str(user.get("role", "")).strip().lower() == "platform_admin"
+    current_email = str(user.get("email", "")).strip().lower()
+    bootstrap_admin = is_bootstrap_admin(current_email)
+    is_admin = bool(user.get("is_authenticated")) and (
+        str(user.get("role", "")).strip().lower() == "platform_admin" or bootstrap_admin
+    )
     if is_admin:
         st.warning("Drive setup incomplete. Root folder is missing or unreachable.")
         for error in errors:
@@ -122,6 +141,17 @@ def _render_root_setup_console(session_service: SessionService, admin_drive_serv
                 "missing_files": [],
             },
         )
+        with st.expander("Bootstrap Admin Debug", expanded=False):
+            st.write(
+                {
+                    "current_google_email": current_email,
+                    "primary_admin_email_from_toml": get_bootstrap_primary_admin().get("email", ""),
+                    "is_bootstrap_admin": bootstrap_admin,
+                    "current_session_role": user.get("role", ""),
+                    "drive_setup_complete": False,
+                    "missing_file_count": 0,
+                }
+            )
     elif user.get("is_authenticated"):
         st.error("Platform setup is incomplete. Please contact admin.")
     else:
