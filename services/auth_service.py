@@ -61,6 +61,8 @@ class AuthService:
                 "display_name": primary_admin.get("display_name", "Primary Admin"),
                 "known_user": True,
                 "is_primary_admin": True,
+                "user_found": True,
+                "source": "primary_admin",
             }
         user_rows = self.get_registered_users()
         matched = next(
@@ -75,6 +77,8 @@ class AuthService:
                 "display_name": str(matched.get("display_name", normalized_email.split("@")[0] if normalized_email else "")),
                 "known_user": True,
                 "is_primary_admin": False,
+                "user_found": True,
+                "source": "users.json",
             }
         return {
             "email": normalized_email,
@@ -83,6 +87,8 @@ class AuthService:
             "display_name": normalized_email.split("@")[0] if normalized_email else "",
             "known_user": False,
             "is_primary_admin": False,
+            "user_found": False,
+            "source": "unknown_user_default",
         }
 
     def login(self, email: str, provider_id: str) -> dict:

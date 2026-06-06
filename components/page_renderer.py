@@ -83,6 +83,25 @@ def _resolve_bootstrap_user(email: str) -> dict:
     }
 
 
+def _resolve_authenticated_user(email: str) -> dict:
+    normalized_email = str(email or "").strip().lower()
+    bootstrap_user = _resolve_bootstrap_user(normalized_email)
+    try:
+        bootstrap_loader = ConfigLoaderService()
+        bootstrap_cache = CacheService(bootstrap_loader)
+        bootstrap_cache.refresh_cache()
+        resolved = AuthService(bootstrap_cache).resolve_user(normalized_email)
+        return {
+            **resolved,
+            "landing_page": "dashboard" if resolved.get("role") == "platform_admin" else "marketplace",
+        }
+    except Exception:
+        return {
+            **bootstrap_user,
+            "landing_page": "dashboard" if bootstrap_user.get("role") == "platform_admin" else "marketplace",
+        }
+
+
 def _render_bootstrap_login(oauth_service: GoogleOAuthService, session_service: SessionService) -> None:
     st.markdown("## Welcome to MandiTrade")
     st.caption("Google Drive powered commerce platform")
@@ -223,7 +242,7 @@ def render_app() -> None:
             identity = oauth_service.exchange_code_for_identity()
             if not identity.get("email_verified", False):
                 raise ValueError("Google account email is not verified.")
-            resolved_user = _resolve_bootstrap_user(str(identity.get("email", "")))
+            resolved_user = _resolve_authenticated_user(str(identity.get("email", "")))
             oauth_service.persist_admin_token(identity, resolved_user)
             session_service.authenticate(
                 {
@@ -231,7 +250,7 @@ def render_app() -> None:
                     "display_name": identity.get("display_name") or resolved_user.get("display_name", ""),
                     "photo_url": identity.get("photo_url", ""),
                     "oauth_token": identity.get("oauth_token", {}),
-                    "landing_page": "dashboard" if resolved_user.get("role") == "platform_admin" else "marketplace",
+                    "landing_page": resolved_user.get("landing_page", "marketplace"),
                 }
             )
             admin_drive_service.clear_runtime_cache(clear_validation=True, clear_file_index=False)
