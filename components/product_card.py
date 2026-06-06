@@ -36,11 +36,20 @@ def render_product_card(product: dict, *, view: str = "marketplace", on_add_to_c
             st.caption(f"Owner: {owner.get('email', '-')}")
             st.caption(f"Owner Role: {owner.get('role', '-')}")
             st.caption(f"Inventory: {inventory.get('available_quantity', 0)} {product.get('unit', 'piece')}")
-        gallery_urls = [
-            image.get("direct_render_url") or image.get("thumbnail_link") or image.get("web_content_link")
-            for image in images
-            if image.get("direct_render_url") or image.get("thumbnail_link") or image.get("web_content_link")
-        ]
-        if len(gallery_urls) > 1:
-            with st.expander(f"Gallery ({len(gallery_urls)})", expanded=False):
-                st.image(gallery_urls, width=120)
+        gallery_images = []
+        if media_service:
+            for image in images:
+                renderable_image = media_service.get_renderable_image(image)
+                if renderable_image["render_mode"] == "bytes" and renderable_image.get("bytes"):
+                    gallery_images.append(renderable_image["bytes"])
+                elif renderable_image["render_mode"] == "url" and renderable_image.get("url"):
+                    gallery_images.append(renderable_image["url"])
+        else:
+            gallery_images = [
+                image.get("direct_render_url") or image.get("thumbnail_link") or image.get("web_content_link")
+                for image in images
+                if image.get("direct_render_url") or image.get("thumbnail_link") or image.get("web_content_link")
+            ]
+        if len(gallery_images) > 1:
+            with st.expander(f"Gallery ({len(gallery_images)})", expanded=False):
+                st.image(gallery_images, width=120)
