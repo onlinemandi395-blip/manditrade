@@ -53,3 +53,10 @@ def render_setup_console(admin_drive_service, drive_manifest: dict) -> None:
     render_table(drive_manifest.get("required_folders", []), caption="Required Drive folders")
     st.markdown("### Required JSON Files")
     render_table(drive_manifest.get("required_files", []), caption="Required Drive files")
+    theme_file = next(
+        (row for row in drive_manifest.get("required_files", []) if str(row.get("logical_path", "")) == "00_config/theme.json"),
+        None,
+    )
+    if theme_file:
+        st.markdown("### Theme Config Trace")
+        render_table([theme_file], caption="theme.json status")

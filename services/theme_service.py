@@ -52,6 +52,48 @@ class ThemeService:
             "warning": "",
         }
 
+    def get_background_status(self) -> dict:
+        theme_payload = self.get_theme_config()
+        background = dict(((theme_payload.get("theme") or {}).get("background") or {}))
+        status = {
+            "theme_config_present": bool(theme_payload),
+            "background_enabled": bool(background.get("enabled", False)),
+            "background_source": str(background.get("source", "")),
+            "background_file_id": str(background.get("file_id", "") or ""),
+            "background_file_name": str(background.get("file_name", "") or ""),
+            "cache_key": str(background.get("local_cache_key", "app_background") or "app_background"),
+            "status": "MISSING",
+            "message": "",
+        }
+        if not theme_payload:
+            status["message"] = "theme.json is missing or empty."
+            return status
+        if not background:
+            status["message"] = "theme.background config is missing."
+            return status
+        if not background.get("enabled", False):
+            status["status"] = "DISABLED"
+            status["message"] = "Background theme is disabled."
+            return status
+        if not status["background_file_id"]:
+            status["message"] = "Theme background file_id is not configured."
+            return status
+        try:
+            service = self.admin_drive_service.build_client()
+            metadata = service.files().get(
+                fileId=status["background_file_id"],
+                fields="id,name,mimeType,modifiedTime",
+            ).execute()
+            status["status"] = "READY"
+            status["message"] = "Background image is reachable in Drive."
+            status["resolved_name"] = metadata.get("name", "")
+            status["mime_type"] = metadata.get("mimeType", "")
+            status["modified_time"] = metadata.get("modifiedTime", "")
+            return status
+        except Exception as exc:
+            status["message"] = f"Background image could not be resolved from Drive: {exc}"
+            return status
+
     def build_background_css(self) -> str:
         style = self.get_background_style()
         if not style.get("enabled"):

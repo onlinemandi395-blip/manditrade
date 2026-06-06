@@ -496,11 +496,14 @@ def render_app() -> None:
                 {"key": "language_selected", "value": status["language_selected"]},
                 {"key": "available_languages", "value": ", ".join(status["available_languages"])},
                 {"key": "primary_admin_email", "value": status["primary_admin_email"]},
+                {"key": "theme_background_status", "value": status["theme_status"].get("status", "MISSING")},
+                {"key": "theme_background_message", "value": status["theme_status"].get("message", "")},
             ],
             caption="Integration status",
         )
         render_table(status["required_folders"], caption="Required Drive folders")
         render_table(status["required_files"], caption="Required Drive files")
+        render_table([status["theme_status"]], caption="Theme background trace")
         render_detail_panel("Cache Status", status["cache_status"])
     else:
         render_empty_state("Unsupported page type.")
