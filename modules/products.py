@@ -31,8 +31,9 @@ def render_products_page(data_service, notification_service, session_service) ->
                     "category": product.get("category", ""),
                     "marketplace_price": ((product.get("sales_channels") or {}).get("marketplace") or {}).get("price", 0),
                     "manditrade_price": ((product.get("sales_channels") or {}).get("manditrade") or {}).get("price", 0),
-                    "manufacturers": len(product.get("manufacturer_tags", [])),
-                    "mahajans": len(product.get("mahajan_tags", [])),
+                    "manufacturer_email": ((product.get("manufacturer") or {}).get("email", "")),
+                    "mahajan_email": ((product.get("mahajan") or {}).get("email", "")),
+                    "inventory_quantity": ((product.get("inventory") or {}).get("available_quantity", 0)),
                     "status": product.get("status", "ACTIVE"),
                 }
                 for product in products
@@ -61,55 +62,32 @@ def render_products_page(data_service, notification_service, session_service) ->
             description = st.text_area("Description")
             unit = st.text_input("Unit", value="piece")
             image_url = st.text_input("Image URL")
+            status = st.selectbox("Status", options=["ACTIVE", "INACTIVE", "DRAFT"], index=0)
             marketplace_enabled = st.checkbox("Marketplace Enabled", value=True)
             marketplace_price = st.number_input("Marketplace Price", min_value=0.0, step=1.0)
             manditrade_enabled = st.checkbox("MandiTrade Enabled", value=True)
             manditrade_price = st.number_input("MandiTrade Price", min_value=0.0, step=1.0)
             available_quantity = st.number_input("Available Quantity", min_value=0.0, step=1.0)
-            manufacturer_emails = st.multiselect("Manufacturer Emails", options=sorted(manufacturer_index.keys()))
-            mahajan_emails = st.multiselect("Mahajan Emails", options=sorted(mahajan_index.keys()))
+            manufacturer_email = st.selectbox("Manufacturer Email", options=[""] + sorted(manufacturer_index.keys()))
+            mahajan_email = st.selectbox("Mahajan Email", options=[""] + sorted(mahajan_index.keys()))
             submitted = st.form_submit_button("Save Product", use_container_width=True)
         if submitted:
             if not product_name.strip() or not product_code.strip():
                 st.error("Product name and code are required.")
             else:
-                manufacturer_tags = []
-                invalid_manufacturers = [email for email in manufacturer_emails if email not in manufacturer_index]
-                invalid_mahajans = [email for email in mahajan_emails if email not in mahajan_index]
-                if invalid_manufacturers:
-                    st.error(f"Manufacturer email not found: {', '.join(invalid_manufacturers)}")
+                if not manufacturer_email or manufacturer_email not in manufacturer_index:
+                    st.error("Manufacturer email not found or inactive.")
                     return
-                if invalid_mahajans:
-                    st.error(f"Mahajan email not found: {', '.join(invalid_mahajans)}")
+                if not mahajan_email or mahajan_email not in mahajan_index:
+                    st.error("Mahajan email not found or inactive.")
                     return
-                for index, email in enumerate(manufacturer_emails, start=1):
-                    user = manufacturer_index[email]
-                    manufacturer_tags.append(
-                        {
-                            "email": email,
-                            "manufacturer_id": f"MFG_{index:03d}",
-                            "name": user.get("display_name", email.split("@")[0]),
-                            "priority": index,
-                            "active": True,
-                        }
-                    )
-                mahajan_tags = []
-                for index, email in enumerate(mahajan_emails, start=1):
-                    user = mahajan_index[email]
-                    mahajan_tags.append(
-                        {
-                            "email": email,
-                            "mahajan_id": f"MHJ_{index:03d}",
-                            "name": user.get("display_name", email.split("@")[0]),
-                            "raw_materials": [],
-                            "active": True,
-                        }
-                    )
+                manufacturer_user = manufacturer_index[manufacturer_email]
+                mahajan_user = mahajan_index[mahajan_email]
                 record = {
                     "product_id": f"PROD_{len(products) + 1:03d}",
                     "product_code": product_code.strip(),
                     "product_name": product_name.strip(),
-                    "status": "ACTIVE",
+                    "status": status,
                     "category": category.strip() or "General",
                     "subcategory": subcategory.strip(),
                     "description": description.strip(),
@@ -119,27 +97,52 @@ def render_products_page(data_service, notification_service, session_service) ->
                         "marketplace": {"enabled": marketplace_enabled, "price": marketplace_price},
                         "manditrade": {"enabled": manditrade_enabled, "price": manditrade_price},
                     },
-                    "manufacturer_tags": manufacturer_tags,
-                    "mahajan_tags": mahajan_tags,
-                    "inventory": {"available_quantity": available_quantity, "unit": unit.strip() or "piece"},
+                    "manufacturer": {
+                        "email": manufacturer_email,
+                        "manufacturer_id": str(manufacturer_user.get("user_id", "") or manufacturer_user.get("id", "") or "MFG_001"),
+                        "name": manufacturer_user.get("display_name", manufacturer_email.split("@")[0]),
+                        "phone": manufacturer_user.get("phone", ""),
+                        "active": True,
+                    },
+                    "mahajan": {
+                        "email": mahajan_email,
+                        "mahajan_id": str(mahajan_user.get("user_id", "") or mahajan_user.get("id", "") or "MHJ_001"),
+                        "name": mahajan_user.get("display_name", mahajan_email.split("@")[0]),
+                        "phone": mahajan_user.get("phone", ""),
+                        "active": True,
+                    },
+                    "inventory": {
+                        "available_quantity": available_quantity,
+                        "unit": unit.strip() or "piece",
+                        "manual_update_only": True,
+                    },
+                    "routing": {
+                        "marketplace_orders": {
+                            "route_to": "manufacturer",
+                            "notify": ["platform_admin", "manufacturer"],
+                        },
+                        "manditrade_orders": {
+                            "route_to": "platform_admin",
+                            "assigned_supplier": "manufacturer",
+                            "notify": ["platform_admin", "manufacturer", "mahajan"],
+                        },
+                    },
                     "created_at": datetime.now(UTC).isoformat(),
                     "updated_at": datetime.now(UTC).isoformat(),
                 }
                 products.append(record)
-                for email in manufacturer_emails:
-                    notification_service.create_notification(
-                        notification_type="PRODUCT_UPDATED",
-                        title="Product tagged for manufacturer",
-                        message=f"{product_name} was tagged to your manufacturer account.",
-                        metadata={"to_email": email, "product_id": record["product_id"]},
-                    )
-                for email in mahajan_emails:
-                    notification_service.create_notification(
-                        notification_type="PRODUCT_UPDATED",
-                        title="Product tagged for mahajan",
-                        message=f"{product_name} was tagged to your mahajan account.",
-                        metadata={"to_email": email, "product_id": record["product_id"]},
-                    )
+                notification_service.create_notification(
+                    notification_type="PRODUCT_UPDATED",
+                    title="Product mapped to manufacturer",
+                    message=f"{product_name} was mapped to your manufacturer account.",
+                    metadata={"to_email": manufacturer_email, "product_id": record["product_id"]},
+                )
+                notification_service.create_notification(
+                    notification_type="PRODUCT_UPDATED",
+                    title="Product mapped to mahajan",
+                    message=f"{product_name} was mapped to your mahajan account.",
+                    metadata={"to_email": mahajan_email, "product_id": record["product_id"]},
+                )
                 notification_service.create_notification(
                     notification_type="PRODUCT_UPDATED",
                     title="Product created",

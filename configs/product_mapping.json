@@ -21,27 +21,35 @@
           "price": 220
         }
       },
-      "manufacturer_tags": [
-        {
-          "email": "manufacturer@example.com",
-          "manufacturer_id": "MFG_001",
-          "name": "Demo Manufacturer",
-          "priority": 1,
-          "active": true
-        }
-      ],
-      "mahajan_tags": [
-        {
-          "email": "mahajan@example.com",
-          "mahajan_id": "MHJ_001",
-          "name": "Demo Mahajan",
-          "raw_materials": ["Cotton Thread", "Packaging Bag"],
-          "active": true
-        }
-      ],
+      "manufacturer": {
+        "email": "manufacturer@example.com",
+        "manufacturer_id": "MFG_001",
+        "name": "Demo Manufacturer",
+        "phone": "",
+        "active": true
+      },
+      "mahajan": {
+        "email": "mahajan@example.com",
+        "mahajan_id": "MHJ_001",
+        "name": "Demo Mahajan",
+        "phone": "",
+        "active": true
+      },
       "inventory": {
         "available_quantity": 5000,
-        "unit": "piece"
+        "unit": "piece",
+        "manual_update_only": true
+      },
+      "routing": {
+        "marketplace_orders": {
+          "route_to": "manufacturer",
+          "notify": ["platform_admin", "manufacturer"]
+        },
+        "manditrade_orders": {
+          "route_to": "platform_admin",
+          "assigned_supplier": "manufacturer",
+          "notify": ["platform_admin", "manufacturer", "mahajan"]
+        }
       },
       "created_at": "2026-06-05T00:00:00Z",
       "updated_at": "2026-06-05T00:00:00Z"
@@ -60,11 +68,35 @@
         "marketplace": {"enabled": true, "price": 780},
         "manditrade": {"enabled": true, "price": 710}
       },
-      "manufacturer_tags": [],
-      "mahajan_tags": [],
+      "manufacturer": {
+        "email": "manufacturer@example.com",
+        "manufacturer_id": "MFG_001",
+        "name": "Demo Manufacturer",
+        "phone": "",
+        "active": true
+      },
+      "mahajan": {
+        "email": "mahajan@example.com",
+        "mahajan_id": "MHJ_001",
+        "name": "Demo Mahajan",
+        "phone": "",
+        "active": true
+      },
       "inventory": {
         "available_quantity": 1500,
-        "unit": "piece"
+        "unit": "piece",
+        "manual_update_only": true
+      },
+      "routing": {
+        "marketplace_orders": {
+          "route_to": "manufacturer",
+          "notify": ["platform_admin", "manufacturer"]
+        },
+        "manditrade_orders": {
+          "route_to": "platform_admin",
+          "assigned_supplier": "manufacturer",
+          "notify": ["platform_admin", "manufacturer", "mahajan"]
+        }
       },
       "created_at": "2026-06-05T00:00:00Z",
       "updated_at": "2026-06-05T00:00:00Z"
@@ -83,9 +115,32 @@
         "marketplace": {"enabled": true, "price": 95},
         "manditrade": {"enabled": true, "price": 82}
       },
-      "manufacturer_tags": [],
-      "mahajan_tags": [],
-      "inventory": {"available_quantity": 800, "unit": "piece"},
+      "manufacturer": {
+        "email": "manufacturer@example.com",
+        "manufacturer_id": "MFG_001",
+        "name": "Demo Manufacturer",
+        "phone": "",
+        "active": true
+      },
+      "mahajan": {
+        "email": "mahajan@example.com",
+        "mahajan_id": "MHJ_001",
+        "name": "Demo Mahajan",
+        "phone": "",
+        "active": true
+      },
+      "inventory": {"available_quantity": 800, "unit": "piece", "manual_update_only": true},
+      "routing": {
+        "marketplace_orders": {
+          "route_to": "manufacturer",
+          "notify": ["platform_admin", "manufacturer"]
+        },
+        "manditrade_orders": {
+          "route_to": "platform_admin",
+          "assigned_supplier": "manufacturer",
+          "notify": ["platform_admin", "manufacturer", "mahajan"]
+        }
+      },
       "created_at": "2026-06-05T00:00:00Z",
       "updated_at": "2026-06-05T00:00:00Z"
     },
@@ -103,9 +158,32 @@
         "marketplace": {"enabled": false, "price": 0},
         "manditrade": {"enabled": true, "price": 430}
       },
-      "manufacturer_tags": [],
-      "mahajan_tags": [],
-      "inventory": {"available_quantity": 60, "unit": "piece"},
+      "manufacturer": {
+        "email": "manufacturer@example.com",
+        "manufacturer_id": "MFG_001",
+        "name": "Demo Manufacturer",
+        "phone": "",
+        "active": true
+      },
+      "mahajan": {
+        "email": "mahajan@example.com",
+        "mahajan_id": "MHJ_001",
+        "name": "Demo Mahajan",
+        "phone": "",
+        "active": true
+      },
+      "inventory": {"available_quantity": 60, "unit": "piece", "manual_update_only": true},
+      "routing": {
+        "marketplace_orders": {
+          "route_to": "manufacturer",
+          "notify": ["platform_admin", "manufacturer"]
+        },
+        "manditrade_orders": {
+          "route_to": "platform_admin",
+          "assigned_supplier": "manufacturer",
+          "notify": ["platform_admin", "manufacturer", "mahajan"]
+        }
+      },
       "created_at": "2026-06-05T00:00:00Z",
       "updated_at": "2026-06-05T00:00:00Z"
     },
@@ -123,9 +201,32 @@
         "marketplace": {"enabled": false, "price": 0},
         "manditrade": {"enabled": true, "price": 5400}
       },
-      "manufacturer_tags": [],
-      "mahajan_tags": [],
-      "inventory": {"available_quantity": 15, "unit": "unit"},
+      "manufacturer": {
+        "email": "manufacturer@example.com",
+        "manufacturer_id": "MFG_001",
+        "name": "Demo Manufacturer",
+        "phone": "",
+        "active": true
+      },
+      "mahajan": {
+        "email": "mahajan@example.com",
+        "mahajan_id": "MHJ_001",
+        "name": "Demo Mahajan",
+        "phone": "",
+        "active": true
+      },
+      "inventory": {"available_quantity": 15, "unit": "unit", "manual_update_only": true},
+      "routing": {
+        "marketplace_orders": {
+          "route_to": "manufacturer",
+          "notify": ["platform_admin", "manufacturer"]
+        },
+        "manditrade_orders": {
+          "route_to": "platform_admin",
+          "assigned_supplier": "manufacturer",
+          "notify": ["platform_admin", "manufacturer", "mahajan"]
+        }
+      },
       "created_at": "2026-06-05T00:00:00Z",
       "updated_at": "2026-06-05T00:00:00Z"
     }

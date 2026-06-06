@@ -206,16 +206,21 @@ def render_app() -> None:
                 render_table(cart["items"])
                 st.write(f"Total: {cart_service.calculate_total()}")
                 if st.button("Checkout", use_container_width=True):
-                    order = order_service.create_order(
+                    order = order_service.create_marketplace_order(
                         items=cart["items"],
-                        source_channel=current_route,
-                        role=role,
+                        buyer_email=session_service.get_user().get("email", ""),
                     )
                     cart_service.clear_cart()
                     st.success(f"Order {order.get('order_id', '')} created.")
     elif page_definition.get("type") == "manditrade":
         products = page_service.filter_rows(datasets.get(page_definition.get("data_source", ""), []), page_definition.get("filters", {}))
-        render_manditrade_page(products)
+        def on_request(product: dict) -> None:
+            order = order_service.create_manditrade_order(
+                product=product,
+                requesting_manufacturer_email=session_service.get_user().get("email", ""),
+            )
+            st.success(f"MandiTrade order {order.get('order_id', '')} created.")
+        render_manditrade_page(products, on_request=on_request)
     elif page_definition.get("type") == "products_admin":
         render_products_page(data_service, notification_service, session_service)
     elif page_definition.get("type") == "admin_configuration":

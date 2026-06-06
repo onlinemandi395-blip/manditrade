@@ -69,41 +69,78 @@ class DataService:
         sales_channels.setdefault("marketplace", {"enabled": False, "price": 0})
         sales_channels.setdefault("manditrade", {"enabled": False, "price": 0})
         product["sales_channels"] = sales_channels
-        manufacturer_tags = product.get("manufacturer_tags")
-        if manufacturer_tags is None:
-            manufacturer_tags = []
-            for item in product.get("manufacturer_mapping", []) or []:
-                manufacturer_tags.append(
-                    {
-                        "email": ((item.get("contact") or {}).get("email", "")),
-                        "manufacturer_id": item.get("manufacturer_id", ""),
-                        "name": item.get("manufacturer_name", ""),
-                        "priority": item.get("priority", 1),
-                        "active": item.get("active", True),
-                    }
-                )
-        mahajan_tags = product.get("mahajan_tags")
-        if mahajan_tags is None:
-            mahajan_tags = []
-            for item in product.get("mahajan_mapping", []) or []:
-                mahajan_tags.append(
-                    {
-                        "email": ((item.get("contact") or {}).get("email", "")),
-                        "mahajan_id": item.get("mahajan_id", ""),
-                        "name": item.get("mahajan_name", ""),
-                        "raw_materials": item.get("supplied_raw_materials", []),
-                        "active": item.get("active", True),
-                    }
-                )
-        product["manufacturer_tags"] = manufacturer_tags
-        product["mahajan_tags"] = mahajan_tags
+        manufacturer = dict(product.get("manufacturer", {}) or {})
+        if not manufacturer:
+            legacy_manufacturers = product.get("manufacturer_tags") or []
+            if not legacy_manufacturers:
+                for item in product.get("manufacturer_mapping", []) or []:
+                    legacy_manufacturers.append(
+                        {
+                            "email": ((item.get("contact") or {}).get("email", "")),
+                            "manufacturer_id": item.get("manufacturer_id", ""),
+                            "name": item.get("manufacturer_name", ""),
+                            "phone": ((item.get("contact") or {}).get("phone", "")),
+                            "active": item.get("active", True),
+                        }
+                    )
+            first_manufacturer = (legacy_manufacturers or [{}])[0]
+            manufacturer = {
+                "email": first_manufacturer.get("email", ""),
+                "manufacturer_id": first_manufacturer.get("manufacturer_id", ""),
+                "name": first_manufacturer.get("name", ""),
+                "phone": first_manufacturer.get("phone", ""),
+                "active": first_manufacturer.get("active", True),
+            }
+        mahajan = dict(product.get("mahajan", {}) or {})
+        if not mahajan:
+            legacy_mahajans = product.get("mahajan_tags") or []
+            if not legacy_mahajans:
+                for item in product.get("mahajan_mapping", []) or []:
+                    legacy_mahajans.append(
+                        {
+                            "email": ((item.get("contact") or {}).get("email", "")),
+                            "mahajan_id": item.get("mahajan_id", ""),
+                            "name": item.get("mahajan_name", ""),
+                            "phone": ((item.get("contact") or {}).get("phone", "")),
+                            "active": item.get("active", True),
+                        }
+                    )
+            first_mahajan = (legacy_mahajans or [{}])[0]
+            mahajan = {
+                "email": first_mahajan.get("email", ""),
+                "mahajan_id": first_mahajan.get("mahajan_id", ""),
+                "name": first_mahajan.get("name", ""),
+                "phone": first_mahajan.get("phone", ""),
+                "active": first_mahajan.get("active", True),
+            }
+        product["manufacturer"] = manufacturer
+        product["mahajan"] = mahajan
+        product.pop("manufacturer_tags", None)
+        product.pop("mahajan_tags", None)
+        product.pop("manufacturer_mapping", None)
+        product.pop("mahajan_mapping", None)
         inventory = dict(product.get("inventory", {}) or {})
-        if not inventory and product.get("manufacturer_mapping"):
-            first_mapping = (product.get("manufacturer_mapping") or [{}])[0]
-            inventory = dict(first_mapping.get("inventory", {}) or {})
         inventory.setdefault("available_quantity", 0)
         inventory.setdefault("unit", product.get("unit", "piece"))
+        inventory.setdefault("manual_update_only", True)
         product["inventory"] = inventory
+        routing = dict(product.get("routing", {}) or {})
+        routing.setdefault(
+            "marketplace_orders",
+            {
+                "route_to": "manufacturer",
+                "notify": ["platform_admin", "manufacturer"],
+            },
+        )
+        routing.setdefault(
+            "manditrade_orders",
+            {
+                "route_to": "platform_admin",
+                "assigned_supplier": "manufacturer",
+                "notify": ["platform_admin", "manufacturer", "mahajan"],
+            },
+        )
+        product["routing"] = routing
         product["created_at"] = product.get("created_at") or datetime.now(UTC).isoformat()
         product["updated_at"] = product.get("updated_at") or product["created_at"]
         return product
