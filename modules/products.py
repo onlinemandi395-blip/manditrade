@@ -207,8 +207,7 @@ def _resolve_or_create_owner(
             raise ValueError(
                 f"Owner email already exists with role {existing_role or 'unknown'}. Cannot assign as {owner_role}."
             )
-        if str(existing.get("status", "ACTIVE")).upper() != "ACTIVE":
-            raise ValueError("Owner email exists but is not ACTIVE.")
+        existing["status"] = "ACTIVE"
         if owner_display_name.strip() and not str(existing.get("display_name", "")).strip():
             existing["display_name"] = owner_display_name.strip()
         if owner_phone.strip() and not str(existing.get("phone", "")).strip():
