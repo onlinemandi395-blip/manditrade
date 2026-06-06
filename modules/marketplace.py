@@ -24,7 +24,7 @@ def render_marketplace_page(products: list[dict], on_add_to_cart, media_service=
         product
         for product in products
         if ((product.get("sales_channels") or {}).get("marketplace") or {}).get("enabled")
-        and str(product.get("status", "ACTIVE")).upper() == "ACTIVE"
+        and str(product.get("status", "PENDING_APPROVAL")).upper() == "APPROVED"
         and (not query or _matches_search(product, query))
     ]
     render_product_grid(marketplace_products, view="marketplace", on_add_to_cart=on_add_to_cart, media_service=media_service)

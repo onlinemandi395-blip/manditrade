@@ -55,17 +55,17 @@ def _resolve_card_value(card: dict, rows: list[dict], current_user: dict) -> int
     if metric == "ledger_balance":
         return round(
             sum(
-                float(row.get("amount", 0) or 0)
+                float(row.get("credit", 0) or 0) - float(row.get("debit", 0) or 0)
                 for row in rows
-                if str(((row.get("party_b") or {}).get("email", ""))).strip().lower() == current_email
-                or str(((row.get("party_a") or {}).get("email", ""))).strip().lower() == current_email
+                if str(((row.get("party_owner") or row.get("party_b") or {}).get("email", ""))).strip().lower() == current_email
+                or str(((row.get("party_admin") or row.get("party_a") or {}).get("email", ""))).strip().lower() == current_email
             ),
             2,
         )
     if metric == "open_ledger":
-        return round(sum(float(row.get("amount", 0) or 0) for row in rows if str(row.get("status", "")).upper() == "OPEN"), 2)
+        return round(sum(float(row.get("credit", 0) or 0) - float(row.get("debit", 0) or 0) for row in rows if str(row.get("status", "")).upper() == "OPEN"), 2)
     if metric == "owner_pending_requests":
-        return len([row for row in rows if str(row.get("owner_status", "")).upper() == "PENDING"])
+        return len([row for row in rows if str(row.get("status", "")).upper() == "PENDING_APPROVAL"])
     if metric == "unread_notifications":
         return len(
             [

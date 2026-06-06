@@ -12,7 +12,7 @@ from services.media_service import MediaService
 
 
 OWNER_TYPES = {"Manufacturer": "manufacturer", "Mahajan": "mahajan"}
-STATUSES = ["ACTIVE", "INACTIVE", "ARCHIVED"]
+STATUSES = ["PENDING_APPROVAL", "APPROVED", "REJECTED", "ARCHIVED"]
 MASTER_CATEGORY_ROWS = [
     {"category": "Textile", "subcategories": ["Towel", "Bedsheet", "Curtain", "Blanket", "Fabric Roll", "Uniform", "Pillow Cover", "Mattress Cover", "Bath Linen", "Home Furnishing"]},
     {"category": "Raw Material", "subcategories": ["Cotton", "Thread", "Yarn", "Packaging", "Dye", "Chemical", "Polyester", "Foam", "Elastic", "Buttons"]},
@@ -168,8 +168,9 @@ def _build_product_table_rows(products: list[dict]) -> list[dict]:
                 "owner_role": ((product.get("owner") or {}).get("role", "")),
                 "category": product.get("category", ""),
                 "subcategory": product.get("subcategory", ""),
-                "marketplace_price": ((product.get("sales_channels") or {}).get("marketplace") or {}).get("price", 0),
-                "manditrade_price": ((product.get("sales_channels") or {}).get("manditrade") or {}).get("price", 0),
+                "admin_price": ((product.get("pricing") or {}).get("admin_price", 0)),
+                "marketplace_price": ((product.get("pricing") or {}).get("marketplace_price", 0)),
+                "manditrade_price": ((product.get("pricing") or {}).get("manditrade_price", 0)),
                 "quantity": ((product.get("inventory") or {}).get("available_quantity", 0)),
                 "status": product.get("status", "ACTIVE"),
             }
@@ -264,14 +265,23 @@ def _apply_product_values(
         or ""
     )
     product["unit"] = values["unit"]
+    product["pricing"] = {
+        "admin_price": values["admin_price"],
+        "marketplace_price": values["marketplace_price"],
+        "manditrade_price": values["manditrade_price"],
+        "currency": "INR",
+    }
     product["sales_channels"] = {
-        "marketplace": {"enabled": values["marketplace_enabled"], "price": values["marketplace_price"]},
-        "manditrade": {"enabled": values["manditrade_enabled"], "price": values["manditrade_price"]},
+        "marketplace": {"enabled": values["marketplace_enabled"]},
+        "manditrade": {"enabled": values["manditrade_enabled"]},
     }
     product["inventory"] = {
         "available_quantity": values["available_quantity"],
         "manual_update_only": True,
     }
+    product["approval"] = dict(product.get("approval", {}) or {})
+    product["approval"]["submitted_by"] = values.get("submitted_by", product["approval"].get("submitted_by", current_user_email))
+    product["approval"]["submitted_at"] = values.get("submitted_at", product["approval"].get("submitted_at", datetime.now(UTC).isoformat()))
     product["updated_at"] = datetime.now(UTC).isoformat()
     product["updated_by"] = current_user_email
 
@@ -286,6 +296,13 @@ def _persist_notifications(data_service) -> None:
     data_service.persist_collection("gmail_queue")
 
 
+def _get_editable_status_options(is_admin: bool, current_status: str) -> list[str]:
+    if is_admin:
+        return STATUSES
+    normalized_status = str(current_status or "PENDING_APPROVAL").upper()
+    return [normalized_status or "PENDING_APPROVAL"]
+
+
 def render_products_page(data_service, notification_service, session_service, cache_service) -> None:
     products = data_service.get_collection_ref("products")
     users = data_service.get_collection_ref("users")
@@ -296,6 +313,8 @@ def render_products_page(data_service, notification_service, session_service, ca
     category_names = list(category_index.keys())
     current_user_email = session_service.get_user().get("email", "")
     current_user_role = session_service.get_user().get("role", "")
+    is_admin = current_user_role == "platform_admin"
+    current_user_record = next((row for row in users if str(row.get("email", "")).strip().lower() == str(current_user_email).strip().lower()), {})
     if merged_categories_payload != categories_config and current_user_role == "platform_admin":
         try:
             data_service.admin_drive_service.write_json("00_config/categories.json", merged_categories_payload)
@@ -304,13 +323,16 @@ def render_products_page(data_service, notification_service, session_service, ca
             pass
     visible_products = (
         products
-        if current_user_role == "platform_admin"
+        if is_admin
         else [product for product in products if str(((product.get("owner") or {}).get("email", ""))).strip().lower() == str(current_user_email).strip().lower()]
     )
     id_service = IdService()
     media_service = MediaService(data_service.admin_drive_service)
     next_product_code = id_service.preview_drive_id(data_service.admin_drive_service, "product", "PROD")
-    tabs = st.tabs(["All Products", "Marketplace", "MandiTrade", "Inactive", "Add Product"])
+    tab_labels = ["All Products", "Marketplace", "MandiTrade", "Pending Approval", "Approved", "Inactive/Archived", "Add Product"]
+    if is_admin:
+        tab_labels.append("Approve Products")
+    tabs = st.tabs(tab_labels)
 
     with tabs[0]:
         render_table(_build_product_table_rows(visible_products), caption="All products")
@@ -341,44 +363,52 @@ def render_products_page(data_service, notification_service, session_service, ca
                 if existing_images:
                     _render_product_image_gallery(existing_images, media_service, title="Current Product Images")
                 edit_product_name = st.text_input("Product Name", value=selected_product.get("product_name", ""), key="edit_product_name")
-                edit_owner_type = st.selectbox(
-                    "Owner Type",
-                    options=list(OWNER_TYPES.keys()),
-                    index=list(OWNER_TYPES.keys()).index(owner_type_label),
-                    key="edit_owner_type",
-                )
-                edit_owner_mode = st.radio(
-                    "Owner Selection Mode",
-                    options=["Select Existing", "Add New"],
-                    horizontal=True,
-                    index=0 if default_owner_mode == "Select Existing" else 1,
-                    key="edit_owner_mode",
-                )
-                edit_role_key = OWNER_TYPES[edit_owner_type]
-                edit_owner_candidates = _owner_candidates_for_role(users, products, edit_role_key)
                 edit_owner_email = str(selected_owner.get("email", "")).strip().lower()
                 edit_owner_display_name = str(selected_owner.get("display_name", "")).strip()
                 edit_owner_phone = str(selected_owner.get("phone", "")).strip()
-                if edit_owner_mode == "Select Existing" and edit_owner_candidates:
-                    edit_owner_option_map = {row.get("email", ""): row for row in edit_owner_candidates}
-                    edit_owner_choice = st.selectbox(
-                        "Existing Owner",
-                        options=list(edit_owner_option_map.keys()),
-                        format_func=lambda value: _owner_option_label(edit_owner_option_map.get(value, {})),
-                        index=next((idx for idx, value in enumerate(edit_owner_option_map.keys()) if str(value).strip().lower() == edit_owner_email), 0),
-                        key="edit_existing_owner",
+                if is_admin:
+                    edit_owner_type = st.selectbox(
+                        "Owner Type",
+                        options=list(OWNER_TYPES.keys()),
+                        index=list(OWNER_TYPES.keys()).index(owner_type_label),
+                        key="edit_owner_type",
                     )
-                    selected_existing_owner = edit_owner_option_map.get(edit_owner_choice, {})
-                    edit_owner_email = str(selected_existing_owner.get("email", edit_owner_email)).strip().lower()
-                    edit_owner_display_name = str(selected_existing_owner.get("display_name", edit_owner_display_name)).strip()
-                    edit_owner_phone = str(selected_existing_owner.get("phone", edit_owner_phone)).strip()
-                    st.caption(f"Selected Owner: {_owner_option_label(selected_existing_owner)}")
+                    edit_owner_mode = st.radio(
+                        "Owner Selection Mode",
+                        options=["Select Existing", "Add New"],
+                        horizontal=True,
+                        index=0 if default_owner_mode == "Select Existing" else 1,
+                        key="edit_owner_mode",
+                    )
+                    edit_role_key = OWNER_TYPES[edit_owner_type]
+                    edit_owner_candidates = _owner_candidates_for_role(users, products, edit_role_key)
+                    if edit_owner_mode == "Select Existing" and edit_owner_candidates:
+                        edit_owner_option_map = {row.get("email", ""): row for row in edit_owner_candidates}
+                        edit_owner_choice = st.selectbox(
+                            "Existing Owner",
+                            options=list(edit_owner_option_map.keys()),
+                            format_func=lambda value: _owner_option_label(edit_owner_option_map.get(value, {})),
+                            index=next((idx for idx, value in enumerate(edit_owner_option_map.keys()) if str(value).strip().lower() == edit_owner_email), 0),
+                            key="edit_existing_owner",
+                        )
+                        selected_existing_owner = edit_owner_option_map.get(edit_owner_choice, {})
+                        edit_owner_email = str(selected_existing_owner.get("email", edit_owner_email)).strip().lower()
+                        edit_owner_display_name = str(selected_existing_owner.get("display_name", edit_owner_display_name)).strip()
+                        edit_owner_phone = str(selected_existing_owner.get("phone", edit_owner_phone)).strip()
+                        st.caption(f"Selected Owner: {_owner_option_label(selected_existing_owner)}")
+                    else:
+                        if edit_owner_mode == "Select Existing" and not edit_owner_candidates:
+                            st.info("No existing active owners found for this role. Add a new owner.")
+                        edit_owner_email = st.text_input("Owner Email", value=edit_owner_email, key="edit_owner_email").strip().lower()
+                        edit_owner_display_name = st.text_input("Owner Display Name", value=edit_owner_display_name, key="edit_owner_display_name")
+                        edit_owner_phone = st.text_input("Owner Phone", value=edit_owner_phone, key="edit_owner_phone")
                 else:
-                    if edit_owner_mode == "Select Existing" and not edit_owner_candidates:
-                        st.info("No existing active owners found for this role. Add a new owner.")
-                    edit_owner_email = st.text_input("Owner Email", value=edit_owner_email, key="edit_owner_email").strip().lower()
-                    edit_owner_display_name = st.text_input("Owner Display Name", value=edit_owner_display_name, key="edit_owner_display_name")
-                    edit_owner_phone = st.text_input("Owner Phone", value=edit_owner_phone, key="edit_owner_phone")
+                    edit_role_key = current_user_role
+                    edit_owner_email = str(current_user_email).strip().lower()
+                    edit_owner_display_name = str(current_user_record.get("display_name", edit_owner_display_name)).strip()
+                    edit_owner_phone = str(current_user_record.get("phone", edit_owner_phone)).strip()
+                    st.caption(f"Owner: {edit_owner_email}")
+                    st.caption(f"Owner Role: {edit_role_key}")
                 edit_category = st.selectbox(
                     "Category",
                     options=category_names if category_names else [""],
@@ -399,10 +429,12 @@ def render_products_page(data_service, notification_service, session_service, ca
                 edit_unit = st.text_input("Unit", value=selected_product.get("unit", "piece"), key="edit_unit")
                 edit_available_quantity = st.number_input("Available Quantity", min_value=0.0, step=1.0, value=float((selected_product.get("inventory") or {}).get("available_quantity", 0)), key="edit_available_quantity")
                 edit_marketplace_enabled = st.checkbox("Marketplace Enabled", value=((selected_product.get("sales_channels") or {}).get("marketplace") or {}).get("enabled", False), key="edit_marketplace_enabled")
-                edit_marketplace_price = st.number_input("Marketplace Price", min_value=0.0, step=1.0, value=float(((selected_product.get("sales_channels") or {}).get("marketplace") or {}).get("price", 0)), key="edit_marketplace_price")
+                edit_admin_price = st.number_input("Admin Price", min_value=0.0, step=1.0, value=float(((selected_product.get("pricing") or {}).get("admin_price", 0))), key="edit_admin_price")
+                edit_marketplace_price = st.number_input("Marketplace Price", min_value=0.0, step=1.0, value=float(((selected_product.get("pricing") or {}).get("marketplace_price", 0))), key="edit_marketplace_price")
                 edit_manditrade_enabled = st.checkbox("MandiTrade Enabled", value=((selected_product.get("sales_channels") or {}).get("manditrade") or {}).get("enabled", False), key="edit_manditrade_enabled")
-                edit_manditrade_price = st.number_input("MandiTrade Price", min_value=0.0, step=1.0, value=float(((selected_product.get("sales_channels") or {}).get("manditrade") or {}).get("price", 0)), key="edit_manditrade_price")
-                edit_status = st.selectbox("Status", options=STATUSES, index=STATUSES.index(selected_product.get("status", "ACTIVE")) if selected_product.get("status", "ACTIVE") in STATUSES else 0, key="edit_status")
+                edit_manditrade_price = st.number_input("MandiTrade Price", min_value=0.0, step=1.0, value=float(((selected_product.get("pricing") or {}).get("manditrade_price", 0))), key="edit_manditrade_price")
+                editable_statuses = _get_editable_status_options(is_admin, selected_product.get("status", "PENDING_APPROVAL"))
+                edit_status = st.selectbox("Status", options=editable_statuses, index=editable_statuses.index(str(selected_product.get("status", editable_statuses[0])).upper()) if str(selected_product.get("status", editable_statuses[0])).upper() in editable_statuses else 0, key="edit_status")
                 edit_uploaded_files = st.file_uploader(
                     "Product Images Upload",
                     accept_multiple_files=True,
@@ -450,15 +482,21 @@ def render_products_page(data_service, notification_service, session_service, ca
                                 "description": edit_description.strip(),
                                 "unit": edit_unit.strip() or "piece",
                                 "available_quantity": edit_available_quantity,
+                                "admin_price": edit_admin_price,
                                 "marketplace_enabled": edit_marketplace_enabled,
                                 "marketplace_price": edit_marketplace_price,
                                 "manditrade_enabled": edit_manditrade_enabled,
                                 "manditrade_price": edit_manditrade_price,
-                                "status": edit_status,
+                                "status": edit_status if is_admin else "PENDING_APPROVAL",
+                                "submitted_by": (selected_product.get("approval") or {}).get("submitted_by", selected_product.get("created_by", current_user_email)),
+                                "submitted_at": (selected_product.get("approval") or {}).get("submitted_at", selected_product.get("created_at", datetime.now(UTC).isoformat())),
                             },
                             current_user_email=current_user_email,
                             uploaded_images=uploaded_images,
                         )
+                        if str(selected_product.get("status", "")).upper() == "APPROVED":
+                            selected_product["approval"]["approved_by"] = current_user_email
+                            selected_product["approval"]["approved_at"] = datetime.now(UTC).isoformat()
                         _persist_products_and_users(data_service)
                         st.success("Product updated.")
                     except Exception as exc:
@@ -474,7 +512,7 @@ def render_products_page(data_service, notification_service, session_service, ca
                 product
                 for product in visible_products
                 if ((product.get("sales_channels") or {}).get("marketplace") or {}).get("enabled")
-                and str(product.get("status", "ACTIVE")).upper() == "ACTIVE"
+                and str(product.get("status", "PENDING_APPROVAL")).upper() == "APPROVED"
             ],
             view="admin",
             media_service=media_service,
@@ -486,7 +524,7 @@ def render_products_page(data_service, notification_service, session_service, ca
                 product
                 for product in visible_products
                 if ((product.get("sales_channels") or {}).get("manditrade") or {}).get("enabled")
-                and str(product.get("status", "ACTIVE")).upper() == "ACTIVE"
+                and str(product.get("status", "PENDING_APPROVAL")).upper() == "APPROVED"
             ],
             view="admin",
             media_service=media_service,
@@ -495,40 +533,64 @@ def render_products_page(data_service, notification_service, session_service, ca
     with tabs[3]:
         render_table(
             _build_product_table_rows(
-                [product for product in visible_products if str(product.get("status", "ACTIVE")).upper() != "ACTIVE"]
+                [product for product in visible_products if str(product.get("status", "PENDING_APPROVAL")).upper() == "PENDING_APPROVAL"]
+            ),
+            caption="Pending approval products",
+        )
+
+    with tabs[4]:
+        render_table(
+            _build_product_table_rows(
+                [product for product in visible_products if str(product.get("status", "PENDING_APPROVAL")).upper() == "APPROVED"]
+            ),
+            caption="Approved products",
+        )
+
+    with tabs[5]:
+        render_table(
+            _build_product_table_rows(
+                [product for product in visible_products if str(product.get("status", "PENDING_APPROVAL")).upper() in {"REJECTED", "ARCHIVED"}]
             ),
             caption="Inactive / archived products",
         )
 
-    with tabs[4]:
+    with tabs[6]:
         st.caption(f"Product Code: {next_product_code}")
         product_name = st.text_input("Product Name", key="create_product_name")
-        owner_type = st.selectbox("Owner Type", options=list(OWNER_TYPES.keys()), key="create_owner_type")
-        owner_role_key = OWNER_TYPES[owner_type]
-        owner_mode = st.radio("Owner Selection Mode", options=["Select Existing", "Add New"], horizontal=True, key="create_owner_mode")
-        owner_candidates = _owner_candidates_for_role(users, products, owner_role_key)
-        owner_email = ""
-        owner_display_name = ""
-        owner_phone = ""
-        if owner_mode == "Select Existing" and owner_candidates:
-            owner_option_map = {row.get("email", ""): row for row in owner_candidates}
-            owner_choice = st.selectbox(
-                "Existing Owner",
-                options=list(owner_option_map.keys()),
-                format_func=lambda value: _owner_option_label(owner_option_map.get(value, {})),
-                key="create_existing_owner",
-            )
-            selected_owner_row = owner_option_map.get(owner_choice, {})
-            owner_email = str(selected_owner_row.get("email", "")).strip().lower()
-            owner_display_name = str(selected_owner_row.get("display_name", "")).strip()
-            owner_phone = str(selected_owner_row.get("phone", "")).strip()
-            st.caption(f"Selected Owner: {_owner_option_label(selected_owner_row)}")
+        if is_admin:
+            owner_type = st.selectbox("Owner Type", options=list(OWNER_TYPES.keys()), key="create_owner_type")
+            owner_role_key = OWNER_TYPES[owner_type]
+            owner_mode = st.radio("Owner Selection Mode", options=["Select Existing", "Add New"], horizontal=True, key="create_owner_mode")
+            owner_candidates = _owner_candidates_for_role(users, products, owner_role_key)
+            owner_email = ""
+            owner_display_name = ""
+            owner_phone = ""
+            if owner_mode == "Select Existing" and owner_candidates:
+                owner_option_map = {row.get("email", ""): row for row in owner_candidates}
+                owner_choice = st.selectbox(
+                    "Existing Owner",
+                    options=list(owner_option_map.keys()),
+                    format_func=lambda value: _owner_option_label(owner_option_map.get(value, {})),
+                    key="create_existing_owner",
+                )
+                selected_owner_row = owner_option_map.get(owner_choice, {})
+                owner_email = str(selected_owner_row.get("email", "")).strip().lower()
+                owner_display_name = str(selected_owner_row.get("display_name", "")).strip()
+                owner_phone = str(selected_owner_row.get("phone", "")).strip()
+                st.caption(f"Selected Owner: {_owner_option_label(selected_owner_row)}")
+            else:
+                if owner_mode == "Select Existing" and not owner_candidates:
+                    st.info("No existing active owners found for this role. Add a new owner.")
+                owner_email = st.text_input("Owner Email", key="create_owner_email").strip().lower()
+                owner_display_name = st.text_input("Owner Display Name", key="create_owner_display_name")
+                owner_phone = st.text_input("Owner Phone", key="create_owner_phone")
         else:
-            if owner_mode == "Select Existing" and not owner_candidates:
-                st.info("No existing active owners found for this role. Add a new owner.")
-            owner_email = st.text_input("Owner Email", key="create_owner_email").strip().lower()
-            owner_display_name = st.text_input("Owner Display Name", key="create_owner_display_name")
-            owner_phone = st.text_input("Owner Phone", key="create_owner_phone")
+            owner_role_key = current_user_role
+            owner_email = str(current_user_email).strip().lower()
+            owner_display_name = str(current_user_record.get("display_name", "")).strip()
+            owner_phone = str(current_user_record.get("phone", "")).strip()
+            st.caption(f"Owner: {owner_email}")
+            st.caption(f"Owner Role: {owner_role_key}")
         category = st.selectbox("Category", options=category_names if category_names else [""], key="create_category")
         subcategories = category_index.get(category, [])
         subcategory = st.selectbox("Subcategory", options=subcategories if subcategories else [""], key="create_subcategory")
@@ -536,6 +598,7 @@ def render_products_page(data_service, notification_service, session_service, ca
         unit = st.text_input("Unit", value="piece", key="create_unit")
         available_quantity = st.number_input("Available Quantity", min_value=0.0, step=1.0, key="create_available_quantity")
         marketplace_enabled = st.checkbox("Marketplace Enabled", value=True, key="create_marketplace_enabled")
+        admin_price = st.number_input("Admin Price", min_value=0.0, step=1.0, key="create_admin_price")
         marketplace_price = st.number_input("Marketplace Price", min_value=0.0, step=1.0, key="create_marketplace_price")
         manditrade_enabled = st.checkbox("MandiTrade Enabled", value=True, key="create_manditrade_enabled")
         manditrade_price = st.number_input("MandiTrade Price", min_value=0.0, step=1.0, key="create_manditrade_price")
@@ -545,7 +608,7 @@ def render_products_page(data_service, notification_service, session_service, ca
             type=["png", "jpg", "jpeg", "webp"],
             key="create_product_images",
         )
-        status = st.selectbox("Status", options=STATUSES, index=0, key="create_status")
+        status = st.selectbox("Status", options=["APPROVED", "PENDING_APPROVAL"] if is_admin else ["PENDING_APPROVAL"], index=0, key="create_status")
         submitted = st.button("Save Product", use_container_width=True, key="save_product_button")
 
         if submitted:
@@ -595,23 +658,36 @@ def render_products_page(data_service, notification_service, session_service, ca
                         "description": description.strip(),
                         "unit": unit.strip() or "piece",
                         "available_quantity": available_quantity,
+                        "admin_price": admin_price,
                         "marketplace_enabled": marketplace_enabled,
                         "marketplace_price": marketplace_price,
                         "manditrade_enabled": manditrade_enabled,
                         "manditrade_price": manditrade_price,
-                        "status": status,
+                        "status": status if is_admin else "PENDING_APPROVAL",
+                        "submitted_by": current_user_email,
+                        "submitted_at": datetime.now(UTC).isoformat(),
                     },
                     current_user_email=current_user_email,
                     uploaded_images=uploaded_images,
                 )
+                if record["status"] == "APPROVED":
+                    record["approval"]["approved_by"] = current_user_email
+                    record["approval"]["approved_at"] = datetime.now(UTC).isoformat()
                 products.append(record)
                 _persist_products_and_users(data_service)
                 notification_service.create_notification(
-                    notification_type="PRODUCT_UPDATED",
-                    title="Product created",
-                    message=f"{product_name} was created.",
+                    notification_type="PRODUCT_SUBMITTED",
+                    title="Product submitted",
+                    message=f"{product_name} was submitted.",
                     metadata={"to_email": owner_email, "product_id": record["product_id"]},
                 )
+                if not is_admin:
+                    notification_service.create_notification(
+                        notification_type="PRODUCT_SUBMITTED",
+                        title="Product approval required",
+                        message=f"{product_name} is awaiting approval.",
+                        metadata={"product_id": record["product_id"]},
+                    )
                 if owner_created:
                     notification_service.create_notification(
                         notification_type="OWNER_ONBOARDED",
@@ -636,3 +712,47 @@ def render_products_page(data_service, notification_service, session_service, ca
                 if product_code:
                     products[:] = [product for product in products if product.get("product_id") != product_code]
                 st.error(f"Drive write failed: {exc}")
+
+    if is_admin:
+        with tabs[7]:
+            pending_products = [product for product in products if str(product.get("status", "")).upper() == "PENDING_APPROVAL"]
+            render_table(_build_product_table_rows(pending_products), caption="Products awaiting approval")
+            selected_pending_id = st.selectbox("Select Pending Product", options=[""] + [product.get("product_id", "") for product in pending_products], key="approve_product_id")
+            selected_pending = next((product for product in pending_products if product.get("product_id") == selected_pending_id), None)
+            if selected_pending:
+                action = st.selectbox("Approval Action", options=["APPROVE", "REJECT", "REQUEST_CHANGES", "ARCHIVE"], key="approval_action")
+                rejection_reason = st.text_area("Reason / Notes", key="approval_reason")
+                if st.button("Apply Approval Action", use_container_width=True, key="apply_approval_action"):
+                    approval = dict(selected_pending.get("approval", {}) or {})
+                    now = datetime.now(UTC).isoformat()
+                    if action == "APPROVE":
+                        selected_pending["status"] = "APPROVED"
+                        approval["approved_by"] = current_user_email
+                        approval["approved_at"] = now
+                        notification_service.create_notification(
+                            notification_type="PRODUCT_APPROVED",
+                            title="Product approved",
+                            message=f"{selected_pending.get('product_name', 'Product')} was approved.",
+                            metadata={"to_email": ((selected_pending.get('owner') or {}).get('email', '')), "product_id": selected_pending.get("product_id", "")},
+                        )
+                    elif action in {"REJECT", "REQUEST_CHANGES"}:
+                        selected_pending["status"] = "REJECTED"
+                        approval["rejected_by"] = current_user_email
+                        approval["rejected_at"] = now
+                        approval["rejection_reason"] = rejection_reason.strip() or ("Changes requested." if action == "REQUEST_CHANGES" else "")
+                        notification_service.create_notification(
+                            notification_type="PRODUCT_REJECTED" if action == "REJECT" else "PRODUCT_CHANGES_REQUESTED",
+                            title="Product rejected" if action == "REJECT" else "Product changes requested",
+                            message=f"{selected_pending.get('product_name', 'Product')} was rejected." if action == "REJECT" else f"Changes requested for {selected_pending.get('product_name', 'Product')}.",
+                            metadata={"to_email": ((selected_pending.get('owner') or {}).get('email', '')), "product_id": selected_pending.get("product_id", "")},
+                        )
+                    else:
+                        selected_pending["status"] = "ARCHIVED"
+                    selected_pending["approval"] = approval
+                    selected_pending["updated_at"] = now
+                    selected_pending["updated_by"] = current_user_email
+                    data_service.persist_collection("products")
+                    data_service.persist_collection("notifications")
+                    data_service.persist_collection("gmail_queue")
+                    st.success("Approval action applied.")
+                    st.rerun()

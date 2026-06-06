@@ -15,6 +15,7 @@ from components.theme_manager import render_theme_manager
 from components.topbar import render_topbar
 from modules.admin_configuration import render_admin_configuration
 from modules.login import render_login_page
+from modules.ledger import render_ledger_page
 from modules.manditrade import render_manditrade_page
 from modules.marketplace import render_marketplace_page
 from modules.orders import render_orders_page
@@ -164,6 +165,8 @@ def _filter_role_rows(route: str, rows: list[dict], role: str, user_email: str) 
             if normalized_email in {
                 str(((row.get("party_a") or {}).get("email", ""))).strip().lower(),
                 str(((row.get("party_b") or {}).get("email", ""))).strip().lower(),
+                str(((row.get("party_admin") or {}).get("email", ""))).strip().lower(),
+                str(((row.get("party_owner") or {}).get("email", ""))).strip().lower(),
             }
         ]
     if route == "notifications":
@@ -446,6 +449,8 @@ def render_app() -> None:
         render_manditrade_page(products, on_request=on_request, media_service=media_service)
     elif page_definition.get("type") == "products_admin":
         render_products_page(data_service, notification_service, session_service, cache_service)
+    elif page_definition.get("type") == "ledger_page":
+        render_ledger_page(data_service, notification_service, session_service)
     elif page_definition.get("type") == "admin_configuration":
         render_admin_configuration(auth_service, data_service, notification_service, session_service)
     elif page_definition.get("type") in {"crud_table", "table"}:

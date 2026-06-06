@@ -24,7 +24,7 @@ def render_manditrade_page(products: list[dict], on_request=None, media_service=
         product
         for product in products
         if ((product.get("sales_channels") or {}).get("manditrade") or {}).get("enabled")
-        and str(product.get("status", "ACTIVE")).upper() == "ACTIVE"
+        and str(product.get("status", "PENDING_APPROVAL")).upper() == "APPROVED"
         and (not query or _matches_search(product, query))
     ]
     render_product_grid(manditrade_products, view="manditrade", on_request=on_request, media_service=media_service)

@@ -81,7 +81,10 @@ class DataService:
         product.setdefault("product_id", self.id_service.next("product"))
         product.setdefault("product_code", product.get("product_id", ""))
         product.setdefault("product_name", "")
-        product.setdefault("status", "ACTIVE")
+        raw_status = str(product.get("status", "APPROVED") or "APPROVED").strip().upper()
+        if raw_status == "ACTIVE":
+            raw_status = "APPROVED"
+        product["status"] = raw_status
         product.setdefault("category", "General")
         product.setdefault("subcategory", "")
         product.setdefault("description", "")
@@ -107,9 +110,17 @@ class DataService:
         if "mandiplace" in sales_channels and "manditrade" not in sales_channels:
             sales_channels["manditrade"] = sales_channels.pop("mandiplace")
         sales_channels.pop("suta_mandi", None)
-        sales_channels.setdefault("marketplace", {"enabled": False, "price": 0})
-        sales_channels.setdefault("manditrade", {"enabled": False, "price": 0})
+        marketplace_channel = dict(sales_channels.get("marketplace", {}) or {})
+        manditrade_channel = dict(sales_channels.get("manditrade", {}) or {})
+        pricing = dict(product.get("pricing", {}) or {})
+        pricing.setdefault("admin_price", 0)
+        pricing.setdefault("marketplace_price", marketplace_channel.get("price", 0))
+        pricing.setdefault("manditrade_price", manditrade_channel.get("price", 0))
+        pricing.setdefault("currency", "INR")
+        sales_channels["marketplace"] = {"enabled": bool(marketplace_channel.get("enabled", False))}
+        sales_channels["manditrade"] = {"enabled": bool(manditrade_channel.get("enabled", False))}
         product["sales_channels"] = sales_channels
+        product["pricing"] = pricing
         owner = dict(product.get("owner", {}) or {})
         if not owner:
             if product.get("manufacturer"):
@@ -158,6 +169,17 @@ class DataService:
         inventory.setdefault("available_quantity", 0)
         inventory.setdefault("manual_update_only", True)
         product["inventory"] = inventory
+        approval = dict(product.get("approval", {}) or {})
+        approval.setdefault("submitted_by", product.get("created_by", ""))
+        approval.setdefault("submitted_at", product.get("created_at", ""))
+        approval.setdefault("approved_by", "")
+        approval.setdefault("approved_at", "")
+        approval.setdefault("rejected_by", "")
+        approval.setdefault("rejected_at", "")
+        approval.setdefault("rejection_reason", "")
+        if product["status"] == "APPROVED" and not approval.get("approved_at"):
+            approval["approved_at"] = product.get("updated_at") or product.get("created_at") or datetime.now(UTC).isoformat()
+        product["approval"] = approval
         product["created_at"] = product.get("created_at") or datetime.now(UTC).isoformat()
         product["updated_at"] = product.get("updated_at") or product["created_at"]
         product["created_by"] = product.get("created_by", "")

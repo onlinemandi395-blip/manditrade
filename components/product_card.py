@@ -8,6 +8,7 @@ def render_product_card(product: dict, *, view: str = "marketplace", on_add_to_c
     primary_image = next((image for image in images if image.get("is_primary")), images[0] if images else {})
     marketplace = (product.get("sales_channels") or {}).get("marketplace", {})
     manditrade = (product.get("sales_channels") or {}).get("manditrade", {})
+    pricing = dict(product.get("pricing", {}) or {})
     owner = dict(product.get("owner", {}) or {})
     inventory = dict(product.get("inventory", {}) or {})
     with st.container(border=True):
@@ -22,17 +23,18 @@ def render_product_card(product: dict, *, view: str = "marketplace", on_add_to_c
         st.markdown(f"#### {product.get('product_name', product.get('product_id', 'Product'))}")
         st.caption(f"{product.get('product_code', '')} | {product.get('category', 'General')} | {product.get('status', 'ACTIVE')}")
         if view == "marketplace":
-            st.write(f"Marketplace Price: {marketplace.get('price', 0)}")
+            st.write(f"Marketplace Price: {pricing.get('marketplace_price', 0)}")
             if st.button("Add to Cart", key=f"cart_{product.get('product_id', '')}", use_container_width=True) and on_add_to_cart:
                 on_add_to_cart(product)
         elif view == "manditrade":
-            st.write(f"MandiTrade Price: {manditrade.get('price', 0)}")
+            st.write(f"MandiTrade Price: {pricing.get('manditrade_price', 0)}")
             st.caption(f"Inventory: {inventory.get('available_quantity', 0)} {product.get('unit', 'piece')}")
             if st.button("Request / Order", key=f"request_{product.get('product_id', '')}", use_container_width=True) and on_add_to_cart:
                 on_add_to_cart(product)
         else:
-            st.write(f"Marketplace: {'On' if marketplace.get('enabled') else 'Off'} | Price: {marketplace.get('price', 0)}")
-            st.write(f"MandiTrade: {'On' if manditrade.get('enabled') else 'Off'} | Price: {manditrade.get('price', 0)}")
+            st.write(f"Marketplace: {'On' if marketplace.get('enabled') else 'Off'} | Price: {pricing.get('marketplace_price', 0)}")
+            st.write(f"MandiTrade: {'On' if manditrade.get('enabled') else 'Off'} | Price: {pricing.get('manditrade_price', 0)}")
+            st.caption(f"Admin Price: {pricing.get('admin_price', 0)}")
             st.caption(f"Owner: {owner.get('email', '-')}")
             st.caption(f"Owner Role: {owner.get('role', '-')}")
             st.caption(f"Inventory: {inventory.get('available_quantity', 0)} {product.get('unit', 'piece')}")

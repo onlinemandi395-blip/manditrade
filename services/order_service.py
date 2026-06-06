@@ -19,20 +19,30 @@ class OrderService:
         with self.performance_service.measure("order_create_marketplace"):
             first_item = dict((items or [{}])[0])
             owner = dict(first_item.get("owner", {}) or {})
+            pricing = dict(first_item.get("pricing", {}) or {})
+            quantity = sum(float(item.get("quantity", 1) or 1) for item in items) if items else 1
+            sell_price = float(pricing.get("marketplace_price", 0) or 0)
+            admin_price = float(pricing.get("admin_price", 0) or 0)
             record = {
                 "order_id": self.id_service.next("order"),
                 "items": items,
                 "source_channel": "marketplace",
+                "market_type": "B2C",
                 "product_id": first_item.get("product_id", ""),
                 "product_name": first_item.get("product_name", ""),
                 "buyer_email": buyer_email,
                 "owner_email": owner.get("email", ""),
                 "owner_role": owner.get("role", ""),
-                "quantity": sum(float(item.get("quantity", 1) or 1) for item in items) if items else 1,
-                "unit_price": float((((first_item.get("sales_channels") or {}).get("marketplace") or {}).get("price", 0)) or 0),
-                "total_amount": sum(float(item.get("total", item.get("price", 0)) or 0) for item in items) if items else float((((first_item.get("sales_channels") or {}).get("marketplace") or {}).get("price", 0)) or 0),
+                "quantity": quantity,
+                "unit_price": sell_price,
+                "sell_price": sell_price,
+                "admin_price": admin_price,
+                "admin_margin": round(sell_price - admin_price, 2),
+                "total_amount": round(sell_price * quantity, 2),
                 "role": "public_buyer",
                 "status": "PLACED",
+                "admin_status": "NEW",
+                "owner_status": "PENDING",
                 "created_at": datetime.now(UTC).isoformat(),
             }
             self.data_service._bootstrap_collection("orders").append(record)
@@ -41,7 +51,8 @@ class OrderService:
                 source_channel="marketplace",
                 owner_email=owner.get("email", ""),
                 owner_role=owner.get("role", ""),
-                amount=record["total_amount"],
+                amount=round(admin_price * quantity, 2),
+                product_id=record["product_id"],
                 metadata={"buyer_email": buyer_email, "product_id": record["product_id"]},
             )
             self.notification_service.create_notification(
@@ -66,9 +77,13 @@ class OrderService:
     def create_manditrade_order(self, *, product: dict, requesting_user_email: str) -> dict:
         with self.performance_service.measure("order_create_manditrade"):
             owner = dict(product.get("owner", {}) or {})
+            pricing = dict(product.get("pricing", {}) or {})
+            sell_price = float(pricing.get("manditrade_price", 0) or 0)
+            admin_price = float(pricing.get("admin_price", 0) or 0)
             record = {
                 "order_id": self.id_service.next("order"),
                 "source_channel": "manditrade",
+                "market_type": "B2B",
                 "product_id": product.get("product_id", ""),
                 "product_name": product.get("product_name", ""),
                 "requester_email": requesting_user_email,
@@ -76,9 +91,14 @@ class OrderService:
                 "owner_role": owner.get("role", ""),
                 "admin_routed": True,
                 "quantity": 1,
-                "unit_price": float((((product.get("sales_channels") or {}).get("manditrade") or {}).get("price", 0)) or 0),
-                "total_amount": float((((product.get("sales_channels") or {}).get("manditrade") or {}).get("price", 0)) or 0),
+                "unit_price": sell_price,
+                "sell_price": sell_price,
+                "admin_price": admin_price,
+                "admin_margin": round(sell_price - admin_price, 2),
+                "total_amount": sell_price,
                 "status": "REQUESTED",
+                "admin_status": "NEW",
+                "owner_status": "PENDING",
                 "created_at": datetime.now(UTC).isoformat(),
             }
             self.data_service._bootstrap_collection("orders").append(record)
@@ -87,7 +107,8 @@ class OrderService:
                 source_channel="manditrade",
                 owner_email=owner.get("email", ""),
                 owner_role=owner.get("role", ""),
-                amount=record["total_amount"],
+                amount=admin_price,
+                product_id=record["product_id"],
                 metadata={"requester_email": requesting_user_email, "product_id": record["product_id"]},
             )
             if owner.get("email"):
