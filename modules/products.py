@@ -13,10 +13,38 @@ from services.media_service import MediaService
 
 OWNER_TYPES = {"Manufacturer": "manufacturer", "Mahajan": "mahajan"}
 STATUSES = ["ACTIVE", "INACTIVE", "ARCHIVED"]
+MASTER_CATEGORY_ROWS = [
+    {"category": "Textile", "subcategories": ["Towel", "Bedsheet", "Curtain", "Blanket", "Fabric Roll", "Uniform", "Pillow Cover", "Mattress Cover", "Bath Linen", "Home Furnishing"]},
+    {"category": "Raw Material", "subcategories": ["Cotton", "Thread", "Yarn", "Packaging", "Dye", "Chemical", "Polyester", "Foam", "Elastic", "Buttons"]},
+    {"category": "Food Grain", "subcategories": ["Rice", "Wheat", "Pulses", "Maize", "Millet", "Flour", "Sugar", "Salt", "Spices", "Oil Seeds"]},
+    {"category": "Industrial", "subcategories": ["Steel", "Machine Parts", "Tools", "Motor", "Pump", "Rack", "Bearings", "Fasteners", "Belts", "Industrial Consumables"]},
+    {"category": "Electronics", "subcategories": ["Mobile Accessories", "Wiring", "Switches", "LED", "Battery", "Charger", "Adapters", "Cables", "Inverter", "Control Panel"]},
+    {"category": "Packaging", "subcategories": ["Box", "Carton", "Bag", "Tape", "Label", "Bubble Wrap", "Pouch", "Shrink Film", "Containers", "Straps"]},
+    {"category": "Agriculture", "subcategories": ["Seeds", "Fertilizer", "Tools", "Irrigation", "Animal Feed", "Pesticide", "Farm Equipment", "Saplings", "Organic Inputs", "Mulch"]},
+    {"category": "Construction", "subcategories": ["Cement", "Sand", "Bricks", "Tiles", "Paint", "Hardware", "Pipes", "Steel Rod", "Electrical Fittings", "Stone"]},
+    {"category": "Furniture", "subcategories": ["Chair", "Table", "Rack", "Door", "Bed", "Cabinet", "Sofa", "Workstation", "Storage Unit", "Wood Panel"]},
+    {"category": "Apparel", "subcategories": ["T-Shirt", "Shirt", "Uniform", "Jacket", "Kids Wear", "Women's Wear", "Innerwear", "Sportswear", "Denim", "Ethnic Wear"]},
+    {"category": "Home Utility", "subcategories": ["Cleaning Supplies", "Kitchenware", "Plastic Items", "Buckets", "Storage Boxes", "Bathroom Items", "Mats", "Laundry Items"]},
+    {"category": "Healthcare", "subcategories": ["Masks", "Gloves", "Disposables", "Medical Equipment", "Sanitizer", "Supplements", "Bandages", "Diagnostics"]},
+    {"category": "Automotive", "subcategories": ["Lubricants", "Filters", "Tyres", "Spare Parts", "Batteries", "Cleaning Kits", "Seat Covers", "Tools"]},
+    {"category": "Office Supplies", "subcategories": ["Paper", "Registers", "Pens", "Printer Consumables", "Files", "Stationery Sets", "Office Furniture"]},
+    {"category": "Other", "subcategories": ["General"]},
+]
 
 
 def _build_user_index(users: list[dict]) -> dict[str, dict]:
     return {str(user.get("email", "")).strip().lower(): user for user in users if str(user.get("email", "")).strip()}
+
+
+def _active_users_for_role(users: list[dict], role: str) -> list[dict]:
+    normalized_role = str(role).strip().lower()
+    rows = [
+        user for user in users
+        if str(user.get("role", "")).strip().lower() == normalized_role
+        and str(user.get("status", "ACTIVE")).strip().upper() == "ACTIVE"
+        and str(user.get("email", "")).strip()
+    ]
+    return sorted(rows, key=lambda user: (str(user.get("display_name", "")).strip().lower(), str(user.get("email", "")).strip().lower()))
 
 
 def _get_owner_type_label(product: dict) -> str:
@@ -40,6 +68,24 @@ def _build_category_index(category_rows: list[dict]) -> dict[str, list[str]]:
         ]
         index[category] = subcategories
     return index
+
+
+def _merge_category_catalog(category_rows: list[dict]) -> dict:
+    merged: dict[str, list[str]] = _build_category_index(category_rows)
+    for row in MASTER_CATEGORY_ROWS:
+        category = row["category"]
+        existing = set(merged.get(category, []))
+        for subcategory in row["subcategories"]:
+            if subcategory not in existing:
+                merged.setdefault(category, []).append(subcategory)
+    normalized_rows = [
+        {"category": category, "subcategories": merged[category]}
+        for category in sorted(merged.keys())
+    ]
+    return {
+        "schema_version": 1,
+        "categories": normalized_rows,
+    }
 
 
 def _validate_category_selection(category: str, subcategory: str, category_index: dict[str, list[str]]) -> None:
@@ -75,6 +121,12 @@ def _render_product_image_gallery(images: list[dict], media_service: MediaServic
             st.caption(image.get("file_name", image.get("image_id", "Image")))
             if image.get("is_primary"):
                 st.caption("Primary image")
+
+
+def _owner_option_label(owner: dict) -> str:
+    display_name = str(owner.get("display_name", "")).strip()
+    email = str(owner.get("email", "")).strip().lower()
+    return f"{display_name} ({email})" if display_name else email
 
 
 def _build_product_table_rows(products: list[dict]) -> list[dict]:
@@ -211,11 +263,18 @@ def render_products_page(data_service, notification_service, session_service, ca
     products = data_service.get_collection_ref("products")
     users = data_service.get_collection_ref("users")
     categories_config = cache_service.get_config("categories")
-    category_rows = categories_config.get("categories", [])
+    merged_categories_payload = _merge_category_catalog(categories_config.get("categories", []))
+    category_rows = merged_categories_payload.get("categories", [])
     category_index = _build_category_index(category_rows)
     category_names = list(category_index.keys())
     current_user_email = session_service.get_user().get("email", "")
     current_user_role = session_service.get_user().get("role", "")
+    if merged_categories_payload != categories_config and current_user_role == "platform_admin":
+        try:
+            data_service.admin_drive_service.write_json("00_config/categories.json", merged_categories_payload)
+            cache_service.update_config("categories", merged_categories_payload)
+        except Exception:
+            pass
     visible_products = (
         products
         if current_user_role == "platform_admin"
@@ -245,47 +304,85 @@ def render_products_page(data_service, notification_service, session_service, ca
             selected_product = next((product for product in visible_products if product.get("product_id") == selected_edit_id), None)
             if selected_product:
                 existing_images = _ordered_product_images(selected_product.get("images", []) or [])
+                selected_owner = dict(selected_product.get("owner", {}) or {})
+                selected_owner_role = str(selected_owner.get("role", OWNER_TYPES[_get_owner_type_label(selected_product)])).strip().lower()
+                owner_type_label = next((label for label, role in OWNER_TYPES.items() if role == selected_owner_role), "Manufacturer")
+                owner_options = _active_users_for_role(users, OWNER_TYPES[owner_type_label])
+                existing_owner_values = [row.get("email", "") for row in owner_options]
+                default_owner_mode = "Select Existing" if str(selected_owner.get("email", "")).strip().lower() in {str(value).strip().lower() for value in existing_owner_values} else "Add New"
                 st.caption(f"Product Code: {selected_product.get('product_code', '')}")
                 if existing_images:
                     _render_product_image_gallery(existing_images, media_service, title="Current Product Images")
-                with st.form("edit_product_form"):
-                    edit_product_name = st.text_input("Product Name", value=selected_product.get("product_name", ""))
-                    edit_owner_type = st.selectbox(
-                        "Owner Type",
-                        options=list(OWNER_TYPES.keys()),
-                        index=list(OWNER_TYPES.keys()).index(_get_owner_type_label(selected_product)),
+                edit_product_name = st.text_input("Product Name", value=selected_product.get("product_name", ""), key="edit_product_name")
+                edit_owner_type = st.selectbox(
+                    "Owner Type",
+                    options=list(OWNER_TYPES.keys()),
+                    index=list(OWNER_TYPES.keys()).index(owner_type_label),
+                    key="edit_owner_type",
+                )
+                edit_owner_mode = st.radio(
+                    "Owner Selection Mode",
+                    options=["Select Existing", "Add New"],
+                    horizontal=True,
+                    index=0 if default_owner_mode == "Select Existing" else 1,
+                    key="edit_owner_mode",
+                )
+                edit_role_key = OWNER_TYPES[edit_owner_type]
+                edit_owner_candidates = _active_users_for_role(users, edit_role_key)
+                edit_owner_email = str(selected_owner.get("email", "")).strip().lower()
+                edit_owner_display_name = str(selected_owner.get("display_name", "")).strip()
+                edit_owner_phone = str(selected_owner.get("phone", "")).strip()
+                if edit_owner_mode == "Select Existing" and edit_owner_candidates:
+                    edit_owner_option_map = {row.get("email", ""): row for row in edit_owner_candidates}
+                    edit_owner_choice = st.selectbox(
+                        "Existing Owner",
+                        options=list(edit_owner_option_map.keys()),
+                        format_func=lambda value: _owner_option_label(edit_owner_option_map.get(value, {})),
+                        index=next((idx for idx, value in enumerate(edit_owner_option_map.keys()) if str(value).strip().lower() == edit_owner_email), 0),
+                        key="edit_existing_owner",
                     )
-                    edit_owner_email = st.text_input("Owner Email", value=((selected_product.get("owner") or {}).get("email", ""))).strip().lower()
-                    edit_owner_display_name = st.text_input("Owner Display Name", value=((selected_product.get("owner") or {}).get("display_name", "")))
-                    edit_owner_phone = st.text_input("Owner Phone", value=((selected_product.get("owner") or {}).get("phone", "")))
-                    edit_category = st.selectbox(
-                        "Category",
-                        options=category_names if category_names else [""],
-                        index=category_names.index(selected_product.get("category", "")) if selected_product.get("category", "") in category_names else 0,
-                        key="edit_category",
-                    )
-                    edit_subcategories = category_index.get(edit_category, [])
-                    edit_subcategory = st.selectbox(
-                        "Subcategory",
-                        options=edit_subcategories if edit_subcategories else [""],
-                        index=edit_subcategories.index(selected_product.get("subcategory", "")) if selected_product.get("subcategory", "") in edit_subcategories else 0,
-                        key="edit_subcategory",
-                    )
-                    edit_description = st.text_area("Description", value=selected_product.get("description", ""))
-                    edit_unit = st.text_input("Unit", value=selected_product.get("unit", "piece"))
-                    edit_available_quantity = st.number_input("Available Quantity", min_value=0.0, step=1.0, value=float((selected_product.get("inventory") or {}).get("available_quantity", 0)))
-                    edit_marketplace_enabled = st.checkbox("Marketplace Enabled", value=((selected_product.get("sales_channels") or {}).get("marketplace") or {}).get("enabled", False), key="edit_marketplace_enabled")
-                    edit_marketplace_price = st.number_input("Marketplace Price", min_value=0.0, step=1.0, value=float(((selected_product.get("sales_channels") or {}).get("marketplace") or {}).get("price", 0)))
-                    edit_manditrade_enabled = st.checkbox("MandiTrade Enabled", value=((selected_product.get("sales_channels") or {}).get("manditrade") or {}).get("enabled", False), key="edit_manditrade_enabled")
-                    edit_manditrade_price = st.number_input("MandiTrade Price", min_value=0.0, step=1.0, value=float(((selected_product.get("sales_channels") or {}).get("manditrade") or {}).get("price", 0)))
-                    edit_status = st.selectbox("Status", options=STATUSES, index=STATUSES.index(selected_product.get("status", "ACTIVE")) if selected_product.get("status", "ACTIVE") in STATUSES else 0)
-                    edit_uploaded_files = st.file_uploader(
-                        "Product Images Upload",
-                        accept_multiple_files=True,
-                        type=["png", "jpg", "jpeg", "webp"],
-                        key="edit_product_images",
-                    )
-                    updated = st.form_submit_button("Update Product", use_container_width=True)
+                    selected_existing_owner = edit_owner_option_map.get(edit_owner_choice, {})
+                    edit_owner_email = str(selected_existing_owner.get("email", edit_owner_email)).strip().lower()
+                    edit_owner_display_name = str(selected_existing_owner.get("display_name", edit_owner_display_name)).strip()
+                    edit_owner_phone = str(selected_existing_owner.get("phone", edit_owner_phone)).strip()
+                    st.caption(f"Selected Owner: {_owner_option_label(selected_existing_owner)}")
+                else:
+                    if edit_owner_mode == "Select Existing" and not edit_owner_candidates:
+                        st.info("No existing active owners found for this role. Add a new owner.")
+                    edit_owner_email = st.text_input("Owner Email", value=edit_owner_email, key="edit_owner_email").strip().lower()
+                    edit_owner_display_name = st.text_input("Owner Display Name", value=edit_owner_display_name, key="edit_owner_display_name")
+                    edit_owner_phone = st.text_input("Owner Phone", value=edit_owner_phone, key="edit_owner_phone")
+                edit_category = st.selectbox(
+                    "Category",
+                    options=category_names if category_names else [""],
+                    index=category_names.index(selected_product.get("category", "")) if selected_product.get("category", "") in category_names else 0,
+                    key="edit_category",
+                )
+                edit_subcategories = category_index.get(edit_category, [])
+                current_edit_subcategory = selected_product.get("subcategory", "")
+                if current_edit_subcategory not in edit_subcategories:
+                    current_edit_subcategory = edit_subcategories[0] if edit_subcategories else ""
+                edit_subcategory = st.selectbox(
+                    "Subcategory",
+                    options=edit_subcategories if edit_subcategories else [""],
+                    index=edit_subcategories.index(current_edit_subcategory) if current_edit_subcategory in edit_subcategories else 0,
+                    key="edit_subcategory",
+                )
+                edit_description = st.text_area("Description", value=selected_product.get("description", ""), key="edit_description")
+                edit_unit = st.text_input("Unit", value=selected_product.get("unit", "piece"), key="edit_unit")
+                edit_available_quantity = st.number_input("Available Quantity", min_value=0.0, step=1.0, value=float((selected_product.get("inventory") or {}).get("available_quantity", 0)), key="edit_available_quantity")
+                edit_marketplace_enabled = st.checkbox("Marketplace Enabled", value=((selected_product.get("sales_channels") or {}).get("marketplace") or {}).get("enabled", False), key="edit_marketplace_enabled")
+                edit_marketplace_price = st.number_input("Marketplace Price", min_value=0.0, step=1.0, value=float(((selected_product.get("sales_channels") or {}).get("marketplace") or {}).get("price", 0)), key="edit_marketplace_price")
+                edit_manditrade_enabled = st.checkbox("MandiTrade Enabled", value=((selected_product.get("sales_channels") or {}).get("manditrade") or {}).get("enabled", False), key="edit_manditrade_enabled")
+                edit_manditrade_price = st.number_input("MandiTrade Price", min_value=0.0, step=1.0, value=float(((selected_product.get("sales_channels") or {}).get("manditrade") or {}).get("price", 0)), key="edit_manditrade_price")
+                edit_status = st.selectbox("Status", options=STATUSES, index=STATUSES.index(selected_product.get("status", "ACTIVE")) if selected_product.get("status", "ACTIVE") in STATUSES else 0, key="edit_status")
+                edit_uploaded_files = st.file_uploader(
+                    "Product Images Upload",
+                    accept_multiple_files=True,
+                    type=["png", "jpg", "jpeg", "webp"],
+                    key="edit_product_images",
+                )
+                updated = st.button("Update Product", use_container_width=True, key="update_product_button")
                 if updated:
                     if not edit_product_name.strip():
                         st.error("Product name is required.")
@@ -297,7 +394,7 @@ def render_products_page(data_service, notification_service, session_service, ca
                         owner, _ = _resolve_or_create_owner(
                             users=users,
                             owner_email=edit_owner_email,
-                            owner_role=OWNER_TYPES[edit_owner_type],
+                            owner_role=edit_role_key,
                             owner_display_name=edit_owner_display_name,
                             owner_phone=edit_owner_phone,
                             current_user_email=current_user_email,
@@ -378,30 +475,51 @@ def render_products_page(data_service, notification_service, session_service, ca
 
     with tabs[4]:
         st.caption(f"Product Code: {next_product_code}")
-        with st.form("add_product_form"):
-            product_name = st.text_input("Product Name")
-            owner_type = st.selectbox("Owner Type", options=list(OWNER_TYPES.keys()))
-            owner_email = st.text_input("Owner Email").strip().lower()
-            owner_display_name = st.text_input("Owner Display Name")
-            owner_phone = st.text_input("Owner Phone")
-            category = st.selectbox("Category", options=category_names if category_names else [""])
-            subcategories = category_index.get(category, [])
-            subcategory = st.selectbox("Subcategory", options=subcategories if subcategories else [""])
-            description = st.text_area("Description")
-            unit = st.text_input("Unit", value="piece")
-            available_quantity = st.number_input("Available Quantity", min_value=0.0, step=1.0)
-            marketplace_enabled = st.checkbox("Marketplace Enabled", value=True)
-            marketplace_price = st.number_input("Marketplace Price", min_value=0.0, step=1.0)
-            manditrade_enabled = st.checkbox("MandiTrade Enabled", value=True)
-            manditrade_price = st.number_input("MandiTrade Price", min_value=0.0, step=1.0)
-            uploaded_files = st.file_uploader(
-                "Product Images Upload",
-                accept_multiple_files=True,
-                type=["png", "jpg", "jpeg", "webp"],
-                key="create_product_images",
+        product_name = st.text_input("Product Name", key="create_product_name")
+        owner_type = st.selectbox("Owner Type", options=list(OWNER_TYPES.keys()), key="create_owner_type")
+        owner_role_key = OWNER_TYPES[owner_type]
+        owner_mode = st.radio("Owner Selection Mode", options=["Select Existing", "Add New"], horizontal=True, key="create_owner_mode")
+        owner_candidates = _active_users_for_role(users, owner_role_key)
+        owner_email = ""
+        owner_display_name = ""
+        owner_phone = ""
+        if owner_mode == "Select Existing" and owner_candidates:
+            owner_option_map = {row.get("email", ""): row for row in owner_candidates}
+            owner_choice = st.selectbox(
+                "Existing Owner",
+                options=list(owner_option_map.keys()),
+                format_func=lambda value: _owner_option_label(owner_option_map.get(value, {})),
+                key="create_existing_owner",
             )
-            status = st.selectbox("Status", options=STATUSES, index=0)
-            submitted = st.form_submit_button("Save Product", use_container_width=True)
+            selected_owner_row = owner_option_map.get(owner_choice, {})
+            owner_email = str(selected_owner_row.get("email", "")).strip().lower()
+            owner_display_name = str(selected_owner_row.get("display_name", "")).strip()
+            owner_phone = str(selected_owner_row.get("phone", "")).strip()
+            st.caption(f"Selected Owner: {_owner_option_label(selected_owner_row)}")
+        else:
+            if owner_mode == "Select Existing" and not owner_candidates:
+                st.info("No existing active owners found for this role. Add a new owner.")
+            owner_email = st.text_input("Owner Email", key="create_owner_email").strip().lower()
+            owner_display_name = st.text_input("Owner Display Name", key="create_owner_display_name")
+            owner_phone = st.text_input("Owner Phone", key="create_owner_phone")
+        category = st.selectbox("Category", options=category_names if category_names else [""], key="create_category")
+        subcategories = category_index.get(category, [])
+        subcategory = st.selectbox("Subcategory", options=subcategories if subcategories else [""], key="create_subcategory")
+        description = st.text_area("Description", key="create_description")
+        unit = st.text_input("Unit", value="piece", key="create_unit")
+        available_quantity = st.number_input("Available Quantity", min_value=0.0, step=1.0, key="create_available_quantity")
+        marketplace_enabled = st.checkbox("Marketplace Enabled", value=True, key="create_marketplace_enabled")
+        marketplace_price = st.number_input("Marketplace Price", min_value=0.0, step=1.0, key="create_marketplace_price")
+        manditrade_enabled = st.checkbox("MandiTrade Enabled", value=True, key="create_manditrade_enabled")
+        manditrade_price = st.number_input("MandiTrade Price", min_value=0.0, step=1.0, key="create_manditrade_price")
+        uploaded_files = st.file_uploader(
+            "Product Images Upload",
+            accept_multiple_files=True,
+            type=["png", "jpg", "jpeg", "webp"],
+            key="create_product_images",
+        )
+        status = st.selectbox("Status", options=STATUSES, index=0, key="create_status")
+        submitted = st.button("Save Product", use_container_width=True, key="save_product_button")
 
         if submitted:
             if not product_name.strip():
@@ -414,7 +532,7 @@ def render_products_page(data_service, notification_service, session_service, ca
                 owner, owner_created = _resolve_or_create_owner(
                     users=users,
                     owner_email=owner_email,
-                    owner_role=OWNER_TYPES[owner_type],
+                    owner_role=owner_role_key,
                     owner_display_name=owner_display_name,
                     owner_phone=owner_phone,
                     current_user_email=current_user_email,
@@ -471,13 +589,13 @@ def render_products_page(data_service, notification_service, session_service, ca
                     notification_service.create_notification(
                         notification_type="OWNER_ONBOARDED",
                         title="You have been onboarded to MandiTrade",
-                        message=f"You have been onboarded as a {OWNER_TYPES[owner_type]}.",
+                        message=f"You have been onboarded as a {owner_role_key}.",
                         metadata={"to_email": owner_email},
                     )
                     notification_service.create_notification(
                         notification_type="OWNER_ONBOARDED",
                         title="New owner onboarded",
-                        message=f"{owner_email} was onboarded as {OWNER_TYPES[owner_type]}.",
+                        message=f"{owner_email} was onboarded as {owner_role_key}.",
                         metadata={"to_email": current_user_email},
                     )
                 _persist_notifications(data_service)
