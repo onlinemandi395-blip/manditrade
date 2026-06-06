@@ -7,6 +7,7 @@ import streamlit as st
 
 from services.admin_drive_service import AdminDriveService
 from services.id_service import IdService
+from services.performance_service import PerformanceService
 
 
 class DataService:
@@ -14,6 +15,7 @@ class DataService:
         self.cache_service = cache_service
         self.id_service = IdService()
         self.admin_drive_service = AdminDriveService()
+        self.performance_service = PerformanceService()
         st.session_state.setdefault("mt_next_data", {})
 
     def _bootstrap_collection(self, collection: str) -> list[dict]:
@@ -27,7 +29,8 @@ class DataService:
         payload = []
         if ":" in source:
             config_name, key = source.split(":", 1)
-            payload = deepcopy(self.cache_service.get_config(config_name).get(key, []))
+            with self.performance_service.measure(f"{collection}_list_load"):
+                payload = deepcopy(self.cache_service.get_config(config_name).get(key, []))
         else:
             raise ValueError(f"Invalid Drive collection mapping for: {collection}")
         if collection == "products":
@@ -69,8 +72,9 @@ class DataService:
         if not logical_path:
             raise KeyError(f"No Drive file path configured for collection source: {config_name}")
         payload = {"schema_version": 1, key: collection_rows}
-        self.admin_drive_service.write_json(logical_path, payload)
-        st.session_state[self.cache_service.cache_key][config_name] = payload
+        with self.performance_service.measure(f"{collection}_save"):
+            self.admin_drive_service.write_json(logical_path, payload)
+        self.cache_service.update_config(config_name, payload)
 
     def normalize_product_record(self, record: dict) -> dict:
         product = deepcopy(record)

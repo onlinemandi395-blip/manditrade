@@ -120,7 +120,6 @@ def _apply_product_values(
 def _persist_products_and_users(data_service) -> None:
     data_service.persist_collection("users")
     data_service.persist_collection("products")
-    data_service.cache_service.refresh_cache()
 
 
 def render_products_page(data_service, notification_service, session_service, cache_service) -> None:

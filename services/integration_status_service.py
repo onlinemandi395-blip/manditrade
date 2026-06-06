@@ -16,7 +16,7 @@ class IntegrationStatusService:
 
     def get_status(self) -> dict:
         drive_status = self.admin_drive_service.get_status()
-        drive_manifest = self.admin_drive_service.get_runtime_manifest()
+        drive_manifest = self.admin_drive_service.get_runtime_manifest(force_refresh=True)
         gmail_enabled = self.gmail_queue_service.is_enabled()
         gmail_sender = self.gmail_queue_service.get_sender_email()
         platform = self._get_platform_config()

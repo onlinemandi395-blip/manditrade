@@ -33,6 +33,7 @@ from services.navigation_service import NavigationService
 from services.notification_service import NotificationService
 from services.order_service import OrderService
 from services.page_service import PageService
+from services.performance_service import PerformanceService
 from services.rbac_service import RBACService
 from services.session_service import SessionService
 
@@ -163,6 +164,7 @@ def render_app() -> None:
     session_service = SessionService(BOOTSTRAP_APP_CONFIG)
     oauth_service = GoogleOAuthService()
     admin_drive_service = AdminDriveService()
+    performance_service = PerformanceService()
 
     callback_error = oauth_service.get_callback_error()
     if callback_error:
@@ -191,7 +193,8 @@ def render_app() -> None:
             st.error(f"Google sign-in failed: {exc}")
             oauth_service.clear_callback_params()
 
-    drive_manifest = admin_drive_service.get_runtime_manifest()
+    with performance_service.measure("drive_validation"):
+        drive_manifest = admin_drive_service.get_runtime_manifest()
     if not drive_manifest.get("connected", False):
         if not session_service.is_authenticated():
             _render_bootstrap_login(oauth_service, session_service)
@@ -211,7 +214,9 @@ def render_app() -> None:
 
     config_loader = ConfigLoaderService()
     cache_service = CacheService(config_loader)
-    cache_service.load_all_configs()
+    if not st.session_state.get(cache_service.cache_key):
+        with performance_service.measure("cache_load"):
+            cache_service.load_all_configs()
     app_config = cache_service.get_config("app_config")
 
     session_service = SessionService(app_config)
@@ -269,7 +274,8 @@ def render_app() -> None:
     )
     form_service = FormService(cache_service)
 
-    navigation_items = navigation_service.get_navigation(role)
+    with performance_service.measure("navigation_render"):
+        navigation_items = navigation_service.get_navigation(role)
     current_route = session_service.get_current_route_or_landing()
     valid_routes = [item.get("route", "") for item in navigation_items]
     if not navigation_items:
@@ -381,7 +387,7 @@ def render_app() -> None:
         status = integration_status_service.get_status()
         if status["google_drive_status"] != "connected" or status["required_files_status"] != "ok":
             st.error("Drive-only runtime is blocked. Required Google Drive files are missing or unavailable.")
-        refresh_cols = st.columns(2)
+        refresh_cols = st.columns(4)
         if refresh_cols[0].button("Create Missing Drive Files", use_container_width=True):
             try:
                 result = admin_drive_service.create_missing_required_files()
@@ -390,7 +396,13 @@ def render_app() -> None:
             except Exception as exc:
                 st.error(f"Create Missing Drive Files failed: {exc}")
         if refresh_cols[1].button("Refresh Validation", use_container_width=True):
-            admin_drive_service.clear_runtime_cache()
+            admin_drive_service.clear_runtime_cache(clear_validation=True, clear_file_index=False)
+            st.rerun()
+        if refresh_cols[2].button("Refresh Data Cache", use_container_width=True):
+            cache_service.refresh_cache()
+            st.success("Data cache refreshed.")
+        if refresh_cols[3].button("Clear Cache and Reload", use_container_width=True):
+            admin_drive_service.clear_runtime_cache(clear_validation=True, clear_file_index=True)
             st.rerun()
         render_table(
             [
@@ -436,3 +448,5 @@ def render_app() -> None:
                     "current_route": current_route,
                 }
             )
+        with st.expander("Performance Debug", expanded=False):
+            st.write(performance_service.get_metrics())

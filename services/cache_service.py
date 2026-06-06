@@ -9,6 +9,7 @@ class CacheService:
     def __init__(self, config_loader_service) -> None:
         self.config_loader_service = config_loader_service
         self.cache_key = "mt_next_cache"
+        self.drive_cache_key = "mt_drive_cache"
 
     def load_all_configs(self) -> dict:
         cache = {
@@ -38,6 +39,7 @@ class CacheService:
             "_loaded_at": datetime.now(UTC).isoformat(),
         }
         st.session_state[self.cache_key] = cache
+        st.session_state[self.drive_cache_key] = cache
         return cache
 
     def get_config(self, name: str):
@@ -48,6 +50,13 @@ class CacheService:
 
     def refresh_cache(self) -> dict:
         return self.load_all_configs()
+
+    def update_config(self, name: str, payload) -> None:
+        cache = st.session_state.get(self.cache_key) or self.load_all_configs()
+        cache[name] = payload
+        cache["_loaded_at"] = datetime.now(UTC).isoformat()
+        st.session_state[self.cache_key] = cache
+        st.session_state[self.drive_cache_key] = cache
 
     def get_cache_status(self) -> dict:
         cache = st.session_state.get(self.cache_key, {})

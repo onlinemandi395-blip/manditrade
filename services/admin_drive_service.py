@@ -1,18 +1,27 @@
 from __future__ import annotations
 
 from pathlib import Path
+from time import time
 
 import streamlit as st
 
 from services.drive_path_resolver import DrivePathResolver
 from services.google_drive_service import GoogleDriveService
+from services.performance_service import PerformanceService
 from services.required_drive_files import build_required_drive_files
 
 
 class AdminDriveService:
+    VALIDATION_KEY = "drive_validation_result"
+    FILE_INDEX_KEY = "drive_file_index"
+    ROOT_KEY = "drive_root_metadata"
+    VALIDATION_TTL_SECONDS = 300
+
     def __init__(self) -> None:
         self.token_store_path = Path(__file__).resolve().parent.parent / "runtime" / "oauth" / "admin_user_token.json"
         self.google_drive_service = GoogleDriveService(self.token_store_path)
+        self.performance_service = PerformanceService()
+        st.session_state.setdefault(self.FILE_INDEX_KEY, {})
 
     def _get_drive_config(self) -> dict[str, str]:
         secrets = dict(st.secrets.get("google_drive", {})) if "google_drive" in st.secrets else {}
@@ -62,17 +71,23 @@ class AdminDriveService:
         return sorted(folder_paths)
 
     def _resolve_root_folder(self, service):
+        cached_root = st.session_state.get(self.ROOT_KEY)
+        if cached_root:
+            return cached_root
         config = self._get_drive_config()
         root_folder_id = config["root_folder_id"]
         root_folder_name = config["root_folder_name"]
         if root_folder_id:
             try:
-                return service.files().get(fileId=root_folder_id, fields="id,name,mimeType").execute()
+                root = service.files().get(fileId=root_folder_id, fields="id,name,mimeType").execute()
+                st.session_state[self.ROOT_KEY] = root
+                return root
             except Exception as exc:
                 raise FileNotFoundError(f"Google Drive root folder not reachable: {root_folder_id}") from exc
         root = self.google_drive_service.find_child(service, "root", root_folder_name)
         if not root:
             raise FileNotFoundError(f"Google Drive root folder not found by name: {root_folder_name}")
+        st.session_state[self.ROOT_KEY] = root
         return root
 
     def ensure_root_folder(self) -> dict:
@@ -115,15 +130,62 @@ class AdminDriveService:
         root = self._resolve_root_folder(service)
         return DrivePathResolver(self.google_drive_service, service, root)
 
-    def clear_runtime_cache(self) -> None:
+    def clear_runtime_cache(self, *, clear_validation: bool = True, clear_file_index: bool = False) -> None:
         st.session_state.pop("mt_next_cache", None)
         st.session_state.pop("mt_next_data", None)
+        if clear_validation:
+            st.session_state.pop(self.VALIDATION_KEY, None)
+        if clear_file_index:
+            st.session_state[self.FILE_INDEX_KEY] = {}
+            st.session_state.pop(self.ROOT_KEY, None)
 
-    def get_runtime_manifest(self) -> dict:
+    def _get_cached_validation(self) -> dict | None:
+        cached = st.session_state.get(self.VALIDATION_KEY)
+        if not cached:
+            return None
+        validated_at = float(cached.get("validated_at", 0) or 0)
+        if (time() - validated_at) > self.VALIDATION_TTL_SECONDS:
+            return None
+        return dict(cached)
+
+    def _store_validation(self, manifest: dict) -> dict:
+        cached = dict(manifest)
+        cached["validated_at"] = time()
+        st.session_state[self.VALIDATION_KEY] = cached
+        return cached
+
+    def _index_path(self, logical_path: str, file_result: dict) -> None:
+        if file_result.get("status") == "FOUND" and file_result.get("file_id"):
+            st.session_state[self.FILE_INDEX_KEY][logical_path] = {
+                "file_id": file_result.get("file_id", ""),
+                "folder_id": file_result.get("folder_id", ""),
+                "actual_path": file_result.get("actual_path", ""),
+            }
+
+    def _resolve_indexed_file(self, resolver: DrivePathResolver, logical_path: str) -> dict:
+        indexed = dict(st.session_state.get(self.FILE_INDEX_KEY, {}).get(logical_path, {}) or {})
+        if indexed.get("file_id"):
+            return {
+                "logical_path": logical_path,
+                "status": "FOUND",
+                "folder_id": indexed.get("folder_id", ""),
+                "file_id": indexed.get("file_id", ""),
+                "actual_path": indexed.get("actual_path", logical_path),
+                "error": "",
+            }
+        result = resolver.resolve_file_path(logical_path)
+        self._index_path(logical_path, result)
+        return result
+
+    def get_runtime_manifest(self, *, force_refresh: bool = False) -> dict:
+        if not force_refresh:
+            cached = self._get_cached_validation()
+            if cached:
+                return cached
         config = self._get_drive_config()
         token = self._get_user_token()
         if not token:
-            return {
+            return self._store_validation({
                 "connected": False,
                 "mode": "user_oauth_drive",
                 "root_folder_id": config["root_folder_id"],
@@ -131,11 +193,12 @@ class AdminDriveService:
                 "required_files": [],
                 "missing_files": ["Google OAuth admin token"],
                 "errors": ["Admin OAuth token required for Google Drive runtime."],
-            }
+            })
         try:
-            resolver = self.get_path_resolver()
+            with self.performance_service.measure("drive_root_resolution"):
+                resolver = self.get_path_resolver()
         except Exception as exc:
-            return {
+            return self._store_validation({
                 "connected": False,
                 "mode": "user_oauth_drive",
                 "root_folder_id": config["root_folder_id"],
@@ -143,22 +206,23 @@ class AdminDriveService:
                 "required_files": [],
                 "missing_files": [],
                 "errors": [str(exc)],
-            }
+            })
         required_files = []
         missing_files = []
         required_folders = []
         missing_folders = []
-        for folder_path in self.get_required_folder_paths():
-            folder_result = resolver.resolve_folder_path(folder_path)
-            required_folders.append(folder_result)
-            if folder_result["status"] != "FOUND":
-                missing_folders.append(folder_path)
-        for item in self.get_required_files_registry():
-            result = resolver.resolve_file_path(item["logical_path"])
-            required_files.append(result)
-            if result["status"] != "FOUND":
-                missing_files.append(item["logical_path"])
-        return {
+        with self.performance_service.measure("required_file_validation"):
+            for folder_path in self.get_required_folder_paths():
+                folder_result = resolver.resolve_folder_path(folder_path)
+                required_folders.append(folder_result)
+                if folder_result["status"] != "FOUND":
+                    missing_folders.append(folder_path)
+            for item in self.get_required_files_registry():
+                result = self._resolve_indexed_file(resolver, item["logical_path"])
+                required_files.append(result)
+                if result["status"] != "FOUND":
+                    missing_files.append(item["logical_path"])
+        return self._store_validation({
             "connected": True,
             "mode": "user_oauth_drive",
             "root_folder_id": resolver.root_folder["id"],
@@ -168,18 +232,20 @@ class AdminDriveService:
             "required_files": required_files,
             "missing_files": missing_files,
             "errors": [],
-        }
+        })
 
     def read_json(self, logical_path: str) -> dict:
         resolver = self.get_path_resolver()
-        file_result = resolver.resolve_file_path(logical_path)
+        file_result = self._resolve_indexed_file(resolver, logical_path)
         if file_result["status"] != "FOUND":
             raise FileNotFoundError(logical_path)
         return self.google_drive_service.read_json_file(resolver.service, file_result["file_id"])
 
     def write_json(self, logical_path: str, payload: dict) -> dict:
         resolver = self.get_path_resolver()
-        return resolver.create_or_update_json_file(logical_path, payload)
+        result = resolver.create_or_update_json_file(logical_path, payload)
+        self._index_path(logical_path, result)
+        return result
 
     def create_missing_required_files(self) -> dict:
         resolver = self.get_path_resolver()
@@ -209,7 +275,7 @@ class AdminDriveService:
                 continue
             created_result = resolver.ensure_json_file(logical_path, item["default_payload"])
             created.append(created_result)
-        self.clear_runtime_cache()
+        self.clear_runtime_cache(clear_validation=True, clear_file_index=False)
         return {"created": created, "existing": existing}
 
     def create_missing_required_folders(self) -> dict:
@@ -222,7 +288,7 @@ class AdminDriveService:
                 existing.append(folder_path)
                 continue
             created.append(resolver.ensure_folder_path(folder_path))
-        self.clear_runtime_cache()
+        self.clear_runtime_cache(clear_validation=True, clear_file_index=False)
         return {"created": created, "existing": existing}
 
     def get_status(self) -> dict:

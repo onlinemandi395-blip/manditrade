@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from services.admin_drive_service import AdminDriveService
+from services.performance_service import PerformanceService
 
 
 class ConfigLoaderService:
@@ -28,6 +29,7 @@ class ConfigLoaderService:
 
     def __init__(self) -> None:
         self.admin_drive_service = AdminDriveService()
+        self.performance_service = PerformanceService()
 
     def validate_runtime(self) -> dict[str, Any]:
         return self.admin_drive_service.get_runtime_manifest()
@@ -36,8 +38,10 @@ class ConfigLoaderService:
         logical_path = self.DRIVE_PATHS.get(name)
         if not logical_path:
             raise KeyError(f"Unsupported Drive config key: {name}")
-        return self.admin_drive_service.read_json(logical_path)
+        with self.performance_service.measure(f"load_{name}"):
+            return self.admin_drive_service.read_json(logical_path)
 
     def load_language(self, code: str) -> dict[str, Any]:
-        payload = self.admin_drive_service.read_json(f"00_config/languages/{code}.json")
+        with self.performance_service.measure(f"language_load_{code}"):
+            payload = self.admin_drive_service.read_json(f"00_config/languages/{code}.json")
         return dict(payload.get("translations", payload))
