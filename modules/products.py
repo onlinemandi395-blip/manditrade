@@ -300,6 +300,7 @@ def render_products_page(data_service, notification_service, session_service, ca
                 and str(product.get("status", "ACTIVE")).upper() == "ACTIVE"
             ],
             view="admin",
+            media_service=media_service,
         )
 
     with tabs[2]:
@@ -311,6 +312,7 @@ def render_products_page(data_service, notification_service, session_service, ca
                 and str(product.get("status", "ACTIVE")).upper() == "ACTIVE"
             ],
             view="admin",
+            media_service=media_service,
         )
 
     with tabs[3]:

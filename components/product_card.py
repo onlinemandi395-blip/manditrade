@@ -3,24 +3,20 @@ from __future__ import annotations
 import streamlit as st
 
 
-def render_product_card(product: dict, *, view: str = "marketplace", on_add_to_cart=None) -> None:
+def render_product_card(product: dict, *, view: str = "marketplace", on_add_to_cart=None, media_service=None) -> None:
     images = [dict(image or {}) for image in (product.get("images", []) or [])]
     primary_image = next((image for image in images if image.get("is_primary")), images[0] if images else {})
-    image_url = str(
-        primary_image.get("direct_render_url", "")
-        or primary_image.get("thumbnail_link", "")
-        or primary_image.get("web_content_link", "")
-        or product.get("image_url", "")
-        or ""
-    ).strip()
     marketplace = (product.get("sales_channels") or {}).get("marketplace", {})
     manditrade = (product.get("sales_channels") or {}).get("manditrade", {})
     owner = dict(product.get("owner", {}) or {})
     inventory = dict(product.get("inventory", {}) or {})
     with st.container(border=True):
         media = st.empty()
-        if image_url:
-            media.image(image_url, use_container_width=True)
+        renderable = media_service.get_renderable_image(primary_image) if media_service else {"render_mode": "placeholder", "bytes": None, "url": "", "error": ""}
+        if renderable["render_mode"] == "bytes" and renderable.get("bytes"):
+            media.image(renderable["bytes"], use_container_width=True)
+        elif renderable["render_mode"] == "url" and renderable.get("url"):
+            media.image(renderable["url"], use_container_width=True)
         else:
             media.markdown("<div class='mt-product-card__media'>No Image</div>", unsafe_allow_html=True)
         st.markdown(f"#### {product.get('product_name', product.get('product_id', 'Product'))}")

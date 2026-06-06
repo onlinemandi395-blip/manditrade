@@ -154,6 +154,10 @@ class GoogleDriveService:
         content = service.files().get_media(fileId=file_id).execute()
         return json.loads(content.decode("utf-8"))
 
+    def read_file_bytes(self, service, file_id: str) -> bytes:
+        content = service.files().get_media(fileId=file_id).execute()
+        return bytes(content)
+
     def read_token_store(self) -> dict[str, Any]:
         if not self.token_store_path or not self.token_store_path.exists():
             return {}

@@ -11,12 +11,14 @@ from services.performance_service import PerformanceService
 
 class MediaService:
     PRODUCTS_MEDIA_PATH = "15_media/products"
+    IMAGE_CACHE_KEY = "image_cache"
 
     def __init__(self, admin_drive_service) -> None:
         self.admin_drive_service = admin_drive_service
         self.id_service = IdService()
         self.image_processing_service = ImageProcessingService()
         self.performance_service = PerformanceService()
+        st.session_state.setdefault(self.IMAGE_CACHE_KEY, {})
 
     def upload_product_images(self, uploaded_files: list, *, uploaded_by: str, product_code: str) -> list[dict]:
         if not uploaded_files:
@@ -64,3 +66,67 @@ class MediaService:
                     }
                 )
         return images
+
+    def get_renderable_image(self, product_image_metadata: dict | None) -> dict:
+        image = dict(product_image_metadata or {})
+        file_id = str(image.get("file_id", "")).strip()
+        image_cache = st.session_state.get(self.IMAGE_CACHE_KEY, {})
+        if file_id and file_id in image_cache:
+            return {
+                "render_mode": "bytes",
+                "bytes": image_cache[file_id],
+                "url": "",
+                "error": "",
+            }
+        if file_id:
+            try:
+                service = self.admin_drive_service.build_client()
+                with self.performance_service.measure("image_download"):
+                    image_bytes = self.admin_drive_service.google_drive_service.read_file_bytes(service, file_id)
+                image_cache[file_id] = image_bytes
+                st.session_state[self.IMAGE_CACHE_KEY] = image_cache
+                return {
+                    "render_mode": "bytes",
+                    "bytes": image_bytes,
+                    "url": "",
+                    "error": "",
+                }
+            except Exception as exc:
+                url = str(
+                    image.get("direct_render_url", "")
+                    or image.get("thumbnail_link", "")
+                    or image.get("web_content_link", "")
+                    or ""
+                ).strip()
+                if url:
+                    return {
+                        "render_mode": "url",
+                        "bytes": None,
+                        "url": url,
+                        "error": str(exc),
+                    }
+                return {
+                    "render_mode": "placeholder",
+                    "bytes": None,
+                    "url": "",
+                    "error": str(exc),
+                }
+        url = str(
+            image.get("direct_render_url", "")
+            or image.get("thumbnail_link", "")
+            or image.get("web_content_link", "")
+            or ""
+        ).strip()
+        if url:
+            return {
+                "render_mode": "url",
+                "bytes": None,
+                "url": url,
+                "error": "",
+            }
+        return {
+            "render_mode": "placeholder",
+            "bytes": None,
+            "url": "",
+            "error": "",
+        }

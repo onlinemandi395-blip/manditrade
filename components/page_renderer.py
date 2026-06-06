@@ -37,6 +37,7 @@ from services.page_service import PageService
 from services.performance_service import PerformanceService
 from services.rbac_service import RBACService
 from services.session_service import SessionService
+from services.media_service import MediaService
 
 
 CSS_FILE = Path(__file__).resolve().parent.parent / "assets" / "styles" / "design.css"
@@ -231,6 +232,7 @@ def render_app() -> None:
                     "landing_page": "dashboard" if resolved_user.get("role") == "platform_admin" else "marketplace",
                 }
             )
+            admin_drive_service.clear_runtime_cache(clear_validation=True, clear_file_index=False)
             oauth_service.clear_callback_params()
             st.rerun()
         except Exception as exc:
@@ -239,6 +241,8 @@ def render_app() -> None:
 
     with performance_service.measure("drive_validation"):
         drive_manifest = admin_drive_service.get_runtime_manifest()
+    if session_service.is_authenticated() and (drive_manifest.get("missing_files") or not drive_manifest.get("connected", False)):
+        drive_manifest = admin_drive_service.get_runtime_manifest(force_refresh=True)
     if not drive_manifest.get("connected", False):
         if not session_service.is_authenticated():
             _render_bootstrap_login(oauth_service, session_service)
@@ -305,6 +309,7 @@ def render_app() -> None:
     role = session_service.get_user_role()
     user = session_service.get_user()
     data_service = DataService(cache_service)
+    media_service = MediaService(admin_drive_service)
     notification_service = NotificationService(data_service)
     order_service = OrderService(data_service, notification_service)
     cart_service = CartService()
@@ -377,7 +382,7 @@ def render_app() -> None:
             )
             st.success(f"Added {product.get('product_name', product.get('product_id', 'product'))} to cart.")
 
-        render_marketplace_page(products, on_add_to_cart=on_add_to_cart)
+        render_marketplace_page(products, on_add_to_cart=on_add_to_cart, media_service=media_service)
         cart = cart_service.get_cart()
         if cart.get("items"):
             with st.container(border=True):
@@ -409,7 +414,7 @@ def render_app() -> None:
             data_service.persist_collection("gmail_queue")
             st.success(f"MandiTrade order {order.get('order_id', '')} created.")
 
-        render_manditrade_page(products, on_request=on_request)
+        render_manditrade_page(products, on_request=on_request, media_service=media_service)
     elif page_definition.get("type") == "products_admin":
         render_products_page(data_service, notification_service, session_service, cache_service)
     elif page_definition.get("type") == "admin_configuration":
