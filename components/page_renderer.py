@@ -16,6 +16,7 @@ from modules.admin_configuration import render_admin_configuration
 from modules.login import render_login_page
 from modules.manditrade import render_manditrade_page
 from modules.marketplace import render_marketplace_page
+from modules.orders import render_orders_page
 from modules.products import render_products_page
 from modules.setup_console import render_setup_console
 from services.admin_drive_service import AdminDriveService
@@ -415,7 +416,11 @@ def render_app() -> None:
         render_admin_configuration(auth_service, data_service, notification_service, session_service)
     elif page_definition.get("type") in {"crud_table", "table"}:
         source_name = str(page_definition.get("data_source", ""))
-        render_table(_filter_role_rows(current_route, datasets.get(source_name, []), role, user.get("email", "")), caption=f"{source_name} collection")
+        filtered_rows = _filter_role_rows(current_route, datasets.get(source_name, []), role, user.get("email", ""))
+        if current_route == "orders":
+            render_orders_page(filtered_rows, role)
+        else:
+            render_table(filtered_rows, caption=f"{source_name} collection")
         form_id = page_definition.get("form_id")
         if form_id:
             form_definition = form_service.get_form(form_id)

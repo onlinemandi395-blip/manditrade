@@ -12,6 +12,28 @@ def _resolve_card_value(card: dict, rows: list[dict], current_user: dict) -> int
         return len([row for row in rows if str(((row.get("owner") or {}).get("email", ""))).strip().lower() == current_email])
     if metric == "orders_received":
         return len([row for row in rows if str(row.get("owner_email", "")).strip().lower() == current_email])
+    if metric == "marketplace_orders":
+        return len([row for row in rows if str(row.get("source_channel", "")).strip().lower() == "marketplace"])
+    if metric == "manditrade_orders":
+        return len([row for row in rows if str(row.get("source_channel", "")).strip().lower() == "manditrade"])
+    if metric == "marketplace_orders_received":
+        return len(
+            [
+                row
+                for row in rows
+                if str(row.get("owner_email", "")).strip().lower() == current_email
+                and str(row.get("source_channel", "")).strip().lower() == "marketplace"
+            ]
+        )
+    if metric == "manditrade_orders_received":
+        return len(
+            [
+                row
+                for row in rows
+                if str(row.get("owner_email", "")).strip().lower() == current_email
+                and str(row.get("source_channel", "")).strip().lower() == "manditrade"
+            ]
+        )
     if metric == "pending_orders":
         return len(
             [
@@ -40,6 +62,10 @@ def _resolve_card_value(card: dict, rows: list[dict], current_user: dict) -> int
             ),
             2,
         )
+    if metric == "open_ledger":
+        return round(sum(float(row.get("amount", 0) or 0) for row in rows if str(row.get("status", "")).upper() == "OPEN"), 2)
+    if metric == "owner_pending_requests":
+        return len([row for row in rows if str(row.get("owner_status", "")).upper() == "PENDING"])
     if metric == "unread_notifications":
         return len(
             [

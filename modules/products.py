@@ -255,7 +255,11 @@ def render_products_page(data_service, notification_service, session_service, ca
                         )
                         uploaded_images = existing_images
                         if edit_uploaded_files:
-                            uploaded_images = media_service.upload_product_images(edit_uploaded_files, uploaded_by=current_user_email)
+                            uploaded_images = media_service.upload_product_images(
+                                edit_uploaded_files,
+                                uploaded_by=current_user_email,
+                                product_code=selected_product.get("product_code", selected_product.get("product_id", "PROD")),
+                            )
                         _apply_product_values(
                             product=selected_product,
                             product_code=selected_product.get("product_code", selected_product.get("product_id", "")),
@@ -360,7 +364,11 @@ def render_products_page(data_service, notification_service, session_service, ca
                     id_service=id_service,
                 )
                 product_code = id_service.next_drive_id(data_service.admin_drive_service, "product", "PROD")
-                uploaded_images = media_service.upload_product_images(uploaded_files or [], uploaded_by=current_user_email)
+                uploaded_images = media_service.upload_product_images(
+                    uploaded_files or [],
+                    uploaded_by=current_user_email,
+                    product_code=product_code,
+                )
                 record = {
                     "product_id": product_code,
                     "product_code": product_code,

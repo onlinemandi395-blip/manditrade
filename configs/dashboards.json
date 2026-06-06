@@ -12,19 +12,35 @@
         },
         {
           "id": "orders_count",
-          "title_key": "dashboard.orders",
+          "title_key": "dashboard.marketplace_orders",
           "icon": "[OR]",
           "data_source": "orders",
-          "metric": "count",
+          "metric": "marketplace_orders",
           "route": "orders"
         },
         {
-          "id": "shipments_count",
-          "title_key": "dashboard.shipments",
-          "icon": "[SH]",
-          "data_source": "shipments",
-          "metric": "count",
-          "route": "shipments"
+          "id": "manditrade_orders",
+          "title_key": "dashboard.manditrade_orders",
+          "icon": "[OR]",
+          "data_source": "orders",
+          "metric": "manditrade_orders",
+          "route": "orders"
+        },
+        {
+          "id": "open_ledger",
+          "title_key": "dashboard.open_ledger",
+          "icon": "[LG]",
+          "data_source": "ledger",
+          "metric": "open_ledger",
+          "route": "ledger"
+        },
+        {
+          "id": "pending_owner_requests",
+          "title_key": "dashboard.pending_owner_requests",
+          "icon": "[NT]",
+          "data_source": "orders",
+          "metric": "owner_pending_requests",
+          "route": "orders"
         }
       ]
     },
@@ -43,7 +59,15 @@
           "title_key": "dashboard.orders_received",
           "icon": "[OR]",
           "data_source": "orders",
-          "metric": "orders_received",
+          "metric": "marketplace_orders_received",
+          "route": "orders"
+        },
+        {
+          "id": "manditrade_orders_received",
+          "title_key": "dashboard.manditrade_orders",
+          "icon": "[OR]",
+          "data_source": "orders",
+          "metric": "manditrade_orders_received",
           "route": "orders"
         },
         {
@@ -95,7 +119,15 @@
           "title_key": "dashboard.orders_received",
           "icon": "[OR]",
           "data_source": "orders",
-          "metric": "orders_received",
+          "metric": "marketplace_orders_received",
+          "route": "orders"
+        },
+        {
+          "id": "manditrade_orders_received",
+          "title_key": "dashboard.manditrade_orders",
+          "icon": "[OR]",
+          "data_source": "orders",
+          "metric": "manditrade_orders_received",
           "route": "orders"
         },
         {

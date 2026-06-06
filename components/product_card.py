@@ -31,8 +31,6 @@ def render_product_card(product: dict, *, view: str = "marketplace", on_add_to_c
                 on_add_to_cart(product)
         elif view == "manditrade":
             st.write(f"MandiTrade Price: {manditrade.get('price', 0)}")
-            st.caption(f"Owner: {owner.get('email', '-')}")
-            st.caption(f"Owner Role: {owner.get('role', '-')}")
             st.caption(f"Inventory: {inventory.get('available_quantity', 0)} {product.get('unit', 'piece')}")
             if st.button("Request / Order", key=f"request_{product.get('product_id', '')}", use_container_width=True) and on_add_to_cart:
                 on_add_to_cart(product)
