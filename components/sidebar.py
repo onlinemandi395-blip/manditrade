@@ -3,6 +3,25 @@ from __future__ import annotations
 import streamlit as st
 
 
+ICON_MAP = {
+    "[DB]": "📊",
+    "[PD]": "📦",
+    "[MK]": "🛍️",
+    "[MT]": "🏭",
+    "[OR]": "🧾",
+    "[SH]": "🚚",
+    "[LG]": "📚",
+    "[NT]": "🔔",
+    "[CF]": "⚙️",
+    "[HL]": "🩺",
+}
+
+
+def _resolve_icon(icon: str) -> str:
+    normalized = str(icon or "").strip()
+    return ICON_MAP.get(normalized, normalized)
+
+
 def render_sidebar(navigation_items: list[dict], selected_route: str, user: dict | None = None, role_label: str = "", theme_service=None) -> str:
     chosen = selected_route
     with st.sidebar:
@@ -43,7 +62,8 @@ def render_sidebar(navigation_items: list[dict], selected_route: str, user: dict
                     theme_service.clear_theme_cache()
                     st.rerun()
         for item in navigation_items:
-            label = f"{item.get('icon', '')} {item.get('label', item.get('route', ''))}".strip()
+            icon = _resolve_icon(str(item.get("icon", "")))
+            label = f"{icon} {item.get('label', item.get('route', ''))}".strip()
             route = str(item.get("route", "dashboard"))
             if st.button(
                 label,
