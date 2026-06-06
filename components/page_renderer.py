@@ -330,8 +330,8 @@ def render_app() -> None:
         session_service.set_route(current_route)
     chosen = render_sidebar(navigation_items, current_route, user=user, role_label=translator.t(f"role.{role}"))
     if chosen != current_route:
-        current_route = chosen
-        session_service.set_route(current_route)
+        session_service.set_route(chosen)
+        st.rerun()
     with st.sidebar:
         if st.button(translator.t("auth.logout"), use_container_width=True):
             session_service.logout()
