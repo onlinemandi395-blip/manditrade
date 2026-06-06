@@ -4,8 +4,7 @@
   "admin_drive_enabled": true,
   "collections": {
     "users": "users:users",
-    "products": "product_mapping:products",
-    "raw_materials": "raw_materials_data:raw_materials",
+    "products": "products_data:products",
     "orders": "orders_data:orders",
     "notifications": "notifications_data:notifications",
     "gmail_queue": "gmail_queue_data:gmail_queue",

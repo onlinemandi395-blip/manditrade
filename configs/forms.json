@@ -7,28 +7,15 @@
       "fields": [
         {"name": "product_name", "label_key": "field.product_name", "type": "text", "required": true},
         {"name": "product_code", "label_key": "field.product_code", "type": "text", "required": true},
-        {"name": "category", "label_key": "field.category", "type": "text", "required": true},
-        {"name": "subcategory", "label_key": "field.subcategory", "type": "text"},
+        {"name": "owner_email", "label_key": "field.owner_email", "type": "text", "required": true},
+        {"name": "category", "label_key": "field.category", "type": "select", "required": true},
+        {"name": "subcategory", "label_key": "field.subcategory", "type": "select", "required": true},
         {"name": "description", "label_key": "field.description", "type": "text"},
-        {"name": "unit", "label_key": "field.unit", "type": "text"},
-        {"name": "marketplace_price", "label_key": "field.marketplace_price", "type": "number"},
-        {"name": "manditrade_price", "label_key": "field.manditrade_price", "type": "number"},
         {"name": "image_url", "label_key": "field.image_url", "type": "text"},
-        {"name": "available_marketplace", "label_key": "field.available_marketplace", "type": "checkbox"},
-        {"name": "available_manditrade", "label_key": "field.available_manditrade", "type": "checkbox"},
-        {"name": "available_quantity", "label_key": "field.available_quantity", "type": "number"}
-      ]
-    },
-    "raw_material_form": {
-      "title_key": "form.raw_material.title",
-      "submit_label_key": "action.save",
-      "collection": "raw_materials",
-      "fields": [
-        {"name": "raw_material_name", "label_key": "field.raw_material_name", "type": "text", "required": true},
-        {"name": "category", "label_key": "field.category", "type": "text", "required": true},
         {"name": "unit", "label_key": "field.unit", "type": "text"},
-        {"name": "price", "label_key": "field.price", "type": "number"},
-        {"name": "image_url", "label_key": "field.image_url", "type": "text"}
+        {"name": "available_quantity", "label_key": "field.available_quantity", "type": "number"},
+        {"name": "marketplace_price", "label_key": "field.marketplace_price", "type": "number"},
+        {"name": "manditrade_price", "label_key": "field.manditrade_price", "type": "number"}
       ]
     }
   }

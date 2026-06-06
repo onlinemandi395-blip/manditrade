@@ -15,7 +15,8 @@
     ],
     "mahajan": [
       "dashboard",
-      "raw_materials",
+      "products",
+      "manditrade",
       "orders",
       "shipments",
       "notifications",

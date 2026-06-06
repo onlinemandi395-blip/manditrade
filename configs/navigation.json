@@ -5,7 +5,6 @@
       {"route": "products", "icon": "[PD]", "label_key": "sidebar.products"},
       {"route": "marketplace", "icon": "[MK]", "label_key": "sidebar.marketplace"},
       {"route": "manditrade", "icon": "[MT]", "label_key": "sidebar.manditrade"},
-      {"route": "raw_materials", "icon": "[RM]", "label_key": "sidebar.raw_materials"},
       {"route": "orders", "icon": "[OR]", "label_key": "sidebar.orders"},
       {"route": "shipments", "icon": "[SH]", "label_key": "sidebar.shipments"},
       {"route": "ledger", "icon": "[LG]", "label_key": "sidebar.ledger"},

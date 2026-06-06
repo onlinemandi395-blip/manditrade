@@ -60,6 +60,15 @@ def render_app() -> None:
             ],
             caption="Missing required Drive files",
         )
+        current_user = dict(st.session_state.get("mt_next_user", {}) or {})
+        if str(current_user.get("role", "")).strip().lower() == "platform_admin" and bool(current_user.get("is_authenticated", False)):
+            if st.button("Create Missing Files", use_container_width=True):
+                try:
+                    result = AdminDriveService().create_missing_required_files()
+                    st.success(f"Created {len(result.get('created', []))} missing files.")
+                    st.rerun()
+                except Exception as exc:
+                    st.error(f"Create Missing Files failed: {exc}")
         st.stop()
     cache_service = CacheService(config_loader)
     cache_service.load_all_configs()
@@ -174,7 +183,6 @@ def render_app() -> None:
 
     datasets = {
         "products": data_service.list_collection("products"),
-        "raw_materials": data_service.list_collection("raw_materials"),
         "orders": data_service.list_collection("orders"),
         "notifications": data_service.list_collection("notifications"),
         "shipments": data_service.list_collection("shipments"),
@@ -217,12 +225,12 @@ def render_app() -> None:
         def on_request(product: dict) -> None:
             order = order_service.create_manditrade_order(
                 product=product,
-                requesting_manufacturer_email=session_service.get_user().get("email", ""),
+                requesting_user_email=session_service.get_user().get("email", ""),
             )
             st.success(f"MandiTrade order {order.get('order_id', '')} created.")
         render_manditrade_page(products, on_request=on_request)
     elif page_definition.get("type") == "products_admin":
-        render_products_page(data_service, notification_service, session_service)
+        render_products_page(data_service, notification_service, session_service, cache_service)
     elif page_definition.get("type") == "admin_configuration":
         render_admin_configuration(auth_service, data_service, notification_service, session_service)
     elif page_definition.get("type") in {"crud_table", "table"}:
@@ -235,9 +243,9 @@ def render_app() -> None:
             def _handle_submit(values: dict) -> None:
                 created = data_service.create_record(form_definition.get("collection", source_name), values)
                 notification_service.create_notification(
-                    notification_type="RAW_MATERIAL_ADDED" if form_definition.get("collection") == "raw_materials" else "PRODUCT_ADDED",
-                    title=translator.t("notification.raw_material_added.title" if form_definition.get("collection") == "raw_materials" else "notification.product_added.title"),
-                    message=translator.t("notification.raw_material_added.message" if form_definition.get("collection") == "raw_materials" else "notification.product_added.message"),
+                    notification_type="PRODUCT_ADDED",
+                    title=translator.t("notification.product_added.title"),
+                    message=translator.t("notification.product_added.message"),
                     metadata={"record_id": created.get("id", "")},
                 )
                 st.success("Saved.")

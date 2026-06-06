@@ -24,14 +24,6 @@
       "form_id": "product_form",
       "visible_to": ["platform_admin", "manufacturer"]
     },
-    "raw_materials": {
-      "type": "crud_table",
-      "title_key": "module.raw_materials.title",
-      "subtitle_key": "module.raw_materials.subtitle",
-      "data_source": "raw_materials",
-      "form_id": "raw_material_form",
-      "visible_to": ["platform_admin", "mahajan"]
-    },
     "manditrade": {
       "type": "manditrade",
       "title_key": "module.manditrade.title",

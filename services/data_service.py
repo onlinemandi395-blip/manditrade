@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 
 import streamlit as st
 
+from services.admin_drive_service import AdminDriveService
 from services.id_service import IdService
 
 
@@ -12,6 +13,7 @@ class DataService:
     def __init__(self, cache_service) -> None:
         self.cache_service = cache_service
         self.id_service = IdService()
+        self.admin_drive_service = AdminDriveService()
         st.session_state.setdefault("mt_next_data", {})
 
     def _bootstrap_collection(self, collection: str) -> list[dict]:
@@ -47,6 +49,29 @@ class DataService:
         rows.append(record)
         return record
 
+    def persist_collection(self, collection: str) -> None:
+        database_config = self.cache_service.get_config("database")
+        source = database_config.get("collections", {}).get(collection, "")
+        if ":" not in source:
+            raise ValueError(f"Invalid Drive collection mapping for: {collection}")
+        config_name, key = source.split(":", 1)
+        collection_rows = self._bootstrap_collection(collection)
+        logical_path_map = {
+            "users": "01_identity/users.json",
+            "products_data": "02_catalog/products.json",
+            "orders_data": "05_orders/orders.json",
+            "shipments_data": "06_shipments/shipments.json",
+            "ledger_data": "07_ledger/ledger.json",
+            "notifications_data": "09_notifications/notifications.json",
+            "gmail_queue_data": "09_notifications/gmail_queue.json",
+        }
+        logical_path = logical_path_map.get(config_name)
+        if not logical_path:
+            raise KeyError(f"No Drive file path configured for collection source: {config_name}")
+        payload = {"schema_version": 1, key: collection_rows}
+        self.admin_drive_service.write_json(logical_path, payload)
+        st.session_state[self.cache_service.cache_key][config_name] = payload
+
     def normalize_product_record(self, record: dict) -> dict:
         product = deepcopy(record)
         product.setdefault("product_id", self.id_service.next("product"))
@@ -69,78 +94,56 @@ class DataService:
         sales_channels.setdefault("marketplace", {"enabled": False, "price": 0})
         sales_channels.setdefault("manditrade", {"enabled": False, "price": 0})
         product["sales_channels"] = sales_channels
-        manufacturer = dict(product.get("manufacturer", {}) or {})
-        if not manufacturer:
-            legacy_manufacturers = product.get("manufacturer_tags") or []
-            if not legacy_manufacturers:
-                for item in product.get("manufacturer_mapping", []) or []:
-                    legacy_manufacturers.append(
-                        {
-                            "email": ((item.get("contact") or {}).get("email", "")),
-                            "manufacturer_id": item.get("manufacturer_id", ""),
-                            "name": item.get("manufacturer_name", ""),
-                            "phone": ((item.get("contact") or {}).get("phone", "")),
-                            "active": item.get("active", True),
-                        }
-                    )
-            first_manufacturer = (legacy_manufacturers or [{}])[0]
-            manufacturer = {
-                "email": first_manufacturer.get("email", ""),
-                "manufacturer_id": first_manufacturer.get("manufacturer_id", ""),
-                "name": first_manufacturer.get("name", ""),
-                "phone": first_manufacturer.get("phone", ""),
-                "active": first_manufacturer.get("active", True),
-            }
-        mahajan = dict(product.get("mahajan", {}) or {})
-        if not mahajan:
-            legacy_mahajans = product.get("mahajan_tags") or []
-            if not legacy_mahajans:
-                for item in product.get("mahajan_mapping", []) or []:
-                    legacy_mahajans.append(
-                        {
-                            "email": ((item.get("contact") or {}).get("email", "")),
-                            "mahajan_id": item.get("mahajan_id", ""),
-                            "name": item.get("mahajan_name", ""),
-                            "phone": ((item.get("contact") or {}).get("phone", "")),
-                            "active": item.get("active", True),
-                        }
-                    )
-            first_mahajan = (legacy_mahajans or [{}])[0]
-            mahajan = {
-                "email": first_mahajan.get("email", ""),
-                "mahajan_id": first_mahajan.get("mahajan_id", ""),
-                "name": first_mahajan.get("name", ""),
-                "phone": first_mahajan.get("phone", ""),
-                "active": first_mahajan.get("active", True),
-            }
-        product["manufacturer"] = manufacturer
-        product["mahajan"] = mahajan
+        owner = dict(product.get("owner", {}) or {})
+        if not owner:
+            if product.get("manufacturer"):
+                manufacturer = dict(product.get("manufacturer", {}) or {})
+                owner = {
+                    "email": manufacturer.get("email", ""),
+                    "role": "manufacturer",
+                    "display_name": manufacturer.get("name", ""),
+                    "user_id": manufacturer.get("manufacturer_id", ""),
+                }
+            elif product.get("mahajan"):
+                mahajan = dict(product.get("mahajan", {}) or {})
+                owner = {
+                    "email": mahajan.get("email", ""),
+                    "role": "mahajan",
+                    "display_name": mahajan.get("name", ""),
+                    "user_id": mahajan.get("mahajan_id", ""),
+                }
+            else:
+                legacy_manufacturers = product.get("manufacturer_tags") or []
+                legacy_mahajans = product.get("mahajan_tags") or []
+                if legacy_manufacturers:
+                    first_owner = legacy_manufacturers[0]
+                    owner = {
+                        "email": first_owner.get("email", ""),
+                        "role": "manufacturer",
+                        "display_name": first_owner.get("name", ""),
+                        "user_id": first_owner.get("manufacturer_id", ""),
+                    }
+                elif legacy_mahajans:
+                    first_owner = legacy_mahajans[0]
+                    owner = {
+                        "email": first_owner.get("email", ""),
+                        "role": "mahajan",
+                        "display_name": first_owner.get("name", ""),
+                        "user_id": first_owner.get("mahajan_id", ""),
+                    }
+        product["owner"] = owner
         product.pop("manufacturer_tags", None)
         product.pop("mahajan_tags", None)
         product.pop("manufacturer_mapping", None)
         product.pop("mahajan_mapping", None)
+        product.pop("manufacturer", None)
+        product.pop("mahajan", None)
         inventory = dict(product.get("inventory", {}) or {})
         inventory.setdefault("available_quantity", 0)
-        inventory.setdefault("unit", product.get("unit", "piece"))
         inventory.setdefault("manual_update_only", True)
         product["inventory"] = inventory
-        routing = dict(product.get("routing", {}) or {})
-        routing.setdefault(
-            "marketplace_orders",
-            {
-                "route_to": "manufacturer",
-                "notify": ["platform_admin", "manufacturer"],
-            },
-        )
-        routing.setdefault(
-            "manditrade_orders",
-            {
-                "route_to": "platform_admin",
-                "assigned_supplier": "manufacturer",
-                "notify": ["platform_admin", "manufacturer", "mahajan"],
-            },
-        )
-        product["routing"] = routing
         product["created_at"] = product.get("created_at") or datetime.now(UTC).isoformat()
         product["updated_at"] = product.get("updated_at") or product["created_at"]
+        product["created_by"] = product.get("created_by", "")
+        product["updated_by"] = product.get("updated_by", "")
         return product

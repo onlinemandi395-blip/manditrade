@@ -7,10 +7,6 @@
     "PRODUCT_ADDED": {
       "title_key": "notification.product_added.title",
       "message_key": "notification.product_added.message"
-    },
-    "RAW_MATERIAL_ADDED": {
-      "title_key": "notification.raw_material_added.title",
-      "message_key": "notification.raw_material_added.message"
     }
   }
 }

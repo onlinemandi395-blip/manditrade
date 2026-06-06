@@ -3,8 +3,7 @@
 Current data collections:
 
 - `users` -> `MANDITRADE_DB/01_identity/users.json`
-- `products` -> `MANDITRADE_DB/02_catalog/product_mapping.json`
-- `raw_materials` -> `MANDITRADE_DB/02_catalog/raw_materials.json`
+- `products` -> `MANDITRADE_DB/02_catalog/products.json`
 - `orders` -> `MANDITRADE_DB/05_orders/orders.json`
 - `shipments` -> `MANDITRADE_DB/06_shipments/shipments.json`
 - `ledger` -> `MANDITRADE_DB/07_ledger/ledger.json`
@@ -21,6 +20,7 @@ Configuration files are loaded from:
 - `MANDITRADE_DB/00_config/modules.json`
 - `MANDITRADE_DB/00_config/dashboards.json`
 - `MANDITRADE_DB/00_config/forms.json`
+- `MANDITRADE_DB/00_config/categories.json`
 - `MANDITRADE_DB/00_config/database.json`
 - `MANDITRADE_DB/00_config/languages/*.json`
 

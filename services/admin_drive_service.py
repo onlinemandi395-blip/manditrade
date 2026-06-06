@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import streamlit as st
@@ -17,14 +18,14 @@ class AdminDriveService:
         "00_config/modules.json",
         "00_config/dashboards.json",
         "00_config/forms.json",
+        "00_config/categories.json",
         "00_config/database.json",
         "00_config/languages/en.json",
         "00_config/languages/hi.json",
         "00_config/languages/mr.json",
         "00_config/languages/bn.json",
         "01_identity/users.json",
-        "02_catalog/product_mapping.json",
-        "02_catalog/raw_materials.json",
+        "02_catalog/products.json",
         "05_orders/orders.json",
         "06_shipments/shipments.json",
         "07_ledger/ledger.json",
@@ -125,6 +126,60 @@ class AdminDriveService:
         service = self.build_client()
         root = self._resolve_root_folder(service)
         return self.google_drive_service.read_json_by_path(service, root["id"], logical_path)
+
+    def write_json(self, logical_path: str, payload: dict) -> dict:
+        service = self.build_client()
+        root = self._resolve_root_folder(service)
+        parent_path, file_name = logical_path.rsplit("/", 1)
+        parent = root
+        for part in [item for item in parent_path.split("/") if item]:
+            parent = self.google_drive_service.find_or_create_folder(service, part, parent["id"])
+        return self.google_drive_service.create_or_update_json_file(service, parent["id"], file_name, payload)
+
+    def create_missing_required_files(self) -> dict:
+        base_dir = Path(__file__).resolve().parent.parent
+        templates = {
+            "00_config/app_config.json": base_dir / "configs" / "app_config.json",
+            "00_config/auth.json": base_dir / "configs" / "auth.json",
+            "00_config/permissions.json": base_dir / "configs" / "permissions.json",
+            "00_config/role_views.json": base_dir / "configs" / "role_views.json",
+            "00_config/navigation.json": base_dir / "configs" / "navigation.json",
+            "00_config/modules.json": base_dir / "configs" / "modules.json",
+            "00_config/dashboards.json": base_dir / "configs" / "dashboards.json",
+            "00_config/forms.json": base_dir / "configs" / "forms.json",
+            "00_config/database.json": base_dir / "configs" / "database.json",
+            "00_config/categories.json": base_dir / "configs" / "categories.json",
+            "00_config/languages/en.json": base_dir / "configs" / "languages" / "en.json",
+            "00_config/languages/hi.json": base_dir / "configs" / "languages" / "hi.json",
+            "00_config/languages/mr.json": base_dir / "configs" / "languages" / "mr.json",
+            "00_config/languages/bn.json": base_dir / "configs" / "languages" / "bn.json",
+            "01_identity/users.json": base_dir / "configs" / "users.json",
+            "02_catalog/products.json": base_dir / "configs" / "products.json",
+            "05_orders/orders.json": None,
+            "06_shipments/shipments.json": None,
+            "07_ledger/ledger.json": None,
+            "09_notifications/notifications.json": None,
+            "09_notifications/gmail_queue.json": None,
+        }
+        created = []
+        existing = []
+        for logical_path in self.REQUIRED_RUNTIME_FILES:
+            try:
+                existing_payload = self.read_json(logical_path)
+                if existing_payload is not None:
+                    existing.append(logical_path)
+                    continue
+            except Exception:
+                pass
+            template_path = templates.get(logical_path)
+            if template_path and template_path.exists():
+                payload = json.loads(template_path.read_text(encoding="utf-8"))
+            else:
+                top_key = Path(logical_path).stem
+                payload = {"schema_version": 1, top_key: []}
+            self.write_json(logical_path, payload)
+            created.append(logical_path)
+        return {"created": created, "existing": existing}
 
     def get_status(self) -> dict:
         config = self._get_drive_config()

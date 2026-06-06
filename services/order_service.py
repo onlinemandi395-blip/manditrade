@@ -13,14 +13,15 @@ class OrderService:
 
     def create_marketplace_order(self, *, items: list[dict], buyer_email: str) -> dict:
         first_item = dict((items or [{}])[0])
-        manufacturer = dict(first_item.get("manufacturer", {}) or {})
+        owner = dict(first_item.get("owner", {}) or {})
         record = {
             "order_id": self.id_service.next("order"),
             "items": items,
             "source_channel": "marketplace",
             "product_id": first_item.get("product_id", ""),
             "buyer_email": buyer_email,
-            "manufacturer_email": manufacturer.get("email", ""),
+            "owner_email": owner.get("email", ""),
+            "owner_role": owner.get("role", ""),
             "role": "public_buyer",
             "status": "PLACED",
             "created_at": datetime.now(UTC).isoformat(),
@@ -33,7 +34,7 @@ class OrderService:
             metadata={
                 "order_id": record["order_id"],
                 "source_channel": "marketplace",
-                "to_email": manufacturer.get("email", ""),
+                "to_email": owner.get("email", ""),
                 "product_id": record["product_id"],
             },
         )
@@ -45,29 +46,27 @@ class OrderService:
         )
         return record
 
-    def create_manditrade_order(self, *, product: dict, requesting_manufacturer_email: str) -> dict:
-        manufacturer = dict(product.get("manufacturer", {}) or {})
-        mahajan = dict(product.get("mahajan", {}) or {})
+    def create_manditrade_order(self, *, product: dict, requesting_user_email: str) -> dict:
+        owner = dict(product.get("owner", {}) or {})
         record = {
             "order_id": self.id_service.next("order"),
             "source_channel": "manditrade",
             "product_id": product.get("product_id", ""),
-            "requesting_manufacturer_email": requesting_manufacturer_email,
-            "assigned_manufacturer_email": manufacturer.get("email", ""),
-            "mahajan_email": mahajan.get("email", ""),
+            "requesting_user_email": requesting_user_email,
+            "owner_email": owner.get("email", ""),
+            "owner_role": owner.get("role", ""),
             "admin_routed": True,
             "status": "REQUESTED",
             "created_at": datetime.now(UTC).isoformat(),
         }
         self.data_service._bootstrap_collection("orders").append(record)
-        for email in [manufacturer.get("email", ""), mahajan.get("email", "")]:
-            if email:
-                self.notification_service.create_notification(
-                    notification_type="ORDER_CREATED",
-                    title="MandiTrade order routed",
-                    message="A MandiTrade order was routed through product mapping.",
-                    metadata={"order_id": record["order_id"], "source_channel": "manditrade", "to_email": email},
-                )
+        if owner.get("email"):
+            self.notification_service.create_notification(
+                notification_type="ORDER_CREATED",
+                title="MandiTrade order routed",
+                message="A MandiTrade order was routed through product ownership.",
+                metadata={"order_id": record["order_id"], "source_channel": "manditrade", "to_email": owner.get("email", "")},
+            )
         self.notification_service.create_notification(
             notification_type="ORDER_CREATED",
             title="MandiTrade order requested",

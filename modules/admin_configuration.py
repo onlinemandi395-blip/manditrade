@@ -4,10 +4,13 @@ from datetime import UTC, datetime
 
 import streamlit as st
 
+from services.admin_drive_service import AdminDriveService
+
 
 def render_admin_configuration(auth_service, data_service, notification_service, session_service) -> None:
     users = data_service.get_collection_ref("users")
     primary_admin = auth_service.get_primary_admin()
+    admin_drive_service = AdminDriveService()
     admin_rows = []
     if primary_admin.get("email"):
         admin_rows.append(
@@ -29,7 +32,7 @@ def render_admin_configuration(auth_service, data_service, notification_service,
         ]
     )
 
-    tabs = st.tabs(["Admins", "Roles", "Navigation", "Platform Settings", "Integrations"])
+    tabs = st.tabs(["Admin Users", "Required Files", "Integrations"])
 
     with tabs[0]:
         st.subheader("Admin Users")
@@ -61,6 +64,7 @@ def render_admin_configuration(auth_service, data_service, notification_service,
                 st.error("Duplicate admin email is not allowed.")
             else:
                 record = {
+                    "user_id": f"USR_{len(users) + 1:04d}",
                     "email": normalized_email,
                     "role": "platform_admin",
                     "status": "ACTIVE",
@@ -70,26 +74,39 @@ def render_admin_configuration(auth_service, data_service, notification_service,
                     "created_by": session_service.get_user().get("email", ""),
                 }
                 users.append(record)
-                notification_service.create_notification(
-                    notification_type="ADMIN_ADDED",
-                    title="New admin added",
-                    message=f"{record['display_name']} was added as admin.",
-                    metadata={"to_email": normalized_email},
-                )
-                if primary_admin.get("email"):
+                try:
+                    data_service.persist_collection("users")
                     notification_service.create_notification(
                         notification_type="ADMIN_ADDED",
-                        title="Admin registry updated",
+                        title="New admin added",
                         message=f"{record['display_name']} was added as admin.",
-                        metadata={"to_email": primary_admin["email"]},
+                        metadata={"to_email": normalized_email},
                     )
-                st.success("Admin added.")
+                    if primary_admin.get("email"):
+                        notification_service.create_notification(
+                            notification_type="ADMIN_ADDED",
+                            title="Admin registry updated",
+                            message=f"{record['display_name']} was added as admin.",
+                            metadata={"to_email": primary_admin["email"]},
+                        )
+                    st.success("Admin added.")
+                except Exception as exc:
+                    users.pop()
+                    st.error(f"Drive write failed: {exc}")
 
     with tabs[1]:
-        st.info("Roles remain JSON-driven. Additional role editing can be added here later.")
+        manifest = admin_drive_service.get_runtime_manifest()
+        st.dataframe(manifest.get("required_files", []), use_container_width=True)
+        if manifest.get("missing_files"):
+            st.error("Required Drive files are missing.")
+            if st.button("Create Missing Files", use_container_width=True):
+                try:
+                    result = admin_drive_service.create_missing_required_files()
+                    st.success(f"Created {len(result.get('created', []))} files/folders.")
+                    st.rerun()
+                except Exception as exc:
+                    st.error(f"Create Missing Files failed: {exc}")
+        else:
+            st.success("All required Drive files are present.")
     with tabs[2]:
-        st.info("Navigation remains JSON-driven. Editable navigation can be added here later.")
-    with tabs[3]:
-        st.info("Platform settings remain TOML/config-driven for now.")
-    with tabs[4]:
         st.info("Integrations remain status-driven for now.")
