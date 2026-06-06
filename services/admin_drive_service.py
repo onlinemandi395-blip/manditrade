@@ -67,6 +67,8 @@ class AdminDriveService:
             "14_runtime",
             "15_media",
             "15_media/products",
+            "15_media/app_assets",
+            "15_media/app_assets/backgrounds",
         }
         return sorted(folder_paths)
 

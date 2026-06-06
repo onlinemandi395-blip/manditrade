@@ -188,6 +188,27 @@ def build_required_drive_files(primary_admin_email: str, primary_admin_name: str
             },
         },
         {
+            "logical_path": "00_config/theme.json",
+            "type": "config",
+            "default_payload": {
+                "schema_version": 1,
+                "theme": {
+                    "background": {
+                        "enabled": False,
+                        "source": "drive",
+                        "file_id": "",
+                        "file_name": "app_background.png",
+                        "local_cache_key": "app_background",
+                        "opacity": 0.35,
+                        "overlay": "linear-gradient(rgba(3,7,18,0.82), rgba(3,7,18,0.9))",
+                        "position": "center center",
+                        "size": "cover",
+                        "repeat": "no-repeat",
+                    }
+                },
+            },
+        },
+        {
             "logical_path": "00_config/id_counters.json",
             "type": "config",
             "default_payload": {

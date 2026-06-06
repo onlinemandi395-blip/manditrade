@@ -8,7 +8,7 @@ from components.dashboard_renderer import render_dashboard_cards
 from components.detail_panel import render_detail_panel
 from components.empty_state import render_empty_state
 from components.form_renderer import render_form
-from components.html_renderer import inject_css
+from components.html_renderer import inject_css, inject_inline_css
 from components.sidebar import render_sidebar
 from components.table_renderer import render_table
 from components.topbar import render_topbar
@@ -38,6 +38,7 @@ from services.performance_service import PerformanceService
 from services.rbac_service import RBACService
 from services.session_service import SessionService
 from services.media_service import MediaService
+from services.theme_service import ThemeService
 
 
 CSS_FILE = Path(__file__).resolve().parent.parent / "assets" / "styles" / "design.css"
@@ -308,6 +309,14 @@ def render_app() -> None:
 
     role = session_service.get_user_role()
     user = session_service.get_user()
+    theme_service = ThemeService(admin_drive_service, cache_service)
+    theme_css = theme_service.build_background_css()
+    if theme_css:
+        inject_inline_css(theme_css)
+    else:
+        theme_warning = theme_service.get_background_style().get("warning", "")
+        if theme_warning and role == "platform_admin":
+            st.warning(theme_warning)
     data_service = DataService(cache_service)
     media_service = MediaService(admin_drive_service)
     notification_service = NotificationService(data_service)

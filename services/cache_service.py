@@ -24,6 +24,7 @@ class CacheService:
             "forms": self.config_loader_service.load("forms"),
             "categories": self.config_loader_service.load("categories"),
             "database": self.config_loader_service.load("database"),
+            "theme": self.config_loader_service.load("theme"),
             "products_data": self.config_loader_service.load("products_data"),
             "orders_data": self.config_loader_service.load("orders_data"),
             "shipments_data": self.config_loader_service.load("shipments_data"),

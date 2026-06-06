@@ -18,6 +18,7 @@ class ConfigLoaderService:
         "forms": "00_config/forms.json",
         "categories": "00_config/categories.json",
         "database": "00_config/database.json",
+        "theme": "00_config/theme.json",
         "users": "01_identity/users.json",
         "products_data": "02_catalog/products.json",
         "orders_data": "05_orders/orders.json",

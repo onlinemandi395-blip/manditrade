@@ -12,3 +12,8 @@ def render_html(markup: str) -> None:
 def inject_css(path: Path) -> None:
     if path.exists():
         st.markdown(f"<style>{path.read_text(encoding='utf-8')}</style>", unsafe_allow_html=True)
+
+
+def inject_inline_css(css: str) -> None:
+    if css.strip():
+        st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
