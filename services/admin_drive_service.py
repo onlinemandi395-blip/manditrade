@@ -42,11 +42,14 @@ class AdminDriveService:
         return build_required_drive_files(platform["primary_admin_email"], platform["primary_admin_name"])
 
     def _get_user_token(self) -> dict:
+        stored_token = self.google_drive_service.read_token_store()
+        if stored_token:
+            return stored_token
         session_user = dict(st.session_state.get("mt_next_user", {}) or {})
         token = dict(session_user.get("oauth_token", {}) or {})
         if token:
             return token
-        return self.google_drive_service.read_token_store()
+        return {}
 
     def build_client(self):
         token = self._get_user_token()
