@@ -47,6 +47,34 @@ def _active_users_for_role(users: list[dict], role: str) -> list[dict]:
     return sorted(rows, key=lambda user: (str(user.get("display_name", "")).strip().lower(), str(user.get("email", "")).strip().lower()))
 
 
+def _owner_candidates_for_role(users: list[dict], products: list[dict], role: str) -> list[dict]:
+    normalized_role = str(role).strip().lower()
+    candidate_map: dict[str, dict] = {
+        str(user.get("email", "")).strip().lower(): dict(user)
+        for user in _active_users_for_role(users, normalized_role)
+    }
+    for product in products:
+        owner = dict(product.get("owner", {}) or {})
+        owner_email = str(owner.get("email", "")).strip().lower()
+        owner_role = str(owner.get("role", "")).strip().lower()
+        if not owner_email or owner_role != normalized_role:
+            continue
+        if owner_email not in candidate_map:
+            candidate_map[owner_email] = {
+                "user_id": str(owner.get("user_id", "")).strip(),
+                "email": owner_email,
+                "role": normalized_role,
+                "status": "ACTIVE",
+                "display_name": str(owner.get("display_name", "")).strip(),
+                "phone": str(owner.get("phone", "")).strip(),
+                "source": "product_owner_fallback",
+            }
+    return sorted(
+        candidate_map.values(),
+        key=lambda user: (str(user.get("display_name", "")).strip().lower(), str(user.get("email", "")).strip().lower()),
+    )
+
+
 def _get_owner_type_label(product: dict) -> str:
     owner_role = str(((product.get("owner") or {}).get("role", ""))).strip().lower()
     for label, value in OWNER_TYPES.items():
@@ -307,7 +335,7 @@ def render_products_page(data_service, notification_service, session_service, ca
                 selected_owner = dict(selected_product.get("owner", {}) or {})
                 selected_owner_role = str(selected_owner.get("role", OWNER_TYPES[_get_owner_type_label(selected_product)])).strip().lower()
                 owner_type_label = next((label for label, role in OWNER_TYPES.items() if role == selected_owner_role), "Manufacturer")
-                owner_options = _active_users_for_role(users, OWNER_TYPES[owner_type_label])
+                owner_options = _owner_candidates_for_role(users, products, OWNER_TYPES[owner_type_label])
                 existing_owner_values = [row.get("email", "") for row in owner_options]
                 default_owner_mode = "Select Existing" if str(selected_owner.get("email", "")).strip().lower() in {str(value).strip().lower() for value in existing_owner_values} else "Add New"
                 st.caption(f"Product Code: {selected_product.get('product_code', '')}")
@@ -328,7 +356,7 @@ def render_products_page(data_service, notification_service, session_service, ca
                     key="edit_owner_mode",
                 )
                 edit_role_key = OWNER_TYPES[edit_owner_type]
-                edit_owner_candidates = _active_users_for_role(users, edit_role_key)
+                edit_owner_candidates = _owner_candidates_for_role(users, products, edit_role_key)
                 edit_owner_email = str(selected_owner.get("email", "")).strip().lower()
                 edit_owner_display_name = str(selected_owner.get("display_name", "")).strip()
                 edit_owner_phone = str(selected_owner.get("phone", "")).strip()
@@ -479,7 +507,7 @@ def render_products_page(data_service, notification_service, session_service, ca
         owner_type = st.selectbox("Owner Type", options=list(OWNER_TYPES.keys()), key="create_owner_type")
         owner_role_key = OWNER_TYPES[owner_type]
         owner_mode = st.radio("Owner Selection Mode", options=["Select Existing", "Add New"], horizontal=True, key="create_owner_mode")
-        owner_candidates = _active_users_for_role(users, owner_role_key)
+        owner_candidates = _owner_candidates_for_role(users, products, owner_role_key)
         owner_email = ""
         owner_display_name = ""
         owner_phone = ""
