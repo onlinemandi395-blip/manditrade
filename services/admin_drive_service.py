@@ -7,6 +7,7 @@ from time import time
 import streamlit as st
 
 from services.drive_path_resolver import DrivePathResolver
+from services.auth_service import is_bootstrap_admin
 from services.google_drive_service import GoogleDriveService
 from services.performance_service import PerformanceService
 from services.required_drive_files import build_required_drive_files
@@ -50,6 +51,9 @@ class AdminDriveService:
         if stored_token:
             return stored_token
         session_user = dict(st.session_state.get("mt_next_user", {}) or {})
+        session_email = str(session_user.get("email", "") or "").strip().lower()
+        if not is_bootstrap_admin(session_email):
+            return {}
         token = dict(session_user.get("oauth_token", {}) or {})
         if token:
             return token
@@ -196,12 +200,12 @@ class AdminDriveService:
         if not token:
             return self._store_validation({
                 "connected": False,
-                "mode": "user_oauth_drive",
+                "mode": "admin_user_oauth_drive",
                 "root_folder_id": config["root_folder_id"],
                 "root_folder_name": config["root_folder_name"],
                 "required_files": [],
                 "missing_files": ["Google OAuth admin token"],
-                "errors": ["Admin OAuth token required for Google Drive runtime."],
+                "errors": ["Primary admin OAuth token required for Google Drive runtime."],
             })
         try:
             with self.performance_service.measure("drive_root_resolution"):
@@ -209,7 +213,7 @@ class AdminDriveService:
         except Exception as exc:
             return self._store_validation({
                 "connected": False,
-                "mode": "user_oauth_drive",
+                "mode": "admin_user_oauth_drive",
                 "root_folder_id": config["root_folder_id"],
                 "root_folder_name": config["root_folder_name"],
                 "required_files": [],
@@ -233,7 +237,7 @@ class AdminDriveService:
                     missing_files.append(item["logical_path"])
         return self._store_validation({
             "connected": True,
-            "mode": "user_oauth_drive",
+            "mode": "admin_user_oauth_drive",
             "root_folder_id": resolver.root_folder["id"],
             "root_folder_name": resolver.root_folder["name"],
             "required_folders": required_folders,
@@ -381,8 +385,8 @@ class AdminDriveService:
         if not token:
             return {
                 "connected": False,
-                "mode": "user_oauth_drive",
-                "source": "missing_admin_token",
+                "mode": "admin_user_oauth_drive",
+                "source": "missing_primary_admin_token",
                 "root_folder_id": config["root_folder_id"],
                 "root_folder_name": config["root_folder_name"],
                 "admin_token_available": False,
@@ -396,8 +400,8 @@ class AdminDriveService:
             scopes = token.get("scopes", [])
             return {
                 "connected": True,
-                "mode": "user_oauth_drive",
-                "source": "session_or_runtime_oauth",
+                "mode": "admin_user_oauth_drive",
+                "source": "primary_admin_oauth",
                 "root_folder_id": manifest.get("root_folder_id", config["root_folder_id"]),
                 "root_folder_name": manifest.get("root_folder_name", config["root_folder_name"]),
                 "admin_token_available": True,
@@ -409,8 +413,8 @@ class AdminDriveService:
         except Exception:
             return {
                 "connected": False,
-                "mode": "user_oauth_drive",
-                "source": "session_or_runtime_oauth",
+                "mode": "admin_user_oauth_drive",
+                "source": "primary_admin_oauth",
                 "root_folder_id": config["root_folder_id"],
                 "root_folder_name": config["root_folder_name"],
                 "admin_token_available": True,
