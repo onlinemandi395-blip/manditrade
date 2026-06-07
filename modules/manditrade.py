@@ -30,4 +30,10 @@ def render_manditrade_page(products: list[dict], on_request=None, media_service=
         and str(product.get("status", "PENDING_APPROVAL")).upper() == "APPROVED"
         and (not query or _matches_search(product, query))
     ]
-    render_product_grid(manditrade_products, view="manditrade", on_request=on_request, media_service=media_service)
+    render_product_grid(
+        manditrade_products,
+        view="manditrade",
+        on_request=on_request,
+        media_service=media_service,
+        return_route="manditrade",
+    )

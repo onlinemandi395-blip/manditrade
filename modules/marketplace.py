@@ -30,4 +30,10 @@ def render_marketplace_page(products: list[dict], on_add_to_cart, media_service=
         and str(product.get("status", "PENDING_APPROVAL")).upper() == "APPROVED"
         and (not query or _matches_search(product, query))
     ]
-    render_product_grid(marketplace_products, view="marketplace", on_add_to_cart=on_add_to_cart, media_service=media_service)
+    render_product_grid(
+        marketplace_products,
+        view="marketplace",
+        on_add_to_cart=on_add_to_cart,
+        media_service=media_service,
+        return_route="marketplace",
+    )
