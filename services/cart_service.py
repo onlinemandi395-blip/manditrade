@@ -15,13 +15,10 @@ class CartService:
         item = {
             "product_id": product.get("product_id", ""),
             "product_name": product.get("product_name", ""),
-            "qty": 1,
             "quantity": 1,
             "channel": "marketplace",
-            "price": sell_price,
-            "pricing": dict(product.get("pricing", {}) or {}),
-            "owner": dict(product.get("owner", {}) or {}),
-            "delivery_partner": dict(product.get("delivery_partner", {}) or {}),
+            "unit_price": sell_price,
+            "line_total": sell_price,
         }
         st.session_state["mt_next_cart"]["items"].append(item)
 
@@ -35,4 +32,12 @@ class CartService:
         return st.session_state["mt_next_cart"]
 
     def calculate_total(self) -> float:
-        return round(sum(float(item.get("price", 0) or 0) * int(item.get("qty", 0) or 0) for item in self.get_cart()["items"]), 2)
+        return round(
+            sum(
+                float(item.get("line_total", 0) or 0)
+                if "line_total" in item
+                else float(item.get("unit_price", 0) or 0) * int(item.get("quantity", item.get("qty", 0)) or 0)
+                for item in self.get_cart()["items"]
+            ),
+            2,
+        )

@@ -41,6 +41,7 @@ from services.notification_service import NotificationService
 from services.order_service import OrderService
 from services.page_service import PageService
 from services.performance_service import PerformanceService
+from services.qr_service import QRService
 from services.rbac_service import RBACService
 from services.session_service import SessionService
 from services.media_service import MediaService
@@ -56,6 +57,60 @@ BOOTSTRAP_APP_CONFIG = {
         "public_buyer": "marketplace",
     },
 }
+
+
+def _sanitize_cart_rows(items: list[dict]) -> list[dict]:
+    return [
+        {
+            "Product": item.get("product_name", ""),
+            "Quantity": item.get("quantity", item.get("qty", 0)),
+            "Marketplace Price": item.get("unit_price", item.get("price", 0)),
+            "Total": item.get("line_total", 0),
+        }
+        for item in items
+    ]
+
+
+def _render_payment_pending_panel(payment_record: dict) -> None:
+    qr_service = QRService()
+    st.markdown("### Payment Pending")
+    st.caption(f"Order Reference: {payment_record.get('payment_reference', '')}")
+    st.write(f"Amount: Rs. {payment_record.get('amount_payable', payment_record.get('amount_due', 0))}")
+    st.write("Payment Method: UPI")
+    qr_bytes = qr_service.build_qr_png_bytes(payment_record.get("qr_payload", "") or payment_record.get("upi_link", ""))
+    if qr_bytes:
+        st.image(qr_bytes, width=220)
+    st.code(payment_record.get("upi_link", ""))
+    st.caption("Pay using this QR/UPI link. Keep the payment note/reference unchanged.")
+
+
+def _render_checkout_details_form(*, key_prefix: str, email: str) -> dict:
+    st.markdown("### Checkout Details")
+    st.markdown("#### Buyer Contact")
+    name = st.text_input("Full Name", key=f"{key_prefix}_name")
+    mobile = st.text_input("Mobile Number", key=f"{key_prefix}_mobile")
+    st.text_input("Email", value=email, disabled=True, key=f"{key_prefix}_email")
+    st.markdown("#### Delivery Address")
+    address_line_1 = st.text_input("Address Line 1", key=f"{key_prefix}_address_1")
+    address_line_2 = st.text_input("Address Line 2", key=f"{key_prefix}_address_2")
+    city = st.text_input("City", key=f"{key_prefix}_city")
+    state = st.text_input("State", key=f"{key_prefix}_state")
+    pin_code = st.text_input("PIN Code", key=f"{key_prefix}_pin")
+    landmark = st.text_input("Landmark", key=f"{key_prefix}_landmark")
+    st.markdown("#### Payment Method")
+    st.selectbox("Payment Method", options=["UPI QR / UPI Link"], key=f"{key_prefix}_payment_method")
+    return {
+        "name": name.strip(),
+        "mobile": mobile.strip(),
+        "delivery_address": {
+            "address_line_1": address_line_1.strip(),
+            "address_line_2": address_line_2.strip(),
+            "city": city.strip(),
+            "state": state.strip(),
+            "pin_code": pin_code.strip(),
+            "landmark": landmark.strip(),
+        },
+    }
 
 
 def _get_bootstrap_primary_admin() -> dict:
@@ -425,6 +480,7 @@ def render_app() -> None:
         render_detail_panel("Runtime", cache_service.get_cache_status())
     elif page_definition.get("type") == "product_grid":
         products = page_service.filter_rows(datasets.get(page_definition.get("data_source", ""), []), page_definition.get("filters", {}))
+        payment_config = order_service.payment_service.get_payment_config()
 
         def on_add_to_cart(product: dict) -> None:
             try:
@@ -449,37 +505,96 @@ def render_app() -> None:
         if cart.get("items"):
             with st.container(border=True):
                 st.subheader("Cart")
-                render_table(cart["items"])
+                render_table(_sanitize_cart_rows(cart["items"]), caption="Public cart view")
                 st.write(f"Total: {cart_service.calculate_total()}")
-                if st.button("Checkout", use_container_width=True):
-                    order = order_service.create_marketplace_order(
-                        items=cart["items"],
-                        buyer_email=session_service.get_user().get("email", ""),
-                    )
-                    data_service.persist_collection("orders")
-                    data_service.persist_collection("payments")
-                    data_service.persist_collection("notifications")
-                    data_service.persist_collection("gmail_queue")
-                    cart_service.clear_cart()
-                    st.success(f"Order {order.get('order_id', '')} created.")
+                if not payment_config.get("enabled", False):
+                    st.error("Payment config missing or disabled. Checkout is unavailable.")
+                else:
+                    if st.button("Checkout", use_container_width=True, key="marketplace_checkout_open"):
+                        st.session_state["mt_marketplace_checkout_open"] = True
+                    if st.session_state.get("mt_marketplace_checkout_open", False):
+                        checkout = _render_checkout_details_form(
+                            key_prefix="marketplace_checkout",
+                            email=session_service.get_user().get("email", ""),
+                        )
+                        if st.button("Confirm Order", use_container_width=True, key="marketplace_confirm_order"):
+                            if not checkout["name"] or not checkout["mobile"] or not checkout["delivery_address"]["address_line_1"] or not checkout["delivery_address"]["city"] or not checkout["delivery_address"]["state"] or not checkout["delivery_address"]["pin_code"]:
+                                st.error("Please complete buyer contact and delivery address.")
+                            else:
+                                try:
+                                    product_lookup = {str(product.get("product_id", "")).strip(): product for product in products}
+                                    order = order_service.create_marketplace_order_with_checkout(
+                                        items=cart["items"],
+                                        buyer_email=session_service.get_user().get("email", ""),
+                                        buyer_name=checkout["name"],
+                                        buyer_mobile=checkout["mobile"],
+                                        delivery_address=checkout["delivery_address"],
+                                        product_lookup=product_lookup,
+                                    )
+                                    data_service.persist_collection("orders")
+                                    data_service.persist_collection("payments")
+                                    data_service.persist_collection("notifications")
+                                    data_service.persist_collection("gmail_queue")
+                                    cart_service.clear_cart()
+                                    st.session_state["mt_marketplace_checkout_open"] = False
+                                    st.session_state["mt_last_payment_record_id"] = order.get("payment_id", "")
+                                    st.success(f"Order {order.get('order_id', '')} created.")
+                                    payment_record = next(
+                                        (row for row in data_service.get_collection_ref("payments") if str(row.get("payment_id", "")).strip() == str(order.get("payment_id", "")).strip()),
+                                        {},
+                                    )
+                                    _render_payment_pending_panel(payment_record)
+                                except Exception as exc:
+                                    st.error(str(exc))
     elif page_definition.get("type") == "manditrade":
         products = page_service.filter_rows(datasets.get(page_definition.get("data_source", ""), []), page_definition.get("filters", {}))
+        payment_config = order_service.payment_service.get_payment_config()
 
         def on_request(product: dict) -> None:
             try:
-                order = order_service.create_manditrade_order(
-                    product=product,
-                    requesting_user_email=session_service.get_user().get("email", ""),
-                )
-                data_service.persist_collection("orders")
-                data_service.persist_collection("payments")
-                data_service.persist_collection("notifications")
-                data_service.persist_collection("gmail_queue")
-                st.success(f"MandiTrade order {order.get('order_id', '')} created.")
+                st.session_state["mt_manditrade_checkout_product_id"] = product.get("product_id", "")
             except Exception as exc:
                 st.error(str(exc))
 
         render_manditrade_page(products, on_request=on_request, media_service=media_service, translator=translator)
+        selected_product_id = str(st.session_state.get("mt_manditrade_checkout_product_id", "") or "").strip()
+        if selected_product_id:
+            selected_product = next((row for row in products if str(row.get("product_id", "")).strip() == selected_product_id), None)
+            if selected_product:
+                with st.container(border=True):
+                    st.subheader(f"MandiTrade Checkout: {selected_product.get('product_name', '')}")
+                    if not payment_config.get("enabled", False):
+                        st.error("Payment config missing or disabled. Checkout is unavailable.")
+                    else:
+                        checkout = _render_checkout_details_form(
+                            key_prefix=f"manditrade_checkout_{selected_product_id}",
+                            email=session_service.get_user().get("email", ""),
+                        )
+                        if st.button("Confirm Order", use_container_width=True, key=f"manditrade_confirm_order_{selected_product_id}"):
+                            if not checkout["name"] or not checkout["mobile"] or not checkout["delivery_address"]["address_line_1"] or not checkout["delivery_address"]["city"] or not checkout["delivery_address"]["state"] or not checkout["delivery_address"]["pin_code"]:
+                                st.error("Please complete requester contact and delivery address.")
+                            else:
+                                try:
+                                    order = order_service.create_manditrade_order_with_checkout(
+                                        product=selected_product,
+                                        requesting_user_email=session_service.get_user().get("email", ""),
+                                        requester_name=checkout["name"],
+                                        requester_mobile=checkout["mobile"],
+                                        delivery_address=checkout["delivery_address"],
+                                    )
+                                    data_service.persist_collection("orders")
+                                    data_service.persist_collection("payments")
+                                    data_service.persist_collection("notifications")
+                                    data_service.persist_collection("gmail_queue")
+                                    st.session_state["mt_manditrade_checkout_product_id"] = ""
+                                    st.success(f"MandiTrade order {order.get('order_id', '')} created.")
+                                    payment_record = next(
+                                        (row for row in data_service.get_collection_ref("payments") if str(row.get("payment_id", "")).strip() == str(order.get("payment_id", "")).strip()),
+                                        {},
+                                    )
+                                    _render_payment_pending_panel(payment_record)
+                                except Exception as exc:
+                                    st.error(str(exc))
     elif page_definition.get("type") == "products_admin":
         render_products_page(data_service, notification_service, session_service, cache_service, translator)
     elif current_route == "notifications":

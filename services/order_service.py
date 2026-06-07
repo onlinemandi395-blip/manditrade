@@ -106,35 +106,107 @@ class OrderService:
         }
 
     def create_marketplace_order(self, *, items: list[dict], buyer_email: str) -> dict:
+        product_lookup = {}
+        for item in items or []:
+            product_id = str(item.get("product_id", "")).strip()
+            if product_id:
+                product_lookup[product_id] = dict(item)
+        return self.create_marketplace_order_with_checkout(
+            items=items,
+            buyer_email=buyer_email,
+            buyer_name="",
+            buyer_mobile="",
+            delivery_address={},
+            product_lookup=product_lookup,
+        )
+
+    def create_marketplace_order_with_checkout(
+        self,
+        *,
+        items: list[dict],
+        buyer_email: str,
+        buyer_name: str,
+        buyer_mobile: str,
+        delivery_address: dict,
+        product_lookup: dict[str, dict],
+    ) -> dict:
         with self.performance_service.measure("order_create_marketplace"):
-            first_item = dict((items or [{}])[0])
-            owner = dict(first_item.get("owner", {}) or {})
-            delivery_partner = dict(first_item.get("delivery_partner", {}) or {})
-            pricing = dict(first_item.get("pricing", {}) or {})
-            quantity = sum(float(item.get("quantity", 1) or 1) for item in items) if items else 1
-            sell_price = self.pricing_service.resolve_sell_price(first_item, "marketplace")
-            admin_price = float(pricing.get("admin_price", 0) or 0)
+            if not items:
+                raise ValueError("Cart is empty.")
+            normalized_items = []
+            total_amount = 0.0
+            owner = {}
+            delivery_partner = {}
+            admin_price = 0.0
+            owner_payable_amount = 0.0
+            for item in items:
+                product_id = str(item.get("product_id", "")).strip()
+                product = dict(product_lookup.get(product_id, {}) or {})
+                if not product:
+                    raise ValueError(f"Product not found for cart item: {product_id}")
+                quantity = float(item.get("quantity", item.get("qty", 1)) or 1)
+                unit_price = self.pricing_service.resolve_sell_price(product, "marketplace")
+                line_total = round(unit_price * quantity, 2)
+                normalized_items.append(
+                    {
+                        "product_id": product_id,
+                        "product_name": product.get("product_name", ""),
+                        "quantity": quantity,
+                        "unit_price": unit_price,
+                        "line_total": line_total,
+                    }
+                )
+                total_amount += line_total
+                pricing = dict(product.get("pricing", {}) or {})
+                owner_payable_amount += round(float(pricing.get("admin_price", 0) or 0) * quantity, 2)
+                if not owner:
+                    owner = dict(product.get("owner", {}) or {})
+                    delivery_partner = dict(product.get("delivery_partner", {}) or {})
+                    admin_price = float(pricing.get("admin_price", 0) or 0)
+
+            first_item = normalized_items[0]
             record = {
                 "order_id": self.id_service.next("order"),
-                "items": items,
+                "items": normalized_items,
                 "source_channel": "marketplace",
                 "market_type": "B2C",
                 "product_id": first_item.get("product_id", ""),
                 "product_name": first_item.get("product_name", ""),
                 "buyer_email": buyer_email,
+                "buyer": {
+                    "email": str(buyer_email or "").strip().lower(),
+                    "name": str(buyer_name or "").strip(),
+                    "mobile": str(buyer_mobile or "").strip(),
+                },
+                "delivery_address": {
+                    "address_line_1": str(delivery_address.get("address_line_1", "")).strip(),
+                    "address_line_2": str(delivery_address.get("address_line_2", "")).strip(),
+                    "city": str(delivery_address.get("city", "")).strip(),
+                    "state": str(delivery_address.get("state", "")).strip(),
+                    "pin_code": str(delivery_address.get("pin_code", "")).strip(),
+                    "landmark": str(delivery_address.get("landmark", "")).strip(),
+                },
                 "owner_email": owner.get("email", ""),
                 "owner_role": owner.get("role", ""),
                 "preferred_delivery_partner_email": delivery_partner.get("email", ""),
-                "quantity": quantity,
-                "unit_price": sell_price,
-                "sell_price": sell_price,
+                "quantity": sum(float(item.get("quantity", 1) or 1) for item in normalized_items),
+                "unit_price": float(first_item.get("unit_price", 0) or 0),
+                "sell_price": float(first_item.get("unit_price", 0) or 0),
                 "admin_price": admin_price,
-                "admin_margin": round(sell_price - admin_price, 2),
-                "total_amount": round(sell_price * quantity, 2),
+                "admin_margin": round(total_amount - owner_payable_amount, 2),
+                "total_amount": round(total_amount, 2),
+                "internal": {
+                    "owner_email": owner.get("email", ""),
+                    "owner_role": owner.get("role", ""),
+                    "admin_price": admin_price,
+                    "owner_payable_amount": round(owner_payable_amount, 2),
+                    "admin_margin": round(total_amount - owner_payable_amount, 2),
+                },
                 "role": "public_buyer",
                 "status": "PAYMENT_PENDING",
+                "payment_status": "PENDING",
                 "admin_status": "PAYMENT_PENDING",
-                "owner_status": "AWAITING_PAYMENT_VERIFICATION",
+                "owner_status": "WAITING_PAYMENT",
                 "delivery_status": "NOT_ASSIGNED",
                 "otp_status": "NOT_GENERATED",
                 "created_at": datetime.now(UTC).isoformat(),
@@ -188,6 +260,23 @@ class OrderService:
             return record
 
     def create_manditrade_order(self, *, product: dict, requesting_user_email: str) -> dict:
+        return self.create_manditrade_order_with_checkout(
+            product=product,
+            requesting_user_email=requesting_user_email,
+            requester_name="",
+            requester_mobile="",
+            delivery_address={},
+        )
+
+    def create_manditrade_order_with_checkout(
+        self,
+        *,
+        product: dict,
+        requesting_user_email: str,
+        requester_name: str,
+        requester_mobile: str,
+        delivery_address: dict,
+    ) -> dict:
         with self.performance_service.measure("order_create_manditrade"):
             owner = dict(product.get("owner", {}) or {})
             delivery_partner = dict(product.get("delivery_partner", {}) or {})
@@ -201,19 +290,49 @@ class OrderService:
                 "product_id": product.get("product_id", ""),
                 "product_name": product.get("product_name", ""),
                 "requester_email": requesting_user_email,
+                "requester": {
+                    "email": str(requesting_user_email or "").strip().lower(),
+                    "name": str(requester_name or "").strip(),
+                    "mobile": str(requester_mobile or "").strip(),
+                },
+                "delivery_address": {
+                    "address_line_1": str(delivery_address.get("address_line_1", "")).strip(),
+                    "address_line_2": str(delivery_address.get("address_line_2", "")).strip(),
+                    "city": str(delivery_address.get("city", "")).strip(),
+                    "state": str(delivery_address.get("state", "")).strip(),
+                    "pin_code": str(delivery_address.get("pin_code", "")).strip(),
+                    "landmark": str(delivery_address.get("landmark", "")).strip(),
+                },
                 "owner_email": owner.get("email", ""),
                 "owner_role": owner.get("role", ""),
                 "preferred_delivery_partner_email": delivery_partner.get("email", ""),
                 "admin_routed": True,
+                "items": [
+                    {
+                        "product_id": product.get("product_id", ""),
+                        "product_name": product.get("product_name", ""),
+                        "quantity": 1,
+                        "unit_price": sell_price,
+                        "line_total": sell_price,
+                    }
+                ],
                 "quantity": 1,
                 "unit_price": sell_price,
                 "sell_price": sell_price,
                 "admin_price": admin_price,
                 "admin_margin": round(sell_price - admin_price, 2),
                 "total_amount": sell_price,
+                "internal": {
+                    "owner_email": owner.get("email", ""),
+                    "owner_role": owner.get("role", ""),
+                    "admin_price": admin_price,
+                    "owner_payable_amount": admin_price,
+                    "admin_margin": round(sell_price - admin_price, 2),
+                },
                 "status": "PAYMENT_PENDING",
+                "payment_status": "PENDING",
                 "admin_status": "PAYMENT_PENDING",
-                "owner_status": "AWAITING_PAYMENT_VERIFICATION",
+                "owner_status": "WAITING_PAYMENT",
                 "delivery_status": "NOT_ASSIGNED",
                 "otp_status": "NOT_GENERATED",
                 "created_at": datetime.now(UTC).isoformat(),
@@ -287,11 +406,13 @@ class OrderService:
         payment["transaction_reference"] = transaction_reference.strip()
         payment["notes"] = notes.strip()
         payment["status"] = "PAYMENT_VERIFIED"
+        payment["payment_status"] = "VERIFIED"
         payment["verified_by"] = verified_by
         payment["verified_at"] = now
         order["status"] = "PAYMENT_VERIFIED"
+        order["payment_status"] = "VERIFIED"
         order["admin_status"] = "PAYMENT_VERIFIED"
-        order["owner_status"] = "ACTION_REQUIRED"
+        order["owner_status"] = "NEW_REQUEST"
         order["updated_at"] = now
         order["updated_by"] = verified_by
         owner_email = str(order.get("owner_email", "")).strip().lower()

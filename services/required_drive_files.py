@@ -198,8 +198,13 @@ def build_required_drive_files(primary_admin_email: str, primary_admin_name: str
             "logical_path": "00_config/payment_config.json",
             "type": "config",
             "default_payload": {
-                "upi_id": "manditrade@upi",
-                "payee_name": "MandiTrade",
+                "schema_version": 1,
+                "payment": {
+                    "upi_id": "manditrade@upi",
+                    "payee_name": "MandiTrade",
+                    "currency": "INR",
+                    "enabled": True,
+                },
             },
         },
         {

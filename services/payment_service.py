@@ -14,9 +14,13 @@ class PaymentService:
 
     def get_payment_config(self) -> dict:
         config = dict(self.cache_service.get_config("payment_config") or {})
+        payment = dict(config.get("payment", {}) or {})
+        source = payment or config
         return {
-            "upi_id": str(config.get("upi_id", "manditrade@upi")).strip(),
-            "payee_name": str(config.get("payee_name", "MandiTrade")).strip(),
+            "upi_id": str(source.get("upi_id", "manditrade@upi")).strip(),
+            "payee_name": str(source.get("payee_name", "MandiTrade")).strip(),
+            "currency": str(source.get("currency", "INR")).strip() or "INR",
+            "enabled": bool(source.get("enabled", True)),
         }
 
     def generate_payment_reference(self) -> str:
@@ -24,10 +28,13 @@ class PaymentService:
 
     def build_upi_link(self, *, amount: float, reference: str) -> str:
         config = self.get_payment_config()
+        if not config.get("enabled", False):
+            raise ValueError("UPI payment is disabled in payment_config.json.")
         upi_id = quote(config["upi_id"])
         payee_name = quote(config["payee_name"])
         note = quote(reference)
-        return f"upi://pay?pa={upi_id}&pn={payee_name}&am={float(amount or 0):.2f}&cu=INR&tn={note}"
+        currency = quote(config.get("currency", "INR"))
+        return f"upi://pay?pa={upi_id}&pn={payee_name}&am={float(amount or 0):.2f}&cu={currency}&tn={note}"
 
     def create_payment_record(
         self,
@@ -45,11 +52,13 @@ class PaymentService:
             "order_id": order_id,
             "payment_type": payment_type,
             "payer_email": str(payer_email or "").strip().lower(),
+            "amount_payable": round(float(amount or 0), 2),
             "amount_due": round(float(amount or 0), 2),
             "amount_received": 0.0,
             "payment_reference": reference,
             "upi_link": upi_link,
             "qr_payload": upi_link,
+            "payment_status": "PENDING",
             "status": "PAYMENT_PENDING",
             "transaction_reference": "",
             "verified_by": "",

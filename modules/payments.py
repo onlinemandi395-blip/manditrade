@@ -13,15 +13,15 @@ def render_payments_page(data_service, order_service, notification_service, sess
 
     tabs = st.tabs(["Pending Verification", "Verified Payments", "All Payments"])
     with tabs[0]:
-        pending_payments = [row for row in payments if str(row.get("status", "")).upper() == "PAYMENT_PENDING"]
+        pending_payments = [row for row in payments if str(row.get("payment_status", row.get("status", ""))).upper() in {"PENDING", "PAYMENT_PENDING"}]
         render_table(pending_payments, caption="Pending Verification")
     with tabs[1]:
-        verified_payments = [row for row in payments if str(row.get("status", "")).upper() == "PAYMENT_VERIFIED"]
+        verified_payments = [row for row in payments if str(row.get("payment_status", row.get("status", ""))).upper() in {"VERIFIED", "PAYMENT_VERIFIED"}]
         render_table(verified_payments, caption="Verified Payments")
     with tabs[2]:
         render_table(payments, caption="All Payments")
 
-    pending_payments = [row for row in payments if str(row.get("status", "")).upper() == "PAYMENT_PENDING"]
+    pending_payments = [row for row in payments if str(row.get("payment_status", row.get("status", ""))).upper() in {"PENDING", "PAYMENT_PENDING"}]
     if not pending_payments:
         st.success("No pending payments.")
         return
@@ -44,9 +44,13 @@ def render_payments_page(data_service, order_service, notification_service, sess
     detail_cols = st.columns(4)
     detail_cols[0].metric("Order", related_order.get("order_id", ""))
     detail_cols[1].metric("Buyer / Payer", payment.get("payer_email", ""))
-    detail_cols[2].metric("Amount Due", payment.get("amount_due", 0))
+    detail_cols[2].metric("Amount Due", payment.get("amount_payable", payment.get("amount_due", 0)))
     detail_cols[3].metric("Payment Ref", payment.get("payment_reference", ""))
-    st.caption(f"Owner: {related_order.get('owner_email', '')} | Product: {related_order.get('product_name', '')}")
+    st.caption(
+        f"Owner: {related_order.get('owner_email', '')} | "
+        f"Product: {related_order.get('product_name', '')} | "
+        f"Source: {related_order.get('source_channel', '')}"
+    )
     st.code(payment.get("upi_link", ""))
     qr_bytes = qr_service.build_qr_png_bytes(payment.get("qr_payload", "") or payment.get("upi_link", ""))
     if qr_bytes:
@@ -67,7 +71,7 @@ def render_payments_page(data_service, order_service, notification_service, sess
             use_container_width=True,
         )
     st.text_area("Share / Copy UPI Link", value=payment.get("upi_link", ""), height=100, key=f"payments_share_{selected_payment_id}")
-    amount_received = st.number_input("Amount Received", min_value=0.0, step=1.0, value=float(payment.get("amount_due", 0) or 0), key="payments_amount_received")
+    amount_received = st.number_input("Amount Received", min_value=0.0, step=1.0, value=float(payment.get("amount_payable", payment.get("amount_due", 0)) or 0), key="payments_amount_received")
     transaction_reference = st.text_input("Transaction Reference", key="payments_transaction_reference")
     notes = st.text_area("Notes", key="payments_notes")
     if st.button("Verify Payment", use_container_width=True, key="payments_verify_button"):
