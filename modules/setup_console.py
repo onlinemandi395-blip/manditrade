@@ -23,7 +23,8 @@ def render_setup_console(admin_drive_service, drive_manifest: dict) -> None:
 
     root_missing = not drive_manifest.get("root_folder_id")
     setup_complete = not drive_manifest.get("missing_files") and not drive_manifest.get("missing_folders") and not root_missing
-    cols = st.columns(5)
+    database_status = admin_drive_service.get_database_config_status()
+    cols = st.columns(6)
     if cols[0].button("Create Root Folder", use_container_width=True, disabled=not root_missing):
         try:
             result = admin_drive_service.ensure_root_folder()
@@ -42,17 +43,33 @@ def render_setup_console(admin_drive_service, drive_manifest: dict) -> None:
     if cols[2].button("Create Missing JSON Files", use_container_width=True, disabled=not drive_manifest.get("missing_files")):
         try:
             result = admin_drive_service.create_missing_required_files()
-            st.success(f"Files created: {len(result.get('created', []))}")
+            st.success(f"Files created: {len(result.get('created', []))}. Database mappings updated: {len(result.get('updated', []))}")
             st.rerun()
         except Exception as exc:
             st.error(f"Create Missing JSON Files failed: {exc}")
-    if cols[3].button("Reload Cache", use_container_width=True):
+    if cols[3].button(
+        "Refresh database.json Mappings",
+        use_container_width=True,
+        disabled=database_status.get("status") == "OK",
+    ):
+        try:
+            result = admin_drive_service.refresh_database_config_mapping()
+            st.success(
+                f"database.json {str(result.get('status', 'UPDATED')).lower()}. Added mappings: "
+                f"{', '.join(result.get('added_collections', [])) or 'none'}"
+            )
+            st.rerun()
+        except Exception as exc:
+            st.error(f"database.json refresh failed: {exc}")
+    if cols[4].button("Reload Cache", use_container_width=True):
         admin_drive_service.clear_runtime_cache()
         st.rerun()
-    if cols[4].button("Continue to App", use_container_width=True, disabled=not setup_complete):
+    if cols[5].button("Continue to App", use_container_width=True, disabled=not setup_complete):
         admin_drive_service.clear_runtime_cache()
         st.rerun()
 
+    st.markdown("### database.json Mapping Status")
+    render_table([database_status], caption="Drive database.json status")
     st.markdown("### Required Folders")
     render_table(drive_manifest.get("required_folders", []), caption="Required Drive folders")
     st.markdown("### Required JSON Files")

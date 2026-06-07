@@ -19,6 +19,7 @@ class IntegrationStatusService:
     def get_status(self) -> dict:
         drive_status = self.admin_drive_service.get_status()
         drive_manifest = self.admin_drive_service.get_runtime_manifest(force_refresh=True)
+        database_config_status = self.admin_drive_service.get_database_config_status()
         gmail_enabled = self.gmail_queue_service.is_enabled()
         gmail_sender = self.gmail_queue_service.get_sender_email()
         platform = self._get_platform_config()
@@ -59,6 +60,7 @@ class IntegrationStatusService:
             "required_files": drive_manifest.get("required_files", []),
             "required_folders": drive_manifest.get("required_folders", []),
             "missing_files": drive_manifest.get("missing_files", []),
+            "database_config_status": database_config_status,
             "theme_status": theme_status,
             "theme_background_count": len(available_backgrounds),
             "theme_active_background_id": theme_service.get_active_background_file_id(),

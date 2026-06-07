@@ -11,6 +11,17 @@ from services.performance_service import PerformanceService
 
 
 class DataService:
+    DEFAULT_COLLECTION_MAPPINGS = {
+        "users": "users:users",
+        "products": "products_data:products",
+        "orders": "orders_data:orders",
+        "payments": "payments_data:payments",
+        "shipments": "shipments_data:shipments",
+        "ledger": "ledger_data:ledger",
+        "notifications": "notifications_data:notifications",
+        "gmail_queue": "gmail_queue_data:gmail_queue",
+    }
+
     def __init__(self, cache_service) -> None:
         self.cache_service = cache_service
         self.id_service = IdService()
@@ -23,7 +34,7 @@ class DataService:
         if collection in cache_data:
             return cache_data[collection]
         database_config = self.cache_service.get_config("database")
-        source = database_config.get("collections", {}).get(collection, "")
+        source = database_config.get("collections", {}).get(collection, "") or self.DEFAULT_COLLECTION_MAPPINGS.get(collection, "")
         if not source:
             raise KeyError(f"No Drive collection mapping configured for: {collection}")
         payload = []
@@ -54,7 +65,7 @@ class DataService:
 
     def persist_collection(self, collection: str) -> None:
         database_config = self.cache_service.get_config("database")
-        source = database_config.get("collections", {}).get(collection, "")
+        source = database_config.get("collections", {}).get(collection, "") or self.DEFAULT_COLLECTION_MAPPINGS.get(collection, "")
         if ":" not in source:
             raise ValueError(f"Invalid Drive collection mapping for: {collection}")
         config_name, key = source.split(":", 1)

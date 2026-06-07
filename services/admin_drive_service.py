@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from pathlib import Path
 from time import time
 
@@ -40,6 +41,9 @@ class AdminDriveService:
     def get_required_files_registry(self) -> list[dict]:
         platform = self._get_platform_config()
         return build_required_drive_files(platform["primary_admin_email"], platform["primary_admin_name"])
+
+    def _get_required_file_definition(self, logical_path: str) -> dict | None:
+        return next((item for item in self.get_required_files_registry() if item.get("logical_path") == logical_path), None)
 
     def _get_user_token(self) -> dict:
         stored_token = self.google_drive_service.read_token_store()
@@ -252,15 +256,90 @@ class AdminDriveService:
         self._index_path(logical_path, result)
         return result
 
+    def get_database_config_status(self) -> dict:
+        definition = self._get_required_file_definition("00_config/database.json")
+        expected_payload = dict((definition or {}).get("default_payload", {}) or {})
+        expected_collections = dict(expected_payload.get("collections", {}) or {})
+        try:
+            current_payload = self.read_json("00_config/database.json")
+        except FileNotFoundError:
+            return {
+                "logical_path": "00_config/database.json",
+                "status": "MISSING",
+                "expected_collections": sorted(expected_collections.keys()),
+                "current_collection_count": 0,
+                "expected_collection_count": len(expected_collections),
+                "missing_collections": sorted(expected_collections.keys()),
+                "added_collections": [],
+            }
+
+        current_collections = dict(current_payload.get("collections", {}) or {})
+        missing_collections = sorted(
+            name for name in expected_collections.keys() if not str(current_collections.get(name, "")).strip()
+        )
+        return {
+            "logical_path": "00_config/database.json",
+            "status": "OK" if not missing_collections else "OUTDATED",
+            "expected_collections": sorted(expected_collections.keys()),
+            "current_collection_count": len(current_collections),
+            "expected_collection_count": len(expected_collections),
+            "missing_collections": missing_collections,
+            "added_collections": [],
+        }
+
+    def refresh_database_config_mapping(self) -> dict:
+        definition = self._get_required_file_definition("00_config/database.json")
+        if not definition:
+            raise KeyError("Required Drive definition missing for 00_config/database.json")
+
+        logical_path = "00_config/database.json"
+        default_payload = deepcopy(dict(definition.get("default_payload", {}) or {}))
+        default_collections = dict(default_payload.get("collections", {}) or {})
+        try:
+            current_payload = self.read_json(logical_path)
+            existed = True
+        except FileNotFoundError:
+            current_payload = {}
+            existed = False
+
+        merged_payload = deepcopy(current_payload) if existed else {}
+        merged_payload["root"] = str(merged_payload.get("root", "") or default_payload.get("root", "MANDITRADE_DB")).strip() or "MANDITRADE_DB"
+        merged_payload["storage_mode"] = (
+            str(merged_payload.get("storage_mode", "") or default_payload.get("storage_mode", "google_drive_only")).strip()
+            or "google_drive_only"
+        )
+        current_collections = dict(merged_payload.get("collections", {}) or {})
+        added_collections = []
+        for collection_name, mapping in default_collections.items():
+            if not str(current_collections.get(collection_name, "")).strip():
+                current_collections[collection_name] = mapping
+                added_collections.append(collection_name)
+        merged_payload["collections"] = current_collections
+
+        result = self.write_json(logical_path, merged_payload)
+        self.clear_runtime_cache(clear_validation=True, clear_file_index=False)
+        return {
+            "logical_path": logical_path,
+            "status": "CREATED" if not existed else ("UPDATED" if added_collections else "UNCHANGED"),
+            "expected_collection_count": len(default_collections),
+            "current_collection_count": len(current_collections),
+            "added_collections": added_collections,
+            "missing_collections": [],
+            "file_id": result.get("file_id", ""),
+        }
+
     def create_missing_required_files(self) -> dict:
         resolver = self.get_path_resolver()
         created = []
         existing = []
+        updated = []
         for item in self.get_required_files_registry():
             logical_path = item["logical_path"]
             result = resolver.resolve_file_path(logical_path)
             if result["status"] == "FOUND":
                 existing.append(logical_path)
+                if logical_path == "00_config/database.json":
+                    updated.append(self.refresh_database_config_mapping())
                 if logical_path == "01_identity/users.json":
                     payload = self.read_json(logical_path)
                     users = list(payload.get("users", []))
@@ -281,7 +360,7 @@ class AdminDriveService:
             created_result = resolver.ensure_json_file(logical_path, item["default_payload"])
             created.append(created_result)
         self.clear_runtime_cache(clear_validation=True, clear_file_index=False)
-        return {"created": created, "existing": existing}
+        return {"created": created, "existing": existing, "updated": updated}
 
     def create_missing_required_folders(self) -> dict:
         resolver = self.get_path_resolver()

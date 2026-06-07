@@ -529,21 +529,38 @@ def render_app() -> None:
         status = integration_status_service.get_status()
         if status["google_drive_status"] != "connected" or status["required_files_status"] != "ok":
             st.error("Drive-only runtime is blocked. Required Google Drive files are missing or unavailable.")
-        refresh_cols = st.columns(4)
+        refresh_cols = st.columns(5)
         if refresh_cols[0].button("Create Missing Drive Files", use_container_width=True):
             try:
                 result = admin_drive_service.create_missing_required_files()
-                st.success(f"Created {len(result.get('created', []))} missing files.")
+                st.success(
+                    f"Created {len(result.get('created', []))} missing files. "
+                    f"database.json updates: {len(result.get('updated', []))}"
+                )
                 st.rerun()
             except Exception as exc:
                 st.error(f"Create Missing Drive Files failed: {exc}")
-        if refresh_cols[1].button("Refresh Validation", use_container_width=True):
+        if refresh_cols[1].button(
+            "Refresh database.json Mappings",
+            use_container_width=True,
+            disabled=status["database_config_status"].get("status") == "OK",
+        ):
+            try:
+                result = admin_drive_service.refresh_database_config_mapping()
+                st.success(
+                    f"database.json {str(result.get('status', 'UPDATED')).lower()}. Added mappings: "
+                    f"{', '.join(result.get('added_collections', [])) or 'none'}"
+                )
+                st.rerun()
+            except Exception as exc:
+                st.error(f"database.json refresh failed: {exc}")
+        if refresh_cols[2].button("Refresh Validation", use_container_width=True):
             admin_drive_service.clear_runtime_cache(clear_validation=True, clear_file_index=False)
             st.rerun()
-        if refresh_cols[2].button("Refresh Data Cache", use_container_width=True):
+        if refresh_cols[3].button("Refresh Data Cache", use_container_width=True):
             cache_service.refresh_cache()
             st.success("Data cache refreshed.")
-        if refresh_cols[3].button("Clear Cache and Reload", use_container_width=True):
+        if refresh_cols[4].button("Clear Cache and Reload", use_container_width=True):
             admin_drive_service.clear_runtime_cache(clear_validation=True, clear_file_index=True)
             st.rerun()
         render_table(
@@ -570,6 +587,11 @@ def render_app() -> None:
                 {"key": "language_selected", "value": status["language_selected"]},
                 {"key": "available_languages", "value": ", ".join(status["available_languages"])},
                 {"key": "primary_admin_email", "value": status["primary_admin_email"]},
+                {"key": "database_config_status", "value": status["database_config_status"].get("status", "MISSING")},
+                {
+                    "key": "database_mapping_missing_count",
+                    "value": len(status["database_config_status"].get("missing_collections", [])),
+                },
                 {"key": "theme_background_status", "value": status["theme_status"].get("status", "MISSING")},
                 {"key": "theme_background_message", "value": status["theme_status"].get("message", "")},
                 {"key": "theme_background_count", "value": status.get("theme_background_count", 0)},
@@ -577,6 +599,7 @@ def render_app() -> None:
             ],
             caption="Integration status",
         )
+        render_table([status["database_config_status"]], caption="database.json mapping status")
         render_table(status["required_folders"], caption="Required Drive folders")
         render_table(status["required_files"], caption="Required Drive files")
         render_table([status["theme_status"]], caption="Theme background trace")
