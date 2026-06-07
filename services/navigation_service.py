@@ -3,7 +3,9 @@ from __future__ import annotations
 
 class NavigationService:
     ESSENTIAL_ITEMS = [
+        {"route": "payments", "icon": "[PY]", "label_key": "sidebar.payments"},
         {"route": "ledger", "icon": "[LG]", "label_key": "sidebar.ledger"},
+        {"route": "completed_deliveries", "icon": "[CD]", "label_key": "sidebar.completed_deliveries"},
     ]
 
     def __init__(self, cache_service, translator, rbac_service) -> None:

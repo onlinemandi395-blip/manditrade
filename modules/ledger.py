@@ -64,7 +64,12 @@ def render_ledger_page(data_service, notification_service, session_service) -> N
 
     if selected_account:
         account_rows = [row for row in ledger_rows if str(row.get("account_key", "")).strip() == selected_account]
+        payable_rows = [row for row in account_rows if str(row.get("entry_type", "")).upper() == "PAYABLE_TO_OWNER"]
+        settlement_rows = [row for row in account_rows if str(row.get("entry_type", "")).upper() == "PAYMENT_TO_OWNER"]
         render_table(account_rows, caption="Ledger Entries")
+        render_table(settlement_rows, caption="Settlement History")
+        if payable_rows:
+            render_table(payable_rows, caption="Payable History")
         if role == "platform_admin":
             owner = next((row for row in account_rows if str((row.get("party_owner") or {}).get("email", "")).strip()), {})
             owner_email = str((owner.get("party_owner") or {}).get("email", "")).strip().lower()

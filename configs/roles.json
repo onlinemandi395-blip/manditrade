@@ -16,6 +16,11 @@
       "description_key": "role.mahajan.desc"
     },
     {
+      "role_id": "delivery_partner",
+      "label_key": "role.delivery_partner",
+      "description_key": "role.delivery_partner.desc"
+    },
+    {
       "role_id": "public_buyer",
       "label_key": "role.public_buyer",
       "description_key": "role.public_buyer.desc"

@@ -4,7 +4,7 @@
       "type": "dashboard",
       "title_key": "module.dashboard.title",
       "subtitle_key": "module.dashboard.subtitle",
-      "visible_to": ["platform_admin", "manufacturer", "mahajan", "worker"]
+      "visible_to": ["platform_admin", "manufacturer", "mahajan", "delivery_partner", "worker"]
     },
     "marketplace": {
       "type": "product_grid",
@@ -46,7 +46,7 @@
       "title_key": "module.notifications.title",
       "subtitle_key": "module.notifications.subtitle",
       "data_source": "notifications",
-      "visible_to": ["platform_admin", "manufacturer", "mahajan", "public_buyer", "worker"]
+      "visible_to": ["platform_admin", "manufacturer", "mahajan", "delivery_partner", "public_buyer", "worker"]
     },
     "system_health": {
       "type": "system",
@@ -65,7 +65,21 @@
       "title_key": "module.shipments.title",
       "subtitle_key": "module.shipments.subtitle",
       "data_source": "shipments",
-      "visible_to": ["platform_admin", "manufacturer", "mahajan"]
+      "visible_to": ["platform_admin", "manufacturer", "mahajan", "delivery_partner"]
+    },
+    "completed_deliveries": {
+      "type": "completed_deliveries_page",
+      "title_key": "module.completed_deliveries.title",
+      "subtitle_key": "module.completed_deliveries.subtitle",
+      "data_source": "shipments",
+      "visible_to": ["delivery_partner"]
+    },
+    "payments": {
+      "type": "table",
+      "title_key": "module.payments.title",
+      "subtitle_key": "module.payments.subtitle",
+      "data_source": "payments",
+      "visible_to": ["platform_admin"]
     },
     "ledger": {
       "type": "ledger_page",

@@ -17,6 +17,12 @@
       "ledger",
       "notifications"
     ],
+    "delivery_partner": [
+      "dashboard",
+      "shipments",
+      "completed_deliveries",
+      "notifications"
+    ],
     "public_buyer": [
       "marketplace",
       "orders",

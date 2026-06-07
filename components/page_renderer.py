@@ -14,13 +14,16 @@ from components.table_renderer import render_table
 from components.theme_manager import render_theme_manager
 from components.topbar import render_topbar
 from modules.admin_configuration import render_admin_configuration
+from modules.completed_deliveries import render_completed_deliveries_page
 from modules.notifications import render_notifications_page
 from modules.login import render_login_page
 from modules.ledger import render_ledger_page
 from modules.manditrade import render_manditrade_page
 from modules.marketplace import render_marketplace_page
 from modules.orders import render_orders_page
+from modules.payments import render_payments_page
 from modules.products import render_products_page
+from modules.shipments import render_shipments_page
 from modules.setup_console import render_setup_console
 from services.admin_drive_service import AdminDriveService
 from services.auth_service import AuthService, get_bootstrap_primary_admin, is_bootstrap_admin
@@ -197,6 +200,7 @@ def _filter_role_rows(route: str, rows: list[dict], role: str, user_email: str) 
                 str(row.get("owner_email", "")).strip().lower(),
                 str(row.get("buyer_email", "")).strip().lower(),
                 str(row.get("requester_email", "")).strip().lower(),
+                str(row.get("delivery_partner_email", "")).strip().lower(),
             }
         ]
     return rows
@@ -409,6 +413,7 @@ def render_app() -> None:
     datasets = {
         "products": data_service.list_collection("products"),
         "orders": data_service.list_collection("orders"),
+        "payments": data_service.list_collection("payments"),
         "notifications": data_service.list_collection("notifications"),
         "shipments": data_service.list_collection("shipments"),
         "ledger": data_service.list_collection("ledger"),
@@ -449,7 +454,7 @@ def render_app() -> None:
                         buyer_email=session_service.get_user().get("email", ""),
                     )
                     data_service.persist_collection("orders")
-                    data_service.persist_collection("ledger")
+                    data_service.persist_collection("payments")
                     data_service.persist_collection("notifications")
                     data_service.persist_collection("gmail_queue")
                     cart_service.clear_cart()
@@ -463,7 +468,7 @@ def render_app() -> None:
                 requesting_user_email=session_service.get_user().get("email", ""),
             )
             data_service.persist_collection("orders")
-            data_service.persist_collection("ledger")
+            data_service.persist_collection("payments")
             data_service.persist_collection("notifications")
             data_service.persist_collection("gmail_queue")
             st.success(f"MandiTrade order {order.get('order_id', '')} created.")
@@ -473,15 +478,30 @@ def render_app() -> None:
         render_products_page(data_service, notification_service, session_service, cache_service, translator)
     elif current_route == "notifications":
         render_notifications_page(notification_service, data_service, session_service, translator)
+    elif current_route == "payments":
+        render_payments_page(data_service, order_service, notification_service, session_service)
     elif page_definition.get("type") == "ledger_page":
         render_ledger_page(data_service, notification_service, session_service)
+    elif page_definition.get("type") == "completed_deliveries_page":
+        render_completed_deliveries_page(data_service, session_service)
+    elif current_route == "shipments":
+        render_shipments_page(data_service, order_service, notification_service, session_service)
     elif page_definition.get("type") == "admin_configuration":
         render_admin_configuration(auth_service, data_service, notification_service, session_service)
     elif page_definition.get("type") in {"crud_table", "table"}:
         source_name = str(page_definition.get("data_source", ""))
         filtered_rows = _filter_role_rows(current_route, datasets.get(source_name, []), role, user.get("email", ""))
         if current_route == "orders":
-            render_orders_page(filtered_rows, role)
+            render_orders_page(
+                filtered_rows,
+                role,
+                data_service=data_service,
+                order_service=order_service,
+                notification_service=notification_service,
+                session_service=session_service,
+            )
+        elif current_route == "completed_deliveries":
+            render_completed_deliveries_page(data_service, session_service)
         else:
             render_table(filtered_rows, caption=f"{source_name} collection")
         form_id = page_definition.get("form_id")

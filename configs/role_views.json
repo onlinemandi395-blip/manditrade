@@ -9,6 +9,9 @@
     "mahajan": {
       "landing_page": "dashboard"
     },
+    "delivery_partner": {
+      "landing_page": "dashboard"
+    },
     "public_buyer": {
       "landing_page": "marketplace"
     },

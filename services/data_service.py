@@ -63,6 +63,7 @@ class DataService:
             "users": "01_identity/users.json",
             "products_data": "02_catalog/products.json",
             "orders_data": "05_orders/orders.json",
+            "payments_data": "07_ledger/payments.json",
             "shipments_data": "06_shipments/shipments.json",
             "ledger_data": "07_ledger/ledger.json",
             "notifications_data": "09_notifications/notifications.json",
@@ -159,6 +160,14 @@ class DataService:
                         "user_id": first_owner.get("mahajan_id", ""),
                     }
         product["owner"] = owner
+        delivery_partner = dict(product.get("delivery_partner", {}) or {})
+        product["delivery_partner"] = {
+            "email": str(delivery_partner.get("email", "")).strip().lower(),
+            "role": "delivery_partner" if str(delivery_partner.get("email", "")).strip() else "",
+            "display_name": str(delivery_partner.get("display_name", "")).strip(),
+            "user_id": str(delivery_partner.get("user_id", "")).strip(),
+            "phone": str(delivery_partner.get("phone", "")).strip(),
+        }
         product.pop("manufacturer_tags", None)
         product.pop("mahajan_tags", None)
         product.pop("manufacturer_mapping", None)

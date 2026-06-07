@@ -6,6 +6,7 @@
     "users": "users:users",
     "products": "products_data:products",
     "orders": "orders_data:orders",
+    "payments": "payments_data:payments",
     "notifications": "notifications_data:notifications",
     "gmail_queue": "gmail_queue_data:gmail_queue",
     "shipments": "shipments_data:shipments",

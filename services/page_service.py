@@ -2,6 +2,27 @@ from __future__ import annotations
 
 
 class PageService:
+    ESSENTIAL_DEFINITIONS = {
+        "payments": {
+            "type": "table",
+            "title_key": "module.payments.title",
+            "subtitle_key": "module.payments.subtitle",
+            "data_source": "payments",
+        },
+        "ledger": {
+            "type": "ledger_page",
+            "title_key": "module.ledger.title",
+            "subtitle_key": "module.ledger.subtitle",
+            "data_source": "ledger",
+        },
+        "completed_deliveries": {
+            "type": "completed_deliveries_page",
+            "title_key": "module.completed_deliveries.title",
+            "subtitle_key": "module.completed_deliveries.subtitle",
+            "data_source": "shipments",
+        },
+    }
+
     def __init__(self, cache_service, translator, rbac_service) -> None:
         self.cache_service = cache_service
         self.translator = translator
@@ -9,6 +30,11 @@ class PageService:
 
     def get_page_definition(self, route: str, role: str) -> dict:
         definition = self.cache_service.get_config("modules").get("modules", {}).get(route, {})
+        if not definition and route in self.ESSENTIAL_DEFINITIONS and self.rbac_service.can_access(role, route):
+            return {
+                **self.ESSENTIAL_DEFINITIONS[route],
+                "visible_to": [role],
+            }
         if not definition:
             return {
                 "type": "dashboard",

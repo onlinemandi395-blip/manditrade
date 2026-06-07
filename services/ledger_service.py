@@ -120,7 +120,12 @@ class LedgerService:
                 bucket["last_payment_date"] = str(row.get("created_at", "") or bucket.get("last_payment_date", ""))
         for bucket in grouped.values():
             bucket["balance"] = round(float(bucket["total_payable"]) - float(bucket["total_paid"]), 2)
-            bucket["status"] = "OPEN" if bucket["balance"] > 0 else "SETTLED"
+            if bucket["total_paid"] <= 0 and bucket["balance"] > 0:
+                bucket["status"] = "OPEN"
+            elif bucket["balance"] > 0:
+                bucket["status"] = "PARTIALLY_PAID"
+            else:
+                bucket["status"] = "SETTLED"
         return list(grouped.values())
 
     def summarize_accounts_by_owner_role(self, *, viewer_email: str = "", role: str = "platform_admin") -> dict[str, list[dict]]:

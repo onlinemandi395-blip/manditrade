@@ -8,6 +8,7 @@ from components.card_renderer import render_metric_card
 def _resolve_card_value(card: dict, rows: list[dict], current_user: dict) -> int | float:
     metric = card.get("metric", "count")
     current_email = str(current_user.get("email", "")).strip().lower()
+    current_role = str(current_user.get("role", "")).strip().lower()
     if metric == "owned_products":
         return len([row for row in rows if str(((row.get("owner") or {}).get("email", ""))).strip().lower() == current_email])
     if metric == "orders_received":
@@ -40,7 +41,15 @@ def _resolve_card_value(card: dict, rows: list[dict], current_user: dict) -> int
                 row
                 for row in rows
                 if str(row.get("owner_email", "")).strip().lower() == current_email
-                and str(row.get("status", "")).upper() in {"PLACED", "REQUESTED", "PENDING", "IN_PROGRESS"}
+                and str(row.get("status", "")).upper() in {
+                    "PAYMENT_PENDING",
+                    "PAYMENT_VERIFIED",
+                    "OWNER_ACCEPTED",
+                    "READY_FOR_PICKUP",
+                    "PICKUP_ASSIGNED",
+                    "PICKED_UP",
+                    "IN_TRANSIT",
+                }
             ]
         )
     if metric == "completed_orders":
@@ -71,7 +80,17 @@ def _resolve_card_value(card: dict, rows: list[dict], current_user: dict) -> int
             [
                 row
                 for row in rows
-                if str((row.get("metadata") or {}).get("to_email", "")).strip().lower() in {"", current_email}
+                if str(row.get("status", "UNREAD")).upper() == "UNREAD"
+                and (
+                    current_role == "platform_admin"
+                    or
+                    str(row.get("to_email", "")).strip().lower() == current_email
+                    or current_email in {
+                        str(recipient or "").strip().lower()
+                        for recipient in (row.get("recipients", []) or [])
+                        if str(recipient or "").strip()
+                    }
+                )
             ]
         )
     return len(rows) if metric == "count" else 0

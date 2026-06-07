@@ -167,6 +167,7 @@ def _build_product_table_rows(products: list[dict]) -> list[dict]:
                 "product_name": product.get("product_name", ""),
                 "owner_email": ((product.get("owner") or {}).get("email", "")),
                 "owner_role": ((product.get("owner") or {}).get("role", "")),
+                "delivery_partner_email": ((product.get("delivery_partner") or {}).get("email", "")),
                 "category": product.get("category", ""),
                 "subcategory": product.get("subcategory", ""),
                 "admin_price": ((product.get("pricing") or {}).get("admin_price", 0)),
@@ -254,6 +255,14 @@ def _apply_product_values(
         "display_name": owner.get("display_name", values["owner_email"].split("@")[0]),
         "user_id": owner.get("user_id", ""),
         "phone": owner.get("phone", values.get("owner_phone", "")),
+    }
+    delivery_partner = dict(values.get("delivery_partner", {}) or {})
+    product["delivery_partner"] = {
+        "email": str(delivery_partner.get("email", "")).strip().lower(),
+        "role": "delivery_partner" if str(delivery_partner.get("email", "")).strip() else "",
+        "display_name": str(delivery_partner.get("display_name", "")).strip(),
+        "user_id": str(delivery_partner.get("user_id", "")).strip(),
+        "phone": str(delivery_partner.get("phone", "")).strip(),
     }
     product["category"] = values["category"]
     product["subcategory"] = values["subcategory"]
@@ -367,6 +376,10 @@ def render_products_page(data_service, notification_service, session_service, ca
                 edit_owner_email = str(selected_owner.get("email", "")).strip().lower()
                 edit_owner_display_name = str(selected_owner.get("display_name", "")).strip()
                 edit_owner_phone = str(selected_owner.get("phone", "")).strip()
+                selected_delivery_partner = dict(selected_product.get("delivery_partner", {}) or {})
+                edit_delivery_partner_email = str(selected_delivery_partner.get("email", "")).strip().lower()
+                edit_delivery_partner_display_name = str(selected_delivery_partner.get("display_name", "")).strip()
+                edit_delivery_partner_phone = str(selected_delivery_partner.get("phone", "")).strip()
                 if is_admin:
                     edit_owner_type = st.selectbox(
                         translator.t("field.owner_type"),
@@ -403,11 +416,42 @@ def render_products_page(data_service, notification_service, session_service, ca
                         edit_owner_email = st.text_input(translator.t("field.owner_email"), value=edit_owner_email, key="edit_owner_email").strip().lower()
                         edit_owner_display_name = st.text_input("Owner Display Name", value=edit_owner_display_name, key="edit_owner_display_name")
                         edit_owner_phone = st.text_input("Owner Phone", value=edit_owner_phone, key="edit_owner_phone")
+                    edit_delivery_partner_mode = st.radio(
+                        "Delivery Partner Selection",
+                        options=["Select Existing", "Add New"],
+                        horizontal=True,
+                        index=0 if edit_delivery_partner_email else 1,
+                        key="edit_delivery_partner_mode",
+                    )
+                    edit_delivery_partner_candidates = _owner_candidates_for_role(users, products, "delivery_partner")
+                    if edit_delivery_partner_mode == "Select Existing" and edit_delivery_partner_candidates:
+                        edit_partner_map = {row.get("email", ""): row for row in edit_delivery_partner_candidates}
+                        edit_partner_choice = st.selectbox(
+                            "Delivery Partner Email",
+                            options=list(edit_partner_map.keys()),
+                            format_func=lambda value: _owner_option_label(edit_partner_map.get(value, {})),
+                            index=next((idx for idx, value in enumerate(edit_partner_map.keys()) if str(value).strip().lower() == edit_delivery_partner_email), 0),
+                            key="edit_existing_delivery_partner",
+                        )
+                        selected_partner = edit_partner_map.get(edit_partner_choice, {})
+                        edit_delivery_partner_email = str(selected_partner.get("email", "")).strip().lower()
+                        edit_delivery_partner_display_name = str(selected_partner.get("display_name", "")).strip()
+                        edit_delivery_partner_phone = str(selected_partner.get("phone", "")).strip()
+                        st.caption(f"Selected Delivery Partner: {_owner_option_label(selected_partner)}")
+                    else:
+                        if edit_delivery_partner_mode == "Select Existing" and not edit_delivery_partner_candidates:
+                            st.info("No existing active delivery partners found. Add a new delivery partner.")
+                        edit_delivery_partner_email = st.text_input("Delivery Partner Email", value=edit_delivery_partner_email, key="edit_delivery_partner_email").strip().lower()
+                        edit_delivery_partner_display_name = st.text_input("Delivery Partner Name", value=edit_delivery_partner_display_name, key="edit_delivery_partner_display_name")
+                        edit_delivery_partner_phone = st.text_input("Delivery Partner Phone", value=edit_delivery_partner_phone, key="edit_delivery_partner_phone")
                 else:
                     edit_role_key = current_user_role
                     edit_owner_email = str(current_user_email).strip().lower()
                     edit_owner_display_name = str(current_user_record.get("display_name", edit_owner_display_name)).strip()
                     edit_owner_phone = str(current_user_record.get("phone", edit_owner_phone)).strip()
+                    edit_delivery_partner_email = str(selected_delivery_partner.get("email", "")).strip().lower()
+                    edit_delivery_partner_display_name = str(selected_delivery_partner.get("display_name", "")).strip()
+                    edit_delivery_partner_phone = str(selected_delivery_partner.get("phone", "")).strip()
                     st.caption(f"Owner: {edit_owner_email}")
                     st.caption(f"Owner Role: {edit_role_key}")
                 edit_category = st.selectbox(
@@ -461,6 +505,18 @@ def render_products_page(data_service, notification_service, session_service, ca
                             data_service=data_service,
                             id_service=id_service,
                         )
+                        delivery_partner = {}
+                        if edit_delivery_partner_email:
+                            delivery_partner, _ = _resolve_or_create_owner(
+                                users=users,
+                                owner_email=edit_delivery_partner_email,
+                                owner_role="delivery_partner",
+                                owner_display_name=edit_delivery_partner_display_name,
+                                owner_phone=edit_delivery_partner_phone,
+                                current_user_email=current_user_email,
+                                data_service=data_service,
+                                id_service=id_service,
+                            )
                         uploaded_images = existing_images
                         if edit_uploaded_files:
                             uploaded_images = media_service.upload_product_images(
@@ -489,6 +545,7 @@ def render_products_page(data_service, notification_service, session_service, ca
                                 "manditrade_enabled": edit_manditrade_enabled,
                                 "manditrade_price": edit_manditrade_price,
                                 "status": edit_status if is_admin else "PENDING_APPROVAL",
+                                "delivery_partner": delivery_partner,
                                 "submitted_by": (selected_product.get("approval") or {}).get("submitted_by", selected_product.get("created_by", current_user_email)),
                                 "submitted_at": (selected_product.get("approval") or {}).get("submitted_at", selected_product.get("created_at", datetime.now(UTC).isoformat())),
                             },
@@ -566,6 +623,9 @@ def render_products_page(data_service, notification_service, session_service, ca
             owner_email = ""
             owner_display_name = ""
             owner_phone = ""
+            delivery_partner_email = ""
+            delivery_partner_display_name = ""
+            delivery_partner_phone = ""
             if owner_mode == "Select Existing" and owner_candidates:
                 owner_option_map = {row.get("email", ""): row for row in owner_candidates}
                 owner_choice = st.selectbox(
@@ -585,11 +645,35 @@ def render_products_page(data_service, notification_service, session_service, ca
                 owner_email = st.text_input(translator.t("field.owner_email"), key="create_owner_email").strip().lower()
                 owner_display_name = st.text_input(translator.t("field.owner_display_name"), key="create_owner_display_name")
                 owner_phone = st.text_input(translator.t("field.owner_phone"), key="create_owner_phone")
+            delivery_partner_mode = st.radio("Delivery Partner Selection", options=["Select Existing", "Add New"], horizontal=True, key="create_delivery_partner_mode")
+            delivery_partner_candidates = _owner_candidates_for_role(users, products, "delivery_partner")
+            if delivery_partner_mode == "Select Existing" and delivery_partner_candidates:
+                partner_option_map = {row.get("email", ""): row for row in delivery_partner_candidates}
+                partner_choice = st.selectbox(
+                    "Delivery Partner Email",
+                    options=list(partner_option_map.keys()),
+                    format_func=lambda value: _owner_option_label(partner_option_map.get(value, {})),
+                    key="create_existing_delivery_partner",
+                )
+                selected_partner_row = partner_option_map.get(partner_choice, {})
+                delivery_partner_email = str(selected_partner_row.get("email", "")).strip().lower()
+                delivery_partner_display_name = str(selected_partner_row.get("display_name", "")).strip()
+                delivery_partner_phone = str(selected_partner_row.get("phone", "")).strip()
+                st.caption(f"Selected Delivery Partner: {_owner_option_label(selected_partner_row)}")
+            else:
+                if delivery_partner_mode == "Select Existing" and not delivery_partner_candidates:
+                    st.info("No existing active delivery partners found. Add a new delivery partner.")
+                delivery_partner_email = st.text_input("Delivery Partner Email", key="create_delivery_partner_email").strip().lower()
+                delivery_partner_display_name = st.text_input("Delivery Partner Name", key="create_delivery_partner_display_name")
+                delivery_partner_phone = st.text_input("Delivery Partner Phone", key="create_delivery_partner_phone")
         else:
             owner_role_key = current_user_role
             owner_email = str(current_user_email).strip().lower()
             owner_display_name = str(current_user_record.get("display_name", "")).strip()
             owner_phone = str(current_user_record.get("phone", "")).strip()
+            delivery_partner_email = ""
+            delivery_partner_display_name = ""
+            delivery_partner_phone = ""
             st.caption(f"Owner: {owner_email}")
             st.caption(f"Owner Role: {owner_role_key}")
         category = st.selectbox(translator.t("field.category"), options=category_names if category_names else [""], key="create_category")
@@ -630,6 +714,18 @@ def render_products_page(data_service, notification_service, session_service, ca
                     data_service=data_service,
                     id_service=id_service,
                 )
+                delivery_partner = {}
+                if delivery_partner_email:
+                    delivery_partner, _ = _resolve_or_create_owner(
+                        users=users,
+                        owner_email=delivery_partner_email,
+                        owner_role="delivery_partner",
+                        owner_display_name=delivery_partner_display_name,
+                        owner_phone=delivery_partner_phone,
+                        current_user_email=current_user_email,
+                        data_service=data_service,
+                        id_service=id_service,
+                    )
                 product_code = id_service.next_drive_id(data_service.admin_drive_service, "product", "PROD")
                 uploaded_images = media_service.upload_product_images(
                     uploaded_files or [],
@@ -665,6 +761,7 @@ def render_products_page(data_service, notification_service, session_service, ca
                         "manditrade_enabled": manditrade_enabled,
                         "manditrade_price": manditrade_price,
                         "status": status if is_admin else "PENDING_APPROVAL",
+                        "delivery_partner": delivery_partner,
                         "submitted_by": current_user_email,
                         "submitted_at": datetime.now(UTC).isoformat(),
                     },
