@@ -427,19 +427,22 @@ def render_app() -> None:
         products = page_service.filter_rows(datasets.get(page_definition.get("data_source", ""), []), page_definition.get("filters", {}))
 
         def on_add_to_cart(product: dict) -> None:
-            cart_service.add_to_cart(product)
-            notification_service.create_notification(
-                to_email=session_service.get_user().get("email", ""),
-                title=translator.t("notification.product_added.title"),
-                message=translator.t("notification.product_added.message"),
-                event_type="PRODUCT_ADDED",
-                source_entity="product",
-                source_id=product.get("product_id", ""),
-                created_by=session_service.get_user().get("email", ""),
-            )
-            data_service.persist_collection("notifications")
-            data_service.persist_collection("gmail_queue")
-            st.success(f"Added {product.get('product_name', product.get('product_id', 'product'))} to cart.")
+            try:
+                cart_service.add_to_cart(product)
+                notification_service.create_notification(
+                    to_email=session_service.get_user().get("email", ""),
+                    title=translator.t("notification.product_added.title"),
+                    message=translator.t("notification.product_added.message"),
+                    event_type="PRODUCT_ADDED",
+                    source_entity="product",
+                    source_id=product.get("product_id", ""),
+                    created_by=session_service.get_user().get("email", ""),
+                )
+                data_service.persist_collection("notifications")
+                data_service.persist_collection("gmail_queue")
+                st.success(f"Added {product.get('product_name', product.get('product_id', 'product'))} to cart.")
+            except Exception as exc:
+                st.error(str(exc))
 
         render_marketplace_page(products, on_add_to_cart=on_add_to_cart, media_service=media_service, translator=translator)
         cart = cart_service.get_cart()
@@ -463,15 +466,18 @@ def render_app() -> None:
         products = page_service.filter_rows(datasets.get(page_definition.get("data_source", ""), []), page_definition.get("filters", {}))
 
         def on_request(product: dict) -> None:
-            order = order_service.create_manditrade_order(
-                product=product,
-                requesting_user_email=session_service.get_user().get("email", ""),
-            )
-            data_service.persist_collection("orders")
-            data_service.persist_collection("payments")
-            data_service.persist_collection("notifications")
-            data_service.persist_collection("gmail_queue")
-            st.success(f"MandiTrade order {order.get('order_id', '')} created.")
+            try:
+                order = order_service.create_manditrade_order(
+                    product=product,
+                    requesting_user_email=session_service.get_user().get("email", ""),
+                )
+                data_service.persist_collection("orders")
+                data_service.persist_collection("payments")
+                data_service.persist_collection("notifications")
+                data_service.persist_collection("gmail_queue")
+                st.success(f"MandiTrade order {order.get('order_id', '')} created.")
+            except Exception as exc:
+                st.error(str(exc))
 
         render_manditrade_page(products, on_request=on_request, media_service=media_service, translator=translator)
     elif page_definition.get("type") == "products_admin":

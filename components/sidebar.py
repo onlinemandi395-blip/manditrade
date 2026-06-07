@@ -4,18 +4,18 @@ import streamlit as st
 
 
 ICON_MAP = {
-    "[DB]": "📊",
-    "[PD]": "📦",
-    "[MK]": "🛍️",
-        "[MT]": "🏭",
-        "[OR]": "🧾",
-        "[PY]": "💳",
-        "[SH]": "🚚",
-        "[LG]": "📚",
-        "[CD]": "✅",
-        "[NT]": "🔔",
-    "[CF]": "⚙️",
-    "[HL]": "🩺",
+    "[DB]": "\U0001F4CA",
+    "[PD]": "\U0001F4E6",
+    "[MK]": "\U0001F6CD\ufe0f",
+    "[MT]": "\U0001F3ED",
+    "[OR]": "\U0001F9FE",
+    "[PY]": "\U0001F4B3",
+    "[SH]": "\U0001F69A",
+    "[LG]": "\U0001F4DA",
+    "[CD]": "\u2705",
+    "[NT]": "\U0001F514",
+    "[CF]": "\u2699\ufe0f",
+    "[HL]": "\U0001FA7A",
 }
 
 
@@ -24,7 +24,13 @@ def _resolve_icon(icon: str) -> str:
     return ICON_MAP.get(normalized, normalized)
 
 
-def render_sidebar(navigation_items: list[dict], selected_route: str, user: dict | None = None, role_label: str = "", theme_service=None) -> str:
+def render_sidebar(
+    navigation_items: list[dict],
+    selected_route: str,
+    user: dict | None = None,
+    role_label: str = "",
+    theme_service=None,
+) -> str:
     chosen = selected_route
     with st.sidebar:
         if user:

@@ -2,17 +2,26 @@ from __future__ import annotations
 
 import streamlit as st
 
+from services.pricing_service import PricingService
+
 
 class CartService:
     def __init__(self) -> None:
         st.session_state.setdefault("mt_next_cart", {"items": []})
+        self.pricing_service = PricingService()
 
     def add_to_cart(self, product: dict) -> None:
+        sell_price = self.pricing_service.resolve_sell_price(product, "marketplace")
         item = {
             "product_id": product.get("product_id", ""),
             "product_name": product.get("product_name", ""),
             "qty": 1,
-            "price": ((product.get("sales_channels") or {}).get("marketplace") or {}).get("price", 0),
+            "quantity": 1,
+            "channel": "marketplace",
+            "price": sell_price,
+            "pricing": dict(product.get("pricing", {}) or {}),
+            "owner": dict(product.get("owner", {}) or {}),
+            "delivery_partner": dict(product.get("delivery_partner", {}) or {}),
         }
         st.session_state["mt_next_cart"]["items"].append(item)
 

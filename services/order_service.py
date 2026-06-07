@@ -7,6 +7,7 @@ from services.id_service import IdService
 from services.ledger_service import LedgerService
 from services.payment_service import PaymentService
 from services.performance_service import PerformanceService
+from services.pricing_service import PricingService
 
 
 class OrderService:
@@ -17,6 +18,7 @@ class OrderService:
         self.ledger_service = LedgerService(data_service)
         self.payment_service = PaymentService(data_service, data_service.cache_service)
         self.performance_service = PerformanceService()
+        self.pricing_service = PricingService()
 
     def _find_order(self, order_id: str) -> dict | None:
         return next(
@@ -110,7 +112,7 @@ class OrderService:
             delivery_partner = dict(first_item.get("delivery_partner", {}) or {})
             pricing = dict(first_item.get("pricing", {}) or {})
             quantity = sum(float(item.get("quantity", 1) or 1) for item in items) if items else 1
-            sell_price = float(pricing.get("marketplace_price", 0) or 0)
+            sell_price = self.pricing_service.resolve_sell_price(first_item, "marketplace")
             admin_price = float(pricing.get("admin_price", 0) or 0)
             record = {
                 "order_id": self.id_service.next("order"),
@@ -190,7 +192,7 @@ class OrderService:
             owner = dict(product.get("owner", {}) or {})
             delivery_partner = dict(product.get("delivery_partner", {}) or {})
             pricing = dict(product.get("pricing", {}) or {})
-            sell_price = float(pricing.get("manditrade_price", 0) or 0)
+            sell_price = self.pricing_service.resolve_sell_price(product, "manditrade")
             admin_price = float(pricing.get("admin_price", 0) or 0)
             record = {
                 "order_id": self.id_service.next("order"),

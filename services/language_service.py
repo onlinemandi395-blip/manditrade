@@ -4,14 +4,18 @@ import streamlit as st
 
 
 class Translator:
-    def __init__(self, bundle: dict[str, str], *, language_code: str) -> None:
+    def __init__(self, bundle: dict[str, str], *, language_code: str, fallback_bundle: dict[str, str] | None = None) -> None:
         self.bundle = bundle
         self.language_code = language_code
+        self.fallback_bundle = fallback_bundle or {}
 
     def t(self, key: str) -> str:
         normalized_key = str(key or "").strip()
         value = self.bundle.get(normalized_key)
         if value is None:
+            fallback_value = self.fallback_bundle.get(normalized_key)
+            if fallback_value is not None:
+                return str(fallback_value)
             missing = dict(st.session_state.get("mt_missing_translation_keys", {}) or {})
             language_missing = set(missing.get(self.language_code, []) or [])
             language_missing.add(normalized_key)
@@ -51,7 +55,8 @@ class LanguageService:
     def get_translator(self) -> Translator:
         bundles = self.get_language_bundles()
         code = self.language_code if self.language_code in bundles else self.get_current_language()
-        return Translator(dict(bundles.get(code, {}) or {}), language_code=code)
+        fallback_bundle = dict(bundles.get("en", {}) or {})
+        return Translator(dict(bundles.get(code, {}) or {}), language_code=code, fallback_bundle=fallback_bundle)
 
     def t(self, key: str) -> str:
         return self.get_translator().t(key)
