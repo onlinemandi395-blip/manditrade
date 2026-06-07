@@ -207,6 +207,32 @@ def _filter_role_rows(route: str, rows: list[dict], role: str, user_email: str) 
     if role == "platform_admin":
         return rows
     if route == "orders":
+        if role in {"manufacturer", "mahajan"}:
+            return [
+                row
+                for row in rows
+                if (
+                    normalized_email in {
+                        str(row.get("buyer_email", "")).strip().lower(),
+                        str(row.get("requester_email", "")).strip().lower(),
+                        str(row.get("requesting_user_email", "")).strip().lower(),
+                    }
+                    or (
+                        str(row.get("owner_email", "")).strip().lower() == normalized_email
+                        and str(row.get("status", "")).strip().upper() != "PAYMENT_PENDING"
+                    )
+                )
+            ]
+        if role == "public_buyer":
+            return [
+                row
+                for row in rows
+                if normalized_email in {
+                    str(row.get("buyer_email", "")).strip().lower(),
+                    str(row.get("requester_email", "")).strip().lower(),
+                    str(row.get("requesting_user_email", "")).strip().lower(),
+                }
+            ]
         return [
             row
             for row in rows

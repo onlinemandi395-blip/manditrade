@@ -4,9 +4,10 @@ import streamlit as st
 
 from components.table_renderer import render_table
 from services.document_service import DocumentService
+from services.qr_service import QRService
 
 
-def _tabs_for_role(role: str) -> dict[str, callable]:
+def _tabs_for_role(role: str, current_user_email: str = "") -> dict[str, callable]:
     active_statuses = {
         "PAYMENT_PENDING",
         "PAYMENT_VERIFIED",
@@ -29,6 +30,12 @@ def _tabs_for_role(role: str) -> dict[str, callable]:
         }
     if role in {"manufacturer", "mahajan"}:
         return {
+            "Payment Pending": lambda rows: [
+                row
+                for row in rows
+                if str(row.get("status", "")).upper() == "PAYMENT_PENDING"
+                and str(row.get("requester_email", "") or row.get("buyer_email", "")).strip().lower() == current_user_email
+            ],
             "Payment Verified": lambda rows: [row for row in rows if str(row.get("status", "")).upper() == "PAYMENT_VERIFIED"],
             "Accepted": lambda rows: [row for row in rows if str(row.get("owner_status", "")).upper() == "ACCEPTED"],
             "Ready / Assigned": lambda rows: [row for row in rows if str(row.get("status", "")).upper() in {"READY_FOR_PICKUP", "PICKUP_ASSIGNED", "PICKED_UP"}],
@@ -38,6 +45,34 @@ def _tabs_for_role(role: str) -> dict[str, callable]:
     return {
         "My Orders": lambda rows: rows,
     }
+
+
+def _can_pay_order(selected_order: dict, role: str, current_user_email: str) -> bool:
+    normalized_email = str(current_user_email or "").strip().lower()
+    return (
+        role in {"public_buyer", "manufacturer", "mahajan"}
+        and str(selected_order.get("status", "")).upper() == "PAYMENT_PENDING"
+        and normalized_email in {
+            str(selected_order.get("buyer_email", "")).strip().lower(),
+            str(selected_order.get("requester_email", "")).strip().lower(),
+            str(((selected_order.get("buyer") or {}).get("email", ""))).strip().lower(),
+            str(((selected_order.get("requester") or {}).get("email", ""))).strip().lower(),
+        }
+    )
+
+
+def _render_payment_panel(payment_record: dict) -> None:
+    qr_service = QRService()
+    st.markdown("#### Complete Payment")
+    st.write(f"Order Reference: {payment_record.get('payment_reference', '')}")
+    st.write(f"Amount: Rs. {payment_record.get('amount_payable', payment_record.get('amount_due', 0))}")
+    st.write("Payment Method: UPI")
+    qr_bytes = qr_service.build_qr_png_bytes(payment_record.get("qr_payload", "") or payment_record.get("upi_link", ""))
+    if qr_bytes:
+        st.image(qr_bytes, width=220)
+    st.code(payment_record.get("upi_link", ""))
+    st.caption("Pay using this QR/UPI link. Keep the payment note/reference unchanged.")
+    st.info("After payment, admin will verify it before the owner receives the request.")
 
 
 def _render_buyer_status_tracker(selected_order: dict) -> None:
@@ -66,7 +101,8 @@ def _render_buyer_status_tracker(selected_order: dict) -> None:
 
 def render_orders_page(rows: list[dict], role: str, *, data_service=None, order_service=None, notification_service=None, session_service=None) -> None:
     document_service = DocumentService()
-    tab_map = _tabs_for_role(role)
+    current_user_email = str(((session_service.get_user() if session_service else {}) or {}).get("email", "")).strip().lower()
+    tab_map = _tabs_for_role(role, current_user_email)
     tabs = st.tabs(list(tab_map.keys()))
     for tab, (label, filter_fn) in zip(tabs, tab_map.items()):
         with tab:
@@ -216,3 +252,11 @@ def render_orders_page(rows: list[dict], role: str, *, data_service=None, order_
                     st.success(f"Delivery OTP: {selected_order.get('delivery_otp', '')}")
                 else:
                     st.caption("Delivery OTP will appear here after pickup.")
+            if _can_pay_order(selected_order, role, current_user_email) and data_service is not None:
+                payment_rows = data_service.get_collection_ref("payments")
+                payment_record = next(
+                    (row for row in payment_rows if str(row.get("payment_id", "")).strip() == str(selected_order.get("payment_id", "")).strip()),
+                    {},
+                )
+                if payment_record:
+                    _render_payment_panel(payment_record)

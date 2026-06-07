@@ -166,7 +166,7 @@ class OrderService:
 
             first_item = normalized_items[0]
             record = {
-                "order_id": self.id_service.next("order"),
+                "order_id": self.id_service.next_drive_id(self.data_service.admin_drive_service, "marketplace_order", "MKTORD"),
                 "items": normalized_items,
                 "source_channel": "marketplace",
                 "market_type": "B2C",
@@ -284,7 +284,7 @@ class OrderService:
             sell_price = self.pricing_service.resolve_sell_price(product, "manditrade")
             admin_price = float(pricing.get("admin_price", 0) or 0)
             record = {
-                "order_id": self.id_service.next("order"),
+                "order_id": self.id_service.next_drive_id(self.data_service.admin_drive_service, "manditrade_order", "MDTORD"),
                 "source_channel": "manditrade",
                 "market_type": "B2B",
                 "product_id": product.get("product_id", ""),

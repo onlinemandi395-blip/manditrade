@@ -19,13 +19,23 @@ class IdService:
     def _read_drive_counters(self, admin_drive_service) -> dict:
         payload = admin_drive_service.read_json(self.COUNTER_PATH)
         counters = deepcopy(payload.get("counters", {}) or {})
+        normalized_counters = {
+            str(key): int(value or 0)
+            for key, value in counters.items()
+            if str(key).strip()
+        }
+        for key in [
+            "product",
+            "user",
+            "image",
+            "payment_reference",
+            "marketplace_order",
+            "manditrade_order",
+        ]:
+            normalized_counters.setdefault(key, 0)
         return {
             "schema_version": int(payload.get("schema_version", 1) or 1),
-            "counters": {
-                "product": int(counters.get("product", 0) or 0),
-                "user": int(counters.get("user", 0) or 0),
-                "image": int(counters.get("image", 0) or 0),
-            },
+            "counters": normalized_counters,
         }
 
     def preview_drive_id(self, admin_drive_service, counter_name: str, prefix: str, width: int = 6) -> str:
