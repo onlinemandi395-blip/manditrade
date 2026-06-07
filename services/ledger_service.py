@@ -104,6 +104,7 @@ class LedgerService:
                 account_key,
                 {
                     "account_key": account_key,
+                    "admin_email": admin.get("email", ""),
                     "owner_email": owner.get("email", ""),
                     "owner_role": owner.get("role", ""),
                     "total_payable": 0.0,
@@ -121,3 +122,36 @@ class LedgerService:
             bucket["balance"] = round(float(bucket["total_payable"]) - float(bucket["total_paid"]), 2)
             bucket["status"] = "OPEN" if bucket["balance"] > 0 else "SETTLED"
         return list(grouped.values())
+
+    def summarize_accounts_by_owner_role(self, *, viewer_email: str = "", role: str = "platform_admin") -> dict[str, list[dict]]:
+        summaries = self.summarize_accounts(viewer_email=viewer_email, role=role)
+        grouped: dict[str, list[dict]] = {
+            "manufacturer": [],
+            "mahajan": [],
+            "other": [],
+        }
+        for row in summaries:
+            owner_role = str(row.get("owner_role", "")).strip().lower()
+            if owner_role in grouped:
+                grouped[owner_role].append(row)
+            else:
+                grouped["other"].append(row)
+        return grouped
+
+    def summarize_admin_totals(self) -> list[dict]:
+        grouped = self.summarize_accounts_by_owner_role(role="platform_admin")
+        rows: list[dict] = []
+        for role_name, accounts in grouped.items():
+            if not accounts:
+                continue
+            rows.append(
+                {
+                    "owner_group": role_name.title(),
+                    "account_count": len(accounts),
+                    "total_payable": round(sum(float(row.get("total_payable", 0) or 0) for row in accounts), 2),
+                    "total_paid": round(sum(float(row.get("total_paid", 0) or 0) for row in accounts), 2),
+                    "balance": round(sum(float(row.get("balance", 0) or 0) for row in accounts), 2),
+                    "open_accounts": len([row for row in accounts if str(row.get("status", "")).upper() == "OPEN"]),
+                }
+            )
+        return rows

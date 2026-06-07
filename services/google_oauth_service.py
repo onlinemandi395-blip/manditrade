@@ -66,10 +66,14 @@ class GoogleOAuthService:
 
     def _create_state_token(self) -> str:
         config = self._get_oauth_config()
+        selected_language = str(
+            st.session_state.get("mt_language", st.session_state.get("mt_next_language", "en")) or "en"
+        ).strip().lower() or "en"
         payload = {
             "nonce": secrets.token_urlsafe(24),
             "ts": int(time.time()),
             "redirect_uri": config["redirect_uri"],
+            "language": selected_language,
         }
         envelope = {"payload": payload, "sig": self._sign_state_payload(payload)}
         token = self._urlsafe_b64encode(json.dumps(envelope, separators=(",", ":")).encode("utf-8"))
@@ -128,7 +132,7 @@ class GoogleOAuthService:
         st.session_state["mt_next_oauth_debug_received_state"] = received_state
         if not code:
             raise ValueError("Missing OAuth authorization code.")
-        self._parse_and_validate_state_token(received_state)
+        state_payload = self._parse_and_validate_state_token(received_state)
         config = self._get_oauth_config()
         payload = urlencode(
             {
@@ -141,7 +145,9 @@ class GoogleOAuthService:
         ).encode("utf-8")
         request = Request(self.TOKEN_URL, data=payload, headers={"Content-Type": "application/x-www-form-urlencoded"})
         with urlopen(request, timeout=20) as response:
-            return json.loads(response.read().decode("utf-8"))
+            token_data = json.loads(response.read().decode("utf-8"))
+        token_data["_state_payload"] = state_payload
+        return token_data
 
     def get_identity(self, access_token: str) -> dict[str, Any]:
         userinfo_request = Request(self.USERINFO_URL, headers={"Authorization": f"Bearer {access_token}"})
@@ -161,6 +167,7 @@ class GoogleOAuthService:
             raise ValueError("Google OAuth token exchange failed.")
         identity = self.get_identity(access_token)
         identity["oauth_token"] = self._normalize_token_payload(token_data)
+        identity["selected_language"] = str((token_data.get("_state_payload", {}) or {}).get("language", "") or "en").strip().lower() or "en"
         return identity
 
     def _normalize_token_payload(self, token_data: dict[str, Any]) -> dict[str, Any]:

@@ -259,6 +259,8 @@ def render_app() -> None:
             identity = oauth_service.exchange_code_for_identity()
             if not identity.get("email_verified", False):
                 raise ValueError("Google account email is not verified.")
+            selected_language = str(identity.get("selected_language", "") or session_service.get_language() or "en").strip().lower() or "en"
+            session_service.set_language(selected_language)
             resolved_user = _resolve_authenticated_user(str(identity.get("email", "")))
             oauth_service.persist_admin_token(identity, resolved_user)
             session_service.authenticate(

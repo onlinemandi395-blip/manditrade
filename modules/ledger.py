@@ -12,13 +12,51 @@ def render_ledger_page(data_service, notification_service, session_service) -> N
     role = str(user.get("role", "")).strip().lower()
     email = str(user.get("email", "")).strip().lower()
     summaries = ledger_service.summarize_accounts(viewer_email=email, role=role)
-    render_table(summaries, caption="Ledger Accounts")
+    if role == "platform_admin":
+        grouped_accounts = ledger_service.summarize_accounts_by_owner_role(role=role)
+        render_table(ledger_service.summarize_admin_totals(), caption="Ledger Overview")
+        admin_tabs = st.tabs(["All Accounts", "Manufacturers", "Mahajans", "Other"])
+        tab_rows = {
+            "All Accounts": summaries,
+            "Manufacturers": grouped_accounts.get("manufacturer", []),
+            "Mahajans": grouped_accounts.get("mahajan", []),
+            "Other": grouped_accounts.get("other", []),
+        }
+        for tab, label in zip(admin_tabs, tab_rows.keys()):
+            with tab:
+                render_table(tab_rows[label], caption=label)
+    else:
+        render_table(summaries, caption="My Ledger Accounts")
 
     ledger_rows = data_service.get_collection_ref("ledger")
     if role == "platform_admin":
+        owner_role_filter = st.selectbox(
+            "Owner Type",
+            options=["All", "Manufacturer", "Mahajan", "Other"],
+            key="ledger_owner_role_filter",
+        )
+        filtered_summaries = summaries
+        if owner_role_filter != "All":
+            filter_key = owner_role_filter.strip().lower()
+            if filter_key == "other":
+                filtered_summaries = [
+                    row for row in summaries if str(row.get("owner_role", "")).strip().lower() not in {"manufacturer", "mahajan"}
+                ]
+            else:
+                filtered_summaries = [
+                    row for row in summaries if str(row.get("owner_role", "")).strip().lower() == filter_key
+                ]
         selected_account = st.selectbox(
             "Open Ledger Account",
-            options=[""] + [row.get("account_key", "") for row in summaries],
+            options=[""] + [row.get("account_key", "") for row in filtered_summaries],
+            format_func=lambda value: next(
+                (
+                    f"{row.get('owner_email', '')} | {str(row.get('owner_role', '')).title()} | Balance {row.get('balance', 0)}"
+                    for row in filtered_summaries
+                    if row.get("account_key", "") == value
+                ),
+                value,
+            ),
             key="ledger_account_key",
         )
     else:
