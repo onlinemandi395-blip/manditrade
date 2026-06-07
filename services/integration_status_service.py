@@ -29,6 +29,8 @@ class IntegrationStatusService:
         notifications = self.data_service.list_collection("notifications")
         gmail_queue = self.data_service.list_collection("gmail_queue")
         loaded_languages = sorted((self.cache_service.get_config("languages") or {}).keys())
+        payment_config = dict(self.cache_service.get_config("payment_config") or {})
+        payment_settings = dict(payment_config.get("payment", {}) or payment_config)
         theme_service = ThemeService(self.admin_drive_service, self.cache_service)
         theme_status = theme_service.get_background_status()
         available_backgrounds = theme_service.list_available_backgrounds()
@@ -61,6 +63,12 @@ class IntegrationStatusService:
             "required_folders": drive_manifest.get("required_folders", []),
             "missing_files": drive_manifest.get("missing_files", []),
             "database_config_status": database_config_status,
+            "payment_config": {
+                "enabled": bool(payment_settings.get("enabled", True)),
+                "upi_id": str(payment_settings.get("upi_id", "")).strip(),
+                "payee_name": str(payment_settings.get("payee_name", "")).strip(),
+                "currency": str(payment_settings.get("currency", "INR")).strip() or "INR",
+            },
             "theme_status": theme_status,
             "theme_background_count": len(available_backgrounds),
             "theme_active_background_id": theme_service.get_active_background_file_id(),

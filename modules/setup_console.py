@@ -6,6 +6,7 @@ from components.table_renderer import render_table
 from components.theme_manager import render_theme_manager
 from services.cache_service import CacheService
 from services.config_loader_service import ConfigLoaderService
+from services.qr_service import QRService
 from services.theme_service import ThemeService
 
 
@@ -81,6 +82,69 @@ def render_setup_console(admin_drive_service, drive_manifest: dict) -> None:
 
     st.markdown("### database.json Mapping Status")
     render_table([database_status], caption="Drive database.json status")
+    st.markdown("### Merchant Payment Configuration")
+    payment_config_payload = dict(CacheService(ConfigLoaderService()).get_config("payment_config") or {})
+    payment_settings = dict(payment_config_payload.get("payment", {}) or payment_config_payload)
+    render_table(
+        [
+            {
+                "enabled": bool(payment_settings.get("enabled", True)),
+                "upi_id": str(payment_settings.get("upi_id", "")).strip(),
+                "payee_name": str(payment_settings.get("payee_name", "")).strip(),
+                "currency": str(payment_settings.get("currency", "INR")).strip() or "INR",
+            }
+        ],
+        caption="Current payment receiver settings",
+    )
+    payment_cols = st.columns(2)
+    payment_enabled = payment_cols[0].checkbox(
+        "UPI Payments Enabled",
+        value=bool(payment_settings.get("enabled", True)),
+        key="setup_payment_enabled",
+    )
+    payment_currency = payment_cols[1].text_input(
+        "Currency",
+        value=str(payment_settings.get("currency", "INR") or "INR"),
+        key="setup_payment_currency",
+    )
+    payment_upi_id = st.text_input(
+        "Merchant UPI ID",
+        value=str(payment_settings.get("upi_id", "") or ""),
+        key="setup_payment_upi_id",
+    )
+    payment_payee_name = st.text_input(
+        "Payee Name",
+        value=str(payment_settings.get("payee_name", "") or ""),
+        key="setup_payment_payee_name",
+    )
+    if payment_enabled and str(payment_upi_id).strip():
+        payment_link = (
+            f"upi://pay?pa={str(payment_upi_id).strip()}&pn={str(payment_payee_name or 'MandiTrade').strip()}&am=1.00&cu={str(payment_currency or 'INR').strip() or 'INR'}&tn=MandiTradePreview"
+        )
+        st.caption("Live UPI Preview")
+        st.code(payment_link)
+        qr_bytes = QRService().build_qr_png_bytes(payment_link)
+        if qr_bytes:
+            st.image(qr_bytes, width=180)
+    if st.button("Save Payment Receiver Settings", use_container_width=True, key="setup_save_payment_config"):
+        try:
+            if payment_enabled and not str(payment_upi_id).strip():
+                raise ValueError("Merchant UPI ID is required when UPI payments are enabled.")
+            payment_payload = {
+                "schema_version": 1,
+                "payment": {
+                    "upi_id": str(payment_upi_id or "").strip(),
+                    "payee_name": str(payment_payee_name or "").strip() or "MandiTrade",
+                    "currency": str(payment_currency or "INR").strip() or "INR",
+                    "enabled": bool(payment_enabled),
+                },
+            }
+            admin_drive_service.write_json("00_config/payment_config.json", payment_payload)
+            CacheService(ConfigLoaderService()).update_config("payment_config", payment_payload)
+            st.success("Merchant payment receiver settings saved.")
+            st.rerun()
+        except Exception as exc:
+            st.error(f"Save Payment Receiver Settings failed: {exc}")
     st.markdown("### Required Folders")
     render_table(drive_manifest.get("required_folders", []), caption="Required Drive folders")
     st.markdown("### Required JSON Files")
