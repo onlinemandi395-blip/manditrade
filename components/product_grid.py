@@ -7,7 +7,16 @@ from components.product_card import render_product_card
 from components.empty_state import render_empty_state
 
 
-def render_product_grid(products: list[dict], *, view: str = "marketplace", on_add_to_cart=None, on_request=None, media_service=None, return_route: str = "") -> None:
+def render_product_grid(
+    products: list[dict],
+    *,
+    view: str = "marketplace",
+    on_add_to_cart=None,
+    on_request=None,
+    media_service=None,
+    return_route: str = "",
+    grid_context: str = "",
+) -> None:
     if is_slideshow_active():
         active_product_id = str(st.session_state.get(SLIDESHOW_PRODUCT_KEY, "") or "").strip()
         active_product = next((product for product in products if str(product.get("product_id", "")).strip() == active_product_id), None)
@@ -26,4 +35,5 @@ def render_product_grid(products: list[dict], *, view: str = "marketplace", on_a
                 on_add_to_cart=on_add_to_cart if view == "marketplace" else on_request,
                 media_service=media_service,
                 return_route=return_route,
+                card_context=f"{grid_context}_{index}",
             )

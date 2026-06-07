@@ -36,4 +36,5 @@ def render_manditrade_page(products: list[dict], on_request=None, media_service=
         on_request=on_request,
         media_service=media_service,
         return_route="manditrade",
+        grid_context="manditrade_grid",
     )

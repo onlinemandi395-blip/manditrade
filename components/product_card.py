@@ -6,7 +6,15 @@ from components.image_slideshow import open_slideshow
 from services.pricing_service import PricingService
 
 
-def render_product_card(product: dict, *, view: str = "marketplace", on_add_to_cart=None, media_service=None, return_route: str = "") -> None:
+def render_product_card(
+    product: dict,
+    *,
+    view: str = "marketplace",
+    on_add_to_cart=None,
+    media_service=None,
+    return_route: str = "",
+    card_context: str = "",
+) -> None:
     pricing_service = PricingService()
     images = [dict(image or {}) for image in (product.get("images", []) or [])]
     primary_image = next((image for image in images if image.get("is_primary")), images[0] if images else {})
@@ -28,7 +36,7 @@ def render_product_card(product: dict, *, view: str = "marketplace", on_add_to_c
         badge_label = f"{1 if image_count else 0} / {image_count}" if image_count > 1 else ("1 image" if image_count == 1 else "No images")
         if st.button(
             f"Open Images ({badge_label})",
-            key=f"open_slideshow_{view}_{product.get('product_id', '')}",
+            key=f"open_slideshow_{view}_{return_route}_{card_context}_{product.get('product_id', '')}",
             use_container_width=True,
             disabled=not bool(images),
         ):

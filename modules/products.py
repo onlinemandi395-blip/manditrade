@@ -596,6 +596,7 @@ def render_products_page(data_service, notification_service, session_service, ca
             view="admin",
             media_service=media_service,
             return_route="products",
+            grid_context="products_marketplace_tab",
         )
 
     with tabs[2]:
@@ -609,6 +610,7 @@ def render_products_page(data_service, notification_service, session_service, ca
             view="admin",
             media_service=media_service,
             return_route="products",
+            grid_context="products_manditrade_tab",
         )
 
     with tabs[3]:
