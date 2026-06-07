@@ -557,7 +557,7 @@ def render_app() -> None:
                                         delivery_address=checkout["delivery_address"],
                                         product_lookup=product_lookup,
                                     )
-                                    data_service.persist_collection("orders")
+                                    order_service.persist_order_storage(order)
                                     data_service.persist_collection("payments")
                                     data_service.persist_collection("notifications")
                                     data_service.persist_collection("gmail_queue")
@@ -608,7 +608,7 @@ def render_app() -> None:
                                         requester_mobile=checkout["mobile"],
                                         delivery_address=checkout["delivery_address"],
                                     )
-                                    data_service.persist_collection("orders")
+                                    order_service.persist_order_storage(order)
                                     data_service.persist_collection("payments")
                                     data_service.persist_collection("notifications")
                                     data_service.persist_collection("gmail_queue")
@@ -676,7 +676,7 @@ def render_app() -> None:
         status = integration_status_service.get_status()
         if status["google_drive_status"] != "connected" or status["required_files_status"] != "ok":
             st.error("Drive-only runtime is blocked. Required Google Drive files are missing or unavailable.")
-        refresh_cols = st.columns(5)
+        refresh_cols = st.columns(6)
         if refresh_cols[0].button("Create Missing Drive Files", use_container_width=True):
             try:
                 result = admin_drive_service.create_missing_required_files()
@@ -701,13 +701,24 @@ def render_app() -> None:
                 st.rerun()
             except Exception as exc:
                 st.error(f"database.json refresh failed: {exc}")
-        if refresh_cols[2].button("Refresh Validation", use_container_width=True):
+        if refresh_cols[2].button("Migrate Root Orders", use_container_width=True):
+            try:
+                result = admin_drive_service.migrate_root_orders()
+                st.success(
+                    f"Root orders migration: {result.get('status', 'DONE')}. "
+                    f"Marketplace added: {result.get('marketplace_added', 0)}, "
+                    f"MandiTrade added: {result.get('manditrade_added', 0)}"
+                )
+                st.rerun()
+            except Exception as exc:
+                st.error(f"Root orders migration failed: {exc}")
+        if refresh_cols[3].button("Refresh Validation", use_container_width=True):
             admin_drive_service.clear_runtime_cache(clear_validation=True, clear_file_index=False)
             st.rerun()
-        if refresh_cols[3].button("Refresh Data Cache", use_container_width=True):
+        if refresh_cols[4].button("Refresh Data Cache", use_container_width=True):
             cache_service.refresh_cache()
             st.success("Data cache refreshed.")
-        if refresh_cols[4].button("Clear Cache and Reload", use_container_width=True):
+        if refresh_cols[5].button("Clear Cache and Reload", use_container_width=True):
             admin_drive_service.clear_runtime_cache(clear_validation=True, clear_file_index=True)
             st.rerun()
         render_table(

@@ -173,7 +173,7 @@ def render_orders_page(rows: list[dict], role: str, *, data_service=None, order_
                                 order_id=selected_order_id,
                                 deleted_by=session_service.get_user().get("email", ""),
                             )
-                            data_service.persist_collection("orders")
+                            order_service.persist_order_storage(selected_order_id)
                             data_service.persist_collection("payments")
                             data_service.persist_collection("shipments")
                             data_service.persist_collection("ledger")
@@ -215,7 +215,7 @@ def render_orders_page(rows: list[dict], role: str, *, data_service=None, order_
                                 verified_by=session_service.get_user().get("email", ""),
                             )
                             data_service.persist_collection("payments")
-                            data_service.persist_collection("orders")
+                            order_service.persist_order_storage(selected_order_id)
                             data_service.persist_collection("notifications")
                             data_service.persist_collection("gmail_queue")
                             st.success("Payment verified from Orders page.")
@@ -245,7 +245,7 @@ def render_orders_page(rows: list[dict], role: str, *, data_service=None, order_
                                     delivery_partner_email=selected_partner_email,
                                     assigned_by=session_service.get_user().get("email", ""),
                                 )
-                                data_service.persist_collection("orders")
+                                order_service.persist_order_storage(selected_order_id)
                                 data_service.persist_collection("shipments")
                                 data_service.persist_collection("notifications")
                                 data_service.persist_collection("gmail_queue")

@@ -24,7 +24,7 @@ def render_setup_console(admin_drive_service, drive_manifest: dict) -> None:
     root_missing = not drive_manifest.get("root_folder_id")
     setup_complete = not drive_manifest.get("missing_files") and not drive_manifest.get("missing_folders") and not root_missing
     database_status = admin_drive_service.get_database_config_status()
-    cols = st.columns(6)
+    cols = st.columns(7)
     if cols[0].button("Create Root Folder", use_container_width=True, disabled=not root_missing):
         try:
             result = admin_drive_service.ensure_root_folder()
@@ -61,10 +61,21 @@ def render_setup_console(admin_drive_service, drive_manifest: dict) -> None:
             st.rerun()
         except Exception as exc:
             st.error(f"database.json refresh failed: {exc}")
-    if cols[4].button("Reload Cache", use_container_width=True):
+    if cols[4].button("Migrate Root Orders", use_container_width=True):
+        try:
+            result = admin_drive_service.migrate_root_orders()
+            st.success(
+                f"Root orders migration: {result.get('status', 'DONE')}. "
+                f"Marketplace added: {result.get('marketplace_added', 0)}, "
+                f"MandiTrade added: {result.get('manditrade_added', 0)}"
+            )
+            st.rerun()
+        except Exception as exc:
+            st.error(f"Root orders migration failed: {exc}")
+    if cols[5].button("Reload Cache", use_container_width=True):
         admin_drive_service.clear_runtime_cache()
         st.rerun()
-    if cols[5].button("Continue to App", use_container_width=True, disabled=not setup_complete):
+    if cols[6].button("Continue to App", use_container_width=True, disabled=not setup_complete):
         admin_drive_service.clear_runtime_cache()
         st.rerun()
 

@@ -83,7 +83,7 @@ def render_payments_page(data_service, order_service, notification_service, sess
             verified_by=session_service.get_user().get("email", ""),
         )
         data_service.persist_collection("payments")
-        data_service.persist_collection("orders")
+        order_service.persist_order_storage(related_order)
         data_service.persist_collection("notifications")
         data_service.persist_collection("gmail_queue")
         st.success(f"Payment verified for order {result['order'].get('order_id', '')}.")

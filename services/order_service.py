@@ -21,8 +21,13 @@ class OrderService:
         self.pricing_service = PricingService()
 
     def _find_order(self, order_id: str) -> dict | None:
+        normalized_order_id = str(order_id).strip()
         return next(
-            (row for row in self.data_service.get_collection_ref("orders") if str(row.get("order_id", "")).strip() == str(order_id).strip()),
+            (
+                row
+                for row in self.list_all_orders()
+                if str(row.get("order_id", "")).strip() == normalized_order_id
+            ),
             None,
         )
 
@@ -38,11 +43,41 @@ class OrderService:
             None,
         )
 
+    def list_marketplace_orders(self) -> list[dict]:
+        rows = self.data_service.get_collection_ref("marketplace_orders")
+        for row in rows:
+            row["source_channel"] = "marketplace"
+        return rows
+
+    def list_manditrade_orders(self) -> list[dict]:
+        rows = self.data_service.get_collection_ref("manditrade_orders")
+        for row in rows:
+            row["source_channel"] = "manditrade"
+        return rows
+
+    def list_all_orders(self) -> list[dict]:
+        return self.list_marketplace_orders() + self.list_manditrade_orders()
+
+    def _get_order_collection_name(self, source_channel: str) -> str:
+        normalized = str(source_channel or "").strip().lower()
+        if normalized == "marketplace":
+            return "marketplace_orders"
+        if normalized in {"manditrade", "mandiplace"}:
+            return "manditrade_orders"
+        raise ValueError(f"Unsupported order source_channel: {source_channel}")
+
+    def persist_order_storage(self, order_or_id) -> None:
+        order = order_or_id if isinstance(order_or_id, dict) else self._find_order(str(order_or_id))
+        if not order:
+            raise ValueError("Order not found.")
+        self.data_service.persist_collection(self._get_order_collection_name(order.get("source_channel", "")))
+
     def delete_order_for_admin(self, *, order_id: str, deleted_by: str) -> dict:
         normalized_order_id = str(order_id or "").strip()
         if not normalized_order_id:
             raise ValueError("Order ID is required.")
-        orders = self.data_service.get_collection_ref("orders")
+        collection_name = self._get_order_collection_name(order.get("source_channel", ""))
+        orders = self.data_service.get_collection_ref(collection_name)
         order = next((row for row in orders if str(row.get("order_id", "")).strip() == normalized_order_id), None)
         if not order:
             raise ValueError("Order not found.")
@@ -211,7 +246,7 @@ class OrderService:
                 "otp_status": "NOT_GENERATED",
                 "created_at": datetime.now(UTC).isoformat(),
             }
-            self.data_service._bootstrap_collection("orders").append(record)
+            self.data_service.get_collection_ref("marketplace_orders").append(record)
             payment_record = self.payment_service.create_payment_record(
                 order_id=record["order_id"],
                 payer_email=buyer_email,
@@ -337,7 +372,7 @@ class OrderService:
                 "otp_status": "NOT_GENERATED",
                 "created_at": datetime.now(UTC).isoformat(),
             }
-            self.data_service._bootstrap_collection("orders").append(record)
+            self.data_service.get_collection_ref("manditrade_orders").append(record)
             payment_record = self.payment_service.create_payment_record(
                 order_id=record["order_id"],
                 payer_email=requesting_user_email,

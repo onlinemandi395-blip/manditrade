@@ -44,7 +44,7 @@ def render_shipments_page(data_service, order_service, notification_service, ses
                         delivery_partner_email=selected_partner_email,
                         assigned_by=email,
                     )
-                    data_service.persist_collection("orders")
+                    order_service.persist_order_storage(selected_order_id)
                     data_service.persist_collection("shipments")
                     data_service.persist_collection("notifications")
                     data_service.persist_collection("gmail_queue")
@@ -76,7 +76,7 @@ def render_shipments_page(data_service, order_service, notification_service, ses
                     order_service.owner_accept_order(order_id=selected_order_id, owner_email=email)
                 else:
                     order_service.owner_reject_order(order_id=selected_order_id, owner_email=email, reason=reject_reason)
-                data_service.persist_collection("orders")
+                order_service.persist_order_storage(selected_order_id)
                 data_service.persist_collection("notifications")
                 data_service.persist_collection("gmail_queue")
                 st.success("Owner action applied.")
@@ -87,7 +87,7 @@ def render_shipments_page(data_service, order_service, notification_service, ses
             selected_ready_order_id = st.selectbox("Accepted Order", options=[""] + [row.get("order_id", "") for row in accepted_orders], key="owner_ready_pickup_order")
             if st.button("Mark Ready For Pickup", use_container_width=True, key="owner_mark_ready") and selected_ready_order_id:
                 order_service.owner_mark_ready_for_pickup(order_id=selected_ready_order_id, owner_email=email)
-                data_service.persist_collection("orders")
+                order_service.persist_order_storage(selected_ready_order_id)
                 data_service.persist_collection("notifications")
                 data_service.persist_collection("gmail_queue")
                 st.success("Order marked ready for pickup.")
@@ -109,7 +109,7 @@ def render_shipments_page(data_service, order_service, notification_service, ses
             selected_shipment_order_id = st.selectbox("Assigned Order", options=[""] + [row.get("order_id", "") for row in pickup_queue], key="delivery_pickup_order")
             if st.button("Confirm Pickup", use_container_width=True, key="delivery_confirm_pickup") and selected_shipment_order_id:
                 result = order_service.confirm_pickup(order_id=selected_shipment_order_id, delivery_partner_email=email)
-                data_service.persist_collection("orders")
+                order_service.persist_order_storage(selected_shipment_order_id)
                 data_service.persist_collection("shipments")
                 data_service.persist_collection("ledger")
                 data_service.persist_collection("notifications")
@@ -122,7 +122,7 @@ def render_shipments_page(data_service, order_service, notification_service, ses
             selected_in_transit_order_id = st.selectbox("Picked Up Order", options=[""] + [row.get("order_id", "") for row in picked_up], key="delivery_in_transit_order")
             if st.button("Mark In Transit", use_container_width=True, key="delivery_mark_in_transit") and selected_in_transit_order_id:
                 order_service.mark_in_transit(order_id=selected_in_transit_order_id, delivery_partner_email=email)
-                data_service.persist_collection("orders")
+                order_service.persist_order_storage(selected_in_transit_order_id)
                 data_service.persist_collection("shipments")
                 st.success("Shipment marked in transit.")
                 st.rerun()
@@ -138,14 +138,14 @@ def render_shipments_page(data_service, order_service, notification_service, ses
                         delivery_partner_email=email,
                         otp_code=entered_otp,
                     )
-                    data_service.persist_collection("orders")
+                    order_service.persist_order_storage(selected_delivery_order_id)
                     data_service.persist_collection("shipments")
                     data_service.persist_collection("notifications")
                     data_service.persist_collection("gmail_queue")
                     st.success("Delivery OTP verified. Order completed.")
                     st.rerun()
                 except Exception as exc:
-                    data_service.persist_collection("orders")
+                    order_service.persist_order_storage(selected_delivery_order_id)
                     st.error(str(exc))
         with tabs[3]:
             delivered = [row for row in my_shipments if str(row.get("status", "")).upper() == "DELIVERED"]

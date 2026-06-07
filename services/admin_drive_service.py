@@ -72,6 +72,8 @@ class AdminDriveService:
             "01_identity",
             "02_catalog",
             "05_orders",
+            "05_orders/marketplace",
+            "05_orders/mandiplace",
             "06_shipments",
             "07_ledger",
             "09_notifications",
@@ -289,6 +291,55 @@ class AdminDriveService:
             "expected_collection_count": len(expected_collections),
             "missing_collections": missing_collections,
             "added_collections": [],
+        }
+
+    def migrate_root_orders(self) -> dict:
+        root_orders_path = "05_orders/orders.json"
+        try:
+            root_payload = self.read_json(root_orders_path)
+        except FileNotFoundError:
+            return {
+                "status": "MISSING",
+                "root_orders_count": 0,
+                "marketplace_added": 0,
+                "manditrade_added": 0,
+            }
+
+        root_orders = list(root_payload.get("orders", []) or [])
+        marketplace_payload = self.read_json("05_orders/marketplace/orders.json")
+        manditrade_payload = self.read_json("05_orders/mandiplace/orders.json")
+        marketplace_orders = list(marketplace_payload.get("orders", []) or [])
+        manditrade_orders = list(manditrade_payload.get("orders", []) or [])
+        marketplace_ids = {str(row.get("order_id", "")).strip() for row in marketplace_orders if str(row.get("order_id", "")).strip()}
+        manditrade_ids = {str(row.get("order_id", "")).strip() for row in manditrade_orders if str(row.get("order_id", "")).strip()}
+        marketplace_added = 0
+        manditrade_added = 0
+
+        for order in root_orders:
+            source_channel = str(order.get("source_channel", "")).strip().lower()
+            order_id = str(order.get("order_id", "")).strip()
+            if not order_id:
+                continue
+            if source_channel == "marketplace":
+                if order_id not in marketplace_ids:
+                    marketplace_orders.append(order)
+                    marketplace_ids.add(order_id)
+                    marketplace_added += 1
+            elif source_channel in {"manditrade", "mandiplace"}:
+                order["source_channel"] = "manditrade"
+                if order_id not in manditrade_ids:
+                    manditrade_orders.append(order)
+                    manditrade_ids.add(order_id)
+                    manditrade_added += 1
+
+        self.write_json("05_orders/marketplace/orders.json", {"schema_version": 1, "orders": marketplace_orders})
+        self.write_json("05_orders/mandiplace/orders.json", {"schema_version": 1, "orders": manditrade_orders})
+        self.clear_runtime_cache(clear_validation=True, clear_file_index=False)
+        return {
+            "status": "MIGRATED" if (marketplace_added or manditrade_added) else "UNCHANGED",
+            "root_orders_count": len(root_orders),
+            "marketplace_added": marketplace_added,
+            "manditrade_added": manditrade_added,
         }
 
     def refresh_database_config_mapping(self) -> dict:

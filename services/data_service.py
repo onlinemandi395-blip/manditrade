@@ -14,7 +14,8 @@ class DataService:
     DEFAULT_COLLECTION_MAPPINGS = {
         "users": "users:users",
         "products": "products_data:products",
-        "orders": "orders_data:orders",
+        "marketplace_orders": "marketplace_orders_data:orders",
+        "manditrade_orders": "manditrade_orders_data:orders",
         "payments": "payments_data:payments",
         "shipments": "shipments_data:shipments",
         "ledger": "ledger_data:ledger",
@@ -32,6 +33,11 @@ class DataService:
     def _bootstrap_collection(self, collection: str) -> list[dict]:
         cache_data = st.session_state["mt_next_data"]
         if collection in cache_data:
+            return cache_data[collection]
+        if collection == "orders":
+            marketplace_orders = [dict(row or {}) for row in self._bootstrap_collection("marketplace_orders")]
+            manditrade_orders = [dict(row or {}) for row in self._bootstrap_collection("manditrade_orders")]
+            cache_data[collection] = marketplace_orders + manditrade_orders
             return cache_data[collection]
         database_config = self.cache_service.get_config("database")
         source = database_config.get("collections", {}).get(collection, "") or self.DEFAULT_COLLECTION_MAPPINGS.get(collection, "")
@@ -64,6 +70,8 @@ class DataService:
         return record
 
     def persist_collection(self, collection: str) -> None:
+        if collection == "orders":
+            raise ValueError("Orders aggregate is read-only. Persist channel-wise orders instead.")
         database_config = self.cache_service.get_config("database")
         source = database_config.get("collections", {}).get(collection, "") or self.DEFAULT_COLLECTION_MAPPINGS.get(collection, "")
         if ":" not in source:
@@ -73,7 +81,8 @@ class DataService:
         logical_path_map = {
             "users": "01_identity/users.json",
             "products_data": "02_catalog/products.json",
-            "orders_data": "05_orders/orders.json",
+            "marketplace_orders_data": "05_orders/marketplace/orders.json",
+            "manditrade_orders_data": "05_orders/mandiplace/orders.json",
             "payments_data": "07_ledger/payments.json",
             "shipments_data": "06_shipments/shipments.json",
             "ledger_data": "07_ledger/ledger.json",
@@ -87,6 +96,8 @@ class DataService:
         with self.performance_service.measure(f"{collection}_save"):
             self.admin_drive_service.write_json(logical_path, payload)
         self.cache_service.update_config(config_name, payload)
+        if collection in {"marketplace_orders", "manditrade_orders"}:
+            st.session_state["mt_next_data"].pop("orders", None)
 
     def normalize_product_record(self, record: dict) -> dict:
         product = deepcopy(record)
