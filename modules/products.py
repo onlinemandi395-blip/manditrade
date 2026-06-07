@@ -189,6 +189,12 @@ def _archive_product(products: list[dict], product_id: str, current_user_email: 
             return
 
 
+def _delete_product(products: list[dict], product_id: str) -> bool:
+    initial_count = len(products)
+    products[:] = [product for product in products if str(product.get("product_id", "")).strip() != str(product_id).strip()]
+    return len(products) != initial_count
+
+
 def _resolve_or_create_owner(
     *,
     users: list[dict],
@@ -346,10 +352,11 @@ def render_products_page(data_service, notification_service, session_service, ca
 
     with tabs[0]:
         render_table(_build_product_table_rows(visible_products), caption="All products")
-        active_product_ids = [product.get("product_id", "") for product in visible_products if str(product.get("status", "")).upper() != "ARCHIVED"]
+        active_product_ids = [product.get("product_id", "") for product in visible_products if str(product.get("product_id", "")).strip()]
         if active_product_ids:
-            archive_product_id = st.selectbox(translator.t("action.archive"), options=[""] + active_product_ids, key="archive_product_id")
-            if st.button(translator.t("action.archive"), use_container_width=True) and archive_product_id:
+            product_action_cols = st.columns(2 if is_admin else 1)
+            archive_product_id = product_action_cols[0].selectbox(translator.t("action.archive"), options=[""] + active_product_ids, key="archive_product_id")
+            if product_action_cols[0].button(translator.t("action.archive"), use_container_width=True) and archive_product_id:
                 _archive_product(products, archive_product_id, current_user_email)
                 try:
                     data_service.persist_collection("products")
@@ -357,6 +364,20 @@ def render_products_page(data_service, notification_service, session_service, ca
                     st.success("Product archived.")
                 except Exception as exc:
                     st.error(f"Drive write failed: {exc}")
+            if is_admin:
+                delete_product_id = product_action_cols[1].selectbox("Delete Product", options=[""] + active_product_ids, key="delete_product_id")
+                if product_action_cols[1].button("Delete Product", use_container_width=True, type="primary") and delete_product_id:
+                    previous_products_snapshot = deepcopy(products)
+                    if _delete_product(products, delete_product_id):
+                        try:
+                            data_service.persist_collection("products")
+                            data_service.cache_service.refresh_cache()
+                            st.success(f"Product {delete_product_id} deleted.")
+                            st.rerun()
+                        except Exception as exc:
+                            products.clear()
+                            products.extend(previous_products_snapshot)
+                            st.error(f"Drive write failed: {exc}")
         editable_ids = [product.get("product_id", "") for product in visible_products]
         if editable_ids:
             selected_edit_id = st.selectbox(translator.t("module.products.title"), options=[""] + editable_ids, key="edit_product_id")

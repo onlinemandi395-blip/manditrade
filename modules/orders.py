@@ -120,6 +120,27 @@ def render_orders_page(rows: list[dict], role: str, *, data_service=None, order_
                     f"payment_id={selected_order.get('payment_id', '')}"
                 )
                 if data_service is not None and order_service is not None and session_service is not None:
+                    st.markdown("##### Admin Cleanup")
+                    if st.button("Delete Order", use_container_width=True, type="primary", key=f"delete_order_{selected_order_id}"):
+                        try:
+                            result = order_service.delete_order_for_admin(
+                                order_id=selected_order_id,
+                                deleted_by=session_service.get_user().get("email", ""),
+                            )
+                            data_service.persist_collection("orders")
+                            data_service.persist_collection("payments")
+                            data_service.persist_collection("shipments")
+                            data_service.persist_collection("ledger")
+                            data_service.persist_collection("notifications")
+                            data_service.persist_collection("gmail_queue")
+                            st.success(
+                                f"Order {result.get('order_id', '')} deleted. "
+                                f"Related shipments removed: {len(result.get('shipment_ids', []))}."
+                            )
+                            st.rerun()
+                        except Exception as exc:
+                            st.error(f"Delete Order failed: {exc}")
+
                     current_status = str(selected_order.get("status", "")).upper()
                     if current_status == "PAYMENT_PENDING":
                         st.markdown("##### Admin Action: Verify Payment")

@@ -36,6 +36,73 @@ class OrderService:
             None,
         )
 
+    def delete_order_for_admin(self, *, order_id: str, deleted_by: str) -> dict:
+        normalized_order_id = str(order_id or "").strip()
+        if not normalized_order_id:
+            raise ValueError("Order ID is required.")
+        orders = self.data_service.get_collection_ref("orders")
+        order = next((row for row in orders if str(row.get("order_id", "")).strip() == normalized_order_id), None)
+        if not order:
+            raise ValueError("Order not found.")
+
+        payment_id = str(order.get("payment_id", "")).strip()
+        shipments = self.data_service.get_collection_ref("shipments")
+        ledger = self.data_service.get_collection_ref("ledger")
+        notifications = self.data_service.get_collection_ref("notifications")
+        gmail_queue = self.data_service.get_collection_ref("gmail_queue")
+
+        shipment_ids = [
+            str(row.get("shipment_id", "")).strip()
+            for row in shipments
+            if str(row.get("order_id", "")).strip() == normalized_order_id
+        ]
+        related_notification_ids = {
+            str(row.get("notification_id", "")).strip()
+            for row in notifications
+            if (
+                str(row.get("source_entity", "")).strip() in {"orders", "payments", "shipments"}
+                and str(row.get("source_id", "")).strip() in {normalized_order_id, payment_id, *shipment_ids}
+            )
+        }
+
+        orders[:] = [row for row in orders if str(row.get("order_id", "")).strip() != normalized_order_id]
+        if payment_id:
+            payments = self.data_service.get_collection_ref("payments")
+            payments[:] = [
+                row
+                for row in payments
+                if str(row.get("payment_id", "")).strip() != payment_id
+                and str(row.get("order_id", "")).strip() != normalized_order_id
+            ]
+        shipments[:] = [row for row in shipments if str(row.get("order_id", "")).strip() != normalized_order_id]
+        ledger[:] = [row for row in ledger if str(row.get("order_id", "")).strip() != normalized_order_id]
+        notifications[:] = [
+            row
+            for row in notifications
+            if str(row.get("notification_id", "")).strip() not in related_notification_ids
+        ]
+        gmail_queue[:] = [
+            row
+            for row in gmail_queue
+            if str(row.get("notification_id", "")).strip() not in related_notification_ids
+        ]
+        self.notification_service.create_notification(
+            to_email="",
+            title="Order deleted",
+            message=f"Order {normalized_order_id} was deleted by admin.",
+            event_type="ORDER_DELETED",
+            to_role="platform_admin",
+            source_entity="orders",
+            source_id=normalized_order_id,
+            created_by=deleted_by,
+        )
+        return {
+            "order_id": normalized_order_id,
+            "payment_id": payment_id,
+            "shipment_ids": shipment_ids,
+            "deleted_notification_count": len(related_notification_ids),
+        }
+
     def create_marketplace_order(self, *, items: list[dict], buyer_email: str) -> dict:
         with self.performance_service.measure("order_create_marketplace"):
             first_item = dict((items or [{}])[0])
