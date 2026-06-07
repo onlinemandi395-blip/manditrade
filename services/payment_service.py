@@ -69,3 +69,18 @@ class PaymentService:
         }
         self.data_service.get_collection_ref("payments").append(record)
         return record
+
+    def ensure_payment_link_fields(self, payment_record: dict) -> dict:
+        record = dict(payment_record or {})
+        reference = str(record.get("payment_reference", "")).strip()
+        amount = float(record.get("amount_payable", record.get("amount_due", 0)) or 0)
+        if not reference:
+            return record
+        upi_link = str(record.get("upi_link", "")).strip()
+        if not upi_link:
+            upi_link = self.build_upi_link(amount=amount, reference=reference)
+            payment_record["upi_link"] = upi_link
+        qr_payload = str(record.get("qr_payload", "")).strip()
+        if not qr_payload:
+            payment_record["qr_payload"] = upi_link
+        return payment_record

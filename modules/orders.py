@@ -4,6 +4,7 @@ import streamlit as st
 
 from components.table_renderer import render_table
 from services.document_service import DocumentService
+from services.payment_service import PaymentService
 from services.qr_service import QRService
 
 
@@ -61,16 +62,24 @@ def _can_pay_order(selected_order: dict, role: str, current_user_email: str) -> 
     )
 
 
-def _render_payment_panel(payment_record: dict) -> None:
+def _render_payment_panel(payment_record: dict, *, payment_service: PaymentService | None = None) -> None:
     qr_service = QRService()
+    if payment_service is not None:
+        payment_record = payment_service.ensure_payment_link_fields(payment_record)
+    upi_link = str(payment_record.get("upi_link", "") or "").strip()
+    qr_payload = str(payment_record.get("qr_payload", "") or upi_link).strip()
     st.markdown("#### Complete Payment")
     st.write(f"Order Reference: {payment_record.get('payment_reference', '')}")
     st.write(f"Amount: Rs. {payment_record.get('amount_payable', payment_record.get('amount_due', 0))}")
     st.write("Payment Method: UPI")
-    qr_bytes = qr_service.build_qr_png_bytes(payment_record.get("qr_payload", "") or payment_record.get("upi_link", ""))
+    qr_bytes = qr_service.build_qr_png_bytes(qr_payload)
     if qr_bytes:
         st.image(qr_bytes, width=220)
-    st.code(payment_record.get("upi_link", ""))
+    else:
+        st.warning("QR could not be generated for this payment record.")
+    if upi_link:
+        st.link_button("Open UPI Link", upi_link, use_container_width=True)
+    st.code(upi_link)
     st.caption("Pay using this QR/UPI link. Keep the payment note/reference unchanged.")
     st.info("After payment, admin will verify it before the owner receives the request.")
 
@@ -259,4 +268,12 @@ def render_orders_page(rows: list[dict], role: str, *, data_service=None, order_
                     {},
                 )
                 if payment_record:
-                    _render_payment_panel(payment_record)
+                    missing_payment_link_fields = (
+                        not str(payment_record.get("upi_link", "")).strip()
+                        or not str(payment_record.get("qr_payload", "")).strip()
+                    )
+                    payment_service = PaymentService(data_service, data_service.cache_service)
+                    payment_service.ensure_payment_link_fields(payment_record)
+                    if missing_payment_link_fields:
+                        data_service.persist_collection("payments")
+                    _render_payment_panel(payment_record, payment_service=payment_service)
