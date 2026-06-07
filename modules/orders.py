@@ -70,6 +70,7 @@ def render_orders_page(rows: list[dict], role: str, *, data_service=None, order_
     tabs = st.tabs(list(tab_map.keys()))
     for tab, (label, filter_fn) in zip(tabs, tab_map.items()):
         with tab:
+            key_prefix = f"{role}_{label}_{str(label).strip().lower().replace(' ', '_')}"
             filtered_rows = filter_fn(rows)
             render_table(filtered_rows, caption=label)
             if not filtered_rows:
@@ -78,7 +79,7 @@ def render_orders_page(rows: list[dict], role: str, *, data_service=None, order_
             selected_order_id = st.selectbox(
                 f"{label} Order Detail",
                 options=[""] + list(order_map.keys()),
-                key=f"order_detail_{role}_{label}",
+                key=f"order_detail_{key_prefix}",
             )
             selected_order = order_map.get(selected_order_id)
             if not selected_order:
@@ -100,7 +101,7 @@ def render_orders_page(rows: list[dict], role: str, *, data_service=None, order_
                 data=invoice_html.encode("utf-8"),
                 file_name=f"{selected_order_id}_invoice.html",
                 mime="text/html",
-                key=f"download_invoice_{role}_{selected_order_id}",
+                key=f"download_invoice_{key_prefix}_{selected_order_id}",
             )
             if data_service is not None:
                 shipment_rows = data_service.get_collection_ref("shipments")
@@ -112,7 +113,7 @@ def render_orders_page(rows: list[dict], role: str, *, data_service=None, order_
                         data=delivery_slip_html.encode("utf-8"),
                         file_name=f"{selected_order_id}_delivery_slip.html",
                         mime="text/html",
-                        key=f"download_delivery_slip_{role}_{selected_order_id}",
+                        key=f"download_delivery_slip_{key_prefix}_{selected_order_id}",
                     )
             if role == "platform_admin":
                 st.info(
@@ -121,7 +122,7 @@ def render_orders_page(rows: list[dict], role: str, *, data_service=None, order_
                 )
                 if data_service is not None and order_service is not None and session_service is not None:
                     st.markdown("##### Admin Cleanup")
-                    if st.button("Delete Order", use_container_width=True, type="primary", key=f"delete_order_{selected_order_id}"):
+                    if st.button("Delete Order", use_container_width=True, type="primary", key=f"delete_order_{key_prefix}_{selected_order_id}"):
                         try:
                             result = order_service.delete_order_for_admin(
                                 order_id=selected_order_id,
@@ -150,17 +151,17 @@ def render_orders_page(rows: list[dict], role: str, *, data_service=None, order_
                             min_value=0.0,
                             step=1.0,
                             value=float(selected_order.get("total_amount", 0) or 0),
-                            key=f"orders_verify_amount_{selected_order_id}",
+                            key=f"orders_verify_amount_{key_prefix}_{selected_order_id}",
                         )
                         transaction_reference = verify_cols[1].text_input(
                             "Transaction Reference",
-                            key=f"orders_verify_ref_{selected_order_id}",
+                            key=f"orders_verify_ref_{key_prefix}_{selected_order_id}",
                         )
                         notes = verify_cols[2].text_input(
                             "Notes",
-                            key=f"orders_verify_notes_{selected_order_id}",
+                            key=f"orders_verify_notes_{key_prefix}_{selected_order_id}",
                         )
-                        if st.button("Verify Payment", use_container_width=True, key=f"orders_verify_payment_{selected_order_id}"):
+                        if st.button("Verify Payment", use_container_width=True, key=f"orders_verify_payment_{key_prefix}_{selected_order_id}"):
                             order_service.verify_payment(
                                 order_id=selected_order_id,
                                 amount_received=amount_received,
@@ -191,9 +192,9 @@ def render_orders_page(rows: list[dict], role: str, *, data_service=None, order_
                                     f"{partner_map[value].get('display_name', value)} ({value})" if value in partner_map else value
                                 ),
                                 index=([""] + list(partner_map.keys())).index(str(selected_order.get("preferred_delivery_partner_email", "")).strip().lower()) if str(selected_order.get("preferred_delivery_partner_email", "")).strip().lower() in ([""] + list(partner_map.keys())) else 0,
-                                key=f"orders_delivery_partner_{selected_order_id}",
+                                key=f"orders_delivery_partner_{key_prefix}_{selected_order_id}",
                             )
-                            if st.button("Assign Pickup", use_container_width=True, key=f"orders_assign_pickup_{selected_order_id}") and selected_partner_email:
+                            if st.button("Assign Pickup", use_container_width=True, key=f"orders_assign_pickup_{key_prefix}_{selected_order_id}") and selected_partner_email:
                                 order_service.assign_delivery_partner(
                                     order_id=selected_order_id,
                                     delivery_partner_email=selected_partner_email,
