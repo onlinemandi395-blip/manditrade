@@ -6,7 +6,8 @@ from components.table_renderer import render_table
 from services.ledger_service import LedgerService
 
 
-def render_ledger_page(data_service, notification_service, session_service) -> None:
+def render_ledger_page(data_service, notification_service, session_service, translator=None) -> None:
+    t = translator.t if translator else (lambda key: key)
     ledger_service = LedgerService(data_service)
     user = session_service.get_user()
     role = str(user.get("role", "")).strip().lower()
@@ -14,40 +15,46 @@ def render_ledger_page(data_service, notification_service, session_service) -> N
     summaries = ledger_service.summarize_accounts(viewer_email=email, role=role)
     if role == "platform_admin":
         grouped_accounts = ledger_service.summarize_accounts_by_owner_role(role=role)
-        render_table(ledger_service.summarize_admin_totals(), caption="Ledger Overview")
-        admin_tabs = st.tabs(["All Accounts", "Manufacturers", "Mahajans", "Other"])
+        render_table(ledger_service.summarize_admin_totals(), caption=t("ui.ledger_overview"))
+        admin_tabs = st.tabs([t("ui.all_accounts"), t("ui.manufacturers"), t("ui.mahajans"), t("ui.other")])
         tab_rows = {
-            "All Accounts": summaries,
-            "Manufacturers": grouped_accounts.get("manufacturer", []),
-            "Mahajans": grouped_accounts.get("mahajan", []),
-            "Other": grouped_accounts.get("other", []),
+            t("ui.all_accounts"): summaries,
+            t("ui.manufacturers"): grouped_accounts.get("manufacturer", []),
+            t("ui.mahajans"): grouped_accounts.get("mahajan", []),
+            t("ui.other"): grouped_accounts.get("other", []),
         }
         for tab, label in zip(admin_tabs, tab_rows.keys()):
             with tab:
                 render_table(tab_rows[label], caption=label)
     else:
-        render_table(summaries, caption="My Ledger Accounts")
+        render_table(summaries, caption=t("ui.my_ledger_accounts"))
 
     ledger_rows = data_service.get_collection_ref("ledger")
     if role == "platform_admin":
+        owner_type_options = {
+            t("ui.all"): "all",
+            t("ui.manufacturer"): "manufacturer",
+            t("ui.mahajan"): "mahajan",
+            t("ui.other"): "other",
+        }
         owner_role_filter = st.selectbox(
-            "Owner Type",
-            options=["All", "Manufacturer", "Mahajan", "Other"],
+            t("ui.owner_type"),
+            options=list(owner_type_options.keys()),
             key="ledger_owner_role_filter",
         )
         filtered_summaries = summaries
-        if owner_role_filter != "All":
-            filter_key = owner_role_filter.strip().lower()
-            if filter_key == "other":
+        selected_filter = owner_type_options.get(owner_role_filter, "all")
+        if selected_filter != "all":
+            if selected_filter == "other":
                 filtered_summaries = [
                     row for row in summaries if str(row.get("owner_role", "")).strip().lower() not in {"manufacturer", "mahajan"}
                 ]
             else:
                 filtered_summaries = [
-                    row for row in summaries if str(row.get("owner_role", "")).strip().lower() == filter_key
+                    row for row in summaries if str(row.get("owner_role", "")).strip().lower() == selected_filter
                 ]
         selected_account = st.selectbox(
-            "Open Ledger Account",
+            t("ui.open_ledger_account"),
             options=[""] + [row.get("account_key", "") for row in filtered_summaries],
             format_func=lambda value: next(
                 (
@@ -66,20 +73,20 @@ def render_ledger_page(data_service, notification_service, session_service) -> N
         account_rows = [row for row in ledger_rows if str(row.get("account_key", "")).strip() == selected_account]
         payable_rows = [row for row in account_rows if str(row.get("entry_type", "")).upper() == "PAYABLE_TO_OWNER"]
         settlement_rows = [row for row in account_rows if str(row.get("entry_type", "")).upper() == "PAYMENT_TO_OWNER"]
-        render_table(account_rows, caption="Ledger Entries")
-        render_table(settlement_rows, caption="Settlement History")
+        render_table(account_rows, caption=t("ui.ledger_entries"))
+        render_table(settlement_rows, caption=t("ui.settlement_history"))
         if payable_rows:
-            render_table(payable_rows, caption="Payable History")
+            render_table(payable_rows, caption=t("ui.payable_history"))
         if role == "platform_admin":
             owner = next((row for row in account_rows if str((row.get("party_owner") or {}).get("email", "")).strip()), {})
             owner_email = str((owner.get("party_owner") or {}).get("email", "")).strip().lower()
             owner_role = str((owner.get("party_owner") or {}).get("role", "")).strip().lower()
-            st.markdown("### Mark Partial Payment")
-            payment_amount = st.number_input("Payment Amount", min_value=0.0, step=1.0, key="ledger_payment_amount")
-            payment_mode = st.selectbox("Payment Mode", options=["UPI", "Bank", "Cash", "Credit"], key="ledger_payment_mode")
-            payment_reference = st.text_input("Payment Reference", key="ledger_payment_reference")
-            payment_notes = st.text_area("Notes", key="ledger_payment_notes")
-            if st.button("Mark Payment", use_container_width=True, key="ledger_mark_payment") and owner_email and payment_amount > 0:
+            st.markdown(f"### {t('ui.mark_partial_payment')}")
+            payment_amount = st.number_input(t("ui.payment_amount"), min_value=0.0, step=1.0, key="ledger_payment_amount")
+            payment_mode = st.selectbox(t("ui.payment_mode"), options=["UPI", "Bank", "Cash", "Credit"], key="ledger_payment_mode")
+            payment_reference = st.text_input(t("ui.payment_reference"), key="ledger_payment_reference")
+            payment_notes = st.text_area(t("ui.notes"), key="ledger_payment_notes")
+            if st.button(t("ui.mark_payment"), use_container_width=True, key="ledger_mark_payment") and owner_email and payment_amount > 0:
                 entry = ledger_service.create_payment_entry(
                     owner_email=owner_email,
                     owner_role=owner_role,
@@ -114,5 +121,5 @@ def render_ledger_page(data_service, notification_service, session_service) -> N
                 )
                 data_service.persist_collection("notifications")
                 data_service.persist_collection("gmail_queue")
-                st.success("Payment recorded.")
+                st.success(t("ui.payment_recorded"))
                 st.rerun()

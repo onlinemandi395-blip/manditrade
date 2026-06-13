@@ -16,6 +16,7 @@ def render_product_grid(
     media_service=None,
     return_route: str = "",
     grid_context: str = "",
+    translator=None,
 ) -> None:
     if is_slideshow_active():
         active_product_id = str(st.session_state.get(SLIDESHOW_PRODUCT_KEY, "") or "").strip()
@@ -24,7 +25,7 @@ def render_product_grid(
             render_image_slideshow(active_product, media_service=media_service, view=view)
             return
     if not products:
-      render_empty_state("No products found.")
+      render_empty_state(translator.t("ui.no_products_found") if translator else "No products found.")
       return
     columns = st.columns(3)
     for index, product in enumerate(products):
@@ -36,4 +37,5 @@ def render_product_grid(
                 media_service=media_service,
                 return_route=return_route,
                 card_context=f"{grid_context}_{index}",
+                translator=translator,
             )

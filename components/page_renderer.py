@@ -85,21 +85,22 @@ def _render_payment_pending_panel(payment_record: dict) -> None:
     st.caption("Pay using this QR/UPI link. Keep the payment note/reference unchanged.")
 
 
-def _render_checkout_details_form(*, key_prefix: str, email: str) -> dict:
-    st.markdown("### Checkout Details")
-    st.markdown("#### Buyer Contact")
-    name = st.text_input("Full Name", key=f"{key_prefix}_name")
-    mobile = st.text_input("Mobile Number", key=f"{key_prefix}_mobile")
-    st.text_input("Email", value=email, disabled=True, key=f"{key_prefix}_email")
-    st.markdown("#### Delivery Address")
-    address_line_1 = st.text_input("Address Line 1", key=f"{key_prefix}_address_1")
-    address_line_2 = st.text_input("Address Line 2", key=f"{key_prefix}_address_2")
-    city = st.text_input("City", key=f"{key_prefix}_city")
-    state = st.text_input("State", key=f"{key_prefix}_state")
-    pin_code = st.text_input("PIN Code", key=f"{key_prefix}_pin")
-    landmark = st.text_input("Landmark", key=f"{key_prefix}_landmark")
-    st.markdown("#### Payment Method")
-    st.selectbox("Payment Method", options=["UPI QR / UPI Link"], key=f"{key_prefix}_payment_method")
+def _render_checkout_details_form(*, key_prefix: str, email: str, translator) -> dict:
+    t = translator.t if translator else (lambda key: key)
+    st.markdown(f"### {t('ui.checkout_details')}")
+    st.markdown(f"#### {t('ui.buyer_contact')}")
+    name = st.text_input(t("ui.full_name"), key=f"{key_prefix}_name")
+    mobile = st.text_input(t("ui.mobile_number"), key=f"{key_prefix}_mobile")
+    st.text_input(t("ui.email"), value=email, disabled=True, key=f"{key_prefix}_email")
+    st.markdown(f"#### {t('ui.delivery_address')}")
+    address_line_1 = st.text_input(t("ui.address_line_1"), key=f"{key_prefix}_address_1")
+    address_line_2 = st.text_input(t("ui.address_line_2"), key=f"{key_prefix}_address_2")
+    city = st.text_input(t("ui.city"), key=f"{key_prefix}_city")
+    state = st.text_input(t("ui.state"), key=f"{key_prefix}_state")
+    pin_code = st.text_input(t("ui.pin_code"), key=f"{key_prefix}_pin")
+    landmark = st.text_input(t("ui.landmark"), key=f"{key_prefix}_landmark")
+    st.markdown(f"#### {t('ui.payment_method')}")
+    st.selectbox(t("ui.payment_method"), options=[t("ui.upi_qr_upi_link")], key=f"{key_prefix}_payment_method")
     return {
         "name": name.strip(),
         "mobile": mobile.strip(),
@@ -543,22 +544,23 @@ def render_app() -> None:
         cart = cart_service.get_cart()
         if cart.get("items"):
             with st.container(border=True):
-                st.subheader("Cart")
+                st.subheader(translator.t("ui.cart"))
                 render_table(_sanitize_cart_rows(cart["items"]), caption="Public cart view")
                 st.write(f"Total: {cart_service.calculate_total()}")
                 if not payment_config.get("enabled", False):
                     st.error("Payment config missing or disabled. Checkout is unavailable.")
                 else:
-                    if st.button("Checkout", use_container_width=True, key="marketplace_checkout_open"):
+                    if st.button(translator.t("ui.checkout"), use_container_width=True, key="marketplace_checkout_open"):
                         st.session_state["mt_marketplace_checkout_open"] = True
                     if st.session_state.get("mt_marketplace_checkout_open", False):
                         checkout = _render_checkout_details_form(
                             key_prefix="marketplace_checkout",
                             email=session_service.get_user().get("email", ""),
+                            translator=translator,
                         )
-                        if st.button("Confirm Order", use_container_width=True, key="marketplace_confirm_order"):
+                        if st.button(translator.t("ui.confirm_order"), use_container_width=True, key="marketplace_confirm_order"):
                             if not checkout["name"] or not checkout["mobile"] or not checkout["delivery_address"]["address_line_1"] or not checkout["delivery_address"]["city"] or not checkout["delivery_address"]["state"] or not checkout["delivery_address"]["pin_code"]:
-                                st.error("Please complete buyer contact and delivery address.")
+                                st.error(translator.t("ui.complete_contact_address"))
                             else:
                                 try:
                                     product_lookup = {str(product.get("product_id", "")).strip(): product for product in products}
@@ -601,17 +603,18 @@ def render_app() -> None:
             selected_product = next((row for row in products if str(row.get("product_id", "")).strip() == selected_product_id), None)
             if selected_product:
                 with st.container(border=True):
-                    st.subheader(f"MandiTrade Checkout: {selected_product.get('product_name', '')}")
+                    st.subheader(f"{translator.t('ui.manditrade_checkout')}: {selected_product.get('product_name', '')}")
                     if not payment_config.get("enabled", False):
                         st.error("Payment config missing or disabled. Checkout is unavailable.")
                     else:
                         checkout = _render_checkout_details_form(
                             key_prefix=f"manditrade_checkout_{selected_product_id}",
                             email=session_service.get_user().get("email", ""),
+                            translator=translator,
                         )
-                        if st.button("Confirm Order", use_container_width=True, key=f"manditrade_confirm_order_{selected_product_id}"):
+                        if st.button(translator.t("ui.confirm_order"), use_container_width=True, key=f"manditrade_confirm_order_{selected_product_id}"):
                             if not checkout["name"] or not checkout["mobile"] or not checkout["delivery_address"]["address_line_1"] or not checkout["delivery_address"]["city"] or not checkout["delivery_address"]["state"] or not checkout["delivery_address"]["pin_code"]:
-                                st.error("Please complete requester contact and delivery address.")
+                                st.error(translator.t("ui.complete_contact_address"))
                             else:
                                 try:
                                     order = order_service.create_manditrade_order_with_checkout(
@@ -639,9 +642,9 @@ def render_app() -> None:
     elif current_route == "notifications":
         render_notifications_page(notification_service, data_service, session_service, translator)
     elif current_route == "payments":
-        render_payments_page(data_service, order_service, notification_service, session_service)
+        render_payments_page(data_service, order_service, notification_service, session_service, translator)
     elif page_definition.get("type") == "ledger_page":
-        render_ledger_page(data_service, notification_service, session_service)
+        render_ledger_page(data_service, notification_service, session_service, translator)
     elif page_definition.get("type") == "completed_deliveries_page":
         render_completed_deliveries_page(data_service, session_service)
     elif current_route == "shipments":
