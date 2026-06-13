@@ -18,7 +18,7 @@ def _matches_search(product: dict, query: str) -> bool:
     return query in haystack
 
 
-def render_manditrade_page(products: list[dict], on_request=None, media_service=None, translator=None) -> None:
+def render_manditrade_page(products: list[dict], on_request=None, media_service=None, translator=None, ui_config: dict | None = None) -> None:
     query = st.text_input(
         f"{translator.t('action.search') if translator else 'Search'} {translator.t('module.manditrade.title') if translator else 'MandiTrade'}",
         key="manditrade_search",
@@ -38,4 +38,5 @@ def render_manditrade_page(products: list[dict], on_request=None, media_service=
         return_route="manditrade",
         grid_context="manditrade_grid",
         translator=translator,
+        ui_config=ui_config,
     )

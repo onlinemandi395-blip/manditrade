@@ -15,9 +15,11 @@ def render_product_card(
     return_route: str = "",
     card_context: str = "",
     translator=None,
+    ui_config: dict | None = None,
 ) -> None:
     pricing_service = PricingService()
     t = translator.t if translator else (lambda key: key)
+    gallery_card_config = dict((((ui_config or {}).get("product_gallery") or {}).get("card") or {}))
     images = [dict(image or {}) for image in (product.get("images", []) or [])]
     primary_image = next((image for image in images if image.get("is_primary")), images[0] if images else {})
     marketplace = (product.get("sales_channels") or {}).get("marketplace", {})
@@ -35,9 +37,14 @@ def render_product_card(
         else:
             media.markdown("<div class='mt-product-card__media'>No Image</div>", unsafe_allow_html=True)
         image_count = len(images)
-        badge_label = f"{1 if image_count else 0} / {image_count}" if image_count > 1 else (t("ui.one_image") if image_count == 1 else t("ui.no_images"))
+        badge_mode = str(gallery_card_config.get("badge_mode", "counter") or "counter").strip().lower()
+        if badge_mode == "count":
+            badge_label = f"{image_count} {t('ui.images')}" if image_count else t("ui.no_images")
+        else:
+            badge_label = f"{1 if image_count else 0} / {image_count}" if image_count > 1 else (t("ui.one_image") if image_count == 1 else t("ui.no_images"))
+        button_label = str(gallery_card_config.get("open_button_label_key", "ui.open_images") or "ui.open_images")
         if st.button(
-            f"{t('ui.open_images')} ({badge_label})",
+            f"{t(button_label)} ({badge_label})",
             key=f"open_slideshow_{view}_{return_route}_{card_context}_{product.get('product_id', '')}",
             use_container_width=True,
             disabled=not bool(images),

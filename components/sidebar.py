@@ -31,6 +31,7 @@ def render_sidebar(
     role_label: str = "",
     theme_service=None,
     language_options: list[str] | None = None,
+    language_option_labels: dict[str, str] | None = None,
     current_language: str = "en",
     language_label: str = "Language",
     set_language=None,
@@ -57,6 +58,7 @@ def render_sidebar(
                     language_label,
                     options=normalized_options,
                     index=normalized_options.index(normalized_current) if normalized_current in normalized_options else 0,
+                    format_func=lambda code: dict(language_option_labels or {}).get(code, str(code or "").upper()),
                     key="sidebar_language_choice",
                 )
                 if language_choice != normalized_current:

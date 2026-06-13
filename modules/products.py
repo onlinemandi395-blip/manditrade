@@ -322,6 +322,8 @@ def _get_editable_status_options(is_admin: bool, current_status: str) -> list[st
 def render_products_page(data_service, notification_service, session_service, cache_service, translator) -> None:
     products = data_service.get_collection_ref("products")
     users = data_service.get_collection_ref("users")
+    app_config = dict(cache_service.get_config("app_config") or {})
+    ui_config = dict(app_config.get("ui", {}) or {})
     categories_config = cache_service.get_config("categories")
     merged_categories_payload = _merge_category_catalog(categories_config.get("categories", []))
     category_rows = merged_categories_payload.get("categories", [])
@@ -598,6 +600,7 @@ def render_products_page(data_service, notification_service, session_service, ca
             return_route="products",
             grid_context="products_marketplace_tab",
             translator=translator,
+            ui_config=ui_config,
         )
 
     with tabs[2]:
@@ -613,6 +616,7 @@ def render_products_page(data_service, notification_service, session_service, ca
             return_route="products",
             grid_context="products_manditrade_tab",
             translator=translator,
+            ui_config=ui_config,
         )
 
     with tabs[3]:

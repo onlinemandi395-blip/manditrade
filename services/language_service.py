@@ -63,7 +63,34 @@ class LanguageService:
         return dict(self.cache_service.get_config("languages") or {})
 
     def get_available_languages(self) -> list[str]:
-        return sorted(self.get_language_bundles().keys())
+        bundles = self.get_language_bundles()
+        app_config = dict(self.cache_service.get_config("app_config") or {})
+        preferred_order = list((((app_config.get("ui") or {}).get("languages") or {}).get("preferred_order", [])) or [])
+        ordered = []
+        seen = set()
+        for code in preferred_order:
+            normalized = str(code or "").strip().lower()
+            if normalized and normalized in bundles and normalized not in seen:
+                ordered.append(normalized)
+                seen.add(normalized)
+        for code in sorted(bundles.keys()):
+            if code not in seen:
+                ordered.append(code)
+        return ordered
+
+    def get_language_option_labels(self) -> dict[str, str]:
+        bundles = self.get_language_bundles()
+        labels: dict[str, str] = {}
+        for code, bundle in bundles.items():
+            native = str(bundle.get("meta.language_native_name", "") or "").strip()
+            english = str(bundle.get("meta.language_name", "") or "").strip()
+            if native and english and native != english:
+                labels[code] = f"{native} ({english})"
+            elif native or english:
+                labels[code] = native or english
+            else:
+                labels[code] = str(code or "").upper()
+        return labels
 
     def get_current_language(self) -> str:
         bundles = self.get_language_bundles()

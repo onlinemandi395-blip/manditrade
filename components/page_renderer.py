@@ -395,6 +395,7 @@ def render_app() -> None:
         with performance_service.measure("cache_load"):
             cache_service.load_all_configs()
     app_config = cache_service.get_config("app_config")
+    ui_config = dict((app_config.get("ui") or {}))
 
     session_service = SessionService(app_config)
     language = session_service.get_language()
@@ -426,9 +427,10 @@ def render_app() -> None:
             auth_service=auth_service,
             oauth_service=oauth_service,
             translator=translator,
-            language_options=list(cache_service.get_config("languages").keys()),
+            language_options=language_service.get_available_languages(),
             current_language=language,
             set_language=session_service.set_language,
+            language_option_labels=language_service.get_language_option_labels(),
         )
         if oauth_service.is_debug_enabled() or bool(app_config.get("debug_auth", False)):
             with st.expander("OAuth Debug", expanded=False):
@@ -478,6 +480,7 @@ def render_app() -> None:
         role_label=translator.t(f"role.{role}"),
         theme_service=theme_service,
         language_options=language_service.get_available_languages(),
+        language_option_labels=language_service.get_language_option_labels(),
         current_language=session_service.get_language(),
         language_label=translator.t("auth.language"),
         set_language=session_service.set_language,
@@ -541,7 +544,7 @@ def render_app() -> None:
             except Exception as exc:
                 st.error(str(exc))
 
-        render_marketplace_page(products, on_add_to_cart=on_add_to_cart, media_service=media_service, translator=translator)
+        render_marketplace_page(products, on_add_to_cart=on_add_to_cart, media_service=media_service, translator=translator, ui_config=ui_config)
         cart = cart_service.get_cart()
         if cart.get("items"):
             with st.container(border=True):
@@ -598,7 +601,7 @@ def render_app() -> None:
             except Exception as exc:
                 st.error(str(exc))
 
-        render_manditrade_page(products, on_request=on_request, media_service=media_service, translator=translator)
+        render_manditrade_page(products, on_request=on_request, media_service=media_service, translator=translator, ui_config=ui_config)
         selected_product_id = str(st.session_state.get("mt_manditrade_checkout_product_id", "") or "").strip()
         if selected_product_id:
             selected_product = next((row for row in products if str(row.get("product_id", "")).strip() == selected_product_id), None)

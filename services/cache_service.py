@@ -12,8 +12,10 @@ class CacheService:
         self.drive_cache_key = "mt_drive_cache"
 
     def load_all_configs(self) -> dict:
+        app_config = self.config_loader_service.load("app_config")
+        language_codes = self.config_loader_service.list_available_language_codes()
         cache = {
-            "app_config": self.config_loader_service.load("app_config"),
+            "app_config": app_config,
             "auth": self.config_loader_service.load("auth"),
             "permissions": self.config_loader_service.load("permissions"),
             "role_views": self.config_loader_service.load("role_views"),
@@ -36,10 +38,8 @@ class CacheService:
             "gmail_queue_data": self.config_loader_service.load("gmail_queue_data"),
             "audit_logs_data": self.config_loader_service.load("audit_logs_data"),
             "languages": {
-                "en": self.config_loader_service.load_language("en"),
-                "hi": self.config_loader_service.load_language("hi"),
-                "mr": self.config_loader_service.load_language("mr"),
-                "bn": self.config_loader_service.load_language("bn"),
+                code: self.config_loader_service.load_language(code)
+                for code in language_codes
             },
             "_loaded_at": datetime.now(UTC).isoformat(),
         }

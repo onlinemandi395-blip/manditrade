@@ -17,19 +17,23 @@ def render_product_grid(
     return_route: str = "",
     grid_context: str = "",
     translator=None,
+    ui_config: dict | None = None,
 ) -> None:
     if is_slideshow_active():
         active_product_id = str(st.session_state.get(SLIDESHOW_PRODUCT_KEY, "") or "").strip()
         active_product = next((product for product in products if str(product.get("product_id", "")).strip() == active_product_id), None)
         if active_product and media_service is not None:
-            render_image_slideshow(active_product, media_service=media_service, view=view)
+            render_image_slideshow(active_product, media_service=media_service, view=view, translator=translator, ui_config=ui_config)
             return
     if not products:
-      render_empty_state(translator.t("ui.no_products_found") if translator else "No products found.")
-      return
-    columns = st.columns(3)
+        render_empty_state(translator.t("ui.no_products_found") if translator else "No products found.")
+        return
+    grid_config = dict((((ui_config or {}).get("product_grid") or {}).get("columns", {}) or {}))
+    default_columns = int(grid_config.get("default", 3) or 3)
+    view_columns = int(grid_config.get(view, default_columns) or default_columns)
+    columns = st.columns(max(1, min(view_columns, 4)))
     for index, product in enumerate(products):
-        with columns[index % 3]:
+        with columns[index % len(columns)]:
             render_product_card(
                 product,
                 view=view,
@@ -38,4 +42,5 @@ def render_product_grid(
                 return_route=return_route,
                 card_context=f"{grid_context}_{index}",
                 translator=translator,
+                ui_config=ui_config,
             )

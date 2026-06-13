@@ -133,6 +133,18 @@
   object-fit: cover;
 }
 
+.mt-slideshow__thumb-placeholder {
+  min-height: 96px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(35, 50, 70, 0.92), rgba(27, 40, 55, 0.92));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--mt-text-soft);
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+}
+
 .mt-status-chip {
   display: inline-flex;
   padding: 0.2rem 0.55rem;

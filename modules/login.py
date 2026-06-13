@@ -3,7 +3,15 @@ from __future__ import annotations
 import streamlit as st
 
 
-def render_login_page(auth_service, oauth_service, translator, language_options: list[str], current_language: str, set_language) -> None:
+def render_login_page(
+    auth_service,
+    oauth_service,
+    translator,
+    language_options: list[str],
+    current_language: str,
+    set_language,
+    language_option_labels: dict[str, str] | None = None,
+) -> None:
     auth_config = auth_service.get_auth_config()
     login_config = auth_config.get("login_page", {})
 
@@ -23,6 +31,7 @@ def render_login_page(auth_service, oauth_service, translator, language_options:
             translator.t("auth.language"),
             options=language_options,
             index=language_options.index(current_language) if current_language in language_options else 0,
+            format_func=lambda code: dict(language_option_labels or {}).get(code, str(code or "").upper()),
             key="login_language_selector",
         )
         if selected_language != current_language:

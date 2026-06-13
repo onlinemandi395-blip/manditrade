@@ -18,7 +18,7 @@ def _matches_search(product: dict, query: str) -> bool:
     return query in haystack
 
 
-def render_marketplace_page(products: list[dict], on_add_to_cart, media_service=None, translator=None) -> None:
+def render_marketplace_page(products: list[dict], on_add_to_cart, media_service=None, translator=None, ui_config: dict | None = None) -> None:
     query = st.text_input(
         f"{translator.t('action.search') if translator else 'Search'} {translator.t('module.marketplace.title') if translator else 'Marketplace'}",
         key="marketplace_search",
@@ -38,4 +38,5 @@ def render_marketplace_page(products: list[dict], on_add_to_cart, media_service=
         return_route="marketplace",
         grid_context="marketplace_grid",
         translator=translator,
+        ui_config=ui_config,
     )
