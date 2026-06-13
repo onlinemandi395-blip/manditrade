@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 import streamlit as st
 
 
@@ -21,8 +23,32 @@ class Translator:
             language_missing.add(normalized_key)
             missing[self.language_code] = sorted(language_missing)
             st.session_state["mt_missing_translation_keys"] = missing
-            return normalized_key
+            return self._humanize_key(normalized_key)
         return str(value)
+
+    @staticmethod
+    def _humanize_key(key: str) -> str:
+        normalized = str(key or "").strip()
+        if not normalized:
+            return ""
+        parts = [part for part in normalized.split(".") if part]
+        candidate = parts[-1] if parts else normalized
+        if len(parts) >= 2 and candidate.lower() in {"title", "subtitle", "desc", "label", "name"}:
+            candidate = parts[-2]
+        candidate = candidate.replace("-", " ").replace("_", " ")
+        candidate = re.sub(r"\s+", " ", candidate).strip()
+        if not candidate:
+            return normalized
+        words = []
+        for word in candidate.split(" "):
+            upper_word = word.upper()
+            if upper_word in {"UPI", "OTP", "JSON", "RBAC", "UI"}:
+                words.append(upper_word)
+            elif word.lower() == "oauth":
+                words.append("OAuth")
+            else:
+                words.append(word.capitalize())
+        return " ".join(words)
 
 
 class LanguageService:
