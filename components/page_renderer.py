@@ -469,7 +469,17 @@ def render_app() -> None:
     if current_route not in valid_routes or not rbac_service.can_access(role, current_route):
         current_route = page_service.get_landing_page(role, navigation_service)
         session_service.set_route(current_route)
-    chosen = render_sidebar(navigation_items, current_route, user=user, role_label=translator.t(f"role.{role}"), theme_service=theme_service)
+    chosen = render_sidebar(
+        navigation_items,
+        current_route,
+        user=user,
+        role_label=translator.t(f"role.{role}"),
+        theme_service=theme_service,
+        language_options=language_service.get_available_languages(),
+        current_language=session_service.get_language(),
+        language_label=translator.t("auth.language"),
+        set_language=session_service.set_language,
+    )
     if chosen != current_route:
         session_service.set_route(chosen)
         st.rerun()

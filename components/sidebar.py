@@ -30,6 +30,10 @@ def render_sidebar(
     user: dict | None = None,
     role_label: str = "",
     theme_service=None,
+    language_options: list[str] | None = None,
+    current_language: str = "en",
+    language_label: str = "Language",
+    set_language=None,
 ) -> str:
     chosen = selected_route
     with st.sidebar:
@@ -45,6 +49,19 @@ def render_sidebar(
                 st.caption(email)
             if role_label:
                 st.caption(role_label)
+        if language_options and set_language is not None:
+            normalized_options = [str(option or "").strip().lower() for option in language_options if str(option or "").strip()]
+            normalized_current = str(current_language or "en").strip().lower() or "en"
+            if normalized_options:
+                language_choice = st.selectbox(
+                    language_label,
+                    options=normalized_options,
+                    index=normalized_options.index(normalized_current) if normalized_current in normalized_options else 0,
+                    key="sidebar_language_choice",
+                )
+                if language_choice != normalized_current:
+                    set_language(language_choice)
+                    st.rerun()
         if theme_service is not None:
             backgrounds = theme_service.list_available_backgrounds()
             if backgrounds:
