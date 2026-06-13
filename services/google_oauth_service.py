@@ -211,5 +211,8 @@ class GoogleOAuthService:
             "callback_error": self.get_callback_error(),
         }
 
-    def clear_callback_params(self) -> None:
+    def clear_callback_params(self, preserve: dict[str, str] | None = None) -> None:
+        preserved = {str(key): str(value) for key, value in dict(preserve or {}).items() if str(value or "").strip()}
         st.query_params.clear()
+        for key, value in preserved.items():
+            st.query_params[key] = value

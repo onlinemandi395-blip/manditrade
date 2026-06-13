@@ -23,6 +23,7 @@ def render_login_page(auth_service, oauth_service, translator, language_options:
             translator.t("auth.language"),
             options=language_options,
             index=language_options.index(current_language) if current_language in language_options else 0,
+            key="login_language_selector",
         )
         if selected_language != current_language:
             set_language(selected_language)

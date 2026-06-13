@@ -338,7 +338,7 @@ def render_app() -> None:
     callback_error = oauth_service.get_callback_error()
     if callback_error:
         st.error("Google sign-in failed.")
-        oauth_service.clear_callback_params()
+        oauth_service.clear_callback_params(preserve={"lang": session_service.get_language()})
 
     if oauth_service.has_callback() and not session_service.is_authenticated():
         try:
@@ -355,15 +355,16 @@ def render_app() -> None:
                     "display_name": identity.get("display_name") or resolved_user.get("display_name", ""),
                     "photo_url": identity.get("photo_url", ""),
                     "oauth_token": identity.get("oauth_token", {}),
+                    "language": selected_language,
                     "landing_page": resolved_user.get("landing_page", "marketplace"),
                 }
             )
             admin_drive_service.clear_runtime_cache(clear_validation=True, clear_file_index=False)
-            oauth_service.clear_callback_params()
+            oauth_service.clear_callback_params(preserve={"lang": selected_language})
             st.rerun()
         except Exception as exc:
             st.error(f"Google sign-in failed: {exc}")
-            oauth_service.clear_callback_params()
+            oauth_service.clear_callback_params(preserve={"lang": session_service.get_language()})
 
     with performance_service.measure("drive_validation"):
         drive_manifest = admin_drive_service.get_runtime_manifest()
