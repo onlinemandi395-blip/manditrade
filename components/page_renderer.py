@@ -40,6 +40,7 @@ from services.navigation_service import NavigationService
 from services.notification_service import NotificationService
 from services.order_service import OrderService
 from services.page_service import PageService
+from services.payment_config_service import PaymentConfigService
 from services.performance_service import PerformanceService
 from services.qr_service import QRService
 from services.rbac_service import RBACService
@@ -445,6 +446,7 @@ def render_app() -> None:
     media_service = MediaService(admin_drive_service)
     notification_service = NotificationService(data_service)
     order_service = OrderService(data_service, notification_service)
+    payment_config_service = PaymentConfigService(data_service, cache_service, admin_drive_service)
     cart_service = CartService()
     gmail_queue_service = GmailQueueService(data_service)
     integration_status_service = IntegrationStatusService(
@@ -740,6 +742,7 @@ def render_app() -> None:
                 {"key": "required_files_count", "value": status["required_files_count"]},
                 {"key": "missing_files_count", "value": status["missing_files_count"]},
                 {"key": "notifications_count", "value": status["notification_queue_count"]},
+                {"key": "audit_log_count", "value": status["audit_log_count"]},
                 {"key": "queue_count", "value": status["queue_count"]},
                 {"key": "language_files_loaded", "value": status["language_files_loaded"]},
                 {"key": "language_selected", "value": status["language_selected"]},
@@ -810,20 +813,23 @@ def render_app() -> None:
                 st.image(qr_bytes, width=180)
         if st.button("Save Payment Receiver Settings", use_container_width=True, key="system_health_save_payment_config"):
             try:
-                if payment_enabled and not str(payment_upi_id).strip():
-                    raise ValueError("Merchant UPI ID is required when UPI payments are enabled.")
-                payment_payload = {
-                    "schema_version": 1,
-                    "payment": {
-                        "upi_id": str(payment_upi_id or "").strip(),
-                        "payee_name": str(payment_payee_name or "").strip() or "MandiTrade",
-                        "currency": str(payment_currency or "INR").strip() or "INR",
-                        "enabled": bool(payment_enabled),
-                    },
-                }
-                admin_drive_service.write_json("00_config/payment_config.json", payment_payload)
-                cache_service.update_config("payment_config", payment_payload)
-                st.success("Merchant payment receiver settings saved.")
+                result = payment_config_service.save_payment_receiver_settings(
+                    enabled=bool(payment_enabled),
+                    currency=str(payment_currency or "INR"),
+                    upi_id=str(payment_upi_id or ""),
+                    payee_name=str(payment_payee_name or ""),
+                    changed_by=session_service.get_user().get("email", ""),
+                    source_screen="system_health",
+                )
+                if result.get("changed"):
+                    impact = result.get("impact", {}) or {}
+                    st.success(
+                        "Merchant payment receiver settings saved. "
+                        f"Pending payments updated: {impact.get('pending_payments_updated', 0)} | "
+                        f"Pending orders updated: {impact.get('pending_orders_updated', 0)}"
+                    )
+                else:
+                    st.success("Merchant payment receiver settings saved. No live queue updates were required.")
                 st.rerun()
             except Exception as exc:
                 st.error(f"Save Payment Receiver Settings failed: {exc}")

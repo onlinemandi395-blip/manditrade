@@ -28,6 +28,7 @@ class IntegrationStatusService:
         orders = self.data_service.list_collection("orders")
         notifications = self.data_service.list_collection("notifications")
         gmail_queue = self.data_service.list_collection("gmail_queue")
+        audit_logs = self.data_service.list_collection("audit_logs")
         loaded_languages = sorted((self.cache_service.get_config("languages") or {}).keys())
         payment_config = dict(self.cache_service.get_config("payment_config") or {})
         payment_settings = dict(payment_config.get("payment", {}) or payment_config)
@@ -46,6 +47,7 @@ class IntegrationStatusService:
             "gmail_status": "enabled" if gmail_enabled and gmail_sender else "disabled",
             "queue_count": len(gmail_queue),
             "notification_queue_count": len(notifications),
+            "audit_log_count": len(audit_logs),
             "primary_admin_email": str(platform.get("primary_admin_email", "")),
             "primary_admin_name": str(platform.get("primary_admin_name", "") or ""),
             "loaded_collection_count": len(self.cache_service.get_config("database").get("collections", {})),

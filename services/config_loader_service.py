@@ -29,6 +29,7 @@ class ConfigLoaderService:
         "ledger_data": "07_ledger/ledger.json",
         "notifications_data": "09_notifications/notifications.json",
         "gmail_queue_data": "09_notifications/gmail_queue.json",
+        "audit_logs_data": "10_audit/audit_logs.json",
     }
 
     def __init__(self) -> None:

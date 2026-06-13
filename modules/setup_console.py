@@ -6,6 +6,8 @@ from components.table_renderer import render_table
 from components.theme_manager import render_theme_manager
 from services.cache_service import CacheService
 from services.config_loader_service import ConfigLoaderService
+from services.data_service import DataService
+from services.payment_config_service import PaymentConfigService
 from services.qr_service import QRService
 from services.theme_service import ThemeService
 
@@ -128,20 +130,28 @@ def render_setup_console(admin_drive_service, drive_manifest: dict) -> None:
             st.image(qr_bytes, width=180)
     if st.button("Save Payment Receiver Settings", use_container_width=True, key="setup_save_payment_config"):
         try:
-            if payment_enabled and not str(payment_upi_id).strip():
-                raise ValueError("Merchant UPI ID is required when UPI payments are enabled.")
-            payment_payload = {
-                "schema_version": 1,
-                "payment": {
-                    "upi_id": str(payment_upi_id or "").strip(),
-                    "payee_name": str(payment_payee_name or "").strip() or "MandiTrade",
-                    "currency": str(payment_currency or "INR").strip() or "INR",
-                    "enabled": bool(payment_enabled),
-                },
-            }
-            admin_drive_service.write_json("00_config/payment_config.json", payment_payload)
-            CacheService(ConfigLoaderService()).update_config("payment_config", payment_payload)
-            st.success("Merchant payment receiver settings saved.")
+            cache_service = CacheService(ConfigLoaderService())
+            result = PaymentConfigService(
+                DataService(cache_service),
+                cache_service,
+                admin_drive_service,
+            ).save_payment_receiver_settings(
+                enabled=bool(payment_enabled),
+                currency=str(payment_currency or "INR"),
+                upi_id=str(payment_upi_id or ""),
+                payee_name=str(payment_payee_name or ""),
+                changed_by=str((st.session_state.get("mt_next_user", {}) or {}).get("email", "") or ""),
+                source_screen="first_time_setup",
+            )
+            if result.get("changed"):
+                impact = result.get("impact", {}) or {}
+                st.success(
+                    "Merchant payment receiver settings saved. "
+                    f"Pending payments updated: {impact.get('pending_payments_updated', 0)} | "
+                    f"Pending orders updated: {impact.get('pending_orders_updated', 0)}"
+                )
+            else:
+                st.success("Merchant payment receiver settings saved. No live queue updates were required.")
             st.rerun()
         except Exception as exc:
             st.error(f"Save Payment Receiver Settings failed: {exc}")

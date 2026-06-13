@@ -11,6 +11,7 @@
     "notifications": "notifications_data:notifications",
     "gmail_queue": "gmail_queue_data:gmail_queue",
     "shipments": "shipments_data:shipments",
-    "ledger": "ledger_data:ledger"
+    "ledger": "ledger_data:ledger",
+    "audit_logs": "audit_logs_data:audit_logs"
   }
 }

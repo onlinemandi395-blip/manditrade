@@ -34,6 +34,7 @@ class CacheService:
             "ledger_data": self.config_loader_service.load("ledger_data"),
             "notifications_data": self.config_loader_service.load("notifications_data"),
             "gmail_queue_data": self.config_loader_service.load("gmail_queue_data"),
+            "audit_logs_data": self.config_loader_service.load("audit_logs_data"),
             "languages": {
                 "en": self.config_loader_service.load_language("en"),
                 "hi": self.config_loader_service.load_language("hi"),

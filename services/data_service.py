@@ -21,6 +21,7 @@ class DataService:
         "ledger": "ledger_data:ledger",
         "notifications": "notifications_data:notifications",
         "gmail_queue": "gmail_queue_data:gmail_queue",
+        "audit_logs": "audit_logs_data:audit_logs",
     }
 
     def __init__(self, cache_service) -> None:
@@ -88,6 +89,7 @@ class DataService:
             "ledger_data": "07_ledger/ledger.json",
             "notifications_data": "09_notifications/notifications.json",
             "gmail_queue_data": "09_notifications/gmail_queue.json",
+            "audit_logs_data": "10_audit/audit_logs.json",
         }
         logical_path = logical_path_map.get(config_name)
         if not logical_path:

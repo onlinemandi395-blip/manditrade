@@ -77,6 +77,7 @@ class AdminDriveService:
             "06_shipments",
             "07_ledger",
             "09_notifications",
+            "10_audit",
             "14_runtime",
             "15_media",
             "15_media/products",

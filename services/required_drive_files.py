@@ -223,6 +223,7 @@ def build_required_drive_files(primary_admin_email: str, primary_admin_name: str
                     "ledger": "ledger_data:ledger",
                     "notifications": "notifications_data:notifications",
                     "gmail_queue": "gmail_queue_data:gmail_queue",
+                    "audit_logs": "audit_logs_data:audit_logs",
                 },
             },
         },
@@ -340,4 +341,5 @@ def build_required_drive_files(primary_admin_email: str, primary_admin_name: str
         {"logical_path": "07_ledger/payments.json", "type": "data", "default_payload": {"payments": []}},
         {"logical_path": "09_notifications/notifications.json", "type": "data", "default_payload": {"notifications": []}},
         {"logical_path": "09_notifications/gmail_queue.json", "type": "data", "default_payload": {"gmail_queue": []}},
+        {"logical_path": "10_audit/audit_logs.json", "type": "data", "default_payload": {"audit_logs": []}},
     ]
