@@ -3,6 +3,7 @@ from __future__ import annotations
 import streamlit as st
 
 from components.table_renderer import render_table
+from services.payment_service import PaymentService
 from services.qr_service import QRService
 
 
@@ -11,6 +12,7 @@ def render_payments_page(data_service, order_service, notification_service, sess
     payments = data_service.get_collection_ref("payments")
     orders = data_service.get_collection_ref("orders")
     qr_service = QRService()
+    payment_service = PaymentService(data_service, data_service.cache_service)
 
     tabs = st.tabs([t("ui.pending_verification"), t("ui.verified_payments"), t("ui.all_payments")])
     with tabs[0]:
@@ -41,6 +43,8 @@ def render_payments_page(data_service, order_service, notification_service, sess
     payment = payment_map.get(selected_payment_id)
     if not payment:
         return
+    if payment_service.ensure_payment_link_fields(payment):
+        data_service.persist_collection("payments")
     related_order = next((row for row in orders if str(row.get("payment_id", "")).strip() == str(selected_payment_id).strip()), {})
     detail_cols = st.columns(4)
     detail_cols[0].metric(t("module.orders.title"), related_order.get("order_id", ""))
@@ -52,8 +56,11 @@ def render_payments_page(data_service, order_service, notification_service, sess
         f"{t('ui.product')}: {related_order.get('product_name', '')} | "
         f"{t('ui.source')}: {related_order.get('source_channel', '')}"
     )
-    st.code(payment.get("upi_link", ""))
-    qr_bytes = qr_service.build_qr_png_bytes(payment.get("qr_payload", "") or payment.get("upi_link", ""))
+    upi_link = str(payment.get("upi_link", "") or "").strip()
+    st.code(upi_link)
+    if upi_link:
+        st.link_button(t("ui.open_upi_link"), upi_link, use_container_width=True)
+    qr_bytes = qr_service.build_qr_png_bytes(str(payment.get("qr_payload", "") or upi_link).strip())
     if qr_bytes:
         st.image(qr_bytes, caption=t("ui.scan_qr_to_pay"), width=220)
         qr_cols = st.columns(2)
@@ -66,12 +73,12 @@ def render_payments_page(data_service, order_service, notification_service, sess
         )
         qr_cols[1].download_button(
             t("ui.download_upi_payload"),
-            data=(payment.get("upi_link", "") or "").encode("utf-8"),
+            data=upi_link.encode("utf-8"),
             file_name=f"{payment.get('payment_reference', 'upi_payload')}.txt",
             mime="text/plain",
             use_container_width=True,
         )
-    st.text_area(t("ui.share_copy_upi_link"), value=payment.get("upi_link", ""), height=100, key=f"payments_share_{selected_payment_id}")
+    st.text_area(t("ui.share_copy_upi_link"), value=upi_link, height=100, key=f"payments_share_{selected_payment_id}")
     amount_received = st.number_input(t("ui.amount_received"), min_value=0.0, step=1.0, value=float(payment.get("amount_payable", payment.get("amount_due", 0)) or 0), key="payments_amount_received")
     transaction_reference = st.text_input(t("ui.transaction_reference"), key="payments_transaction_reference")
     notes = st.text_area(t("ui.notes"), key="payments_notes")

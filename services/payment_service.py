@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 import secrets
 import string
-from urllib.parse import urlencode
+from urllib.parse import quote
 
 from services.id_service import IdService
 
@@ -39,19 +39,45 @@ class PaymentService:
         fallback_counter = self.id_service.next_drive_id(self.data_service.admin_drive_service, "payment_reference", "PAY")
         return fallback_counter.replace("-", "")[-10:].upper()
 
+    @staticmethod
+    def _encode_upi_value(value: str) -> str:
+        return quote(str(value or "").strip(), safe="@._-")
+
+    @classmethod
+    def build_upi_link_from_values(
+        cls,
+        *,
+        upi_id: str,
+        payee_name: str,
+        amount: float,
+        currency: str,
+        reference: str,
+    ) -> str:
+        normalized_reference = str(reference or "").strip().upper()
+        note = f"MandiTrade {normalized_reference}".strip()
+        query_parts = [
+            ("pa", str(upi_id or "").strip()),
+            ("pn", str(payee_name or "MandiTrade").strip()),
+            ("am", f"{float(amount or 0):.2f}"),
+            ("cu", str(currency or "INR").strip() or "INR"),
+            ("tr", normalized_reference),
+            ("tid", normalized_reference),
+            ("tn", note),
+        ]
+        query = "&".join(f"{key}={cls._encode_upi_value(value)}" for key, value in query_parts if str(value).strip())
+        return f"upi://pay?{query}"
+
     def build_upi_link(self, *, amount: float, reference: str) -> str:
         config = self.get_payment_config()
         if not config.get("enabled", False):
             raise ValueError("UPI payment is disabled in payment_config.json.")
-        payload = {
-            "pa": str(config["upi_id"]).strip(),
-            "pn": str(config["payee_name"]).strip(),
-            "am": f"{float(amount or 0):.2f}",
-            "cu": str(config.get("currency", "INR")).strip() or "INR",
-            "tr": str(reference or "").strip(),
-            "tn": f"MandiTrade Payment {str(reference or '').strip()}".strip(),
-        }
-        return f"upi://pay?{urlencode(payload)}"
+        return self.build_upi_link_from_values(
+            upi_id=str(config["upi_id"]).strip(),
+            payee_name=str(config["payee_name"]).strip(),
+            amount=amount,
+            currency=str(config.get("currency", "INR")).strip() or "INR",
+            reference=str(reference or "").strip(),
+        )
 
     def create_payment_record(
         self,
@@ -87,17 +113,29 @@ class PaymentService:
         self.data_service.get_collection_ref("payments").append(record)
         return record
 
-    def ensure_payment_link_fields(self, payment_record: dict) -> dict:
+    def ensure_payment_link_fields(self, payment_record: dict) -> bool:
         record = dict(payment_record or {})
         reference = str(record.get("payment_reference", "")).strip()
-        amount = float(record.get("amount_payable", record.get("amount_due", 0)) or 0)
         if not reference:
-            return record
-        upi_link = str(record.get("upi_link", "")).strip()
-        if not upi_link:
-            upi_link = self.build_upi_link(amount=amount, reference=reference)
+            return False
+        amount = float(record.get("amount_payable", record.get("amount_due", 0)) or 0)
+        upi_link = self.build_upi_link(amount=amount, reference=reference)
+        changed = False
+        if str(payment_record.get("upi_link", "") or "").strip() != upi_link:
             payment_record["upi_link"] = upi_link
-        qr_payload = str(record.get("qr_payload", "")).strip()
-        if not qr_payload:
+            changed = True
+        if str(payment_record.get("qr_payload", "") or "").strip() != upi_link:
             payment_record["qr_payload"] = upi_link
-        return payment_record
+            changed = True
+        config = self.get_payment_config()
+        receiver_fields = {
+            "receiver_upi_id": str(config.get("upi_id", "")).strip(),
+            "receiver_payee_name": str(config.get("payee_name", "")).strip(),
+            "receiver_currency": str(config.get("currency", "INR")).strip() or "INR",
+            "payment_enabled": bool(config.get("enabled", False)),
+        }
+        for key, value in receiver_fields.items():
+            if payment_record.get(key) != value:
+                payment_record[key] = value
+                changed = True
+        return changed

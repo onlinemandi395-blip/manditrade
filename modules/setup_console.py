@@ -7,6 +7,7 @@ from components.theme_manager import render_theme_manager
 from services.cache_service import CacheService
 from services.config_loader_service import ConfigLoaderService
 from services.data_service import DataService
+from services.payment_service import PaymentService
 from services.payment_config_service import PaymentConfigService
 from services.qr_service import QRService
 from services.theme_service import ThemeService
@@ -142,8 +143,12 @@ def render_setup_console(admin_drive_service, drive_manifest: dict, translator=N
         key="setup_payment_payee_name",
     )
     if payment_enabled and str(payment_upi_id).strip():
-        payment_link = (
-            f"upi://pay?pa={str(payment_upi_id).strip()}&pn={str(payment_payee_name or 'MandiTrade').strip()}&am=1.00&cu={str(payment_currency or 'INR').strip() or 'INR'}&tr=PREVIEW0001&tn=MandiTrade Payment PREVIEW0001"
+        payment_link = PaymentService.build_upi_link_from_values(
+            upi_id=str(payment_upi_id).strip(),
+            payee_name=str(payment_payee_name or "MandiTrade").strip(),
+            amount=1.0,
+            currency=str(payment_currency or "INR").strip() or "INR",
+            reference="PREVIEW0001",
         )
         st.caption("Live UPI Preview")
         st.code(payment_link)

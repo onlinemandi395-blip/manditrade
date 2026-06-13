@@ -41,6 +41,7 @@ from services.notification_service import NotificationService
 from services.order_service import OrderService
 from services.page_service import PageService
 from services.payment_config_service import PaymentConfigService
+from services.payment_service import PaymentService
 from services.performance_service import PerformanceService
 from services.qr_service import QRService
 from services.rbac_service import RBACService
@@ -859,8 +860,12 @@ def render_app() -> None:
             key="system_health_payment_payee_name",
         )
         if payment_enabled and str(payment_upi_id).strip():
-            payment_link = (
-                f"upi://pay?pa={str(payment_upi_id).strip()}&pn={str(payment_payee_name or 'MandiTrade').strip()}&am=1.00&cu={str(payment_currency or 'INR').strip() or 'INR'}&tr=PREVIEW0001&tn=MandiTrade Payment PREVIEW0001"
+            payment_link = PaymentService.build_upi_link_from_values(
+                upi_id=str(payment_upi_id).strip(),
+                payee_name=str(payment_payee_name or "MandiTrade").strip(),
+                amount=1.0,
+                currency=str(payment_currency or "INR").strip() or "INR",
+                reference="PREVIEW0001",
             )
             st.caption("Live UPI Preview")
             st.code(payment_link)

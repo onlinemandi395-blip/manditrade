@@ -67,7 +67,7 @@ def _render_payment_panel(payment_record: dict, *, payment_service: PaymentServi
     t = translator.t if translator else (lambda key: key)
     qr_service = QRService()
     if payment_service is not None:
-        payment_record = payment_service.ensure_payment_link_fields(payment_record)
+        payment_service.ensure_payment_link_fields(payment_record)
     upi_link = str(payment_record.get("upi_link", "") or "").strip()
     qr_payload = str(payment_record.get("qr_payload", "") or upi_link).strip()
     st.markdown(f"#### {t('ui.complete_payment')}")
@@ -272,12 +272,8 @@ def render_orders_page(rows: list[dict], role: str, *, data_service=None, order_
                     {},
                 )
                 if payment_record:
-                    missing_payment_link_fields = (
-                        not str(payment_record.get("upi_link", "")).strip()
-                        or not str(payment_record.get("qr_payload", "")).strip()
-                    )
                     payment_service = PaymentService(data_service, data_service.cache_service)
-                    payment_service.ensure_payment_link_fields(payment_record)
-                    if missing_payment_link_fields:
+                    payment_link_changed = payment_service.ensure_payment_link_fields(payment_record)
+                    if payment_link_changed:
                         data_service.persist_collection("payments")
                     _render_payment_panel(payment_record, payment_service=payment_service, translator=translator)
