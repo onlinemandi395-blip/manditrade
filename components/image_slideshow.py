@@ -6,17 +6,49 @@ import streamlit as st
 SLIDESHOW_PRODUCT_KEY = "active_slideshow_product_id"
 SLIDESHOW_INDEX_KEY = "active_slideshow_index"
 SLIDESHOW_RETURN_ROUTE_KEY = "return_route"
+SLIDESHOW_CONTEXT_KEY = "active_slideshow_context"
+SLIDESHOW_DEBUG_KEYS = "debug_slideshow_keys"
+
+def _register_debug_key(key: str) -> None:
+    normalized = str(key or "").strip()
+    if not normalized:
+        return
+    debug_keys = set(st.session_state.get(SLIDESHOW_DEBUG_KEYS, []) or [])
+    if normalized in debug_keys:
+        raise ValueError(f"Duplicate slideshow key: {normalized}")
+    debug_keys.add(normalized)
+    st.session_state[SLIDESHOW_DEBUG_KEYS] = sorted(debug_keys)
 
 
-def open_slideshow(*, product_id: str, return_route: str) -> None:
+def build_slideshow_key(product_id: str, context: str, action: str, suffix: str = "") -> str:
+    key = "_".join(
+        part
+        for part in [
+            "slideshow",
+            str(action or "").strip(),
+            str(context or "default").strip(),
+            str(product_id or "").strip(),
+            str(suffix or "").strip(),
+        ]
+        if part
+    )
+    _register_debug_key(key)
+    return key
+
+
+def open_slideshow(*, product_id: str, return_route: str, slideshow_context: str = "") -> None:
     st.session_state[SLIDESHOW_PRODUCT_KEY] = str(product_id or "").strip()
     st.session_state[SLIDESHOW_INDEX_KEY] = 0
     st.session_state[SLIDESHOW_RETURN_ROUTE_KEY] = str(return_route or "").strip()
+    st.session_state[SLIDESHOW_CONTEXT_KEY] = str(slideshow_context or "").strip()
+    st.session_state[SLIDESHOW_DEBUG_KEYS] = []
 
 
 def close_slideshow() -> None:
     st.session_state.pop(SLIDESHOW_PRODUCT_KEY, None)
     st.session_state.pop(SLIDESHOW_INDEX_KEY, None)
+    st.session_state.pop(SLIDESHOW_CONTEXT_KEY, None)
+    st.session_state.pop(SLIDESHOW_DEBUG_KEYS, None)
 
 
 def is_slideshow_active() -> bool:
@@ -33,13 +65,23 @@ def _resolve_gallery_config(ui_config: dict | None) -> dict:
     }
 
 
-def render_image_slideshow(product: dict, *, media_service, view: str = "marketplace", translator=None, ui_config: dict | None = None) -> None:
+def render_image_slideshow(
+    product: dict,
+    *,
+    media_service,
+    view: str = "marketplace",
+    translator=None,
+    ui_config: dict | None = None,
+    slideshow_context: str = "",
+) -> None:
     t = translator.t if translator else (lambda key: key)
     gallery_config = _resolve_gallery_config(ui_config)
+    product_id = str(product.get("product_id", "") or "").strip()
+    context = str(slideshow_context or "default").strip()
     images = [dict(image or {}) for image in (product.get("images", []) or [])]
     if not images:
         st.info(t("ui.no_product_images_available"))
-        if st.button(t("ui.back"), use_container_width=True, key=f"slideshow_back_empty_{product.get('product_id', '')}"):
+        if st.button(t("ui.back"), use_container_width=True, key=build_slideshow_key(product_id, context, "back", "empty")):
             close_slideshow()
             st.rerun()
         return
@@ -72,7 +114,7 @@ def render_image_slideshow(product: dict, *, media_service, view: str = "marketp
                     f"{t('ui.image')} {index + 1}",
                     use_container_width=True,
                     type="primary" if index == active_index else "secondary",
-                    key=f"slideshow_jump_{product.get('product_id', '')}_{index}",
+                    key=build_slideshow_key(product_id, context, "jump", str(index)),
                 ):
                     st.session_state[SLIDESHOW_INDEX_KEY] = index
                     st.rerun()
@@ -88,12 +130,12 @@ def render_image_slideshow(product: dict, *, media_service, view: str = "marketp
             st.caption(str(current_image.get("file_name", "") or current_image.get("image_id", "")))
 
     control_cols = st.columns(3)
-    if control_cols[0].button(t("ui.previous"), use_container_width=True, disabled=(active_index <= 0), key=f"slideshow_prev_{product.get('product_id', '')}"):
+    if control_cols[0].button(t("ui.previous"), use_container_width=True, disabled=(active_index <= 0), key=build_slideshow_key(product_id, context, "prev")):
         st.session_state[SLIDESHOW_INDEX_KEY] = max(0, active_index - 1)
         st.rerun()
-    if control_cols[1].button(t("ui.back_to_products"), use_container_width=True, key=f"slideshow_back_{product.get('product_id', '')}"):
+    if control_cols[1].button(t("ui.back_to_products"), use_container_width=True, key=build_slideshow_key(product_id, context, "back")):
         close_slideshow()
         st.rerun()
-    if control_cols[2].button(t("ui.next"), use_container_width=True, disabled=(active_index >= len(images) - 1), key=f"slideshow_next_{product.get('product_id', '')}"):
+    if control_cols[2].button(t("ui.next"), use_container_width=True, disabled=(active_index >= len(images) - 1), key=build_slideshow_key(product_id, context, "next")):
         st.session_state[SLIDESHOW_INDEX_KEY] = min(len(images) - 1, active_index + 1)
         st.rerun()

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from components.image_slideshow import SLIDESHOW_PRODUCT_KEY, is_slideshow_active, render_image_slideshow
+from components.image_slideshow import SLIDESHOW_CONTEXT_KEY, SLIDESHOW_PRODUCT_KEY, is_slideshow_active, render_image_slideshow
 from components.product_card import render_product_card
 from components.empty_state import render_empty_state
 
@@ -19,11 +19,23 @@ def render_product_grid(
     translator=None,
     ui_config: dict | None = None,
 ) -> None:
+    slideshow_context = f"{view}_{return_route}_{grid_context}"
     if is_slideshow_active():
         active_product_id = str(st.session_state.get(SLIDESHOW_PRODUCT_KEY, "") or "").strip()
+        active_context = str(st.session_state.get(SLIDESHOW_CONTEXT_KEY, "") or "").strip()
         active_product = next((product for product in products if str(product.get("product_id", "")).strip() == active_product_id), None)
-        if active_product and media_service is not None:
-            render_image_slideshow(active_product, media_service=media_service, view=view, translator=translator, ui_config=ui_config)
+        if active_context == slideshow_context and active_product and media_service is not None:
+            try:
+                render_image_slideshow(
+                    active_product,
+                    media_service=media_service,
+                    view=view,
+                    translator=translator,
+                    ui_config=ui_config,
+                    slideshow_context=slideshow_context,
+                )
+            except Exception as exc:
+                st.error(f"Unable to open product slideshow: {exc}")
             return
     if not products:
         render_empty_state(translator.t("ui.no_products_found") if translator else "No products found.")

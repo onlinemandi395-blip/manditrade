@@ -49,7 +49,11 @@ def render_product_card(
             use_container_width=True,
             disabled=not bool(images),
         ):
-            open_slideshow(product_id=product.get("product_id", ""), return_route=return_route)
+            open_slideshow(
+                product_id=product.get("product_id", ""),
+                return_route=return_route,
+                slideshow_context=f"{view}_{return_route}_{card_context}",
+            )
             st.rerun()
         st.markdown(f"#### {product.get('product_name', product.get('product_id', t('ui.product')))}")
         st.caption(f"{product.get('product_code', '')} | {product.get('category', 'General')} | {product.get('status', 'ACTIVE')}")
