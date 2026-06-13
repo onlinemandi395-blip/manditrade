@@ -31,11 +31,26 @@ def render_payments_page(data_service, order_service, notification_service, sess
 
     st.markdown(f"### {t('ui.verify_payment')}")
     payment_map = {row.get("payment_id", ""): row for row in pending_payments}
+    search_text = st.text_input(
+        t("ui.search_payment_reference"),
+        key="payments_reference_search",
+        help=t("ui.search_payment_reference_help"),
+    )
+    searchable_payments = pending_payments
+    if str(search_text or "").strip():
+        matched_payments = payment_service.find_payments_by_reference(search_text, pending_only=True)
+        searchable_payments = [row for row in pending_payments if row in matched_payments]
+        if searchable_payments:
+            st.caption(f"{t('ui.search_results')}: {len(searchable_payments)}")
+        else:
+            st.warning(t("ui.no_matching_payment_found"))
+            return
+    payment_map = {row.get("payment_id", ""): row for row in searchable_payments}
     selected_payment_id = st.selectbox(
         t("ui.pending_payment"),
         options=[""] + list(payment_map.keys()),
         format_func=lambda value: (
-            f"{value} | {payment_map[value].get('payer_email', '')} | {payment_map[value].get('amount_due', 0)}"
+            f"{payment_map[value].get('payment_reference', '')} | {value} | {payment_map[value].get('payer_email', '')} | {payment_map[value].get('amount_due', 0)}"
             if value in payment_map else value
         ),
         key="payments_pending_id",

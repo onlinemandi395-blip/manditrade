@@ -43,6 +43,10 @@ class PaymentService:
     def _encode_upi_value(value: str) -> str:
         return quote(str(value or "").strip(), safe="@._-")
 
+    @staticmethod
+    def normalize_search_token(value: str) -> str:
+        return "".join(ch for ch in str(value or "").strip().upper() if ch.isalnum())
+
     @classmethod
     def build_upi_link_from_values(
         cls,
@@ -54,14 +58,12 @@ class PaymentService:
         reference: str,
     ) -> str:
         normalized_reference = str(reference or "").strip().upper()
-        note = f"MandiTrade {normalized_reference}".strip()
+        note = f"Payment Ref {normalized_reference}".strip()
         query_parts = [
             ("pa", str(upi_id or "").strip()),
             ("pn", str(payee_name or "MandiTrade").strip()),
             ("am", f"{float(amount or 0):.2f}"),
             ("cu", str(currency or "INR").strip() or "INR"),
-            ("tr", normalized_reference),
-            ("tid", normalized_reference),
             ("tn", note),
         ]
         query = "&".join(f"{key}={cls._encode_upi_value(value)}" for key, value in query_parts if str(value).strip())
@@ -139,3 +141,27 @@ class PaymentService:
                 payment_record[key] = value
                 changed = True
         return changed
+
+    def find_payments_by_reference(self, search_text: str, *, pending_only: bool = False) -> list[dict]:
+        normalized_search = self.normalize_search_token(search_text)
+        if not normalized_search:
+            return []
+        rows = self.data_service.get_collection_ref("payments")
+        matches: list[dict] = []
+        for row in rows:
+            if pending_only:
+                status = str(row.get("payment_status", row.get("status", ""))).strip().upper()
+                if status not in {"PENDING", "PAYMENT_PENDING"}:
+                    continue
+            candidates = [
+                row.get("payment_reference", ""),
+                row.get("payment_id", ""),
+                row.get("order_id", ""),
+                row.get("transaction_reference", ""),
+                row.get("upi_link", ""),
+                row.get("qr_payload", ""),
+            ]
+            normalized_candidates = [self.normalize_search_token(candidate) for candidate in candidates if str(candidate or "").strip()]
+            if any(normalized_search in candidate for candidate in normalized_candidates):
+                matches.append(row)
+        return matches

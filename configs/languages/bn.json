@@ -78,4 +78,9 @@
   "ui.complete_contact_address": "দয়া করে ক্রেতার যোগাযোগ ও ডেলিভারি ঠিকানা সম্পূর্ণ করুন।",
   "ui.minimum_quantity": "ন্যূনতম পরিমাণ",
   "ui.increment_quantity": "বৃদ্ধি পরিমাণ"
+  ,
+  "ui.search_payment_reference": "পেমেন্ট নোট / রেফারেন্স দিয়ে খুঁজুন",
+  "ui.search_payment_reference_help": "UPI নোট, QR নোট, পেমেন্ট রেফারেন্স, পেমেন্ট আইডি বা অর্ডার আইডিতে দেখা ইউনিক কোড পেস্ট করুন।",
+  "ui.search_results": "সার্চ ফলাফল",
+  "ui.no_matching_payment_found": "মিল থাকা কোনো পেন্ডিং পেমেন্ট পাওয়া যায়নি।"
 }

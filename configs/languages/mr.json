@@ -78,4 +78,9 @@
   "ui.complete_contact_address": "कृपया खरेदीदार संपर्क आणि डिलिव्हरी पत्ता पूर्ण करा.",
   "ui.minimum_quantity": "किमान मात्रा",
   "ui.increment_quantity": "वाढीची मात्रा"
+  ,
+  "ui.search_payment_reference": "पेमेंट नोट / रेफरन्सने शोधा",
+  "ui.search_payment_reference_help": "UPI नोट, QR नोट, पेमेंट रेफरन्स, पेमेंट ID किंवा ऑर्डर ID मधला युनिक कोड पेस्ट करा.",
+  "ui.search_results": "शोध निकाल",
+  "ui.no_matching_payment_found": "जुळणारे कोणतेही प्रलंबित पेमेंट सापडले नाही."
 }
