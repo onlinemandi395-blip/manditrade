@@ -12,6 +12,28 @@ from services.qr_service import QRService
 from services.theme_service import ThemeService
 
 
+def _get_bootstrap_payment_settings(admin_drive_service) -> dict:
+    definition = admin_drive_service._get_required_file_definition("00_config/payment_config.json")  # noqa: SLF001
+    default_payload = dict((definition or {}).get("default_payload", {}) or {})
+    fallback_settings = dict(default_payload.get("payment", {}) or default_payload)
+    try:
+        payload = dict(admin_drive_service.read_json("00_config/payment_config.json") or {})
+        settings = dict(payload.get("payment", {}) or payload)
+        return {
+            "enabled": bool(settings.get("enabled", fallback_settings.get("enabled", True))),
+            "upi_id": str(settings.get("upi_id", fallback_settings.get("upi_id", ""))).strip(),
+            "payee_name": str(settings.get("payee_name", fallback_settings.get("payee_name", ""))).strip(),
+            "currency": str(settings.get("currency", fallback_settings.get("currency", "INR"))).strip() or "INR",
+        }
+    except Exception:
+        return {
+            "enabled": bool(fallback_settings.get("enabled", True)),
+            "upi_id": str(fallback_settings.get("upi_id", "")).strip(),
+            "payee_name": str(fallback_settings.get("payee_name", "")).strip(),
+            "currency": str(fallback_settings.get("currency", "INR")).strip() or "INR",
+        }
+
+
 def render_setup_console(admin_drive_service, drive_manifest: dict, translator=None) -> None:
     t = translator.t if translator else (lambda key: key)
     st.markdown(f"## {t('ui.first_time_setup')}")
@@ -86,8 +108,7 @@ def render_setup_console(admin_drive_service, drive_manifest: dict, translator=N
     st.markdown("### database.json Mapping Status")
     render_table([database_status], caption="Drive database.json status")
     st.markdown("### Merchant Payment Configuration")
-    payment_config_payload = dict(CacheService(ConfigLoaderService()).get_config("payment_config") or {})
-    payment_settings = dict(payment_config_payload.get("payment", {}) or payment_config_payload)
+    payment_settings = _get_bootstrap_payment_settings(admin_drive_service)
     render_table(
         [
             {
@@ -167,5 +188,8 @@ def render_setup_console(admin_drive_service, drive_manifest: dict, translator=N
     if theme_file:
         st.markdown("### Theme Config Trace")
         render_table([theme_file], caption="theme.json status")
-    theme_service = ThemeService(admin_drive_service, CacheService(ConfigLoaderService()))
-    render_theme_manager(theme_service, allow_set_default=True, title="Theme Background Setup")
+    if not root_missing:
+        theme_service = ThemeService(admin_drive_service, CacheService(ConfigLoaderService()))
+        render_theme_manager(theme_service, allow_set_default=True, title="Theme Background Setup")
+    else:
+        st.info("Theme background setup will be available after the active Drive root is created.")
