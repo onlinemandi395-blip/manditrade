@@ -184,7 +184,7 @@ def _render_missing_files_screen(drive_manifest: dict, session_service: SessionS
         str(user.get("role", "")).strip().lower() == "platform_admin" or bootstrap_admin
     )
     if is_admin:
-        render_setup_console(admin_drive_service, drive_manifest)
+        render_setup_console(admin_drive_service, drive_manifest, translator=None)
         with st.expander("Bootstrap Admin Debug", expanded=False):
             st.write(
                 {
@@ -311,6 +311,7 @@ def _render_root_setup_console(session_service: SessionService, admin_drive_serv
                 "required_files": [],
                 "missing_files": [],
             },
+            translator=None,
         )
         with st.expander("Bootstrap Admin Debug", expanded=False):
             st.write(
@@ -648,9 +649,9 @@ def render_app() -> None:
     elif page_definition.get("type") == "completed_deliveries_page":
         render_completed_deliveries_page(data_service, session_service)
     elif current_route == "shipments":
-        render_shipments_page(data_service, order_service, notification_service, session_service)
+        render_shipments_page(data_service, order_service, notification_service, session_service, translator)
     elif page_definition.get("type") == "admin_configuration":
-        render_admin_configuration(auth_service, data_service, notification_service, session_service)
+        render_admin_configuration(auth_service, data_service, notification_service, session_service, translator)
     elif page_definition.get("type") in {"crud_table", "table"}:
         source_name = str(page_definition.get("data_source", ""))
         filtered_rows = _filter_role_rows(current_route, datasets.get(source_name, []), role, user.get("email", ""))
@@ -662,6 +663,7 @@ def render_app() -> None:
                 order_service=order_service,
                 notification_service=notification_service,
                 session_service=session_service,
+                translator=translator,
             )
         elif current_route == "completed_deliveries":
             render_completed_deliveries_page(data_service, session_service)

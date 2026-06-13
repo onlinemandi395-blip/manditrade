@@ -11,7 +11,8 @@ from services.config_loader_service import ConfigLoaderService
 from services.theme_service import ThemeService
 
 
-def render_admin_configuration(auth_service, data_service, notification_service, session_service) -> None:
+def render_admin_configuration(auth_service, data_service, notification_service, session_service, translator=None) -> None:
+    t = translator.t if translator else (lambda key: key)
     users = data_service.get_collection_ref("users")
     primary_admin = auth_service.get_primary_admin()
     admin_drive_service = AdminDriveService()
@@ -36,44 +37,44 @@ def render_admin_configuration(auth_service, data_service, notification_service,
         ]
     )
 
-    tabs = st.tabs(["Admin Users", "Required Files", "Integrations"])
+    tabs = st.tabs([t("ui.admin_users"), t("ui.required_files"), t("ui.integrations")])
 
     with tabs[0]:
-        st.subheader("Admin Users")
+        st.subheader(t("ui.admin_users"))
         st.dataframe(admin_rows, use_container_width=True)
         editable_admins = [row for row in admin_rows if row.get("source") != "toml_primary_admin"]
         if editable_admins:
-            selected_admin_email = st.selectbox("Select Admin", options=[row["email"] for row in editable_admins])
+            selected_admin_email = st.selectbox(t("ui.select_admin"), options=[row["email"] for row in editable_admins])
             selected_admin = next((row for row in users if str(row.get("email", "")).strip().lower() == selected_admin_email), None)
             action_cols = st.columns(2)
-            if action_cols[0].button("Activate Admin", use_container_width=True):
+            if action_cols[0].button(t("ui.activate_admin"), use_container_width=True):
                 if selected_admin:
                     selected_admin["status"] = "ACTIVE"
                     try:
                         data_service.persist_collection("users")
-                        st.success("Admin activated.")
+                        st.success(t("ui.admin_activated"))
                     except Exception as exc:
                         st.error(f"Drive write failed: {exc}")
-            if action_cols[1].button("Deactivate Admin", use_container_width=True):
+            if action_cols[1].button(t("ui.deactivate_admin"), use_container_width=True):
                 if selected_admin:
                     selected_admin["status"] = "INACTIVE"
                     try:
                         data_service.persist_collection("users")
-                        st.success("Admin deactivated.")
+                        st.success(t("ui.admin_deactivated"))
                     except Exception as exc:
                         st.error(f"Drive write failed: {exc}")
         with st.form("add_admin_form"):
-            email = st.text_input("Admin Email")
-            display_name = st.text_input("Display Name")
-            admin_type = st.selectbox("Admin Type", ["operations", "catalog", "finance", "support", "logistics"])
-            submitted = st.form_submit_button("Add Admin", use_container_width=True)
+            email = st.text_input(t("ui.admin_email"))
+            display_name = st.text_input(t("ui.display_name"))
+            admin_type = st.selectbox(t("ui.admin_type"), ["operations", "catalog", "finance", "support", "logistics"])
+            submitted = st.form_submit_button(t("ui.add_admin"), use_container_width=True)
         if submitted:
             normalized_email = email.strip().lower()
             existing = {str(row.get("email", "")).strip().lower() for row in admin_rows}
             if not normalized_email:
-                st.error("Admin email is required.")
+                st.error(t("ui.admin_email_required"))
             elif normalized_email in existing:
-                st.error("Duplicate admin email is not allowed.")
+                st.error(t("ui.duplicate_admin_email"))
             else:
                 record = {
                     "user_id": f"USR_{len(users) + 1:04d}",
@@ -109,7 +110,7 @@ def render_admin_configuration(auth_service, data_service, notification_service,
                         )
                     data_service.persist_collection("notifications")
                     data_service.persist_collection("gmail_queue")
-                    st.success("Admin added.")
+                    st.success(t("ui.admin_added"))
                 except Exception as exc:
                     users.pop()
                     st.error(f"Drive write failed: {exc}")
@@ -118,17 +119,17 @@ def render_admin_configuration(auth_service, data_service, notification_service,
         manifest = admin_drive_service.get_runtime_manifest()
         st.dataframe(manifest.get("required_files", []), use_container_width=True)
         if manifest.get("missing_files"):
-            st.error("Required Drive files are missing.")
-            if st.button("Create Missing Drive Files", use_container_width=True):
+            st.error(t("ui.required_drive_files_missing"))
+            if st.button(t("ui.create_missing_drive_files"), use_container_width=True):
                 try:
                     result = admin_drive_service.create_missing_required_files()
-                    st.success(f"Created {len(result.get('created', []))} files/folders.")
+                    st.success(f"{t('ui.created')} {len(result.get('created', []))} {t('ui.files_folders')}.")
                     st.rerun()
                 except Exception as exc:
-                    st.error(f"Create Missing Files failed: {exc}")
+                    st.error(f"{t('ui.create_missing_files_failed')}: {exc}")
         else:
-            st.success("All required Drive files are present.")
+            st.success(t("ui.all_required_drive_files_present"))
     with tabs[2]:
-        st.info("Integrations remain Drive-backed and status-driven.")
+        st.info(t("ui.integrations_drive_backed"))
         theme_service = ThemeService(admin_drive_service, CacheService(ConfigLoaderService()))
-        render_theme_manager(theme_service, allow_set_default=True, title="Theme Background Manager")
+        render_theme_manager(theme_service, allow_set_default=True, title=t("ui.theme_background_manager"))

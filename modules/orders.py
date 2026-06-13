@@ -8,7 +8,8 @@ from services.payment_service import PaymentService
 from services.qr_service import QRService
 
 
-def _tabs_for_role(role: str, current_user_email: str = "") -> dict[str, callable]:
+def _tabs_for_role(role: str, current_user_email: str = "", translator=None) -> dict[str, callable]:
+    t = translator.t if translator else (lambda key: key)
     active_statuses = {
         "PAYMENT_PENDING",
         "PAYMENT_VERIFIED",
@@ -21,30 +22,30 @@ def _tabs_for_role(role: str, current_user_email: str = "") -> dict[str, callabl
     completed_statuses = {"COMPLETED", "DELIVERED", "CLOSED"}
     if role == "platform_admin":
         return {
-            "All Orders": lambda rows: rows,
-            "Marketplace": lambda rows: [row for row in rows if row.get("source_channel") == "marketplace"],
-            "MandiTrade": lambda rows: [row for row in rows if row.get("source_channel") == "manditrade"],
-            "Payment Pending": lambda rows: [row for row in rows if str(row.get("status", "")).upper() == "PAYMENT_PENDING"],
-            "Payment Verified": lambda rows: [row for row in rows if str(row.get("status", "")).upper() == "PAYMENT_VERIFIED"],
-            "In Progress": lambda rows: [row for row in rows if str(row.get("status", "")).upper() in active_statuses],
-            "Completed": lambda rows: [row for row in rows if str(row.get("status", "")).upper() in completed_statuses],
+            t("ui.all_orders"): lambda rows: rows,
+            t("module.marketplace.title"): lambda rows: [row for row in rows if row.get("source_channel") == "marketplace"],
+            t("module.manditrade.title"): lambda rows: [row for row in rows if row.get("source_channel") == "manditrade"],
+            t("ui.payment_pending"): lambda rows: [row for row in rows if str(row.get("status", "")).upper() == "PAYMENT_PENDING"],
+            t("ui.payment_verified"): lambda rows: [row for row in rows if str(row.get("status", "")).upper() == "PAYMENT_VERIFIED"],
+            t("ui.in_progress"): lambda rows: [row for row in rows if str(row.get("status", "")).upper() in active_statuses],
+            t("ui.completed"): lambda rows: [row for row in rows if str(row.get("status", "")).upper() in completed_statuses],
         }
     if role in {"manufacturer", "mahajan"}:
         return {
-            "Payment Pending": lambda rows: [
+            t("ui.payment_pending"): lambda rows: [
                 row
                 for row in rows
                 if str(row.get("status", "")).upper() == "PAYMENT_PENDING"
                 and str(row.get("requester_email", "") or row.get("buyer_email", "")).strip().lower() == current_user_email
             ],
-            "Payment Verified": lambda rows: [row for row in rows if str(row.get("status", "")).upper() == "PAYMENT_VERIFIED"],
-            "Accepted": lambda rows: [row for row in rows if str(row.get("owner_status", "")).upper() == "ACCEPTED"],
-            "Ready / Assigned": lambda rows: [row for row in rows if str(row.get("status", "")).upper() in {"READY_FOR_PICKUP", "PICKUP_ASSIGNED", "PICKED_UP"}],
-            "In Progress": lambda rows: [row for row in rows if str(row.get("status", "")).upper() in {"IN_TRANSIT"}],
-            "Completed": lambda rows: [row for row in rows if str(row.get("status", "")).upper() in completed_statuses],
+            t("ui.payment_verified"): lambda rows: [row for row in rows if str(row.get("status", "")).upper() == "PAYMENT_VERIFIED"],
+            t("ui.accepted"): lambda rows: [row for row in rows if str(row.get("owner_status", "")).upper() == "ACCEPTED"],
+            t("ui.ready_assigned"): lambda rows: [row for row in rows if str(row.get("status", "")).upper() in {"READY_FOR_PICKUP", "PICKUP_ASSIGNED", "PICKED_UP"}],
+            t("ui.in_progress"): lambda rows: [row for row in rows if str(row.get("status", "")).upper() in {"IN_TRANSIT"}],
+            t("ui.completed"): lambda rows: [row for row in rows if str(row.get("status", "")).upper() in completed_statuses],
         }
     return {
-        "My Orders": lambda rows: rows,
+        t("ui.my_orders"): lambda rows: rows,
     }
 
 
@@ -62,29 +63,31 @@ def _can_pay_order(selected_order: dict, role: str, current_user_email: str) -> 
     )
 
 
-def _render_payment_panel(payment_record: dict, *, payment_service: PaymentService | None = None) -> None:
+def _render_payment_panel(payment_record: dict, *, payment_service: PaymentService | None = None, translator=None) -> None:
+    t = translator.t if translator else (lambda key: key)
     qr_service = QRService()
     if payment_service is not None:
         payment_record = payment_service.ensure_payment_link_fields(payment_record)
     upi_link = str(payment_record.get("upi_link", "") or "").strip()
     qr_payload = str(payment_record.get("qr_payload", "") or upi_link).strip()
-    st.markdown("#### Complete Payment")
-    st.write(f"Order Reference: {payment_record.get('payment_reference', '')}")
-    st.write(f"Amount: Rs. {payment_record.get('amount_payable', payment_record.get('amount_due', 0))}")
-    st.write("Payment Method: UPI")
+    st.markdown(f"#### {t('ui.complete_payment')}")
+    st.write(f"{t('ui.order_reference')}: {payment_record.get('payment_reference', '')}")
+    st.write(f"{t('ui.amount')}: Rs. {payment_record.get('amount_payable', payment_record.get('amount_due', 0))}")
+    st.write(f"{t('ui.payment_method')}: UPI")
     qr_bytes = qr_service.build_qr_png_bytes(qr_payload)
     if qr_bytes:
         st.image(qr_bytes, width=220)
     else:
-        st.warning("QR could not be generated for this payment record.")
+        st.warning(t("ui.qr_not_generated"))
     if upi_link:
-        st.link_button("Open UPI Link", upi_link, use_container_width=True)
+        st.link_button(t("ui.open_upi_link"), upi_link, use_container_width=True)
     st.code(upi_link)
-    st.caption("Pay using this QR/UPI link. Keep the payment note/reference unchanged.")
-    st.info("After payment, admin will verify it before the owner receives the request.")
+    st.caption(t("ui.pay_using_qr_note"))
+    st.info(t("ui.admin_will_verify_payment"))
 
 
-def _render_buyer_status_tracker(selected_order: dict) -> None:
+def _render_buyer_status_tracker(selected_order: dict, translator=None) -> None:
+    t = translator.t if translator else (lambda key: key)
     stages = [
         "PAYMENT_PENDING",
         "PAYMENT_VERIFIED",
@@ -101,17 +104,18 @@ def _render_buyer_status_tracker(selected_order: dict) -> None:
     for index, (col, stage) in enumerate(zip(cols, stages)):
         with col:
             if index < current_index:
-                st.success(stage.replace("_", " ").title())
+                st.success(t(f"status.{stage.lower()}"))
             elif index == current_index:
-                st.info(stage.replace("_", " ").title())
+                st.info(t(f"status.{stage.lower()}"))
             else:
-                st.caption(stage.replace("_", " ").title())
+                st.caption(t(f"status.{stage.lower()}"))
 
 
-def render_orders_page(rows: list[dict], role: str, *, data_service=None, order_service=None, notification_service=None, session_service=None) -> None:
+def render_orders_page(rows: list[dict], role: str, *, data_service=None, order_service=None, notification_service=None, session_service=None, translator=None) -> None:
+    t = translator.t if translator else (lambda key: key)
     document_service = DocumentService()
     current_user_email = str(((session_service.get_user() if session_service else {}) or {}).get("email", "")).strip().lower()
-    tab_map = _tabs_for_role(role, current_user_email)
+    tab_map = _tabs_for_role(role, current_user_email, translator)
     tabs = st.tabs(list(tab_map.keys()))
     for tab, (label, filter_fn) in zip(tabs, tab_map.items()):
         with tab:
@@ -122,27 +126,27 @@ def render_orders_page(rows: list[dict], role: str, *, data_service=None, order_
                 continue
             order_map = {str(row.get("order_id", "")).strip(): row for row in filtered_rows if str(row.get("order_id", "")).strip()}
             selected_order_id = st.selectbox(
-                f"{label} Order Detail",
+                f"{label} {t('ui.order_detail')}",
                 options=[""] + list(order_map.keys()),
                 key=f"order_detail_{key_prefix}",
             )
             selected_order = order_map.get(selected_order_id)
             if not selected_order:
                 continue
-            st.markdown("#### Order Detail")
+            st.markdown(f"#### {t('ui.order_detail')}")
             meta_cols = st.columns(4)
-            meta_cols[0].metric("Status", selected_order.get("status", ""))
-            meta_cols[1].metric("Payment", selected_order.get("payment_reference", ""))
-            meta_cols[2].metric("Owner Status", selected_order.get("owner_status", ""))
-            meta_cols[3].metric("Delivery Status", selected_order.get("delivery_status", ""))
+            meta_cols[0].metric(t("field.status"), selected_order.get("status", ""))
+            meta_cols[1].metric(t("module.payments.title"), selected_order.get("payment_reference", ""))
+            meta_cols[2].metric(t("ui.owner_status"), selected_order.get("owner_status", ""))
+            meta_cols[3].metric(t("ui.delivery_status"), selected_order.get("delivery_status", ""))
             st.caption(
-                f"Product: {selected_order.get('product_name', '')} | "
-                f"Qty: {selected_order.get('quantity', 0)} | "
-                f"Amount: {selected_order.get('total_amount', 0)}"
+                f"{t('ui.product')}: {selected_order.get('product_name', '')} | "
+                f"{t('field.quantity')}: {selected_order.get('quantity', 0)} | "
+                f"{t('ui.amount')}: {selected_order.get('total_amount', 0)}"
             )
             invoice_html = document_service.build_invoice_html(selected_order)
             st.download_button(
-                "Download Invoice",
+                t("ui.download_invoice"),
                 data=invoice_html.encode("utf-8"),
                 file_name=f"{selected_order_id}_invoice.html",
                 mime="text/html",
@@ -154,7 +158,7 @@ def render_orders_page(rows: list[dict], role: str, *, data_service=None, order_
                 if related_shipment:
                     delivery_slip_html = document_service.build_delivery_slip_html(selected_order, related_shipment)
                     st.download_button(
-                        "Download Delivery Slip",
+                        t("ui.download_delivery_slip"),
                         data=delivery_slip_html.encode("utf-8"),
                         file_name=f"{selected_order_id}_delivery_slip.html",
                         mime="text/html",
@@ -166,8 +170,8 @@ def render_orders_page(rows: list[dict], role: str, *, data_service=None, order_
                     f"payment_id={selected_order.get('payment_id', '')}"
                 )
                 if data_service is not None and order_service is not None and session_service is not None:
-                    st.markdown("##### Admin Cleanup")
-                    if st.button("Delete Order", use_container_width=True, type="primary", key=f"delete_order_{key_prefix}_{selected_order_id}"):
+                    st.markdown(f"##### {t('ui.admin_cleanup')}")
+                    if st.button(t("ui.delete_order"), use_container_width=True, type="primary", key=f"delete_order_{key_prefix}_{selected_order_id}"):
                         try:
                             result = order_service.delete_order_for_admin(
                                 order_id=selected_order_id,
@@ -189,24 +193,24 @@ def render_orders_page(rows: list[dict], role: str, *, data_service=None, order_
 
                     current_status = str(selected_order.get("status", "")).upper()
                     if current_status == "PAYMENT_PENDING":
-                        st.markdown("##### Admin Action: Verify Payment")
+                        st.markdown(f"##### {t('ui.admin_action_verify_payment')}")
                         verify_cols = st.columns(3)
                         amount_received = verify_cols[0].number_input(
-                            "Amount Received",
+                            t("ui.amount_received"),
                             min_value=0.0,
                             step=1.0,
                             value=float(selected_order.get("total_amount", 0) or 0),
                             key=f"orders_verify_amount_{key_prefix}_{selected_order_id}",
                         )
                         transaction_reference = verify_cols[1].text_input(
-                            "Transaction Reference",
+                            t("ui.transaction_reference"),
                             key=f"orders_verify_ref_{key_prefix}_{selected_order_id}",
                         )
                         notes = verify_cols[2].text_input(
-                            "Notes",
+                            t("ui.notes"),
                             key=f"orders_verify_notes_{key_prefix}_{selected_order_id}",
                         )
-                        if st.button("Verify Payment", use_container_width=True, key=f"orders_verify_payment_{key_prefix}_{selected_order_id}"):
+                        if st.button(t("ui.verify_payment"), use_container_width=True, key=f"orders_verify_payment_{key_prefix}_{selected_order_id}"):
                             order_service.verify_payment(
                                 order_id=selected_order_id,
                                 amount_received=amount_received,
@@ -218,10 +222,10 @@ def render_orders_page(rows: list[dict], role: str, *, data_service=None, order_
                             order_service.persist_order_storage(selected_order_id)
                             data_service.persist_collection("notifications")
                             data_service.persist_collection("gmail_queue")
-                            st.success("Payment verified from Orders page.")
+                            st.success(t("ui.payment_verified_from_orders_page"))
                             st.rerun()
                     elif current_status == "READY_FOR_PICKUP":
-                        st.markdown("##### Admin Action: Assign Delivery Partner")
+                        st.markdown(f"##### {t('ui.admin_action_assign_delivery_partner')}")
                         users = data_service.get_collection_ref("users")
                         delivery_partners = [
                             row for row in users
@@ -231,7 +235,7 @@ def render_orders_page(rows: list[dict], role: str, *, data_service=None, order_
                         if delivery_partners:
                             partner_map = {row.get("email", ""): row for row in delivery_partners}
                             selected_partner_email = st.selectbox(
-                                "Delivery Partner",
+                                t("role.delivery_partner"),
                                 options=[""] + list(partner_map.keys()),
                                 format_func=lambda value: (
                                     f"{partner_map[value].get('display_name', value)} ({value})" if value in partner_map else value
@@ -239,7 +243,7 @@ def render_orders_page(rows: list[dict], role: str, *, data_service=None, order_
                                 index=([""] + list(partner_map.keys())).index(str(selected_order.get("preferred_delivery_partner_email", "")).strip().lower()) if str(selected_order.get("preferred_delivery_partner_email", "")).strip().lower() in ([""] + list(partner_map.keys())) else 0,
                                 key=f"orders_delivery_partner_{key_prefix}_{selected_order_id}",
                             )
-                            if st.button("Assign Pickup", use_container_width=True, key=f"orders_assign_pickup_{key_prefix}_{selected_order_id}") and selected_partner_email:
+                            if st.button(t("ui.assign_pickup"), use_container_width=True, key=f"orders_assign_pickup_{key_prefix}_{selected_order_id}") and selected_partner_email:
                                 order_service.assign_delivery_partner(
                                     order_id=selected_order_id,
                                     delivery_partner_email=selected_partner_email,
@@ -249,18 +253,18 @@ def render_orders_page(rows: list[dict], role: str, *, data_service=None, order_
                                 data_service.persist_collection("shipments")
                                 data_service.persist_collection("notifications")
                                 data_service.persist_collection("gmail_queue")
-                                st.success("Pickup assigned from Orders page.")
+                                st.success(t("ui.pickup_assigned_from_orders_page"))
                                 st.rerun()
                         else:
-                            st.caption("No active delivery partners found.")
+                            st.caption(t("ui.no_active_delivery_partners"))
             if role == "public_buyer":
-                st.markdown("#### Order Status Tracker")
-                _render_buyer_status_tracker(selected_order)
+                st.markdown(f"#### {t('ui.order_status_tracker')}")
+                _render_buyer_status_tracker(selected_order, translator)
                 otp_status = str(selected_order.get("otp_status", "")).upper()
                 if otp_status in {"GENERATED", "VERIFIED"} and str(selected_order.get("delivery_otp", "")).strip():
-                    st.success(f"Delivery OTP: {selected_order.get('delivery_otp', '')}")
+                    st.success(f"{t('ui.delivery_otp')}: {selected_order.get('delivery_otp', '')}")
                 else:
-                    st.caption("Delivery OTP will appear here after pickup.")
+                    st.caption(t("ui.delivery_otp_will_appear"))
             if _can_pay_order(selected_order, role, current_user_email) and data_service is not None:
                 payment_rows = data_service.get_collection_ref("payments")
                 payment_record = next(
@@ -276,4 +280,4 @@ def render_orders_page(rows: list[dict], role: str, *, data_service=None, order_
                     payment_service.ensure_payment_link_fields(payment_record)
                     if missing_payment_link_fields:
                         data_service.persist_collection("payments")
-                    _render_payment_panel(payment_record, payment_service=payment_service)
+                    _render_payment_panel(payment_record, payment_service=payment_service, translator=translator)

@@ -12,9 +12,10 @@ from services.qr_service import QRService
 from services.theme_service import ThemeService
 
 
-def render_setup_console(admin_drive_service, drive_manifest: dict) -> None:
-    st.markdown("## MandiTrade First-Time Setup")
-    st.caption("Google Drive Database Initialization")
+def render_setup_console(admin_drive_service, drive_manifest: dict, translator=None) -> None:
+    t = translator.t if translator else (lambda key: key)
+    st.markdown(f"## {t('ui.first_time_setup')}")
+    st.caption(t("ui.google_drive_database_initialization"))
 
     status_cards = st.columns(6)
     status_cards[0].metric("Google OAuth", "Ready" if drive_manifest.get("connected") else "Missing")

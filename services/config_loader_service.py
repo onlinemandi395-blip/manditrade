@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any
 
 from services.admin_drive_service import AdminDriveService
@@ -7,6 +9,7 @@ from services.performance_service import PerformanceService
 
 
 class ConfigLoaderService:
+    LOCAL_LANGUAGE_DIR = Path(__file__).resolve().parent.parent / "configs" / "languages"
     DRIVE_PATHS = {
         "app_config": "00_config/app_config.json",
         "auth": "00_config/auth.json",
@@ -49,4 +52,15 @@ class ConfigLoaderService:
     def load_language(self, code: str) -> dict[str, Any]:
         with self.performance_service.measure(f"language_load_{code}"):
             payload = self.admin_drive_service.read_json(f"00_config/languages/{code}.json")
+        drive_bundle = dict(payload.get("translations", payload))
+        local_bundle = self._load_local_language_bundle(code)
+        merged = dict(drive_bundle)
+        merged.update(local_bundle)
+        return merged
+
+    def _load_local_language_bundle(self, code: str) -> dict[str, Any]:
+        path = self.LOCAL_LANGUAGE_DIR / f"{code}.json"
+        if not path.exists():
+            return {}
+        payload = json.loads(path.read_text(encoding="utf-8"))
         return dict(payload.get("translations", payload))
