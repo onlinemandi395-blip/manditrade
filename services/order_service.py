@@ -20,6 +20,41 @@ class OrderService:
         self.performance_service = PerformanceService()
         self.pricing_service = PricingService()
 
+    def get_channel_quantity_rules(self, product: dict, channel: str) -> dict:
+        normalized_channel = str(channel or "").strip().lower()
+        if normalized_channel == "marketplace":
+            return {"minimum_quantity": 1.0, "increment_quantity": 1.0}
+        sales_channels = dict(product.get("sales_channels", {}) or {})
+        channel_config = dict(sales_channels.get(normalized_channel, {}) or {})
+        minimum_quantity = float(channel_config.get("minimum_quantity", 1) or 1)
+        increment_quantity = float(channel_config.get("increment_quantity", 1) or 1)
+        if minimum_quantity <= 0:
+            minimum_quantity = 1.0
+        if increment_quantity <= 0:
+            increment_quantity = 1.0
+        return {
+            "minimum_quantity": minimum_quantity,
+            "increment_quantity": increment_quantity,
+        }
+
+    def validate_channel_quantity(self, product: dict, channel: str, quantity: float) -> float:
+        rules = self.get_channel_quantity_rules(product, channel)
+        normalized_quantity = float(quantity or 0)
+        minimum_quantity = float(rules["minimum_quantity"])
+        increment_quantity = float(rules["increment_quantity"])
+        if normalized_quantity < minimum_quantity:
+            raise ValueError(
+                f"Minimum quantity for {channel} is {minimum_quantity:g}."
+            )
+        if str(channel or "").strip().lower() == "marketplace":
+            return max(1.0, round(normalized_quantity))
+        remainder = (normalized_quantity - minimum_quantity) / increment_quantity
+        if abs(remainder - round(remainder)) > 1e-9:
+            raise ValueError(
+                f"Quantity must start at {minimum_quantity:g} and increase by {increment_quantity:g}."
+            )
+        return normalized_quantity
+
     def _find_order(self, order_id: str) -> dict | None:
         normalized_order_id = str(order_id).strip()
         return next(
@@ -179,7 +214,11 @@ class OrderService:
                 product = dict(product_lookup.get(product_id, {}) or {})
                 if not product:
                     raise ValueError(f"Product not found for cart item: {product_id}")
-                quantity = float(item.get("quantity", item.get("qty", 1)) or 1)
+                quantity = self.validate_channel_quantity(
+                    product,
+                    "marketplace",
+                    float(item.get("quantity", item.get("qty", 1)) or 1),
+                )
                 unit_price = self.pricing_service.resolve_sell_price(product, "marketplace")
                 line_total = round(unit_price * quantity, 2)
                 normalized_items.append(
@@ -311,12 +350,14 @@ class OrderService:
         requester_name: str,
         requester_mobile: str,
         delivery_address: dict,
+        requested_quantity: float = 1.0,
     ) -> dict:
         with self.performance_service.measure("order_create_manditrade"):
             owner = dict(product.get("owner", {}) or {})
             delivery_partner = dict(product.get("delivery_partner", {}) or {})
             pricing = dict(product.get("pricing", {}) or {})
             sell_price = self.pricing_service.resolve_sell_price(product, "manditrade")
+            quantity = self.validate_channel_quantity(product, "manditrade", requested_quantity)
             admin_price = float(pricing.get("admin_price", 0) or 0)
             record = {
                 "order_id": self.id_service.next_drive_id(self.data_service.admin_drive_service, "manditrade_order", "MDTORD"),
@@ -346,23 +387,23 @@ class OrderService:
                     {
                         "product_id": product.get("product_id", ""),
                         "product_name": product.get("product_name", ""),
-                        "quantity": 1,
+                        "quantity": quantity,
                         "unit_price": sell_price,
-                        "line_total": sell_price,
+                        "line_total": round(sell_price * quantity, 2),
                     }
                 ],
-                "quantity": 1,
+                "quantity": quantity,
                 "unit_price": sell_price,
                 "sell_price": sell_price,
                 "admin_price": admin_price,
-                "admin_margin": round(sell_price - admin_price, 2),
-                "total_amount": sell_price,
+                "admin_margin": round((sell_price - admin_price) * quantity, 2),
+                "total_amount": round(sell_price * quantity, 2),
                 "internal": {
                     "owner_email": owner.get("email", ""),
                     "owner_role": owner.get("role", ""),
                     "admin_price": admin_price,
-                    "owner_payable_amount": admin_price,
-                    "admin_margin": round(sell_price - admin_price, 2),
+                    "owner_payable_amount": round(admin_price * quantity, 2),
+                    "admin_margin": round((sell_price - admin_price) * quantity, 2),
                 },
                 "status": "PAYMENT_PENDING",
                 "payment_status": "PENDING",

@@ -173,6 +173,8 @@ def _build_product_table_rows(products: list[dict]) -> list[dict]:
                 "admin_price": ((product.get("pricing") or {}).get("admin_price", 0)),
                 "marketplace_price": ((product.get("pricing") or {}).get("marketplace_price", 0)),
                 "manditrade_price": ((product.get("pricing") or {}).get("manditrade_price", 0)),
+                "manditrade_minimum_quantity": (((product.get("sales_channels") or {}).get("manditrade") or {}).get("minimum_quantity", 1)),
+                "manditrade_increment_quantity": (((product.get("sales_channels") or {}).get("manditrade") or {}).get("increment_quantity", 1)),
                 "quantity": ((product.get("inventory") or {}).get("available_quantity", 0)),
                 "status": product.get("status", "ACTIVE"),
             }
@@ -288,8 +290,16 @@ def _apply_product_values(
         "currency": "INR",
     }
     product["sales_channels"] = {
-        "marketplace": {"enabled": values["marketplace_enabled"]},
-        "manditrade": {"enabled": values["manditrade_enabled"]},
+        "marketplace": {
+            "enabled": values["marketplace_enabled"],
+            "minimum_quantity": 1.0,
+            "increment_quantity": 1.0,
+        },
+        "manditrade": {
+            "enabled": values["manditrade_enabled"],
+            "minimum_quantity": values["manditrade_minimum_quantity"],
+            "increment_quantity": values["manditrade_increment_quantity"],
+        },
     }
     product["inventory"] = {
         "available_quantity": values["available_quantity"],
@@ -501,6 +511,20 @@ def render_products_page(data_service, notification_service, session_service, ca
                 edit_marketplace_price = st.number_input(translator.t("field.marketplace_price"), min_value=0.0, step=1.0, value=float(((selected_product.get("pricing") or {}).get("marketplace_price", 0))), key="edit_marketplace_price")
                 edit_manditrade_enabled = st.checkbox(translator.t("field.available_manditrade"), value=((selected_product.get("sales_channels") or {}).get("manditrade") or {}).get("enabled", False), key="edit_manditrade_enabled")
                 edit_manditrade_price = st.number_input(translator.t("field.manditrade_price"), min_value=0.0, step=1.0, value=float(((selected_product.get("pricing") or {}).get("manditrade_price", 0))), key="edit_manditrade_price")
+                edit_manditrade_minimum_quantity = st.number_input(
+                    translator.t("field.manditrade_minimum_quantity"),
+                    min_value=1.0,
+                    step=1.0,
+                    value=float((((selected_product.get("sales_channels") or {}).get("manditrade") or {}).get("minimum_quantity", 1)) or 1),
+                    key="edit_manditrade_minimum_quantity",
+                )
+                edit_manditrade_increment_quantity = st.number_input(
+                    translator.t("field.manditrade_increment_quantity"),
+                    min_value=1.0,
+                    step=1.0,
+                    value=float((((selected_product.get("sales_channels") or {}).get("manditrade") or {}).get("increment_quantity", 1)) or 1),
+                    key="edit_manditrade_increment_quantity",
+                )
                 editable_statuses = _get_editable_status_options(is_admin, selected_product.get("status", "PENDING_APPROVAL"))
                 edit_status = st.selectbox(translator.t("field.status"), options=editable_statuses, index=editable_statuses.index(str(selected_product.get("status", editable_statuses[0])).upper()) if str(selected_product.get("status", editable_statuses[0])).upper() in editable_statuses else 0, key="edit_status")
                 edit_uploaded_files = st.file_uploader(
@@ -567,6 +591,8 @@ def render_products_page(data_service, notification_service, session_service, ca
                                 "marketplace_price": edit_marketplace_price,
                                 "manditrade_enabled": edit_manditrade_enabled,
                                 "manditrade_price": edit_manditrade_price,
+                                "manditrade_minimum_quantity": edit_manditrade_minimum_quantity,
+                                "manditrade_increment_quantity": edit_manditrade_increment_quantity,
                                 "status": edit_status if is_admin else "PENDING_APPROVAL",
                                 "delivery_partner": delivery_partner,
                                 "submitted_by": (selected_product.get("approval") or {}).get("submitted_by", selected_product.get("created_by", current_user_email)),
@@ -718,6 +744,8 @@ def render_products_page(data_service, notification_service, session_service, ca
         marketplace_price = st.number_input(translator.t("field.marketplace_price"), min_value=0.0, step=1.0, key="create_marketplace_price")
         manditrade_enabled = st.checkbox(translator.t("field.available_manditrade"), value=True, key="create_manditrade_enabled")
         manditrade_price = st.number_input(translator.t("field.manditrade_price"), min_value=0.0, step=1.0, key="create_manditrade_price")
+        manditrade_minimum_quantity = st.number_input(translator.t("field.manditrade_minimum_quantity"), min_value=1.0, step=1.0, value=1.0, key="create_manditrade_minimum_quantity")
+        manditrade_increment_quantity = st.number_input(translator.t("field.manditrade_increment_quantity"), min_value=1.0, step=1.0, value=1.0, key="create_manditrade_increment_quantity")
         uploaded_files = st.file_uploader(
             translator.t("field.product_images"),
             accept_multiple_files=True,
@@ -791,6 +819,8 @@ def render_products_page(data_service, notification_service, session_service, ca
                         "marketplace_price": marketplace_price,
                         "manditrade_enabled": manditrade_enabled,
                         "manditrade_price": manditrade_price,
+                        "manditrade_minimum_quantity": manditrade_minimum_quantity,
+                        "manditrade_increment_quantity": manditrade_increment_quantity,
                         "status": status if is_admin else "PENDING_APPROVAL",
                         "delivery_partner": delivery_partner,
                         "submitted_by": current_user_email,

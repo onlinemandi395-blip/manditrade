@@ -78,6 +78,8 @@
   "field.admin_price": "Admin Price",
   "field.marketplace_price": "Marketplace Price",
   "field.manditrade_price": "MandiTrade Price",
+  "field.manditrade_minimum_quantity": "MandiTrade Minimum Quantity",
+  "field.manditrade_increment_quantity": "MandiTrade Increment Quantity",
   "field.product_images": "Product Images Upload",
   "field.available_marketplace": "Available for Marketplace",
   "field.available_manditrade": "Available for MandiTrade",
@@ -195,5 +197,7 @@
   "ui.checkout": "Checkout",
   "ui.confirm_order": "Confirm Order",
   "ui.complete_contact_address": "Please complete buyer contact and delivery address.",
-  "ui.manditrade_checkout": "MandiTrade Checkout"
+  "ui.manditrade_checkout": "MandiTrade Checkout",
+  "ui.minimum_quantity": "Minimum Quantity",
+  "ui.increment_quantity": "Increment Quantity"
 }

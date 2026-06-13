@@ -72,6 +72,30 @@ def _sanitize_cart_rows(items: list[dict]) -> list[dict]:
     ]
 
 
+def _render_marketplace_cart_editor(cart_service: CartService, translator) -> None:
+    t = translator.t if translator else (lambda key: key)
+    cart = cart_service.get_cart()
+    for item in list(cart.get("items", [])):
+        product_id = str(item.get("product_id", "")).strip()
+        item_cols = st.columns([3, 1.2, 1.2, 1.2, 0.8])
+        item_cols[0].markdown(f"**{item.get('product_name', '')}**")
+        updated_quantity = item_cols[1].number_input(
+            t("field.quantity"),
+            min_value=1.0,
+            step=1.0,
+            value=float(item.get("quantity", 1) or 1),
+            key=f"cart_quantity_{product_id}",
+        )
+        if float(updated_quantity or 1) != float(item.get("quantity", 1) or 1):
+            cart_service.set_quantity(product_id, updated_quantity)
+            st.rerun()
+        item_cols[2].write(f"{float(item.get('unit_price', 0) or 0):g}")
+        item_cols[3].write(f"{float(item.get('line_total', 0) or 0):g}")
+        if item_cols[4].button("X", key=f"cart_remove_{product_id}", use_container_width=True):
+            cart_service.remove_item(product_id)
+            st.rerun()
+
+
 def _render_payment_pending_panel(payment_record: dict) -> None:
     qr_service = QRService()
     st.markdown("### Payment Pending")
@@ -549,7 +573,7 @@ def render_app() -> None:
         if cart.get("items"):
             with st.container(border=True):
                 st.subheader(translator.t("ui.cart"))
-                render_table(_sanitize_cart_rows(cart["items"]), caption="Public cart view")
+                _render_marketplace_cart_editor(cart_service, translator)
                 st.write(f"Total: {cart_service.calculate_total()}")
                 if not payment_config.get("enabled", False):
                     st.error("Payment config missing or disabled. Checkout is unavailable.")
@@ -611,6 +635,18 @@ def render_app() -> None:
                     if not payment_config.get("enabled", False):
                         st.error("Payment config missing or disabled. Checkout is unavailable.")
                     else:
+                        quantity_rules = order_service.get_channel_quantity_rules(selected_product, "manditrade")
+                        requested_quantity = st.number_input(
+                            translator.t("field.quantity"),
+                            min_value=float(quantity_rules.get("minimum_quantity", 1) or 1),
+                            step=float(quantity_rules.get("increment_quantity", 1) or 1),
+                            value=float(quantity_rules.get("minimum_quantity", 1) or 1),
+                            key=f"manditrade_quantity_{selected_product_id}",
+                            help=(
+                                f"{translator.t('ui.minimum_quantity')}: {float(quantity_rules.get('minimum_quantity', 1) or 1):g} | "
+                                f"{translator.t('ui.increment_quantity')}: {float(quantity_rules.get('increment_quantity', 1) or 1):g}"
+                            ),
+                        )
                         checkout = _render_checkout_details_form(
                             key_prefix=f"manditrade_checkout_{selected_product_id}",
                             email=session_service.get_user().get("email", ""),
@@ -627,6 +663,7 @@ def render_app() -> None:
                                         requester_name=checkout["name"],
                                         requester_mobile=checkout["mobile"],
                                         delivery_address=checkout["delivery_address"],
+                                        requested_quantity=requested_quantity,
                                     )
                                     order_service.persist_order_storage(order)
                                     data_service.persist_collection("payments")

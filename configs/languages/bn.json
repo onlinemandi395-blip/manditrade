@@ -32,6 +32,8 @@
   "module.completed_deliveries.title": "সম্পন্ন ডেলিভারি",
   "field.marketplace_price": "মার্কেটপ্লেস মূল্য",
   "field.manditrade_price": "মান্ডিট্রেড মূল্য",
+  "field.manditrade_minimum_quantity": "মান্ডিট্রেড ন্যূনতম পরিমাণ",
+  "field.manditrade_increment_quantity": "মান্ডিট্রেড বৃদ্ধি পরিমাণ",
   "field.admin_price": "অ্যাডমিন মূল্য",
   "field.price": "মূল্য",
   "action.search": "খুঁজুন",
@@ -73,5 +75,7 @@
   "ui.landmark": "ল্যান্ডমার্ক",
   "ui.payment_method": "পেমেন্ট পদ্ধতি",
   "ui.upi_qr_upi_link": "UPI QR / UPI লিঙ্ক",
-  "ui.complete_contact_address": "দয়া করে ক্রেতার যোগাযোগ ও ডেলিভারি ঠিকানা সম্পূর্ণ করুন।"
+  "ui.complete_contact_address": "দয়া করে ক্রেতার যোগাযোগ ও ডেলিভারি ঠিকানা সম্পূর্ণ করুন।",
+  "ui.minimum_quantity": "ন্যূনতম পরিমাণ",
+  "ui.increment_quantity": "বৃদ্ধি পরিমাণ"
 }

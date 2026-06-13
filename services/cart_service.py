@@ -22,6 +22,16 @@ class CartService:
         }
         st.session_state["mt_next_cart"]["items"].append(item)
 
+    def set_quantity(self, product_id: str, quantity: float) -> None:
+        normalized_id = str(product_id or "").strip()
+        for item in st.session_state["mt_next_cart"]["items"]:
+            if str(item.get("product_id", "")).strip() != normalized_id:
+                continue
+            normalized_quantity = max(1.0, float(quantity or 1))
+            item["quantity"] = normalized_quantity
+            item["line_total"] = round(float(item.get("unit_price", 0) or 0) * normalized_quantity, 2)
+            return
+
     def remove_item(self, product_id: str) -> None:
         st.session_state["mt_next_cart"]["items"] = [item for item in st.session_state["mt_next_cart"]["items"] if item.get("product_id") != product_id]
 

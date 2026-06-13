@@ -142,8 +142,26 @@ class DataService:
         pricing.setdefault("marketplace_price", marketplace_channel.get("price", 0))
         pricing.setdefault("manditrade_price", manditrade_channel.get("price", 0))
         pricing.setdefault("currency", "INR")
-        sales_channels["marketplace"] = {"enabled": bool(marketplace_channel.get("enabled", False))}
-        sales_channels["manditrade"] = {"enabled": bool(manditrade_channel.get("enabled", False))}
+        sales_channels["marketplace"] = {
+            "enabled": bool(marketplace_channel.get("enabled", False)),
+            "minimum_quantity": 1.0,
+            "increment_quantity": 1.0,
+        }
+        manditrade_minimum = float(
+            manditrade_channel.get("minimum_quantity", product.get("minimum_quantity", 1)) or 1
+        )
+        manditrade_increment = float(
+            manditrade_channel.get("increment_quantity", product.get("increment_quantity", 1)) or 1
+        )
+        if manditrade_minimum <= 0:
+            manditrade_minimum = 1.0
+        if manditrade_increment <= 0:
+            manditrade_increment = 1.0
+        sales_channels["manditrade"] = {
+            "enabled": bool(manditrade_channel.get("enabled", False)),
+            "minimum_quantity": manditrade_minimum,
+            "increment_quantity": manditrade_increment,
+        }
         product["sales_channels"] = sales_channels
         product["pricing"] = pricing
         owner = dict(product.get("owner", {}) or {})

@@ -32,6 +32,8 @@
   "module.completed_deliveries.title": "पूर्ण डिलिव्हरीज",
   "field.marketplace_price": "मार्केटप्लेस किंमत",
   "field.manditrade_price": "मंडीट्रेड किंमत",
+  "field.manditrade_minimum_quantity": "मंडीट्रेड किमान मात्रा",
+  "field.manditrade_increment_quantity": "मंडीट्रेड वाढीची मात्रा",
   "field.admin_price": "अॅडमिन किंमत",
   "field.price": "किंमत",
   "action.search": "शोधा",
@@ -73,5 +75,7 @@
   "ui.landmark": "लँडमार्क",
   "ui.payment_method": "पेमेंट पद्धत",
   "ui.upi_qr_upi_link": "UPI QR / UPI लिंक",
-  "ui.complete_contact_address": "कृपया खरेदीदार संपर्क आणि डिलिव्हरी पत्ता पूर्ण करा."
+  "ui.complete_contact_address": "कृपया खरेदीदार संपर्क आणि डिलिव्हरी पत्ता पूर्ण करा.",
+  "ui.minimum_quantity": "किमान मात्रा",
+  "ui.increment_quantity": "वाढीची मात्रा"
 }

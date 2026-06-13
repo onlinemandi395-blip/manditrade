@@ -27,6 +27,7 @@ def render_product_card(
     pricing = dict(product.get("pricing", {}) or {})
     owner = dict(product.get("owner", {}) or {})
     inventory = dict(product.get("inventory", {}) or {})
+    manditrade_rules = dict(((product.get("sales_channels") or {}).get("manditrade") or {}))
     with st.container(border=True):
         media = st.empty()
         renderable = media_service.get_renderable_image(primary_image) if media_service else {"render_mode": "placeholder", "bytes": None, "url": "", "error": ""}
@@ -71,6 +72,10 @@ def render_product_card(
                 st.write(f"{t('field.manditrade_price')}: {pricing_service.resolve_sell_price(product, 'manditrade')}")
             else:
                 st.error(price_error)
+            st.caption(
+                f"{t('ui.minimum_quantity')}: {float(manditrade_rules.get('minimum_quantity', 1) or 1):g} | "
+                f"{t('ui.increment_quantity')}: {float(manditrade_rules.get('increment_quantity', 1) or 1):g}"
+            )
             st.caption(f"{t('ui.inventory')}: {inventory.get('available_quantity', 0)} {product.get('unit', 'piece')}")
             if valid_price and st.button(t("ui.request_order"), key=f"request_{product.get('product_id', '')}", use_container_width=True) and on_add_to_cart:
                 on_add_to_cart(product)
@@ -79,6 +84,10 @@ def render_product_card(
             manditrade_price = pricing.get("manditrade_price", "")
             st.write(f"{t('module.marketplace.title')}: {t('ui.on') if marketplace.get('enabled') else t('ui.off')} | {t('field.price')}: {marketplace_price}")
             st.write(f"{t('module.manditrade.title')}: {t('ui.on') if manditrade.get('enabled') else t('ui.off')} | {t('field.price')}: {manditrade_price}")
+            st.caption(
+                f"{t('ui.minimum_quantity')}: {float(manditrade_rules.get('minimum_quantity', 1) or 1):g} | "
+                f"{t('ui.increment_quantity')}: {float(manditrade_rules.get('increment_quantity', 1) or 1):g}"
+            )
             st.caption(f"{t('field.admin_price')}: {pricing.get('admin_price', 0)}")
             st.caption(f"{t('ui.owner')}: {owner.get('email', '-')}")
             st.caption(f"{t('ui.owner_role')}: {owner.get('role', '-')}")
