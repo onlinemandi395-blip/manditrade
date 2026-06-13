@@ -12,7 +12,7 @@ import streamlit as st
 class SessionService:
     LANGUAGE_KEY = "mt_language"
     SESSION_QUERY_PARAM = "mt_session"
-    SESSION_TTL_SECONDS = 1800
+    SESSION_TTL_SECONDS = 604800
 
     def __init__(self, app_config: dict) -> None:
         self.app_config = app_config
