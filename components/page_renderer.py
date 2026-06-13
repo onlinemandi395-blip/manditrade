@@ -860,7 +860,7 @@ def render_app() -> None:
         )
         if payment_enabled and str(payment_upi_id).strip():
             payment_link = (
-                f"upi://pay?pa={str(payment_upi_id).strip()}&pn={str(payment_payee_name or 'MandiTrade').strip()}&am=1.00&cu={str(payment_currency or 'INR').strip() or 'INR'}&tn=MandiTradePreview"
+                f"upi://pay?pa={str(payment_upi_id).strip()}&pn={str(payment_payee_name or 'MandiTrade').strip()}&am=1.00&cu={str(payment_currency or 'INR').strip() or 'INR'}&tr=PREVIEW0001&tn=MandiTrade Payment PREVIEW0001"
             )
             st.caption("Live UPI Preview")
             st.code(payment_link)

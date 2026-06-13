@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from urllib.parse import quote
+import secrets
+import string
+from urllib.parse import urlencode
 
 from services.id_service import IdService
 
@@ -24,17 +26,32 @@ class PaymentService:
         }
 
     def generate_payment_reference(self) -> str:
-        return self.id_service.next_drive_id(self.data_service.admin_drive_service, "payment_reference", "MTORD")
+        alphabet = string.ascii_uppercase + string.digits
+        existing_references = {
+            str(row.get("payment_reference", "")).strip().upper()
+            for row in self.data_service.get_collection_ref("payments")
+            if str(row.get("payment_reference", "")).strip()
+        }
+        for _ in range(20):
+            reference = "".join(secrets.choice(alphabet) for _ in range(10))
+            if reference not in existing_references:
+                return reference
+        fallback_counter = self.id_service.next_drive_id(self.data_service.admin_drive_service, "payment_reference", "PAY")
+        return fallback_counter.replace("-", "")[-10:].upper()
 
     def build_upi_link(self, *, amount: float, reference: str) -> str:
         config = self.get_payment_config()
         if not config.get("enabled", False):
             raise ValueError("UPI payment is disabled in payment_config.json.")
-        upi_id = quote(config["upi_id"])
-        payee_name = quote(config["payee_name"])
-        note = quote(reference)
-        currency = quote(config.get("currency", "INR"))
-        return f"upi://pay?pa={upi_id}&pn={payee_name}&am={float(amount or 0):.2f}&cu={currency}&tn={note}"
+        payload = {
+            "pa": str(config["upi_id"]).strip(),
+            "pn": str(config["payee_name"]).strip(),
+            "am": f"{float(amount or 0):.2f}",
+            "cu": str(config.get("currency", "INR")).strip() or "INR",
+            "tr": str(reference or "").strip(),
+            "tn": f"MandiTrade Payment {str(reference or '').strip()}".strip(),
+        }
+        return f"upi://pay?{urlencode(payload)}"
 
     def create_payment_record(
         self,
