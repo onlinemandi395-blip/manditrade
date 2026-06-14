@@ -3,6 +3,7 @@ from __future__ import annotations
 import streamlit as st
 
 from services.theme_service import ThemeService
+from services.user_profile_service import UserProfileService
 
 
 class IntegrationStatusService:
@@ -35,6 +36,18 @@ class IntegrationStatusService:
         theme_service = ThemeService(self.admin_drive_service, self.cache_service)
         theme_status = theme_service.get_background_status()
         available_backgrounds = theme_service.list_available_backgrounds()
+        user_profile_service = UserProfileService(self.data_service)
+        users_with_profiles = 0
+        sample_profile_paths: list[str] = []
+        for user in users:
+            email = str(user.get("email", "")).strip().lower()
+            if not email:
+                continue
+            profile_path = user_profile_service._profile_logical_path(email)  # noqa: SLF001
+            if len(sample_profile_paths) < 5:
+                sample_profile_paths.append(profile_path)
+            if user_profile_service.get_profile(email):
+                users_with_profiles += 1
         return {
             "google_oauth_status": "configured" if self.oauth_service.is_configured() else "missing",
             "google_drive_status": "connected" if drive_status.get("connected") else "disconnected",
@@ -74,4 +87,7 @@ class IntegrationStatusService:
             "theme_status": theme_status,
             "theme_background_count": len(available_backgrounds),
             "theme_active_background_id": theme_service.get_active_background_file_id(),
+            "user_profiles_folder": "01_identity/profiles",
+            "user_profiles_count": users_with_profiles,
+            "user_profile_sample_paths": sample_profile_paths,
         }

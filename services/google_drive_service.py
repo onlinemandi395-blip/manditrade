@@ -144,6 +144,47 @@ class GoogleDriveService:
         files = response.get("files", [])
         return files[0] if files else None
 
+    def list_permissions(self, service, file_id: str) -> list[dict[str, Any]]:
+        response = service.permissions().list(
+            fileId=file_id,
+            fields="permissions(id,emailAddress,role,type)",
+            pageSize=200,
+        ).execute()
+        return list(response.get("permissions", []))
+
+    def ensure_user_permission(self, service, file_id: str, user_email: str, role: str = "writer") -> dict[str, Any]:
+        normalized_email = str(user_email or "").strip().lower()
+        if not normalized_email:
+            raise ValueError("User email is required to assign Drive permission.")
+        permissions = self.list_permissions(service, file_id)
+        existing = next(
+            (
+                item for item in permissions
+                if str(item.get("emailAddress", "")).strip().lower() == normalized_email
+            ),
+            None,
+        )
+        if existing:
+            existing_role = str(existing.get("role", "")).strip().lower()
+            if existing_role == str(role or "writer").strip().lower():
+                return existing
+            return service.permissions().update(
+                fileId=file_id,
+                permissionId=existing["id"],
+                body={"role": role},
+                fields="id,emailAddress,role,type",
+            ).execute()
+        return service.permissions().create(
+            fileId=file_id,
+            sendNotificationEmail=False,
+            body={
+                "type": "user",
+                "role": role,
+                "emailAddress": normalized_email,
+            },
+            fields="id,emailAddress,role,type",
+        ).execute()
+
     def list_children(self, service, folder_id: str, mime_prefix: str | None = None) -> list[dict[str, Any]]:
         query = f"'{folder_id}' in parents and trashed = false"
         if mime_prefix:

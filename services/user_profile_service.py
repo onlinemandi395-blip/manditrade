@@ -13,9 +13,17 @@ class UserProfileService:
         return str(email or "").strip().lower()
 
     def _profile_logical_path(self, email: str) -> str:
+        return f"{self._workspace_logical_path(email)}/profile.json"
+
+    def _orders_logical_path(self, email: str) -> str:
+        return f"{self._workspace_logical_path(email)}/orders.json"
+
+    def _workspace_name(self, email: str) -> str:
         normalized_email = self._normalize_email(email)
-        safe_name = normalized_email.replace("@", "_at_").replace(".", "_")
-        return f"01_identity/profiles/{safe_name}.json"
+        return normalized_email.replace("@", "_at_").replace(".", "_")
+
+    def _workspace_logical_path(self, email: str) -> str:
+        return f"01_identity/profiles/{self._workspace_name(email)}"
 
     def _default_profile(self, *, email: str, role: str, display_name: str, mobile: str = "") -> dict:
         normalized_email = self._normalize_email(email)
@@ -27,12 +35,53 @@ class UserProfileService:
                 "role": str(role or "public_buyer").strip() or "public_buyer",
                 "display_name": str(display_name or normalized_email.split("@")[0]).strip(),
                 "mobile": str(mobile or "").strip(),
+                "workspace_folder": self._workspace_logical_path(normalized_email),
                 "addresses": [],
                 "details": {},
                 "created_at": now,
                 "updated_at": now,
             },
         }
+
+    def _default_orders_payload(self, email: str) -> dict:
+        return {
+            "schema_version": 1,
+            "user_orders": {
+                "email": self._normalize_email(email),
+                "orders": [],
+            },
+        }
+
+    def ensure_user_workspace(self, *, email: str, role: str, display_name: str, mobile: str = "") -> dict:
+        normalized_email = self._normalize_email(email)
+        if not normalized_email:
+            raise ValueError("User email is required.")
+        resolver = self.admin_drive_service.get_path_resolver()
+        folder_result = resolver.ensure_folder_path(self._workspace_logical_path(normalized_email))
+        self.admin_drive_service.google_drive_service.ensure_user_permission(
+            resolver.service,
+            folder_result["folder_id"],
+            normalized_email,
+            role="writer",
+        )
+        resolver.create_or_update_json_file(
+            self._profile_logical_path(normalized_email),
+            (
+                {"schema_version": 1, "user_profile": self.get_profile(normalized_email)}
+                if self.get_profile(normalized_email)
+                else self._default_profile(
+                    email=normalized_email,
+                    role=role,
+                    display_name=display_name,
+                    mobile=mobile,
+                )
+            ),
+        )
+        resolver.create_or_update_json_file(
+            self._orders_logical_path(normalized_email),
+            self._read_user_orders_payload(normalized_email) or self._default_orders_payload(normalized_email),
+        )
+        return folder_result
 
     def get_profile(self, email: str) -> dict:
         normalized_email = self._normalize_email(email)
@@ -44,9 +93,19 @@ class UserProfileService:
             return {}
         profile = dict(payload.get("user_profile", payload) or {})
         profile["email"] = normalized_email
+        profile["workspace_folder"] = self._workspace_logical_path(normalized_email)
         profile.setdefault("addresses", [])
         profile.setdefault("details", {})
         return profile
+
+    def _read_user_orders_payload(self, email: str) -> dict:
+        normalized_email = self._normalize_email(email)
+        if not normalized_email:
+            return {}
+        try:
+            return self.admin_drive_service.read_json(self._orders_logical_path(normalized_email))
+        except FileNotFoundError:
+            return {}
 
     def get_or_create_profile(self, *, email: str, role: str, display_name: str, mobile: str = "") -> dict:
         normalized_email = self._normalize_email(email)
@@ -77,6 +136,12 @@ class UserProfileService:
                 existing = self.get_profile(normalized_email)
             return existing
         payload = self._default_profile(
+            email=normalized_email,
+            role=role,
+            display_name=display_name,
+            mobile=mobile,
+        )
+        self.ensure_user_workspace(
             email=normalized_email,
             role=role,
             display_name=display_name,
@@ -117,11 +182,53 @@ class UserProfileService:
         next_profile = deepcopy(current)
         next_profile.update(dict(updates or {}))
         next_profile["email"] = normalized_target
+        next_profile["workspace_folder"] = self._workspace_logical_path(normalized_target)
         next_profile["addresses"] = list(next_profile.get("addresses", []) or [])
         next_profile["details"] = dict(next_profile.get("details", {}) or {})
         next_profile["updated_at"] = datetime.now(UTC).isoformat()
+        self.ensure_user_workspace(
+            email=normalized_target,
+            role=next_profile.get("role", "public_buyer"),
+            display_name=next_profile.get("display_name", normalized_target.split("@")[0]),
+            mobile=next_profile.get("mobile", ""),
+        )
         self.admin_drive_service.write_json(
             self._profile_logical_path(normalized_target),
             {"schema_version": 1, "user_profile": next_profile},
         )
         return next_profile
+
+    def sync_order_record(self, *, order: dict) -> None:
+        order_id = str(order.get("order_id", "")).strip()
+        if not order_id:
+            return
+        related_emails = {
+            self._normalize_email(order.get("buyer_email", "")),
+            self._normalize_email(order.get("requester_email", "")),
+            self._normalize_email(order.get("owner_email", "")),
+            self._normalize_email(order.get("preferred_delivery_partner_email", "")),
+            self._normalize_email(((order.get("buyer") or {}).get("email", ""))),
+            self._normalize_email(((order.get("requester") or {}).get("email", ""))),
+        }
+        for email in sorted(email for email in related_emails if email):
+            payload = self._read_user_orders_payload(email) or self._default_orders_payload(email)
+            user_orders = dict(payload.get("user_orders", {}) or {})
+            rows = list(user_orders.get("orders", []) or [])
+            existing = next((row for row in rows if str(row.get("order_id", "")).strip() == order_id), None)
+            snapshot = deepcopy(order)
+            if existing:
+                existing.clear()
+                existing.update(snapshot)
+            else:
+                rows.append(snapshot)
+            user_orders["email"] = email
+            user_orders["orders"] = rows
+            payload["user_orders"] = user_orders
+            profile = self.get_profile(email)
+            self.ensure_user_workspace(
+                email=email,
+                role=profile.get("role", "public_buyer"),
+                display_name=profile.get("display_name", email.split("@")[0]),
+                mobile=profile.get("mobile", ""),
+            )
+            self.admin_drive_service.write_json(self._orders_logical_path(email), payload)

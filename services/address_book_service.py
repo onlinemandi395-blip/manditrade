@@ -133,4 +133,5 @@ class AddressBookService:
         )
         record["mobile"] = str(mobile or record.get("mobile", "")).strip()
         record["profile_path"] = self.user_profile_service._profile_logical_path(normalized_email)  # noqa: SLF001
+        record["profile_folder"] = self.user_profile_service._workspace_logical_path(normalized_email)  # noqa: SLF001
         return deepcopy(next_record)

@@ -711,6 +711,7 @@ def render_app() -> None:
                                             },
                                         )
                                     order_service.persist_order_storage(order)
+                                    user_profile_service.sync_order_record(order=order)
                                     data_service.persist_collection("users")
                                     data_service.persist_collection("payments")
                                     data_service.persist_collection("notifications")
@@ -812,6 +813,7 @@ def render_app() -> None:
                                             },
                                         )
                                     order_service.persist_order_storage(order)
+                                    user_profile_service.sync_order_record(order=order)
                                     data_service.persist_collection("users")
                                     data_service.persist_collection("payments")
                                     data_service.persist_collection("notifications")
@@ -879,8 +881,11 @@ def render_app() -> None:
             render_form(form_definition, translator, _handle_submit)
     elif page_definition.get("type") == "system":
         status = integration_status_service.get_status()
+        drive_manifest = admin_drive_service.get_runtime_manifest(force_refresh=True)
         if status["google_drive_status"] != "connected" or status["required_files_status"] != "ok":
             st.error("Drive-only runtime is blocked. Required Google Drive files are missing or unavailable.")
+        with st.expander("First Time Setup", expanded=bool(drive_manifest.get("missing_files") or drive_manifest.get("missing_folders"))):
+            render_setup_console(admin_drive_service, drive_manifest, translator)
         refresh_cols = st.columns(6)
         if refresh_cols[0].button("Create Missing Drive Files", use_container_width=True):
             try:
@@ -960,12 +965,18 @@ def render_app() -> None:
                 {"key": "theme_background_message", "value": status["theme_status"].get("message", "")},
                 {"key": "theme_background_count", "value": status.get("theme_background_count", 0)},
                 {"key": "theme_active_background_id", "value": status.get("theme_active_background_id", "")},
+                {"key": "user_profiles_folder", "value": status.get("user_profiles_folder", "")},
+                {"key": "user_profiles_count", "value": status.get("user_profiles_count", 0)},
             ],
             caption="Integration status",
         )
         render_table([status["database_config_status"]], caption="database.json mapping status")
         render_table(status["required_folders"], caption="Required Drive folders")
         render_table(status["required_files"], caption="Required Drive files")
+        render_table(
+            [{"profile_path": path} for path in status.get("user_profile_sample_paths", [])],
+            caption="User profile file samples",
+        )
         render_table([status["theme_status"]], caption="Theme background trace")
         render_table(
             [

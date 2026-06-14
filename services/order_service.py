@@ -8,6 +8,7 @@ from services.ledger_service import LedgerService
 from services.payment_service import PaymentService
 from services.performance_service import PerformanceService
 from services.pricing_service import PricingService
+from services.user_profile_service import UserProfileService
 
 
 class OrderService:
@@ -19,6 +20,7 @@ class OrderService:
         self.payment_service = PaymentService(data_service, data_service.cache_service)
         self.performance_service = PerformanceService()
         self.pricing_service = PricingService()
+        self.user_profile_service = UserProfileService(data_service)
 
     def get_channel_quantity_rules(self, product: dict, channel: str) -> dict:
         normalized_channel = str(channel or "").strip().lower()
@@ -106,6 +108,7 @@ class OrderService:
         if not order:
             raise ValueError("Order not found.")
         self.data_service.persist_collection(self._get_order_collection_name(order.get("source_channel", "")))
+        self.user_profile_service.sync_order_record(order=order)
 
     def delete_order_for_admin(self, *, order_id: str, deleted_by: str) -> dict:
         normalized_order_id = str(order_id or "").strip()
