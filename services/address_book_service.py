@@ -40,6 +40,32 @@ class AddressBookService:
         users = self.data_service.get_collection_ref("users")
         return next((row for row in users if self._normalize_email(row.get("email", "")) == normalized_email), None)
 
+    def get_or_create_user_record(self, *, email: str, role: str, display_name: str, mobile: str = "") -> dict:
+        normalized_email = self._normalize_email(email)
+        if not normalized_email:
+            raise ValueError("User email is required.")
+        record = self._get_user_record(normalized_email)
+        if record:
+            if str(display_name or "").strip():
+                record["display_name"] = str(display_name).strip()
+            record["role"] = str(record.get("role", role or "public_buyer")).strip() or str(role or "public_buyer").strip() or "public_buyer"
+            record["status"] = str(record.get("status", "ACTIVE")).strip() or "ACTIVE"
+            if mobile is not None and str(mobile).strip():
+                record["mobile"] = str(mobile).strip()
+            record.setdefault("addresses", [])
+            return record
+        return self.data_service.upsert_user(
+            {
+                "user_id": self.data_service.id_service.next("user"),
+                "email": normalized_email,
+                "role": str(role or "public_buyer").strip() or "public_buyer",
+                "status": "ACTIVE",
+                "display_name": str(display_name or normalized_email.split("@")[0]).strip(),
+                "mobile": str(mobile or "").strip(),
+                "addresses": [],
+            }
+        )
+
     def list_addresses(self, email: str) -> list[dict]:
         user = self._get_user_record(email)
         if not user:
@@ -65,25 +91,12 @@ class AddressBookService:
         if not normalized_email:
             raise ValueError("User email is required to save address.")
         sanitized_address = self._sanitize_address(address)
-        record = self._get_user_record(normalized_email)
-        if not record:
-            record = self.data_service.upsert_user(
-                {
-                    "user_id": self.data_service.id_service.next("user"),
-                    "email": normalized_email,
-                    "role": str(role or "public_buyer").strip() or "public_buyer",
-                    "status": "ACTIVE",
-                    "display_name": str(display_name or normalized_email.split("@")[0]).strip(),
-                    "mobile": str(mobile or "").strip(),
-                    "addresses": [],
-                }
-            )
-        else:
-            if str(display_name or "").strip():
-                record["display_name"] = str(display_name).strip()
-            if str(mobile or "").strip():
-                record["mobile"] = str(mobile).strip()
-            record.setdefault("addresses", [])
+        record = self.get_or_create_user_record(
+            email=normalized_email,
+            role=role,
+            display_name=display_name,
+            mobile=mobile,
+        )
 
         normalized_address_id = str(address_id or sanitized_address.get("address_id", "")).strip()
         if not normalized_address_id:

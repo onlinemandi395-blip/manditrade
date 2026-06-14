@@ -129,21 +129,33 @@ def _format_saved_address(address: dict) -> str:
     return f"{label} - {location}" if location else label
 
 
+def _sync_checkout_address_state(*, key_prefix: str, selected_address: dict) -> None:
+    field_map = {
+        f"{key_prefix}_address_label": str(selected_address.get("label", "") or ""),
+        f"{key_prefix}_address_1": str(selected_address.get("address_line_1", "") or ""),
+        f"{key_prefix}_address_2": str(selected_address.get("address_line_2", "") or ""),
+        f"{key_prefix}_city": str(selected_address.get("city", "") or ""),
+        f"{key_prefix}_state": str(selected_address.get("state", "") or ""),
+        f"{key_prefix}_pin": str(selected_address.get("pin_code", "") or ""),
+        f"{key_prefix}_landmark": str(selected_address.get("landmark", "") or ""),
+    }
+    for state_key, value in field_map.items():
+        st.session_state[state_key] = value
+
+
+def _initialize_checkout_contact_state(*, key_prefix: str, user_record: dict) -> None:
+    st.session_state.setdefault(f"{key_prefix}_name", str(user_record.get("display_name", "") or "").strip())
+    st.session_state.setdefault(f"{key_prefix}_mobile", str(user_record.get("mobile", "") or "").strip())
+
+
 def _render_checkout_details_form(*, key_prefix: str, email: str, user_record: dict, address_book_service: AddressBookService, translator) -> dict:
     t = translator.t if translator else (lambda key: key)
     st.markdown(f"### {t('ui.checkout_details')}")
     st.markdown(f"#### {t('ui.buyer_contact')}")
+    _initialize_checkout_contact_state(key_prefix=key_prefix, user_record=user_record)
     saved_addresses = address_book_service.list_addresses(email)
-    name = st.text_input(
-        t("ui.full_name"),
-        value=str(user_record.get("display_name", "") or "").strip(),
-        key=f"{key_prefix}_name",
-    )
-    mobile = st.text_input(
-        t("ui.mobile_number"),
-        value=str(user_record.get("mobile", "") or "").strip(),
-        key=f"{key_prefix}_mobile",
-    )
+    name = st.text_input(t("ui.full_name"), key=f"{key_prefix}_name")
+    mobile = st.text_input(t("ui.mobile_number"), key=f"{key_prefix}_mobile")
     st.text_input(t("ui.email"), value=email, disabled=True, key=f"{key_prefix}_email")
     st.markdown(f"#### {t('ui.delivery_address')}")
     address_options = ["__new__"] + [str(address.get("address_id", "")).strip() for address in saved_addresses]
@@ -163,18 +175,17 @@ def _render_checkout_details_form(*, key_prefix: str, email: str, user_record: d
         (address for address in saved_addresses if str(address.get("address_id", "")).strip() == selected_address_id),
         {},
     )
-    address_label = st.text_input(
-        t("ui.address_label"),
-        value=str(selected_address.get("label", "") or ""),
-        key=f"{key_prefix}_address_label",
-        placeholder=t("ui.address_label_placeholder"),
-    )
-    address_line_1 = st.text_input(t("ui.address_line_1"), value=str(selected_address.get("address_line_1", "") or ""), key=f"{key_prefix}_address_1")
-    address_line_2 = st.text_input(t("ui.address_line_2"), value=str(selected_address.get("address_line_2", "") or ""), key=f"{key_prefix}_address_2")
-    city = st.text_input(t("ui.city"), value=str(selected_address.get("city", "") or ""), key=f"{key_prefix}_city")
-    state = st.text_input(t("ui.state"), value=str(selected_address.get("state", "") or ""), key=f"{key_prefix}_state")
-    pin_code = st.text_input(t("ui.pin_code"), value=str(selected_address.get("pin_code", "") or ""), key=f"{key_prefix}_pin")
-    landmark = st.text_input(t("ui.landmark"), value=str(selected_address.get("landmark", "") or ""), key=f"{key_prefix}_landmark")
+    last_loaded_key = f"{key_prefix}_last_loaded_address_id"
+    if st.session_state.get(last_loaded_key) != selected_address_id:
+        _sync_checkout_address_state(key_prefix=key_prefix, selected_address=selected_address if selected_address_id != "__new__" else {})
+        st.session_state[last_loaded_key] = selected_address_id
+    address_label = st.text_input(t("ui.address_label"), key=f"{key_prefix}_address_label", placeholder=t("ui.address_label_placeholder"))
+    address_line_1 = st.text_input(t("ui.address_line_1"), key=f"{key_prefix}_address_1")
+    address_line_2 = st.text_input(t("ui.address_line_2"), key=f"{key_prefix}_address_2")
+    city = st.text_input(t("ui.city"), key=f"{key_prefix}_city")
+    state = st.text_input(t("ui.state"), key=f"{key_prefix}_state")
+    pin_code = st.text_input(t("ui.pin_code"), key=f"{key_prefix}_pin")
+    landmark = st.text_input(t("ui.landmark"), key=f"{key_prefix}_landmark")
     save_address = st.checkbox(t("ui.save_address_for_future"), value=True, key=f"{key_prefix}_save_address")
     st.markdown(f"#### {t('ui.payment_method')}")
     st.selectbox(t("ui.payment_method"), options=[t("ui.upi_qr_upi_link")], key=f"{key_prefix}_payment_method")
@@ -659,6 +670,12 @@ def render_app() -> None:
                                         delivery_address=checkout["delivery_address"],
                                         product_lookup=product_lookup,
                                     )
+                                    address_book_service.get_or_create_user_record(
+                                        email=session_service.get_user().get("email", ""),
+                                        role=user.get("role", "public_buyer"),
+                                        display_name=checkout["name"],
+                                        mobile=checkout["mobile"],
+                                    )
                                     if checkout.get("save_address", False):
                                         address_book_service.save_address(
                                             email=session_service.get_user().get("email", ""),
@@ -736,6 +753,12 @@ def render_app() -> None:
                                         requester_mobile=checkout["mobile"],
                                         delivery_address=checkout["delivery_address"],
                                         requested_quantity=requested_quantity,
+                                    )
+                                    address_book_service.get_or_create_user_record(
+                                        email=session_service.get_user().get("email", ""),
+                                        role=user.get("role", "public_buyer"),
+                                        display_name=checkout["name"],
+                                        mobile=checkout["mobile"],
                                     )
                                     if checkout.get("save_address", False):
                                         address_book_service.save_address(
