@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from services.gmail_delivery_service import GmailDeliveryService
 from services.theme_service import ThemeService
 from services.product_consent_service import ProductConsentService
 from services.user_profile_service import UserProfileService
@@ -39,6 +40,8 @@ class IntegrationStatusService:
         available_backgrounds = theme_service.list_available_backgrounds()
         user_profile_service = UserProfileService(self.data_service)
         product_consent_service = ProductConsentService(self.data_service, self.cache_service)
+        gmail_delivery_service = GmailDeliveryService(self.data_service)
+        gmail_delivery_ready, gmail_delivery_reason = gmail_delivery_service.can_send()
         users_with_profiles = 0
         sample_profile_paths: list[str] = []
         for user in users:
@@ -60,6 +63,8 @@ class IntegrationStatusService:
             "gmail_send_scope": drive_status.get("gmail_send_scope", "missing"),
             "cache_status": self.cache_service.get_cache_status(),
             "gmail_status": "enabled" if gmail_enabled and gmail_sender else "disabled",
+            "gmail_delivery_ready": gmail_delivery_ready,
+            "gmail_delivery_reason": gmail_delivery_reason,
             "queue_count": len(gmail_queue),
             "notification_queue_count": len(notifications),
             "audit_log_count": len(audit_logs),

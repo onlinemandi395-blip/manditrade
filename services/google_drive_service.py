@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 from pathlib import Path
 from typing import Any
@@ -31,6 +32,16 @@ class GoogleDriveService:
                 refreshed = self.serialize_credentials(creds, user_token)
                 self.write_token_store(refreshed)
         return build("drive", "v3", credentials=creds, cache_discovery=False)
+
+    def build_gmail_client_from_user_oauth(self, user_token: dict[str, Any]):
+        token_scopes = list(user_token.get("scopes", []) or [])
+        creds = Credentials.from_authorized_user_info(user_token, scopes=token_scopes or self.SCOPES)
+        if creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+            if self.token_store_path:
+                refreshed = self.serialize_credentials(creds, user_token)
+                self.write_token_store(refreshed)
+        return build("gmail", "v1", credentials=creds, cache_discovery=False)
 
     def serialize_credentials(self, creds: Credentials, seed: dict[str, Any] | None = None) -> dict[str, Any]:
         payload = dict(seed or {})
@@ -210,6 +221,18 @@ class GoogleDriveService:
     def read_file_bytes(self, service, file_id: str) -> bytes:
         content = service.files().get_media(fileId=file_id).execute()
         return bytes(content)
+
+    def send_gmail_message(self, service, *, sender_email: str, to_email: str, subject: str, body: str) -> dict[str, Any]:
+        mime_message = (
+            f"From: {sender_email}\r\n"
+            f"To: {to_email}\r\n"
+            f"Subject: {subject}\r\n"
+            "Content-Type: text/plain; charset=utf-8\r\n"
+            "\r\n"
+            f"{body}"
+        ).encode("utf-8")
+        encoded_message = base64.urlsafe_b64encode(mime_message).decode("utf-8")
+        return service.users().messages().send(userId="me", body={"raw": encoded_message}).execute()
 
     def read_token_store(self) -> dict[str, Any]:
         if not self.token_store_path or not self.token_store_path.exists():

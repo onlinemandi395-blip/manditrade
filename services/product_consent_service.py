@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 import random
 
+from services.gmail_delivery_service import GmailDeliveryService
 from services.gmail_queue_service import GmailQueueService
 
 
@@ -15,6 +16,7 @@ class ProductConsentService:
         self.cache_service = cache_service
         self.admin_drive_service = data_service.admin_drive_service
         self.gmail_queue_service = GmailQueueService(data_service)
+        self.gmail_delivery_service = GmailDeliveryService(data_service)
 
     def get_config(self) -> dict:
         config = dict(self.cache_service.get_config("product_owner_consent") or {})
@@ -134,6 +136,10 @@ class ProductConsentService:
                 otp_code=otp_code,
             ),
         )
+        try:
+            self.gmail_delivery_service.process_queue(limit=10)
+        except Exception:
+            pass
         return record
 
     def verify_consent_otp(self, *, product_name: str, owner_email: str, requested_by: str, otp_code: str) -> dict:

@@ -33,6 +33,7 @@ from services.cart_service import CartService
 from services.config_loader_service import ConfigLoaderService
 from services.data_service import DataService
 from services.form_service import FormService
+from services.gmail_delivery_service import GmailDeliveryService
 from services.gmail_queue_service import GmailQueueService
 from services.google_oauth_service import GoogleOAuthService
 from services.integration_status_service import IntegrationStatusService
@@ -554,6 +555,7 @@ def render_app() -> None:
     product_consent_service = ProductConsentService(data_service, cache_service)
     cart_service = CartService()
     gmail_queue_service = GmailQueueService(data_service)
+    gmail_delivery_service = GmailDeliveryService(data_service)
     integration_status_service = IntegrationStatusService(
         cache_service=cache_service,
         admin_drive_service=admin_drive_service,
@@ -888,7 +890,7 @@ def render_app() -> None:
             st.error("Drive-only runtime is blocked. Required Google Drive files are missing or unavailable.")
         with st.expander("First Time Setup", expanded=bool(drive_manifest.get("missing_files") or drive_manifest.get("missing_folders"))):
             render_setup_console(admin_drive_service, drive_manifest, translator, key_prefix="system_setup")
-        refresh_cols = st.columns(6)
+        refresh_cols = st.columns(7)
         if refresh_cols[0].button("Create Missing Drive Files", use_container_width=True):
             try:
                 result = admin_drive_service.create_missing_required_files()
@@ -933,6 +935,16 @@ def render_app() -> None:
         if refresh_cols[5].button("Clear Cache and Reload", use_container_width=True):
             admin_drive_service.clear_runtime_cache(clear_validation=True, clear_file_index=True)
             st.rerun()
+        if refresh_cols[6].button("Send Pending Emails", use_container_width=True):
+            try:
+                result = gmail_delivery_service.process_queue(limit=50)
+                st.success(
+                    f"Email queue processed: {result.get('processed', 0)} | "
+                    f"sent: {result.get('sent', 0)} | failed: {result.get('failed', 0)}"
+                )
+                st.rerun()
+            except Exception as exc:
+                st.error(f"Send Pending Emails failed: {exc}")
         render_table(
             [
                 {"key": "google_oauth_status", "value": status["google_oauth_status"]},
@@ -944,6 +956,8 @@ def render_app() -> None:
                 {"key": "gmail_send_scope", "value": status["gmail_send_scope"]},
                 {"key": "required_files_status", "value": status["required_files_status"]},
                 {"key": "gmail_status", "value": status["gmail_status"]},
+                {"key": "gmail_delivery_ready", "value": status["gmail_delivery_ready"]},
+                {"key": "gmail_delivery_reason", "value": status["gmail_delivery_reason"]},
                 {"key": "loaded_collection_count", "value": status["loaded_collection_count"]},
                 {"key": "users_count", "value": status["users_count"]},
                 {"key": "products_count", "value": status["products_count"]},

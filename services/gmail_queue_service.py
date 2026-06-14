@@ -30,6 +30,7 @@ class GmailQueueService:
             "notification_id": notification_id,
             "status": "QUEUED",
             "created_at": datetime.now(UTC).isoformat(),
+            "attempt_count": 0,
         }
         if self.data_service is not None:
             self.data_service._bootstrap_collection("gmail_queue").append(record)
