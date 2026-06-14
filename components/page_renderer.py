@@ -44,6 +44,7 @@ from services.page_service import PageService
 from services.payment_config_service import PaymentConfigService
 from services.payment_service import PaymentService
 from services.performance_service import PerformanceService
+from services.product_consent_service import ProductConsentService
 from services.qr_service import QRService
 from services.rbac_service import RBACService
 from services.session_service import SessionService
@@ -550,6 +551,7 @@ def render_app() -> None:
     address_book_service = AddressBookService(data_service)
     user_profile_service = UserProfileService(data_service)
     payment_config_service = PaymentConfigService(data_service, cache_service, admin_drive_service)
+    product_consent_service = ProductConsentService(data_service, cache_service)
     cart_service = CartService()
     gmail_queue_service = GmailQueueService(data_service)
     integration_status_service = IntegrationStatusService(
@@ -967,6 +969,8 @@ def render_app() -> None:
                 {"key": "theme_active_background_id", "value": status.get("theme_active_background_id", "")},
                 {"key": "user_profiles_folder", "value": status.get("user_profiles_folder", "")},
                 {"key": "user_profiles_count", "value": status.get("user_profiles_count", 0)},
+                {"key": "product_owner_consent_enabled", "value": status.get("product_owner_consent_config", {}).get("enabled", False)},
+                {"key": "product_owner_consent_count", "value": status.get("product_owner_consent_count", 0)},
             ],
             caption="Integration status",
         )
@@ -977,6 +981,7 @@ def render_app() -> None:
             [{"profile_path": path} for path in status.get("user_profile_sample_paths", [])],
             caption="User profile file samples",
         )
+        render_table([status.get("product_owner_consent_config", {})], caption="Product owner consent config")
         render_table([status["theme_status"]], caption="Theme background trace")
         render_table(
             [

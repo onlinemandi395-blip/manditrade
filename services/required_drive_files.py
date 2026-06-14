@@ -208,6 +208,35 @@ def build_required_drive_files(primary_admin_email: str, primary_admin_name: str
             },
         },
         {
+            "logical_path": "00_config/product_owner_consent.json",
+            "type": "config",
+            "default_payload": {
+                "schema_version": 1,
+                "product_owner_consent": {
+                    "enabled": True,
+                    "otp_length": 6,
+                    "otp_expiry_minutes": 15,
+                    "agreement_title": "Product Onboarding Consent Agreement",
+                    "agreement_body": (
+                        "This agreement confirms that the product owner {owner_email} authorizes MandiTrade admin "
+                        "{requested_by} to onboard the product '{product_name}' on the MandiTrade platform. "
+                        "The owner confirms they have the right to list this product, accept the platform onboarding, "
+                        "and allow order coordination, catalog publishing, and platform communication for this product."
+                    ),
+                    "email_subject": "Consent OTP for product onboarding on MandiTrade",
+                    "email_body_template": (
+                        "{agreement_title}\n\n"
+                        "{agreement_body}\n\n"
+                        "Product: {product_name}\n"
+                        "Owner Email: {owner_email}\n"
+                        "Requested By: {requested_by}\n"
+                        "Consent OTP: {otp_code}\n\n"
+                        "Please share this OTP only if you agree to the onboarding."
+                    ),
+                },
+            },
+        },
+        {
             "logical_path": "00_config/database.json",
             "type": "config",
             "default_payload": {
@@ -342,4 +371,5 @@ def build_required_drive_files(primary_admin_email: str, primary_admin_name: str
         {"logical_path": "09_notifications/notifications.json", "type": "data", "default_payload": {"notifications": []}},
         {"logical_path": "09_notifications/gmail_queue.json", "type": "data", "default_payload": {"gmail_queue": []}},
         {"logical_path": "10_audit/audit_logs.json", "type": "data", "default_payload": {"audit_logs": []}},
+        {"logical_path": "14_runtime/product_owner_consents.json", "type": "data", "default_payload": {"schema_version": 1, "consents": []}},
     ]

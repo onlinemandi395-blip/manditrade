@@ -10,6 +10,7 @@ from components.table_renderer import render_table
 from services.auth_service import is_bootstrap_admin
 from services.id_service import IdService
 from services.media_service import MediaService
+from services.product_consent_service import ProductConsentService
 
 
 OWNER_TYPES = {"Manufacturer": "manufacturer", "Mahajan": "mahajan"}
@@ -356,6 +357,7 @@ def render_products_page(data_service, notification_service, session_service, ca
     )
     id_service = IdService()
     media_service = MediaService(data_service.admin_drive_service)
+    product_consent_service = ProductConsentService(data_service, cache_service)
     next_product_code = id_service.preview_drive_id(data_service.admin_drive_service, "product", "PROD")
     tab_labels = ["All Products", "Marketplace", "MandiTrade", "Pending Approval", "Approved", "Inactive/Archived", "Add Product"]
     if is_admin:
@@ -752,6 +754,57 @@ def render_products_page(data_service, notification_service, session_service, ca
             type=["png", "jpg", "jpeg", "webp"],
             key="create_product_images",
         )
+        owner_consent_record = {}
+        if is_admin and owner_email.strip():
+            st.markdown("### Owner Consent")
+            owner_consent_record = product_consent_service.get_consent_status(
+                product_name=product_name.strip(),
+                owner_email=owner_email,
+                requested_by=current_user_email,
+            )
+            st.info(
+                "Before onboarding this product for another owner, send a 6-digit OTP to the owner email and verify it. "
+                "The email includes the standard onboarding agreement from Drive config."
+            )
+            st.text_area(
+                "Agreement Preview",
+                value=product_consent_service._render_agreement(  # noqa: SLF001
+                    product_name=product_name.strip(),
+                    owner_email=owner_email,
+                    requested_by=current_user_email,
+                ),
+                height=140,
+                key="create_owner_consent_agreement_preview",
+                disabled=True,
+            )
+            consent_cols = st.columns(2)
+            if consent_cols[0].button("Send Consent OTP", use_container_width=True, key="create_send_owner_consent_otp"):
+                try:
+                    owner_consent_record = product_consent_service.send_consent_otp(
+                        product_name=product_name.strip(),
+                        owner_email=owner_email,
+                        requested_by=current_user_email,
+                    )
+                    data_service.persist_collection("gmail_queue")
+                    st.success(f"Consent OTP sent to {owner_email}.")
+                    st.rerun()
+                except Exception as exc:
+                    st.error(f"Consent OTP send failed: {exc}")
+            owner_consent_otp = consent_cols[1].text_input("Consent OTP", key="create_owner_consent_otp", max_chars=8)
+            current_consent_status = str(owner_consent_record.get("status", "NOT_SENT") or "NOT_SENT").upper()
+            st.caption(f"Consent Status: {current_consent_status}")
+            if st.button("Verify Owner Consent OTP", use_container_width=True, key="create_verify_owner_consent_otp"):
+                try:
+                    owner_consent_record = product_consent_service.verify_consent_otp(
+                        product_name=product_name.strip(),
+                        owner_email=owner_email,
+                        requested_by=current_user_email,
+                        otp_code=owner_consent_otp,
+                    )
+                    st.success("Owner consent verified.")
+                    st.rerun()
+                except Exception as exc:
+                    st.error(f"Consent OTP verification failed: {exc}")
         status = st.selectbox(translator.t("field.status"), options=["APPROVED", "PENDING_APPROVAL"] if is_admin else ["PENDING_APPROVAL"], index=0, key="create_status")
         submitted = st.button(translator.t("action.add_product"), use_container_width=True, key="save_product_button")
 
@@ -759,6 +812,15 @@ def render_products_page(data_service, notification_service, session_service, ca
             if not product_name.strip():
                 st.error("Product name is required.")
                 return
+            if is_admin and owner_email.strip():
+                owner_consent_record = product_consent_service.get_consent_status(
+                    product_name=product_name.strip(),
+                    owner_email=owner_email,
+                    requested_by=current_user_email,
+                )
+                if str(owner_consent_record.get("status", "")).strip().upper() != "VERIFIED":
+                    st.error("Owner consent OTP verification is required before product onboarding.")
+                    return
             previous_users_snapshot = deepcopy(users)
             product_code = ""
             try:
@@ -832,6 +894,15 @@ def render_products_page(data_service, notification_service, session_service, ca
                 if record["status"] == "APPROVED":
                     record["approval"]["approved_by"] = current_user_email
                     record["approval"]["approved_at"] = datetime.now(UTC).isoformat()
+                if is_admin and owner_email.strip():
+                    record["owner_consent"] = {
+                        "status": str(owner_consent_record.get("status", "")).strip(),
+                        "verified_at": str(owner_consent_record.get("verified_at", "")).strip(),
+                        "requested_by": current_user_email,
+                        "owner_email": owner_email,
+                        "agreement_title": str(owner_consent_record.get("agreement_title", "")).strip(),
+                        "agreement_body": str(owner_consent_record.get("agreement_body", "")).strip(),
+                    }
                 products.append(record)
                 _persist_products_and_users(data_service)
                 notification_service.create_notification(

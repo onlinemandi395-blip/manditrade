@@ -26,6 +26,7 @@ class CacheService:
             "forms": self.config_loader_service.load("forms"),
             "categories": self.config_loader_service.load("categories"),
             "payment_config": self.config_loader_service.load("payment_config"),
+            "product_owner_consent": self.config_loader_service.load("product_owner_consent"),
             "database": self.config_loader_service.load("database"),
             "theme": self.config_loader_service.load("theme"),
             "products_data": self.config_loader_service.load("products_data"),

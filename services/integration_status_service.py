@@ -3,6 +3,7 @@ from __future__ import annotations
 import streamlit as st
 
 from services.theme_service import ThemeService
+from services.product_consent_service import ProductConsentService
 from services.user_profile_service import UserProfileService
 
 
@@ -37,6 +38,7 @@ class IntegrationStatusService:
         theme_status = theme_service.get_background_status()
         available_backgrounds = theme_service.list_available_backgrounds()
         user_profile_service = UserProfileService(self.data_service)
+        product_consent_service = ProductConsentService(self.data_service, self.cache_service)
         users_with_profiles = 0
         sample_profile_paths: list[str] = []
         for user in users:
@@ -90,4 +92,6 @@ class IntegrationStatusService:
             "user_profiles_folder": "01_identity/profiles",
             "user_profiles_count": users_with_profiles,
             "user_profile_sample_paths": sample_profile_paths,
+            "product_owner_consent_config": product_consent_service.get_config(),
+            "product_owner_consent_count": len(product_consent_service.list_consents()),
         }
