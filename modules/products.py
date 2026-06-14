@@ -159,6 +159,82 @@ def _owner_option_label(owner: dict) -> str:
     return f"{display_name} ({email})" if display_name else email
 
 
+def _render_consent_panel(
+    *,
+    product_consent_service: ProductConsentService,
+    product_name: str,
+    recipient_email: str,
+    requested_by: str,
+    consent_role: str,
+    title: str,
+    recipient_label: str,
+    session_prefix: str,
+) -> dict:
+    consent_identity = f"{consent_role}||{product_name.strip().lower()}||{recipient_email.strip().lower()}||{requested_by.strip().lower()}"
+    auto_trigger_key = f"{session_prefix}_auto_trigger"
+    auto_trigger_status_key = f"{session_prefix}_auto_trigger_status"
+    consent_error_key = f"{session_prefix}_error"
+    consent_record = product_consent_service.get_consent_status(
+        product_name=product_name.strip(),
+        owner_email=recipient_email,
+        requested_by=requested_by,
+        consent_role=consent_role,
+    )
+    if product_name.strip() and recipient_email.strip() and st.session_state.get(auto_trigger_key) != consent_identity:
+        try:
+            consent_record = product_consent_service.send_consent_otp(
+                product_name=product_name.strip(),
+                owner_email=recipient_email,
+                requested_by=requested_by,
+                consent_role=consent_role,
+            )
+            st.session_state[auto_trigger_key] = consent_identity
+            st.session_state[auto_trigger_status_key] = f"Consent OTP triggered to {recipient_email}."
+            st.session_state[consent_error_key] = ""
+            st.rerun()
+        except Exception as exc:
+            st.session_state[consent_error_key] = f"Consent OTP trigger failed: {exc}"
+    with st.container(border=True):
+        st.markdown(f"#### {title}")
+        st.caption(
+            "OTP is triggered automatically after the email is entered. "
+            "Enter the OTP below after the recipient receives the email."
+        )
+        trigger_status_message = str(st.session_state.get(auto_trigger_status_key, "") or "").strip()
+        trigger_error_message = str(st.session_state.get(consent_error_key, "") or "").strip()
+        if trigger_status_message and st.session_state.get(auto_trigger_key) == consent_identity:
+            st.success(trigger_status_message)
+        if trigger_error_message and st.session_state.get(auto_trigger_key) != consent_identity:
+            st.error(trigger_error_message)
+        current_consent_status = str(consent_record.get("status", "NOT_SENT") or "NOT_SENT").upper()
+        status_cols = st.columns([1.4, 2.6, 1.2])
+        status_cols[0].caption(f"Status: {current_consent_status}")
+        status_cols[1].caption(f"{recipient_label}: {recipient_email}")
+        otp_enabled = current_consent_status in {"OTP_SENT", "VERIFIED"}
+        entered_otp = status_cols[1].text_input(
+            "Consent OTP",
+            key=f"{session_prefix}_otp",
+            max_chars=8,
+            disabled=not otp_enabled,
+            label_visibility="collapsed",
+            placeholder="Enter OTP",
+        )
+        if status_cols[2].button("Verify", use_container_width=True, key=f"{session_prefix}_verify", disabled=not otp_enabled):
+            try:
+                consent_record = product_consent_service.verify_consent_otp(
+                    product_name=product_name.strip(),
+                    owner_email=recipient_email,
+                    requested_by=requested_by,
+                    otp_code=entered_otp,
+                    consent_role=consent_role,
+                )
+                st.success(f"{title} verified.")
+                st.rerun()
+            except Exception as exc:
+                st.error(f"Consent OTP verification failed: {exc}")
+    return consent_record
+
+
 def _build_product_table_rows(products: list[dict]) -> list[dict]:
     rows = []
     for product in products:
@@ -755,71 +831,29 @@ def render_products_page(data_service, notification_service, session_service, ca
             key="create_product_images",
         )
         owner_consent_record = {}
+        delivery_partner_consent_record = {}
         if is_admin and owner_email.strip():
-            consent_identity = f"{product_name.strip().lower()}||{owner_email.strip().lower()}||{current_user_email.strip().lower()}"
-            auto_trigger_key = "create_owner_consent_auto_trigger"
-            auto_trigger_status_key = "create_owner_consent_auto_trigger_status"
-            owner_consent_error_key = "create_owner_consent_error"
-            owner_consent_record = product_consent_service.get_consent_status(
-                product_name=product_name.strip(),
-                owner_email=owner_email,
+            owner_consent_record = _render_consent_panel(
+                product_consent_service=product_consent_service,
+                product_name=product_name,
+                recipient_email=owner_email,
                 requested_by=current_user_email,
+                consent_role="owner",
+                title="Owner Consent",
+                recipient_label="Owner",
+                session_prefix="create_owner_consent",
             )
-            if (
-                product_name.strip()
-                and owner_email.strip()
-                and st.session_state.get(auto_trigger_key) != consent_identity
-            ):
-                try:
-                    owner_consent_record = product_consent_service.send_consent_otp(
-                        product_name=product_name.strip(),
-                        owner_email=owner_email,
-                        requested_by=current_user_email,
-                    )
-                    data_service.persist_collection("gmail_queue")
-                    st.session_state[auto_trigger_key] = consent_identity
-                    st.session_state[auto_trigger_status_key] = f"Consent OTP triggered to {owner_email}."
-                    st.session_state[owner_consent_error_key] = ""
-                    st.rerun()
-                except Exception as exc:
-                    st.session_state[owner_consent_error_key] = f"Consent OTP trigger failed: {exc}"
-            with st.container(border=True):
-                st.markdown("#### Owner Consent")
-                st.caption(
-                    "OTP is triggered automatically after Owner Email is entered. "
-                    "Enter the OTP below after the owner receives the email."
-                )
-                trigger_status_message = str(st.session_state.get(auto_trigger_status_key, "") or "").strip()
-                trigger_error_message = str(st.session_state.get(owner_consent_error_key, "") or "").strip()
-                if trigger_status_message and st.session_state.get(auto_trigger_key) == consent_identity:
-                    st.success(trigger_status_message)
-                if trigger_error_message and st.session_state.get(auto_trigger_key) != consent_identity:
-                    st.error(trigger_error_message)
-                current_consent_status = str(owner_consent_record.get("status", "NOT_SENT") or "NOT_SENT").upper()
-                status_cols = st.columns([1.4, 2.6, 1.2])
-                status_cols[0].caption(f"Status: {current_consent_status}")
-                status_cols[1].caption(f"Owner: {owner_email}")
-                otp_enabled = current_consent_status in {"OTP_SENT", "VERIFIED"}
-                owner_consent_otp = status_cols[1].text_input(
-                    "Consent OTP",
-                    key="create_owner_consent_otp",
-                    max_chars=8,
-                    disabled=not otp_enabled,
-                    label_visibility="collapsed",
-                    placeholder="Enter OTP",
-                )
-                if status_cols[2].button("Verify", use_container_width=True, key="create_verify_owner_consent_otp", disabled=not otp_enabled):
-                    try:
-                        owner_consent_record = product_consent_service.verify_consent_otp(
-                            product_name=product_name.strip(),
-                            owner_email=owner_email,
-                            requested_by=current_user_email,
-                            otp_code=owner_consent_otp,
-                        )
-                        st.success("Owner consent verified.")
-                        st.rerun()
-                    except Exception as exc:
-                        st.error(f"Consent OTP verification failed: {exc}")
+        if is_admin and delivery_partner_email.strip():
+            delivery_partner_consent_record = _render_consent_panel(
+                product_consent_service=product_consent_service,
+                product_name=product_name,
+                recipient_email=delivery_partner_email,
+                requested_by=current_user_email,
+                consent_role="delivery_partner",
+                title="Delivery Partner Consent",
+                recipient_label="Delivery Partner",
+                session_prefix="create_delivery_partner_consent",
+            )
         status = st.selectbox(translator.t("field.status"), options=["APPROVED", "PENDING_APPROVAL"] if is_admin else ["PENDING_APPROVAL"], index=0, key="create_status")
         submitted = st.button(translator.t("action.add_product"), use_container_width=True, key="save_product_button")
 
@@ -832,9 +866,20 @@ def render_products_page(data_service, notification_service, session_service, ca
                     product_name=product_name.strip(),
                     owner_email=owner_email,
                     requested_by=current_user_email,
+                    consent_role="owner",
                 )
                 if str(owner_consent_record.get("status", "")).strip().upper() != "VERIFIED":
                     st.error("Owner consent OTP verification is required before product onboarding.")
+                    return
+            if is_admin and delivery_partner_email.strip():
+                delivery_partner_consent_record = product_consent_service.get_consent_status(
+                    product_name=product_name.strip(),
+                    owner_email=delivery_partner_email,
+                    requested_by=current_user_email,
+                    consent_role="delivery_partner",
+                )
+                if str(delivery_partner_consent_record.get("status", "")).strip().upper() != "VERIFIED":
+                    st.error("Delivery partner consent OTP verification is required before product onboarding.")
                     return
             previous_users_snapshot = deepcopy(users)
             product_code = ""
@@ -917,6 +962,15 @@ def render_products_page(data_service, notification_service, session_service, ca
                         "owner_email": owner_email,
                         "agreement_title": str(owner_consent_record.get("agreement_title", "")).strip(),
                         "agreement_body": str(owner_consent_record.get("agreement_body", "")).strip(),
+                    }
+                if is_admin and delivery_partner_email.strip():
+                    record["delivery_partner_consent"] = {
+                        "status": str(delivery_partner_consent_record.get("status", "")).strip(),
+                        "verified_at": str(delivery_partner_consent_record.get("verified_at", "")).strip(),
+                        "requested_by": current_user_email,
+                        "delivery_partner_email": delivery_partner_email,
+                        "agreement_title": str(delivery_partner_consent_record.get("agreement_title", "")).strip(),
+                        "agreement_body": str(delivery_partner_consent_record.get("agreement_body", "")).strip(),
                     }
                 products.append(record)
                 _persist_products_and_users(data_service)

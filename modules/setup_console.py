@@ -191,7 +191,13 @@ def render_setup_console(admin_drive_service, drive_manifest: dict, translator=N
     st.markdown("### Product Owner Consent Configuration")
     cache_service = CacheService(ConfigLoaderService())
     consent_service = ProductConsentService(DataService(cache_service), cache_service)
-    render_table([consent_service.get_config()], caption="Owner consent onboarding config")
+    render_table(
+        [
+            consent_service.get_config("owner"),
+            consent_service.get_config("delivery_partner"),
+        ],
+        caption="Onboarding consent config",
+    )
     theme_file = next(
         (row for row in drive_manifest.get("required_files", []) if str(row.get("logical_path", "")) == "00_config/theme.json"),
         None,

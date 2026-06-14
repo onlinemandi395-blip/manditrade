@@ -53,6 +53,7 @@ class IntegrationStatusService:
                 sample_profile_paths.append(profile_path)
             if user_profile_service.get_profile(email):
                 users_with_profiles += 1
+        all_consents = product_consent_service.list_consents()
         return {
             "google_oauth_status": "configured" if self.oauth_service.is_configured() else "missing",
             "google_drive_status": "connected" if drive_status.get("connected") else "disconnected",
@@ -97,6 +98,18 @@ class IntegrationStatusService:
             "user_profiles_folder": "01_identity/profiles",
             "user_profiles_count": users_with_profiles,
             "user_profile_sample_paths": sample_profile_paths,
-            "product_owner_consent_config": product_consent_service.get_config(),
-            "product_owner_consent_count": len(product_consent_service.list_consents()),
+            "product_owner_consent_config": product_consent_service.get_config("owner"),
+            "delivery_partner_consent_config": product_consent_service.get_config("delivery_partner"),
+            "product_owner_consent_count": len(
+                [
+                    row for row in all_consents
+                    if str(row.get("consent_role", "owner")).strip().lower() == "owner"
+                ]
+            ),
+            "delivery_partner_consent_count": len(
+                [
+                    row for row in all_consents
+                    if str(row.get("consent_role", "owner")).strip().lower() == "delivery_partner"
+                ]
+            ),
         }

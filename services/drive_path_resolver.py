@@ -94,7 +94,7 @@ class DrivePathResolver:
         file_result = self.resolve_file_path(logical_path)
         if file_result["status"] == "FOUND":
             return file_result
-        file_metadata = self.google_drive_service.create_json_file(
+        file_metadata = self.google_drive_service.create_or_update_json_file(
             self.service,
             folder_result["folder_id"],
             file_name,
@@ -102,7 +102,7 @@ class DrivePathResolver:
         )
         return {
             "logical_path": logical_path,
-            "status": "CREATED",
+            "status": "UPDATED" if file_result["status"] == "FOUND" else "CREATED",
             "folder_id": folder_result["folder_id"],
             "file_id": file_metadata.get("id", ""),
             "actual_path": f"{folder_result['actual_path']}/{file_name}",
@@ -115,20 +115,12 @@ class DrivePathResolver:
         file_name = parts[-1]
         folder_result = self.ensure_folder_path(folder_path)
         existing = self.resolve_file_path(logical_path)
-        if existing["status"] == "FOUND":
-            file_metadata = self.google_drive_service.update_json_file(
-                self.service,
-                existing["file_id"],
-                payload,
-                file_name=file_name,
-            )
-        else:
-            file_metadata = self.google_drive_service.create_json_file(
-                self.service,
-                folder_result["folder_id"],
-                file_name,
-                payload,
-            )
+        file_metadata = self.google_drive_service.create_or_update_json_file(
+            self.service,
+            folder_result["folder_id"],
+            file_name,
+            payload,
+        )
         return {
             "logical_path": logical_path,
             "status": "UPDATED" if existing["status"] == "FOUND" else "CREATED",

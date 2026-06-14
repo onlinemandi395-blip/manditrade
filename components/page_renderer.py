@@ -985,6 +985,8 @@ def render_app() -> None:
                 {"key": "user_profiles_count", "value": status.get("user_profiles_count", 0)},
                 {"key": "product_owner_consent_enabled", "value": status.get("product_owner_consent_config", {}).get("enabled", False)},
                 {"key": "product_owner_consent_count", "value": status.get("product_owner_consent_count", 0)},
+                {"key": "delivery_partner_consent_enabled", "value": status.get("delivery_partner_consent_config", {}).get("enabled", False)},
+                {"key": "delivery_partner_consent_count", "value": status.get("delivery_partner_consent_count", 0)},
             ],
             caption="Integration status",
         )
@@ -996,6 +998,7 @@ def render_app() -> None:
             caption="User profile file samples",
         )
         render_table([status.get("product_owner_consent_config", {})], caption="Product owner consent config")
+        render_table([status.get("delivery_partner_consent_config", {})], caption="Delivery partner consent config")
         render_table([status["theme_status"]], caption="Theme background trace")
         render_table(
             [

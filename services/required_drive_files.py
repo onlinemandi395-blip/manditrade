@@ -234,6 +234,28 @@ def build_required_drive_files(primary_admin_email: str, primary_admin_name: str
                         "Please share this OTP only if you agree to the onboarding."
                     ),
                 },
+                "delivery_partner_consent": {
+                    "enabled": True,
+                    "otp_length": 6,
+                    "otp_expiry_minutes": 15,
+                    "agreement_title": "Delivery Partner Pickup and Safe Delivery Consent Agreement",
+                    "agreement_body": (
+                        "This agreement confirms that the delivery partner {owner_email} authorizes MandiTrade admin "
+                        "{requested_by} to assign pickup and delivery for the product '{product_name}' on the MandiTrade platform. "
+                        "The delivery partner confirms they will coordinate pickup, handle the product safely, and deliver it "
+                        "smoothly and responsibly to the final customer or destination."
+                    ),
+                    "email_subject": "Consent OTP for delivery partner onboarding on MandiTrade",
+                    "email_body_template": (
+                        "{agreement_title}\n\n"
+                        "{agreement_body}\n\n"
+                        "Product: {product_name}\n"
+                        "Delivery Partner Email: {owner_email}\n"
+                        "Requested By: {requested_by}\n"
+                        "Consent OTP: {otp_code}\n\n"
+                        "Please share this OTP only if you agree to pickup and deliver this product safely."
+                    ),
+                },
             },
         },
         {
