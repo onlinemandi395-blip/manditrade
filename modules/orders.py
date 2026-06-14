@@ -80,7 +80,7 @@ def _render_payment_panel(payment_record: dict, *, payment_service: PaymentServi
     else:
         st.warning(t("ui.qr_not_generated"))
     if upi_link:
-        st.link_button(t("ui.open_upi_link"), upi_link, use_container_width=True)
+        st.link_button(t("ui.pay_in_upi_app"), upi_link, use_container_width=True)
     st.code(upi_link)
     st.caption(t("ui.pay_using_qr_note"))
     st.info(t("ui.admin_will_verify_payment"))

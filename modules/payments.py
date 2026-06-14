@@ -74,7 +74,7 @@ def render_payments_page(data_service, order_service, notification_service, sess
     upi_link = str(payment.get("upi_link", "") or "").strip()
     st.code(upi_link)
     if upi_link:
-        st.link_button(t("ui.open_upi_link"), upi_link, use_container_width=True)
+        st.link_button(t("ui.pay_in_upi_app"), upi_link, use_container_width=True)
     qr_bytes = qr_service.build_qr_png_bytes(str(payment.get("qr_payload", "") or upi_link).strip())
     if qr_bytes:
         st.image(qr_bytes, caption=t("ui.scan_qr_to_pay"), width=220)

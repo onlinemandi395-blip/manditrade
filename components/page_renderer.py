@@ -26,6 +26,7 @@ from modules.products import render_products_page
 from modules.shipments import render_shipments_page
 from modules.setup_console import render_setup_console
 from services.admin_drive_service import AdminDriveService
+from services.address_book_service import AddressBookService
 from services.auth_service import AuthService, get_bootstrap_primary_admin, is_bootstrap_admin
 from services.cache_service import CacheService
 from services.cart_service import CartService
@@ -103,32 +104,86 @@ def _render_payment_pending_panel(payment_record: dict) -> None:
     st.caption(f"Order Reference: {payment_record.get('payment_reference', '')}")
     st.write(f"Amount: Rs. {payment_record.get('amount_payable', payment_record.get('amount_due', 0))}")
     st.write("Payment Method: UPI")
-    qr_bytes = qr_service.build_qr_png_bytes(payment_record.get("qr_payload", "") or payment_record.get("upi_link", ""))
+    upi_link = str(payment_record.get("upi_link", "") or "").strip()
+    qr_bytes = qr_service.build_qr_png_bytes(payment_record.get("qr_payload", "") or upi_link)
     if qr_bytes:
         st.image(qr_bytes, width=220)
-    st.code(payment_record.get("upi_link", ""))
+    if upi_link:
+        st.link_button("Pay in UPI App", upi_link, use_container_width=True)
+    st.code(upi_link)
     st.caption("Pay using this QR/UPI link. Keep the payment note/reference unchanged.")
 
 
-def _render_checkout_details_form(*, key_prefix: str, email: str, translator) -> dict:
+def _format_saved_address(address: dict) -> str:
+    label = str(address.get("label", "")).strip() or "Saved Address"
+    location = ", ".join(
+        part
+        for part in [
+            str(address.get("address_line_1", "")).strip(),
+            str(address.get("city", "")).strip(),
+            str(address.get("state", "")).strip(),
+            str(address.get("pin_code", "")).strip(),
+        ]
+        if part
+    )
+    return f"{label} - {location}" if location else label
+
+
+def _render_checkout_details_form(*, key_prefix: str, email: str, user_record: dict, address_book_service: AddressBookService, translator) -> dict:
     t = translator.t if translator else (lambda key: key)
     st.markdown(f"### {t('ui.checkout_details')}")
     st.markdown(f"#### {t('ui.buyer_contact')}")
-    name = st.text_input(t("ui.full_name"), key=f"{key_prefix}_name")
-    mobile = st.text_input(t("ui.mobile_number"), key=f"{key_prefix}_mobile")
+    saved_addresses = address_book_service.list_addresses(email)
+    name = st.text_input(
+        t("ui.full_name"),
+        value=str(user_record.get("display_name", "") or "").strip(),
+        key=f"{key_prefix}_name",
+    )
+    mobile = st.text_input(
+        t("ui.mobile_number"),
+        value=str(user_record.get("mobile", "") or "").strip(),
+        key=f"{key_prefix}_mobile",
+    )
     st.text_input(t("ui.email"), value=email, disabled=True, key=f"{key_prefix}_email")
     st.markdown(f"#### {t('ui.delivery_address')}")
-    address_line_1 = st.text_input(t("ui.address_line_1"), key=f"{key_prefix}_address_1")
-    address_line_2 = st.text_input(t("ui.address_line_2"), key=f"{key_prefix}_address_2")
-    city = st.text_input(t("ui.city"), key=f"{key_prefix}_city")
-    state = st.text_input(t("ui.state"), key=f"{key_prefix}_state")
-    pin_code = st.text_input(t("ui.pin_code"), key=f"{key_prefix}_pin")
-    landmark = st.text_input(t("ui.landmark"), key=f"{key_prefix}_landmark")
+    address_options = ["__new__"] + [str(address.get("address_id", "")).strip() for address in saved_addresses]
+    selected_address_id = st.selectbox(
+        t("ui.saved_addresses"),
+        options=address_options,
+        format_func=lambda value: (
+            t("ui.add_new_address")
+            if value == "__new__"
+            else _format_saved_address(
+                next((address for address in saved_addresses if str(address.get("address_id", "")).strip() == value), {})
+            )
+        ),
+        key=f"{key_prefix}_saved_address",
+    )
+    selected_address = next(
+        (address for address in saved_addresses if str(address.get("address_id", "")).strip() == selected_address_id),
+        {},
+    )
+    address_label = st.text_input(
+        t("ui.address_label"),
+        value=str(selected_address.get("label", "") or ""),
+        key=f"{key_prefix}_address_label",
+        placeholder=t("ui.address_label_placeholder"),
+    )
+    address_line_1 = st.text_input(t("ui.address_line_1"), value=str(selected_address.get("address_line_1", "") or ""), key=f"{key_prefix}_address_1")
+    address_line_2 = st.text_input(t("ui.address_line_2"), value=str(selected_address.get("address_line_2", "") or ""), key=f"{key_prefix}_address_2")
+    city = st.text_input(t("ui.city"), value=str(selected_address.get("city", "") or ""), key=f"{key_prefix}_city")
+    state = st.text_input(t("ui.state"), value=str(selected_address.get("state", "") or ""), key=f"{key_prefix}_state")
+    pin_code = st.text_input(t("ui.pin_code"), value=str(selected_address.get("pin_code", "") or ""), key=f"{key_prefix}_pin")
+    landmark = st.text_input(t("ui.landmark"), value=str(selected_address.get("landmark", "") or ""), key=f"{key_prefix}_landmark")
+    save_address = st.checkbox(t("ui.save_address_for_future"), value=True, key=f"{key_prefix}_save_address")
     st.markdown(f"#### {t('ui.payment_method')}")
     st.selectbox(t("ui.payment_method"), options=[t("ui.upi_qr_upi_link")], key=f"{key_prefix}_payment_method")
     return {
         "name": name.strip(),
         "mobile": mobile.strip(),
+        "address_id": "" if selected_address_id == "__new__" else selected_address_id,
+        "address_label": address_label.strip(),
+        "save_address": bool(save_address),
         "delivery_address": {
             "address_line_1": address_line_1.strip(),
             "address_line_2": address_line_2.strip(),
@@ -476,6 +531,7 @@ def render_app() -> None:
     media_service = MediaService(admin_drive_service)
     notification_service = NotificationService(data_service)
     order_service = OrderService(data_service, notification_service)
+    address_book_service = AddressBookService(data_service)
     payment_config_service = PaymentConfigService(data_service, cache_service, admin_drive_service)
     cart_service = CartService()
     gmail_queue_service = GmailQueueService(data_service)
@@ -585,6 +641,8 @@ def render_app() -> None:
                         checkout = _render_checkout_details_form(
                             key_prefix="marketplace_checkout",
                             email=session_service.get_user().get("email", ""),
+                            user_record=user,
+                            address_book_service=address_book_service,
                             translator=translator,
                         )
                         if st.button(translator.t("ui.confirm_order"), use_container_width=True, key="marketplace_confirm_order"):
@@ -601,7 +659,18 @@ def render_app() -> None:
                                         delivery_address=checkout["delivery_address"],
                                         product_lookup=product_lookup,
                                     )
+                                    if checkout.get("save_address", False):
+                                        address_book_service.save_address(
+                                            email=session_service.get_user().get("email", ""),
+                                            role=user.get("role", "public_buyer"),
+                                            display_name=checkout["name"],
+                                            mobile=checkout["mobile"],
+                                            address=checkout["delivery_address"],
+                                            address_id=checkout.get("address_id", ""),
+                                            label=checkout.get("address_label", ""),
+                                        )
                                     order_service.persist_order_storage(order)
+                                    data_service.persist_collection("users")
                                     data_service.persist_collection("payments")
                                     data_service.persist_collection("notifications")
                                     data_service.persist_collection("gmail_queue")
@@ -651,6 +720,8 @@ def render_app() -> None:
                         checkout = _render_checkout_details_form(
                             key_prefix=f"manditrade_checkout_{selected_product_id}",
                             email=session_service.get_user().get("email", ""),
+                            user_record=user,
+                            address_book_service=address_book_service,
                             translator=translator,
                         )
                         if st.button(translator.t("ui.confirm_order"), use_container_width=True, key=f"manditrade_confirm_order_{selected_product_id}"):
@@ -666,7 +737,18 @@ def render_app() -> None:
                                         delivery_address=checkout["delivery_address"],
                                         requested_quantity=requested_quantity,
                                     )
+                                    if checkout.get("save_address", False):
+                                        address_book_service.save_address(
+                                            email=session_service.get_user().get("email", ""),
+                                            role=user.get("role", "public_buyer"),
+                                            display_name=checkout["name"],
+                                            mobile=checkout["mobile"],
+                                            address=checkout["delivery_address"],
+                                            address_id=checkout.get("address_id", ""),
+                                            label=checkout.get("address_label", ""),
+                                        )
                                     order_service.persist_order_storage(order)
+                                    data_service.persist_collection("users")
                                     data_service.persist_collection("payments")
                                     data_service.persist_collection("notifications")
                                     data_service.persist_collection("gmail_queue")
