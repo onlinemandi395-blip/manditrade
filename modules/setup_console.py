@@ -36,7 +36,7 @@ def _get_bootstrap_payment_settings(admin_drive_service) -> dict:
         }
 
 
-def render_setup_console(admin_drive_service, drive_manifest: dict, translator=None) -> None:
+def render_setup_console(admin_drive_service, drive_manifest: dict, translator=None, key_prefix: str = "setup") -> None:
     t = translator.t if translator else (lambda key: key)
     st.markdown(f"## {t('ui.first_time_setup')}")
     st.caption(t("ui.google_drive_database_initialization"))
@@ -53,7 +53,7 @@ def render_setup_console(admin_drive_service, drive_manifest: dict, translator=N
     setup_complete = not drive_manifest.get("missing_files") and not drive_manifest.get("missing_folders") and not root_missing
     database_status = admin_drive_service.get_database_config_status()
     cols = st.columns(7)
-    if cols[0].button("Create Root Folder", use_container_width=True, disabled=not root_missing):
+    if cols[0].button("Create Root Folder", use_container_width=True, disabled=not root_missing, key=f"{key_prefix}_create_root_folder"):
         try:
             result = admin_drive_service.ensure_root_folder()
             st.success(f"Root folder {result['status'].lower()}.")
@@ -61,14 +61,14 @@ def render_setup_console(admin_drive_service, drive_manifest: dict, translator=N
             st.rerun()
         except Exception as exc:
             st.error(f"Create Root Folder failed: {exc}")
-    if cols[1].button("Create Missing Folders", use_container_width=True, disabled=not drive_manifest.get("missing_folders")):
+    if cols[1].button("Create Missing Folders", use_container_width=True, disabled=not drive_manifest.get("missing_folders"), key=f"{key_prefix}_create_missing_folders"):
         try:
             result = admin_drive_service.create_missing_required_folders()
             st.success(f"Folders created: {len(result.get('created', []))}")
             st.rerun()
         except Exception as exc:
             st.error(f"Create Missing Folders failed: {exc}")
-    if cols[2].button("Create Missing JSON Files", use_container_width=True, disabled=not drive_manifest.get("missing_files")):
+    if cols[2].button("Create Missing JSON Files", use_container_width=True, disabled=not drive_manifest.get("missing_files"), key=f"{key_prefix}_create_missing_json_files"):
         try:
             result = admin_drive_service.create_missing_required_files()
             st.success(f"Files created: {len(result.get('created', []))}. Database mappings updated: {len(result.get('updated', []))}")
@@ -79,6 +79,7 @@ def render_setup_console(admin_drive_service, drive_manifest: dict, translator=N
         "Refresh database.json Mappings",
         use_container_width=True,
         disabled=database_status.get("status") == "OK",
+        key=f"{key_prefix}_refresh_database_mappings",
     ):
         try:
             result = admin_drive_service.refresh_database_config_mapping()
@@ -89,7 +90,7 @@ def render_setup_console(admin_drive_service, drive_manifest: dict, translator=N
             st.rerun()
         except Exception as exc:
             st.error(f"database.json refresh failed: {exc}")
-    if cols[4].button("Migrate Root Orders", use_container_width=True):
+    if cols[4].button("Migrate Root Orders", use_container_width=True, key=f"{key_prefix}_migrate_root_orders"):
         try:
             result = admin_drive_service.migrate_root_orders()
             st.success(
@@ -100,10 +101,10 @@ def render_setup_console(admin_drive_service, drive_manifest: dict, translator=N
             st.rerun()
         except Exception as exc:
             st.error(f"Root orders migration failed: {exc}")
-    if cols[5].button("Reload Cache", use_container_width=True):
+    if cols[5].button("Reload Cache", use_container_width=True, key=f"{key_prefix}_reload_cache"):
         admin_drive_service.clear_runtime_cache()
         st.rerun()
-    if cols[6].button("Continue to App", use_container_width=True, disabled=not setup_complete):
+    if cols[6].button("Continue to App", use_container_width=True, disabled=not setup_complete, key=f"{key_prefix}_continue_to_app"):
         admin_drive_service.clear_runtime_cache()
         st.rerun()
 
@@ -126,22 +127,22 @@ def render_setup_console(admin_drive_service, drive_manifest: dict, translator=N
     payment_enabled = payment_cols[0].checkbox(
         "UPI Payments Enabled",
         value=bool(payment_settings.get("enabled", True)),
-        key="setup_payment_enabled",
+        key=f"{key_prefix}_payment_enabled",
     )
     payment_currency = payment_cols[1].text_input(
         "Currency",
         value=str(payment_settings.get("currency", "INR") or "INR"),
-        key="setup_payment_currency",
+        key=f"{key_prefix}_payment_currency",
     )
     payment_upi_id = st.text_input(
         "Merchant UPI ID",
         value=str(payment_settings.get("upi_id", "") or ""),
-        key="setup_payment_upi_id",
+        key=f"{key_prefix}_payment_upi_id",
     )
     payment_payee_name = st.text_input(
         "Payee Name",
         value=str(payment_settings.get("payee_name", "") or ""),
-        key="setup_payment_payee_name",
+        key=f"{key_prefix}_payment_payee_name",
     )
     if payment_enabled and str(payment_upi_id).strip():
         payment_link = PaymentService.build_upi_link_from_values(
@@ -156,7 +157,7 @@ def render_setup_console(admin_drive_service, drive_manifest: dict, translator=N
         qr_bytes = QRService().build_qr_png_bytes(payment_link)
         if qr_bytes:
             st.image(qr_bytes, width=180)
-    if st.button("Save Payment Receiver Settings", use_container_width=True, key="setup_save_payment_config"):
+    if st.button("Save Payment Receiver Settings", use_container_width=True, key=f"{key_prefix}_save_payment_config"):
         try:
             cache_service = CacheService(ConfigLoaderService())
             result = PaymentConfigService(

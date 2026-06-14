@@ -887,7 +887,7 @@ def render_app() -> None:
         if status["google_drive_status"] != "connected" or status["required_files_status"] != "ok":
             st.error("Drive-only runtime is blocked. Required Google Drive files are missing or unavailable.")
         with st.expander("First Time Setup", expanded=bool(drive_manifest.get("missing_files") or drive_manifest.get("missing_folders"))):
-            render_setup_console(admin_drive_service, drive_manifest, translator)
+            render_setup_console(admin_drive_service, drive_manifest, translator, key_prefix="system_setup")
         refresh_cols = st.columns(6)
         if refresh_cols[0].button("Create Missing Drive Files", use_container_width=True):
             try:
