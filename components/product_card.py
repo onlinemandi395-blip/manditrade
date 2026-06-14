@@ -29,6 +29,7 @@ def render_product_card(
     inventory = dict(product.get("inventory", {}) or {})
     manditrade_rules = dict(((product.get("sales_channels") or {}).get("manditrade") or {}))
     with st.container(border=True):
+        st.markdown("<div class='mt-product-card'>", unsafe_allow_html=True)
         media = st.empty()
         renderable = media_service.get_renderable_image(primary_image) if media_service else {"render_mode": "placeholder", "bytes": None, "url": "", "error": ""}
         if renderable["render_mode"] == "bytes" and renderable.get("bytes"):
@@ -56,7 +57,10 @@ def render_product_card(
                 slideshow_context=f"{view}_{return_route}_{card_context}",
             )
             st.rerun()
-        st.markdown(f"#### {product.get('product_name', product.get('product_id', t('ui.product')))}")
+        st.markdown(
+            f"<div class='mt-product-card__title'>{product.get('product_name', product.get('product_id', t('ui.product')))}</div>",
+            unsafe_allow_html=True,
+        )
         st.caption(f"{product.get('product_code', '')} | {product.get('category', 'General')} | {product.get('status', 'ACTIVE')}")
         if view == "marketplace":
             valid_price, price_error = pricing_service.validate_channel_price(product, "marketplace")
@@ -92,3 +96,4 @@ def render_product_card(
             st.caption(f"{t('ui.owner')}: {owner.get('email', '-')}")
             st.caption(f"{t('ui.owner_role')}: {owner.get('role', '-')}")
             st.caption(f"{t('ui.inventory')}: {inventory.get('available_quantity', 0)} {product.get('unit', 'piece')}")
+        st.markdown("</div>", unsafe_allow_html=True)

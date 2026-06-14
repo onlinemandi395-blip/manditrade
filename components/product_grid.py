@@ -40,19 +40,23 @@ def render_product_grid(
     if not products:
         render_empty_state(translator.t("ui.no_products_found") if translator else "No products found.")
         return
-    grid_config = dict((((ui_config or {}).get("product_grid") or {}).get("columns", {}) or {}))
-    default_columns = int(grid_config.get("default", 3) or 3)
-    view_columns = int(grid_config.get(view, default_columns) or default_columns)
-    columns = st.columns(max(1, min(view_columns, 4)))
-    for index, product in enumerate(products):
-        with columns[index % len(columns)]:
-            render_product_card(
-                product,
-                view=view,
-                on_add_to_cart=on_add_to_cart if view == "marketplace" else on_request,
-                media_service=media_service,
-                return_route=return_route,
-                card_context=f"{grid_context}_{index}",
-                translator=translator,
-                ui_config=ui_config,
-            )
+    desktop_columns = 4
+    for row_start in range(0, len(products), desktop_columns):
+        row_products = products[row_start:row_start + desktop_columns]
+        st.markdown("<div class='mt-product-grid-row'></div>", unsafe_allow_html=True)
+        columns = st.columns(desktop_columns, gap="small")
+        for column_index, column in enumerate(columns):
+            if column_index >= len(row_products):
+                continue
+            product = row_products[column_index]
+            with column:
+                render_product_card(
+                    product,
+                    view=view,
+                    on_add_to_cart=on_add_to_cart if view == "marketplace" else on_request,
+                    media_service=media_service,
+                    return_route=return_route,
+                    card_context=f"{grid_context}_{row_start + column_index}",
+                    translator=translator,
+                    ui_config=ui_config,
+                )
