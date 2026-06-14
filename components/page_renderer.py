@@ -49,6 +49,7 @@ from services.rbac_service import RBACService
 from services.session_service import SessionService
 from services.media_service import MediaService
 from services.theme_service import ThemeService
+from services.user_profile_service import UserProfileService
 
 
 CSS_FILE = Path(__file__).resolve().parent.parent / "assets" / "styles" / "design.css"
@@ -143,16 +144,20 @@ def _sync_checkout_address_state(*, key_prefix: str, selected_address: dict) -> 
         st.session_state[state_key] = value
 
 
-def _initialize_checkout_contact_state(*, key_prefix: str, user_record: dict) -> None:
-    st.session_state.setdefault(f"{key_prefix}_name", str(user_record.get("display_name", "") or "").strip())
-    st.session_state.setdefault(f"{key_prefix}_mobile", str(user_record.get("mobile", "") or "").strip())
+def _initialize_checkout_contact_state(*, key_prefix: str, display_name: str, mobile: str) -> None:
+    st.session_state.setdefault(f"{key_prefix}_name", str(display_name or "").strip())
+    st.session_state.setdefault(f"{key_prefix}_mobile", str(mobile or "").strip())
 
 
-def _render_checkout_details_form(*, key_prefix: str, email: str, user_record: dict, address_book_service: AddressBookService, translator) -> dict:
+def _render_checkout_details_form(*, key_prefix: str, email: str, user_record: dict, user_profile: dict, address_book_service: AddressBookService, translator) -> dict:
     t = translator.t if translator else (lambda key: key)
     st.markdown(f"### {t('ui.checkout_details')}")
     st.markdown(f"#### {t('ui.buyer_contact')}")
-    _initialize_checkout_contact_state(key_prefix=key_prefix, user_record=user_record)
+    _initialize_checkout_contact_state(
+        key_prefix=key_prefix,
+        display_name=str(user_profile.get("display_name", "") or user_record.get("display_name", "") or "").strip(),
+        mobile=str(user_profile.get("mobile", "") or user_record.get("mobile", "") or "").strip(),
+    )
     saved_addresses = address_book_service.list_addresses(email)
     name = st.text_input(t("ui.full_name"), key=f"{key_prefix}_name")
     mobile = st.text_input(t("ui.mobile_number"), key=f"{key_prefix}_mobile")
@@ -543,6 +548,7 @@ def render_app() -> None:
     notification_service = NotificationService(data_service)
     order_service = OrderService(data_service, notification_service)
     address_book_service = AddressBookService(data_service)
+    user_profile_service = UserProfileService(data_service)
     payment_config_service = PaymentConfigService(data_service, cache_service, admin_drive_service)
     cart_service = CartService()
     gmail_queue_service = GmailQueueService(data_service)
@@ -554,6 +560,7 @@ def render_app() -> None:
         data_service=data_service,
     )
     form_service = FormService(cache_service)
+    user_profile = user_profile_service.get_profile(user.get("email", ""))
 
     with performance_service.measure("navigation_render"):
         navigation_items = navigation_service.get_navigation(role)
@@ -653,6 +660,7 @@ def render_app() -> None:
                             key_prefix="marketplace_checkout",
                             email=session_service.get_user().get("email", ""),
                             user_record=user,
+                            user_profile=user_profile,
                             address_book_service=address_book_service,
                             translator=translator,
                         )
@@ -676,6 +684,12 @@ def render_app() -> None:
                                         display_name=checkout["name"],
                                         mobile=checkout["mobile"],
                                     )
+                                    user_profile_service.get_or_create_profile(
+                                        email=session_service.get_user().get("email", ""),
+                                        role=user.get("role", "public_buyer"),
+                                        display_name=checkout["name"],
+                                        mobile=checkout["mobile"],
+                                    )
                                     if checkout.get("save_address", False):
                                         address_book_service.save_address(
                                             email=session_service.get_user().get("email", ""),
@@ -685,6 +699,16 @@ def render_app() -> None:
                                             address=checkout["delivery_address"],
                                             address_id=checkout.get("address_id", ""),
                                             label=checkout.get("address_label", ""),
+                                        )
+                                    else:
+                                        user_profile_service.save_profile(
+                                            actor_email=session_service.get_user().get("email", ""),
+                                            actor_role=user.get("role", "public_buyer"),
+                                            target_email=session_service.get_user().get("email", ""),
+                                            updates={
+                                                "display_name": checkout["name"],
+                                                "mobile": checkout["mobile"],
+                                            },
                                         )
                                     order_service.persist_order_storage(order)
                                     data_service.persist_collection("users")
@@ -738,6 +762,7 @@ def render_app() -> None:
                             key_prefix=f"manditrade_checkout_{selected_product_id}",
                             email=session_service.get_user().get("email", ""),
                             user_record=user,
+                            user_profile=user_profile,
                             address_book_service=address_book_service,
                             translator=translator,
                         )
@@ -760,6 +785,12 @@ def render_app() -> None:
                                         display_name=checkout["name"],
                                         mobile=checkout["mobile"],
                                     )
+                                    user_profile_service.get_or_create_profile(
+                                        email=session_service.get_user().get("email", ""),
+                                        role=user.get("role", "public_buyer"),
+                                        display_name=checkout["name"],
+                                        mobile=checkout["mobile"],
+                                    )
                                     if checkout.get("save_address", False):
                                         address_book_service.save_address(
                                             email=session_service.get_user().get("email", ""),
@@ -769,6 +800,16 @@ def render_app() -> None:
                                             address=checkout["delivery_address"],
                                             address_id=checkout.get("address_id", ""),
                                             label=checkout.get("address_label", ""),
+                                        )
+                                    else:
+                                        user_profile_service.save_profile(
+                                            actor_email=session_service.get_user().get("email", ""),
+                                            actor_role=user.get("role", "public_buyer"),
+                                            target_email=session_service.get_user().get("email", ""),
+                                            updates={
+                                                "display_name": checkout["name"],
+                                                "mobile": checkout["mobile"],
+                                            },
                                         )
                                     order_service.persist_order_storage(order)
                                     data_service.persist_collection("users")

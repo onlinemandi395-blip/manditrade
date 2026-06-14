@@ -3,6 +3,8 @@ from __future__ import annotations
 from copy import deepcopy
 from uuid import uuid4
 
+from services.user_profile_service import UserProfileService
+
 
 class AddressBookService:
     ADDRESS_FIELDS = (
@@ -16,6 +18,7 @@ class AddressBookService:
 
     def __init__(self, data_service) -> None:
         self.data_service = data_service
+        self.user_profile_service = UserProfileService(data_service)
 
     def _normalize_email(self, email: str) -> str:
         return str(email or "").strip().lower()
@@ -67,12 +70,10 @@ class AddressBookService:
         )
 
     def list_addresses(self, email: str) -> list[dict]:
-        user = self._get_user_record(email)
-        if not user:
-            return []
+        profile = self.user_profile_service.get_profile(email)
         return [
             self._sanitize_address(address)
-            for address in (user.get("addresses", []) or [])
+            for address in (profile.get("addresses", []) or [])
             if any(str((address or {}).get(field, "")).strip() for field in self.ADDRESS_FIELDS)
         ]
 
@@ -97,6 +98,12 @@ class AddressBookService:
             display_name=display_name,
             mobile=mobile,
         )
+        profile = self.user_profile_service.get_or_create_profile(
+            email=normalized_email,
+            role=role,
+            display_name=display_name,
+            mobile=mobile,
+        )
 
         normalized_address_id = str(address_id or sanitized_address.get("address_id", "")).strip()
         if not normalized_address_id:
@@ -106,7 +113,7 @@ class AddressBookService:
             "address_id": normalized_address_id,
             "label": str(label or sanitized_address.get("label", "") or "Saved Address").strip(),
         }
-        addresses = list(record.get("addresses", []) or [])
+        addresses = list(profile.get("addresses", []) or [])
         existing = next(
             (item for item in addresses if str((item or {}).get("address_id", "")).strip() == normalized_address_id),
             None,
@@ -115,5 +122,15 @@ class AddressBookService:
             existing.update(next_record)
         else:
             addresses.append(next_record)
-        record["addresses"] = addresses
+        profile["addresses"] = addresses
+        profile["mobile"] = str(mobile or profile.get("mobile", "")).strip()
+        profile["display_name"] = str(display_name or profile.get("display_name", "")).strip()
+        self.user_profile_service.save_profile(
+            actor_email=normalized_email,
+            actor_role=role,
+            target_email=normalized_email,
+            updates=profile,
+        )
+        record["mobile"] = str(mobile or record.get("mobile", "")).strip()
+        record["profile_path"] = self.user_profile_service._profile_logical_path(normalized_email)  # noqa: SLF001
         return deepcopy(next_record)

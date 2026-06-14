@@ -70,6 +70,7 @@ class AdminDriveService:
             "00_config",
             "00_config/languages",
             "01_identity",
+            "01_identity/profiles",
             "02_catalog",
             "05_orders",
             "05_orders/marketplace",
