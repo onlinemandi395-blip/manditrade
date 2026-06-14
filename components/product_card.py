@@ -61,19 +61,35 @@ def render_product_card(
             f"<div class='mt-product-card__title'>{product.get('product_name', product.get('product_id', t('ui.product')))}</div>",
             unsafe_allow_html=True,
         )
-        st.caption(f"{product.get('product_code', '')} | {product.get('category', 'General')} | {product.get('status', 'ACTIVE')}")
+        st.markdown(
+            f"<div class='mt-product-card__meta'>{product.get('category', 'General')} • {product.get('subcategory', 'General')}</div>",
+            unsafe_allow_html=True,
+        )
         if view == "marketplace":
             valid_price, price_error = pricing_service.validate_channel_price(product, "marketplace")
             if valid_price:
-                st.write(f"{t('field.marketplace_price')}: {pricing_service.resolve_sell_price(product, 'marketplace')}")
+                st.markdown(
+                    f"<div class='mt-product-card__price'>Rs. {float(pricing_service.resolve_sell_price(product, 'marketplace') or 0):g}</div>",
+                    unsafe_allow_html=True,
+                )
+                st.markdown("<div class='mt-product-card__badge'>4.2 ★ • Best Value</div>", unsafe_allow_html=True)
+                st.markdown("<div class='mt-product-card__promise'>Delivery by MandiTrade</div>", unsafe_allow_html=True)
             else:
                 st.error(price_error)
-            if valid_price and st.button(t("action.add_to_cart"), key=f"cart_{product.get('product_id', '')}", use_container_width=True) and on_add_to_cart:
+            action_cols = st.columns(2, gap="small")
+            if valid_price and action_cols[0].button(t("action.add_to_cart"), key=f"marketplace_{product.get('product_id', '')}_cart", use_container_width=True) and on_add_to_cart:
+                on_add_to_cart(product)
+            if valid_price and action_cols[1].button("Buy Now", key=f"marketplace_{product.get('product_id', '')}_buy", use_container_width=True) and on_add_to_cart:
                 on_add_to_cart(product)
         elif view == "manditrade":
             valid_price, price_error = pricing_service.validate_channel_price(product, "manditrade")
             if valid_price:
-                st.write(f"{t('field.manditrade_price')}: {pricing_service.resolve_sell_price(product, 'manditrade')}")
+                st.markdown(
+                    f"<div class='mt-product-card__price'>Rs. {float(pricing_service.resolve_sell_price(product, 'manditrade') or 0):g}</div>",
+                    unsafe_allow_html=True,
+                )
+                st.markdown("<div class='mt-product-card__badge'>B2B Price</div>", unsafe_allow_html=True)
+                st.markdown("<div class='mt-product-card__promise'>Business Delivery</div>", unsafe_allow_html=True)
             else:
                 st.error(price_error)
             st.caption(
@@ -81,7 +97,7 @@ def render_product_card(
                 f"{t('ui.increment_quantity')}: {float(manditrade_rules.get('increment_quantity', 1) or 1):g}"
             )
             st.caption(f"{t('ui.inventory')}: {inventory.get('available_quantity', 0)} {product.get('unit', 'piece')}")
-            if valid_price and st.button(t("ui.request_order"), key=f"request_{product.get('product_id', '')}", use_container_width=True) and on_add_to_cart:
+            if valid_price and st.button(t("ui.request_order"), key=f"manditrade_{product.get('product_id', '')}_request", use_container_width=True) and on_add_to_cart:
                 on_add_to_cart(product)
         else:
             marketplace_price = pricing.get("marketplace_price", "")

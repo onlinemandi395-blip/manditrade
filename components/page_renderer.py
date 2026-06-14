@@ -9,6 +9,8 @@ from components.detail_panel import render_detail_panel
 from components.empty_state import render_empty_state
 from components.form_renderer import render_form
 from components.html_renderer import inject_css, inject_inline_css
+from components.cart_panel import render_cart_panel
+from components.checkout_steps import render_checkout_steps
 from components.sidebar import render_sidebar
 from components.table_renderer import render_table
 from components.theme_manager import render_theme_manager
@@ -55,6 +57,7 @@ from services.user_profile_service import UserProfileService
 
 
 CSS_FILE = Path(__file__).resolve().parent.parent / "assets" / "styles" / "design.css"
+COMMERCE_CSS_FILE = Path(__file__).resolve().parent.parent / "assets" / "styles" / "commerce.css"
 BOOTSTRAP_APP_CONFIG = {
     "default_role": "public_buyer",
     "default_language": "en",
@@ -430,6 +433,7 @@ def _render_root_setup_console(session_service: SessionService, admin_drive_serv
 
 def render_app() -> None:
     inject_css(CSS_FILE)
+    inject_css(COMMERCE_CSS_FILE)
     session_service = SessionService(BOOTSTRAP_APP_CONFIG)
     oauth_service = GoogleOAuthService()
     admin_drive_service = AdminDriveService()
@@ -650,16 +654,24 @@ def render_app() -> None:
         render_marketplace_page(products, on_add_to_cart=on_add_to_cart, media_service=media_service, translator=translator, ui_config=ui_config)
         cart = cart_service.get_cart()
         if cart.get("items"):
-            with st.container(border=True):
-                st.subheader(translator.t("ui.cart"))
-                _render_marketplace_cart_editor(cart_service, translator)
-                st.write(f"Total: {cart_service.calculate_total()}")
+            cart_cols = st.columns([2.5, 1], gap="large")
+            with cart_cols[0]:
+                with st.container(border=True):
+                    st.subheader(translator.t("ui.cart"))
+                    _render_marketplace_cart_editor(cart_service, translator)
+            with cart_cols[1]:
+                checkout_requested = render_cart_panel(cart, cart_service=cart_service, route="marketplace", translator=translator)
                 if not payment_config.get("enabled", False):
                     st.error("Payment config missing or disabled. Checkout is unavailable.")
                 else:
-                    if st.button(translator.t("ui.checkout"), use_container_width=True, key="marketplace_checkout_open"):
+                    if checkout_requested:
                         st.session_state["mt_marketplace_checkout_open"] = True
                     if st.session_state.get("mt_marketplace_checkout_open", False):
+                        render_checkout_steps(
+                            title="Checkout",
+                            item_count=len(cart.get("items", [])),
+                            total_amount=cart_service.calculate_total(),
+                        )
                         checkout = _render_checkout_details_form(
                             key_prefix="marketplace_checkout",
                             email=session_service.get_user().get("email", ""),
@@ -762,6 +774,11 @@ def render_app() -> None:
                                 f"{translator.t('ui.minimum_quantity')}: {float(quantity_rules.get('minimum_quantity', 1) or 1):g} | "
                                 f"{translator.t('ui.increment_quantity')}: {float(quantity_rules.get('increment_quantity', 1) or 1):g}"
                             ),
+                        )
+                        render_checkout_steps(
+                            title="Bulk order checkout",
+                            item_count=1,
+                            total_amount=float(selected_product.get("pricing", {}).get("manditrade_price", 0) or 0) * float(requested_quantity or 0),
                         )
                         checkout = _render_checkout_details_form(
                             key_prefix=f"manditrade_checkout_{selected_product_id}",
