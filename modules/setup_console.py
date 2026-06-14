@@ -201,6 +201,6 @@ def render_setup_console(admin_drive_service, drive_manifest: dict, translator=N
         render_table([theme_file], caption="theme.json status")
     if not root_missing:
         theme_service = ThemeService(admin_drive_service, CacheService(ConfigLoaderService()))
-        render_theme_manager(theme_service, allow_set_default=True, title="Theme Background Setup")
+        render_theme_manager(theme_service, allow_set_default=True, title="Theme Background Setup", key_prefix=f"{key_prefix}_theme")
     else:
         st.info("Theme background setup will be available after the active Drive root is created.")

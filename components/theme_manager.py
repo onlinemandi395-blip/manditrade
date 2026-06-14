@@ -5,7 +5,7 @@ import streamlit as st
 from components.table_renderer import render_table
 
 
-def render_theme_manager(theme_service, *, allow_set_default: bool = False, title: str = "Theme Backgrounds") -> None:
+def render_theme_manager(theme_service, *, allow_set_default: bool = False, title: str = "Theme Backgrounds", key_prefix: str = "theme_manager") -> None:
     st.markdown(f"### {title}")
     status = theme_service.get_background_status()
     backgrounds = theme_service.list_available_backgrounds()
@@ -19,11 +19,11 @@ def render_theme_manager(theme_service, *, allow_set_default: bool = False, titl
     summary_cols[3].metric("Active Theme", "Session Override" if selected_background.get("file_id") else "Default")
 
     action_cols = st.columns(3 if allow_set_default else 2)
-    if action_cols[0].button("Refresh Theme Backgrounds", use_container_width=True):
+    if action_cols[0].button("Refresh Theme Backgrounds", use_container_width=True, key=f"{key_prefix}_refresh_backgrounds"):
         theme_service.clear_background_list_cache()
         theme_service.clear_theme_cache()
         st.rerun()
-    if action_cols[1].button("Use Default Theme", use_container_width=True, disabled=not selected_background.get("file_id")):
+    if action_cols[1].button("Use Default Theme", use_container_width=True, disabled=not selected_background.get("file_id"), key=f"{key_prefix}_use_default_theme"):
         theme_service.clear_selected_background()
         theme_service.clear_theme_cache()
         st.rerun()
@@ -39,17 +39,17 @@ def render_theme_manager(theme_service, *, allow_set_default: bool = False, titl
             options=[row["value"] for row in options],
             format_func=lambda value: next((row["label"] for row in options if row["value"] == value), value or "Default Theme"),
             index=next((idx for idx, row in enumerate(options) if row["value"] == current_value), 0),
-            key=f"theme_background_selector_{title}",
+            key=f"{key_prefix}_background_selector",
         )
         chosen = next((row for row in backgrounds if row.get("file_id", "") == selected_value), None)
 
         if selected_value:
             preview_cols = st.columns(2 if allow_set_default else 1)
-            if preview_cols[0].button("Apply Theme For My Session", use_container_width=True):
+            if preview_cols[0].button("Apply Theme For My Session", use_container_width=True, key=f"{key_prefix}_apply_session_theme"):
                 theme_service.set_selected_background(chosen)
                 theme_service.clear_theme_cache()
                 st.rerun()
-            if allow_set_default and preview_cols[1].button("Set As Default Theme", use_container_width=True):
+            if allow_set_default and preview_cols[1].button("Set As Default Theme", use_container_width=True, key=f"{key_prefix}_set_default_theme"):
                 theme_service.save_default_background(chosen or {})
                 st.success("Default theme updated.")
                 st.rerun()
@@ -63,7 +63,7 @@ def render_theme_manager(theme_service, *, allow_set_default: bool = False, titl
             if preview_bytes:
                 st.image(preview_bytes, caption=chosen.get("file_name", "Theme background"), use_container_width=True)
         elif allow_set_default and len(action_cols) > 2:
-            action_cols[2].button("Set As Default Theme", use_container_width=True, disabled=True)
+            action_cols[2].button("Set As Default Theme", use_container_width=True, disabled=True, key=f"{key_prefix}_set_default_theme_disabled")
     else:
         st.warning("No background images found in Drive under 15_media/app_assets/backgrounds.")
 

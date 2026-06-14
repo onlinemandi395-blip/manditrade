@@ -1056,7 +1056,7 @@ def render_app() -> None:
                 st.rerun()
             except Exception as exc:
                 st.error(f"Save Payment Receiver Settings failed: {exc}")
-        render_theme_manager(theme_service, allow_set_default=(role == "platform_admin"), title="Theme Background Control")
+        render_theme_manager(theme_service, allow_set_default=(role == "platform_admin"), title="Theme Background Control", key_prefix="system_health_theme")
         render_detail_panel("Cache Status", status["cache_status"])
     else:
         render_empty_state("Unsupported page type.")

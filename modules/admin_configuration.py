@@ -132,4 +132,4 @@ def render_admin_configuration(auth_service, data_service, notification_service,
     with tabs[2]:
         st.info(t("ui.integrations_drive_backed"))
         theme_service = ThemeService(admin_drive_service, CacheService(ConfigLoaderService()))
-        render_theme_manager(theme_service, allow_set_default=True, title=t("ui.theme_background_manager"))
+        render_theme_manager(theme_service, allow_set_default=True, title=t("ui.theme_background_manager"), key_prefix="admin_theme")
