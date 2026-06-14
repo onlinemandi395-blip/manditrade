@@ -857,6 +857,7 @@ def render_app() -> None:
                 notification_service=notification_service,
                 session_service=session_service,
                 translator=translator,
+                media_service=media_service,
             )
         elif current_route == "completed_deliveries":
             render_completed_deliveries_page(data_service, session_service)

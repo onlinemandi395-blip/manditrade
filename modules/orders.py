@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from components.empty_state import render_empty_state
 from components.table_renderer import render_table
 from services.document_service import DocumentService
 from services.payment_service import PaymentService
@@ -111,7 +112,68 @@ def _render_buyer_status_tracker(selected_order: dict, translator=None) -> None:
                 st.caption(t(f"status.{stage.lower()}"))
 
 
-def render_orders_page(rows: list[dict], role: str, *, data_service=None, order_service=None, notification_service=None, session_service=None, translator=None) -> None:
+def _invoice_ready(order: dict) -> bool:
+    payment_status = str(order.get("payment_status", order.get("status", "")) or "").strip().upper()
+    return payment_status in {"VERIFIED", "PAYMENT_VERIFIED"} or str(order.get("status", "")).strip().upper() == "PAYMENT_VERIFIED"
+
+
+def _render_order_cards(
+    filtered_rows: list[dict],
+    *,
+    products_by_id: dict[str, dict],
+    media_service=None,
+    key_prefix: str,
+    translator=None,
+) -> str:
+    t = translator.t if translator else (lambda key: key)
+    no_orders_text = "No orders found."
+    invoice_ready_text = "Invoice ready for download."
+    invoice_after_payment_text = "Invoice will be available after admin confirms the payment."
+    if not filtered_rows:
+        render_empty_state(no_orders_text)
+        return ""
+    selected_order_id = str(st.session_state.get(f"order_card_selected_{key_prefix}", "") or "").strip()
+    for row_start in range(0, len(filtered_rows), 4):
+        row_orders = filtered_rows[row_start:row_start + 4]
+        columns = st.columns(4, gap="small")
+        for column_index, column in enumerate(columns):
+            if column_index >= len(row_orders):
+                continue
+            order = row_orders[column_index]
+            product = dict(products_by_id.get(str(order.get("product_id", "")).strip(), {}) or {})
+            images = [dict(image or {}) for image in (product.get("images", []) or [])]
+            primary_image = next((image for image in images if image.get("is_primary")), images[0] if images else {})
+            with column:
+                with st.container(border=True):
+                    renderable = media_service.get_renderable_image(primary_image) if media_service and primary_image else {"render_mode": "placeholder"}
+                    if renderable.get("render_mode") == "bytes" and renderable.get("bytes"):
+                        st.image(renderable["bytes"], use_container_width=True)
+                    elif renderable.get("render_mode") == "url" and renderable.get("url"):
+                        st.image(renderable["url"], use_container_width=True)
+                    else:
+                        st.markdown("<div class='mt-product-card__media'>No Image</div>", unsafe_allow_html=True)
+                    st.markdown(f"**{order.get('product_name', order.get('order_id', 'Order'))}**")
+                    st.caption(f"{order.get('order_id', '')} | {order.get('source_channel', '').upper()}")
+                    st.caption(
+                        f"{t('field.quantity')}: {float(order.get('quantity', 0) or 0):g} | "
+                        f"{t('ui.amount')}: Rs. {float(order.get('total_amount', 0) or 0):g}"
+                    )
+                    st.caption(f"{t('field.status')}: {order.get('status', '')}")
+                    if _invoice_ready(order):
+                        st.caption(invoice_ready_text)
+                    else:
+                        st.caption(invoice_after_payment_text)
+                    if st.button(
+                        t("ui.order_detail"),
+                        key=f"order_card_open_{key_prefix}_{order.get('order_id', '')}",
+                        use_container_width=True,
+                    ):
+                        st.session_state[f"order_card_selected_{key_prefix}"] = str(order.get("order_id", "")).strip()
+                        st.rerun()
+    return selected_order_id
+
+
+def render_orders_page(rows: list[dict], role: str, *, data_service=None, order_service=None, notification_service=None, session_service=None, translator=None, media_service=None) -> None:
     t = translator.t if translator else (lambda key: key)
     document_service = DocumentService()
     current_user_email = str(((session_service.get_user() if session_service else {}) or {}).get("email", "")).strip().lower()
@@ -121,15 +183,37 @@ def render_orders_page(rows: list[dict], role: str, *, data_service=None, order_
         with tab:
             key_prefix = f"{role}_{label}_{str(label).strip().lower().replace(' ', '_')}"
             filtered_rows = filter_fn(rows)
-            render_table(filtered_rows, caption=label)
             if not filtered_rows:
+                if role == "public_buyer":
+                    render_empty_state("No orders found.")
+                else:
+                    render_table(filtered_rows, caption=label)
                 continue
+            products_by_id = {}
+            if data_service is not None:
+                products_by_id = {
+                    str(row.get("product_id", "")).strip(): row
+                    for row in data_service.get_collection_ref("products")
+                    if str(row.get("product_id", "")).strip()
+                }
+            if role == "public_buyer":
+                selected_order_id = _render_order_cards(
+                    filtered_rows,
+                    products_by_id=products_by_id,
+                    media_service=media_service,
+                    key_prefix=key_prefix,
+                    translator=translator,
+                )
+            else:
+                render_table(filtered_rows, caption=label)
+                selected_order_id = ""
             order_map = {str(row.get("order_id", "")).strip(): row for row in filtered_rows if str(row.get("order_id", "")).strip()}
-            selected_order_id = st.selectbox(
-                f"{label} {t('ui.order_detail')}",
-                options=[""] + list(order_map.keys()),
-                key=f"order_detail_{key_prefix}",
-            )
+            if role != "public_buyer":
+                selected_order_id = st.selectbox(
+                    f"{label} {t('ui.order_detail')}",
+                    options=[""] + list(order_map.keys()),
+                    key=f"order_detail_{key_prefix}",
+                )
             selected_order = order_map.get(selected_order_id)
             if not selected_order:
                 continue
@@ -144,14 +228,17 @@ def render_orders_page(rows: list[dict], role: str, *, data_service=None, order_
                 f"{t('field.quantity')}: {selected_order.get('quantity', 0)} | "
                 f"{t('ui.amount')}: {selected_order.get('total_amount', 0)}"
             )
-            invoice_html = document_service.build_invoice_html(selected_order)
-            st.download_button(
-                t("ui.download_invoice"),
-                data=invoice_html.encode("utf-8"),
-                file_name=f"{selected_order_id}_invoice.html",
-                mime="text/html",
-                key=f"download_invoice_{key_prefix}_{selected_order_id}",
-            )
+            if _invoice_ready(selected_order):
+                invoice_html = document_service.build_invoice_html(selected_order)
+                st.download_button(
+                    t("ui.download_invoice"),
+                    data=invoice_html.encode("utf-8"),
+                    file_name=f"{selected_order_id}_invoice.html",
+                    mime="text/html",
+                    key=f"download_invoice_{key_prefix}_{selected_order_id}",
+                )
+            else:
+                st.info("Invoice will be available after admin confirms the payment.")
             if data_service is not None:
                 shipment_rows = data_service.get_collection_ref("shipments")
                 related_shipment = next((row for row in shipment_rows if str(row.get("order_id", "")).strip() == selected_order_id), {})
