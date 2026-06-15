@@ -45,6 +45,7 @@ def render_manditrade_page(products: list[dict], on_request=None, media_service=
         for product in products
         if ((product.get("sales_channels") or {}).get("manditrade") or {}).get("enabled")
         and str(product.get("status", "PENDING_APPROVAL")).upper() == "APPROVED"
+        and str(product.get("posting_status", "READY_TO_POST")).upper() == "READY_TO_POST"
         and (not query or _matches_search(product, query))
         and (selected_category == "All" or str(product.get("category", "")).strip() == selected_category)
         and (filters["availability"] == "All" or float(((product.get("inventory") or {}).get("available_quantity", 0) or 0)) > 0)

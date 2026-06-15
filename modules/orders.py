@@ -37,9 +37,9 @@ def _tabs_for_role(role: str, current_user_email: str = "", translator=None) -> 
                 row
                 for row in rows
                 if str(row.get("status", "")).upper() == "PAYMENT_PENDING"
-                and str(row.get("requester_email", "") or row.get("buyer_email", "")).strip().lower() == current_user_email
+                and str(row.get("owner_email", "")).strip().lower() == current_user_email
             ],
-            t("ui.payment_verified"): lambda rows: [row for row in rows if str(row.get("status", "")).upper() == "PAYMENT_VERIFIED"],
+            t("ui.payment_verified"): lambda rows: [row for row in rows if str(row.get("status", "")).upper() == "OWNER_ACCEPTED"],
             t("ui.accepted"): lambda rows: [row for row in rows if str(row.get("owner_status", "")).upper() == "ACCEPTED"],
             t("ui.ready_assigned"): lambda rows: [row for row in rows if str(row.get("status", "")).upper() in {"READY_FOR_PICKUP", "PICKUP_ASSIGNED", "PICKED_UP"}],
             t("ui.in_progress"): lambda rows: [row for row in rows if str(row.get("status", "")).upper() in {"IN_TRANSIT"}],
@@ -84,7 +84,13 @@ def _render_payment_panel(payment_record: dict, *, payment_service: PaymentServi
         st.link_button(t("ui.pay_in_upi_app"), upi_link, use_container_width=True)
     st.code(upi_link)
     st.caption(t("ui.pay_using_qr_note"))
-    st.info(t("ui.admin_will_verify_payment"))
+    if str(payment_record.get("receiver_payee_name", "")).strip():
+        st.caption(f"Payee: {payment_record.get('receiver_payee_name', '')}")
+    if str(payment_record.get("receiver_upi_id", "")).strip():
+        st.caption(f"UPI ID: {payment_record.get('receiver_upi_id', '')}")
+    if str(payment_record.get("receiver_gst_number", "")).strip():
+        st.caption(f"GST: {payment_record.get('receiver_gst_number', '')}")
+    st.info("Payment will be confirmed by the product owner.")
 
 
 def _render_buyer_status_tracker(selected_order: dict, translator=None) -> None:
@@ -128,7 +134,7 @@ def _render_order_cards(
     t = translator.t if translator else (lambda key: key)
     no_orders_text = "No orders found."
     invoice_ready_text = "Invoice ready for download."
-    invoice_after_payment_text = "Invoice will be available after admin confirms the payment."
+    invoice_after_payment_text = "Invoice will be available after the owner confirms the payment."
     if not filtered_rows:
         render_empty_state(no_orders_text)
         return ""
@@ -238,7 +244,7 @@ def render_orders_page(rows: list[dict], role: str, *, data_service=None, order_
                     key=f"download_invoice_{key_prefix}_{selected_order_id}",
                 )
             else:
-                st.info("Invoice will be available after admin confirms the payment.")
+                st.info("Invoice will be available after the owner confirms the payment.")
             if data_service is not None:
                 shipment_rows = data_service.get_collection_ref("shipments")
                 related_shipment = next((row for row in shipment_rows if str(row.get("order_id", "")).strip() == selected_order_id), {})
@@ -256,6 +262,7 @@ def render_orders_page(rows: list[dict], role: str, *, data_service=None, order_
                     f"Next action: admin_status={selected_order.get('admin_status', '')}, "
                     f"payment_id={selected_order.get('payment_id', '')}"
                 )
+                st.caption("Shipment execution and pickup assignment are handled directly by the manufacturer or mahajan.")
                 if data_service is not None and order_service is not None and session_service is not None:
                     st.markdown(f"##### {t('ui.admin_cleanup')}")
                     if st.button(t("ui.delete_order"), use_container_width=True, type="primary", key=f"delete_order_{key_prefix}_{selected_order_id}"):
@@ -277,73 +284,6 @@ def render_orders_page(rows: list[dict], role: str, *, data_service=None, order_
                             st.rerun()
                         except Exception as exc:
                             st.error(f"Delete Order failed: {exc}")
-
-                    current_status = str(selected_order.get("status", "")).upper()
-                    if current_status == "PAYMENT_PENDING":
-                        st.markdown(f"##### {t('ui.admin_action_verify_payment')}")
-                        verify_cols = st.columns(3)
-                        amount_received = verify_cols[0].number_input(
-                            t("ui.amount_received"),
-                            min_value=0.0,
-                            step=1.0,
-                            value=float(selected_order.get("total_amount", 0) or 0),
-                            key=f"orders_verify_amount_{key_prefix}_{selected_order_id}",
-                        )
-                        transaction_reference = verify_cols[1].text_input(
-                            t("ui.transaction_reference"),
-                            key=f"orders_verify_ref_{key_prefix}_{selected_order_id}",
-                        )
-                        notes = verify_cols[2].text_input(
-                            t("ui.notes"),
-                            key=f"orders_verify_notes_{key_prefix}_{selected_order_id}",
-                        )
-                        if st.button(t("ui.verify_payment"), use_container_width=True, key=f"orders_verify_payment_{key_prefix}_{selected_order_id}"):
-                            order_service.verify_payment(
-                                order_id=selected_order_id,
-                                amount_received=amount_received,
-                                transaction_reference=transaction_reference,
-                                notes=notes,
-                                verified_by=session_service.get_user().get("email", ""),
-                            )
-                            data_service.persist_collection("payments")
-                            order_service.persist_order_storage(selected_order_id)
-                            data_service.persist_collection("notifications")
-                            data_service.persist_collection("gmail_queue")
-                            st.success(t("ui.payment_verified_from_orders_page"))
-                            st.rerun()
-                    elif current_status == "READY_FOR_PICKUP":
-                        st.markdown(f"##### {t('ui.admin_action_assign_delivery_partner')}")
-                        users = data_service.get_collection_ref("users")
-                        delivery_partners = [
-                            row for row in users
-                            if str(row.get("role", "")).strip().lower() == "delivery_partner"
-                            and str(row.get("status", "ACTIVE")).strip().upper() == "ACTIVE"
-                        ]
-                        if delivery_partners:
-                            partner_map = {row.get("email", ""): row for row in delivery_partners}
-                            selected_partner_email = st.selectbox(
-                                t("role.delivery_partner"),
-                                options=[""] + list(partner_map.keys()),
-                                format_func=lambda value: (
-                                    f"{partner_map[value].get('display_name', value)} ({value})" if value in partner_map else value
-                                ),
-                                index=([""] + list(partner_map.keys())).index(str(selected_order.get("preferred_delivery_partner_email", "")).strip().lower()) if str(selected_order.get("preferred_delivery_partner_email", "")).strip().lower() in ([""] + list(partner_map.keys())) else 0,
-                                key=f"orders_delivery_partner_{key_prefix}_{selected_order_id}",
-                            )
-                            if st.button(t("ui.assign_pickup"), use_container_width=True, key=f"orders_assign_pickup_{key_prefix}_{selected_order_id}") and selected_partner_email:
-                                order_service.assign_delivery_partner(
-                                    order_id=selected_order_id,
-                                    delivery_partner_email=selected_partner_email,
-                                    assigned_by=session_service.get_user().get("email", ""),
-                                )
-                                order_service.persist_order_storage(selected_order_id)
-                                data_service.persist_collection("shipments")
-                                data_service.persist_collection("notifications")
-                                data_service.persist_collection("gmail_queue")
-                                st.success(t("ui.pickup_assigned_from_orders_page"))
-                                st.rerun()
-                        else:
-                            st.caption(t("ui.no_active_delivery_partners"))
             if role == "public_buyer":
                 st.markdown(f"#### {t('ui.order_status_tracker')}")
                 _render_buyer_status_tracker(selected_order, translator)
@@ -364,3 +304,38 @@ def render_orders_page(rows: list[dict], role: str, *, data_service=None, order_
                     if payment_link_changed:
                         data_service.persist_collection("payments")
                     _render_payment_panel(payment_record, payment_service=payment_service, translator=translator)
+            if (
+                role in {"manufacturer", "mahajan"}
+                and data_service is not None
+                and order_service is not None
+                and str(selected_order.get("owner_email", "")).strip().lower() == current_user_email
+                and str(selected_order.get("status", "")).upper() == "PAYMENT_PENDING"
+            ):
+                st.markdown("##### Confirm Payment and Order")
+                owner_cols = st.columns(3)
+                amount_received = owner_cols[0].number_input(
+                    "Amount Received",
+                    min_value=0.0,
+                    step=1.0,
+                    value=float(selected_order.get("total_amount", 0) or 0),
+                    key=f"owner_verify_amount_{key_prefix}_{selected_order_id}",
+                )
+                transaction_reference = owner_cols[1].text_input(
+                    "Transaction Reference",
+                    key=f"owner_verify_ref_{key_prefix}_{selected_order_id}",
+                )
+                notes = owner_cols[2].text_input("Notes", key=f"owner_verify_notes_{key_prefix}_{selected_order_id}")
+                if st.button("Confirm Payment", use_container_width=True, key=f"owner_verify_payment_{key_prefix}_{selected_order_id}"):
+                    order_service.owner_verify_payment(
+                        order_id=selected_order_id,
+                        amount_received=amount_received,
+                        transaction_reference=transaction_reference,
+                        notes=notes,
+                        owner_email=current_user_email,
+                    )
+                    data_service.persist_collection("payments")
+                    order_service.persist_order_storage(selected_order_id)
+                    data_service.persist_collection("notifications")
+                    data_service.persist_collection("gmail_queue")
+                    st.success("Payment confirmed and order accepted.")
+                    st.rerun()

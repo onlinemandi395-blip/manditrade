@@ -24,6 +24,7 @@ from modules.manditrade import render_manditrade_page
 from modules.marketplace import render_marketplace_page
 from modules.orders import render_orders_page
 from modules.payments import render_payments_page
+from modules.profile import render_profile_page
 from modules.products import render_products_page
 from modules.shipments import render_shipments_page
 from modules.setup_console import render_setup_console
@@ -320,10 +321,7 @@ def _filter_role_rows(route: str, rows: list[dict], role: str, user_email: str) 
                         str(row.get("requester_email", "")).strip().lower(),
                         str(row.get("requesting_user_email", "")).strip().lower(),
                     }
-                    or (
-                        str(row.get("owner_email", "")).strip().lower() == normalized_email
-                        and str(row.get("status", "")).strip().upper() != "PAYMENT_PENDING"
-                    )
+                    or str(row.get("owner_email", "")).strip().lower() == normalized_email
                 )
             ]
         if role == "public_buyer":
@@ -850,6 +848,8 @@ def render_app() -> None:
                                     st.error(str(exc))
     elif page_definition.get("type") == "products_admin":
         render_products_page(data_service, notification_service, session_service, cache_service, translator)
+    elif current_route == "profile":
+        render_profile_page(data_service, session_service)
     elif current_route == "notifications":
         render_notifications_page(notification_service, data_service, session_service, translator)
     elif current_route == "payments":

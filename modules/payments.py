@@ -29,7 +29,7 @@ def render_payments_page(data_service, order_service, notification_service, sess
         st.success(t("ui.no_pending_payments"))
         return
 
-    st.markdown(f"### {t('ui.verify_payment')}")
+    st.markdown("### Owner Managed Payments")
     payment_map = {row.get("payment_id", ""): row for row in pending_payments}
     search_text = st.text_input(
         t("ui.search_payment_reference"),
@@ -94,20 +94,4 @@ def render_payments_page(data_service, order_service, notification_service, sess
             use_container_width=True,
         )
     st.text_area(t("ui.share_copy_upi_link"), value=upi_link, height=100, key=f"payments_share_{selected_payment_id}")
-    amount_received = st.number_input(t("ui.amount_received"), min_value=0.0, step=1.0, value=float(payment.get("amount_payable", payment.get("amount_due", 0)) or 0), key="payments_amount_received")
-    transaction_reference = st.text_input(t("ui.transaction_reference"), key="payments_transaction_reference")
-    notes = st.text_area(t("ui.notes"), key="payments_notes")
-    if st.button(t("ui.verify_payment"), use_container_width=True, key="payments_verify_button"):
-        result = order_service.verify_payment(
-            order_id=related_order.get("order_id", ""),
-            amount_received=amount_received,
-            transaction_reference=transaction_reference,
-            notes=notes,
-            verified_by=session_service.get_user().get("email", ""),
-        )
-        data_service.persist_collection("payments")
-        order_service.persist_order_storage(related_order)
-        data_service.persist_collection("notifications")
-        data_service.persist_collection("gmail_queue")
-        st.success(f"{t('ui.payment_verified_for_order')} {result['order'].get('order_id', '')}.")
-        st.rerun()
+    st.info("Payment confirmation now happens directly by the manufacturer or mahajan. Admin can monitor pending payments here.")

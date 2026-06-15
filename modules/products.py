@@ -11,6 +11,7 @@ from services.auth_service import is_bootstrap_admin
 from services.id_service import IdService
 from services.media_service import MediaService
 from services.product_consent_service import ProductConsentService
+from services.user_profile_service import UserProfileService
 
 
 OWNER_TYPES = {"Manufacturer": "manufacturer", "Mahajan": "mahajan"}
@@ -341,6 +342,10 @@ def _apply_product_values(
         "user_id": owner.get("user_id", ""),
         "phone": owner.get("phone", values.get("owner_phone", "")),
     }
+    owner_business_details = dict(values.get("owner_business_details", {}) or {})
+    owner_profile_completed = bool(owner_business_details.get("profile_completed", False))
+    product["posting_status"] = "READY_TO_POST" if owner_profile_completed else "DUE_FOR_POSTING"
+    product["owner_business_details"] = owner_business_details
     delivery_partner = dict(values.get("delivery_partner", {}) or {})
     product["delivery_partner"] = {
         "email": str(delivery_partner.get("email", "")).strip().lower(),
@@ -895,6 +900,20 @@ def render_products_page(data_service, notification_service, session_service, ca
                     data_service=data_service,
                     id_service=id_service,
                 )
+                owner_profile = UserProfileService(data_service).get_or_create_profile(
+                    email=owner_email,
+                    role=owner_role_key,
+                    display_name=owner.get("display_name", owner_email.split("@")[0]),
+                    mobile=owner.get("phone", owner_phone.strip()),
+                )
+                owner_details = dict(owner_profile.get("details", {}) or {})
+                owner_business_details = {
+                    "business_name": str(owner_details.get("business_name", "")).strip(),
+                    "upi_id": str(owner_details.get("upi_id", "")).strip(),
+                    "gst_number": str(owner_details.get("gst_number", "")).strip(),
+                    "other_details": str(owner_details.get("other_details", "")).strip(),
+                    "profile_completed": bool(owner_details.get("profile_completed", False)),
+                }
                 delivery_partner = {}
                 if delivery_partner_email:
                     delivery_partner, _ = _resolve_or_create_owner(
@@ -945,6 +964,7 @@ def render_products_page(data_service, notification_service, session_service, ca
                         "manditrade_increment_quantity": manditrade_increment_quantity,
                         "status": status if is_admin else "PENDING_APPROVAL",
                         "delivery_partner": delivery_partner,
+                        "owner_business_details": owner_business_details,
                         "submitted_by": current_user_email,
                         "submitted_at": datetime.now(UTC).isoformat(),
                     },
@@ -985,6 +1005,20 @@ def render_products_page(data_service, notification_service, session_service, ca
                     source_id=record["product_id"],
                     created_by=current_user_email,
                 )
+                notification_service.create_notification(
+                    to_email=owner_email,
+                    title="Complete your profile to post products",
+                    message=(
+                        f"Please complete your profile with UPI ID, GST number, and business details. "
+                        f"Until then {product_name} stays due for posting."
+                    ),
+                    event_type="PROFILE_COMPLETION_REQUIRED",
+                    to_role=owner_role_key,
+                    owner_email=owner_email,
+                    source_entity="products",
+                    source_id=record["product_id"],
+                    created_by=current_user_email,
+                )
                 if not is_admin:
                     notification_service.create_notification(
                         to_email="",
@@ -1014,6 +1048,18 @@ def render_products_page(data_service, notification_service, session_service, ca
                         title="New owner onboarded",
                         message=f"{owner_email} was onboarded as {owner_role_key}.",
                         event_type="OWNER_ONBOARDED",
+                        to_role=current_user_role,
+                        owner_email=owner_email,
+                        source_entity="users",
+                        source_id=owner.get("user_id", ""),
+                        created_by=current_user_email,
+                    )
+                else:
+                    notification_service.create_notification(
+                        to_email=current_user_email,
+                        title="Existing owner reused",
+                        message=f"{owner_email} was reused for {product_name}.",
+                        event_type="OWNER_REUSED",
                         to_role=current_user_role,
                         owner_email=owner_email,
                         source_entity="users",

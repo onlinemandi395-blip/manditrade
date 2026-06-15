@@ -41,6 +41,12 @@
       "data_source": "orders",
       "visible_to": ["platform_admin", "manufacturer", "mahajan", "public_buyer"]
     },
+    "profile": {
+      "type": "profile_page",
+      "title_key": "sidebar.profile",
+      "subtitle_key": "module.dashboard.subtitle",
+      "visible_to": ["platform_admin", "manufacturer", "mahajan", "delivery_partner", "public_buyer"]
+    },
     "notifications": {
       "type": "table",
       "title_key": "module.notifications.title",

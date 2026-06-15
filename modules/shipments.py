@@ -21,38 +21,7 @@ def render_shipments_page(data_service, order_service, notification_service, ses
         with tabs[0]:
             ready_orders = [row for row in orders if str(row.get("status", "")).upper() == "READY_FOR_PICKUP"]
             render_table(ready_orders, caption=t("ui.ready_for_pickup_orders"))
-            delivery_partners = [
-                row for row in users
-                if str(row.get("role", "")).strip().lower() == "delivery_partner"
-                and str(row.get("status", "ACTIVE")).strip().upper() == "ACTIVE"
-            ]
-            if ready_orders and delivery_partners:
-                order_map = {row.get("order_id", ""): row for row in ready_orders}
-                partner_map = {row.get("email", ""): row for row in delivery_partners}
-                selected_order_id = st.selectbox(t("ui.ready_order"), options=[""] + list(order_map.keys()), key="shipments_ready_order")
-                selected_partner_email = st.selectbox(
-                    t("role.delivery_partner"),
-                    options=[""] + list(partner_map.keys()),
-                    format_func=lambda value: (
-                        f"{partner_map[value].get('display_name', value)} ({value})" if value in partner_map else value
-                    ),
-                    index=([""] + list(partner_map.keys())).index(str(order_map.get(selected_order_id, {}).get("preferred_delivery_partner_email", "")).strip().lower()) if str(order_map.get(selected_order_id, {}).get("preferred_delivery_partner_email", "")).strip().lower() in ([""] + list(partner_map.keys())) else 0,
-                    key="shipments_delivery_partner",
-                )
-                if st.button(t("ui.assign_pickup"), use_container_width=True, key="shipments_assign_pickup") and selected_order_id and selected_partner_email:
-                    shipment = order_service.assign_delivery_partner(
-                        order_id=selected_order_id,
-                        delivery_partner_email=selected_partner_email,
-                        assigned_by=email,
-                    )
-                    order_service.persist_order_storage(selected_order_id)
-                    data_service.persist_collection("shipments")
-                    data_service.persist_collection("notifications")
-                    data_service.persist_collection("gmail_queue")
-                    st.success(f"{t('ui.pickup_assigned')}: {shipment.get('shipment_id', '')}")
-                    st.rerun()
-            elif ready_orders and not delivery_partners:
-                st.info(t("ui.no_active_delivery_partners"))
+            st.info("Shipment assignment is managed by the manufacturer or mahajan. Admin can monitor progress here.")
         with tabs[1]:
             assigned_shipments = [row for row in shipments if str(row.get("status", "")).upper() in {"PICKUP_ASSIGNED", "PICKED_UP", "IN_TRANSIT"}]
             render_table(assigned_shipments, caption=t("ui.assigned_pickups"))
@@ -65,23 +34,10 @@ def render_shipments_page(data_service, order_service, notification_service, ses
 
     if role in {"manufacturer", "mahajan"}:
         my_orders = [row for row in orders if str(row.get("owner_email", "")).strip().lower() == email]
-        tabs = st.tabs([t("ui.payment_verified"), t("ui.accepted"), t("ui.ready_for_pickup"), t("ui.my_shipments")])
+        tabs = st.tabs(["Payment Pending", t("ui.accepted"), t("ui.ready_for_pickup"), t("ui.my_shipments")])
         with tabs[0]:
-            payment_verified = [row for row in my_orders if str(row.get("status", "")).upper() == "PAYMENT_VERIFIED"]
-            render_table(payment_verified, caption=t("ui.payment_verified_orders"))
-            selected_order_id = st.selectbox(t("module.orders.title"), options=[""] + [row.get("order_id", "") for row in payment_verified], key="owner_payment_verified_order")
-            action = st.selectbox(t("ui.action"), options=["ACCEPT", "REJECT"], key="owner_order_action")
-            reject_reason = st.text_area(t("ui.reject_reason"), key="owner_reject_reason")
-            if st.button(t("ui.apply_owner_action"), use_container_width=True, key="owner_apply_action") and selected_order_id:
-                if action == "ACCEPT":
-                    order_service.owner_accept_order(order_id=selected_order_id, owner_email=email)
-                else:
-                    order_service.owner_reject_order(order_id=selected_order_id, owner_email=email, reason=reject_reason)
-                order_service.persist_order_storage(selected_order_id)
-                data_service.persist_collection("notifications")
-                data_service.persist_collection("gmail_queue")
-                st.success(t("ui.owner_action_applied"))
-                st.rerun()
+            payment_pending = [row for row in my_orders if str(row.get("status", "")).upper() == "PAYMENT_PENDING"]
+            render_table(payment_pending, caption="Orders awaiting your payment confirmation")
         with tabs[1]:
             accepted_orders = [row for row in my_orders if str(row.get("status", "")).upper() == "OWNER_ACCEPTED"]
             render_table(accepted_orders, caption=t("ui.accepted_orders"))
@@ -96,6 +52,39 @@ def render_shipments_page(data_service, order_service, notification_service, ses
         with tabs[2]:
             ready_orders = [row for row in my_orders if str(row.get("status", "")).upper() in {"READY_FOR_PICKUP", "PICKUP_ASSIGNED", "PICKED_UP"}]
             render_table(ready_orders, caption=t("ui.ready_assigned_picked_up"))
+            assignable_orders = [row for row in my_orders if str(row.get("status", "")).upper() == "READY_FOR_PICKUP"]
+            delivery_partners = [
+                row for row in users
+                if str(row.get("role", "")).strip().lower() == "delivery_partner"
+                and str(row.get("status", "ACTIVE")).strip().upper() == "ACTIVE"
+            ]
+            if assignable_orders and delivery_partners:
+                order_map = {row.get("order_id", ""): row for row in assignable_orders}
+                partner_map = {row.get("email", ""): row for row in delivery_partners}
+                selected_order_id = st.selectbox("Ready Order", options=[""] + list(order_map.keys()), key="owner_shipments_ready_order")
+                selected_partner_email = st.selectbox(
+                    t("role.delivery_partner"),
+                    options=[""] + list(partner_map.keys()),
+                    format_func=lambda value: (
+                        f"{partner_map[value].get('display_name', value)} ({value})" if value in partner_map else value
+                    ),
+                    index=([""] + list(partner_map.keys())).index(str(order_map.get(selected_order_id, {}).get("preferred_delivery_partner_email", "")).strip().lower()) if str(order_map.get(selected_order_id, {}).get("preferred_delivery_partner_email", "")).strip().lower() in ([""] + list(partner_map.keys())) else 0,
+                    key="owner_shipments_delivery_partner",
+                )
+                if st.button(t("ui.assign_pickup"), use_container_width=True, key="owner_shipments_assign_pickup") and selected_order_id and selected_partner_email:
+                    shipment = order_service.assign_delivery_partner(
+                        order_id=selected_order_id,
+                        delivery_partner_email=selected_partner_email,
+                        assigned_by=email,
+                    )
+                    order_service.persist_order_storage(selected_order_id)
+                    data_service.persist_collection("shipments")
+                    data_service.persist_collection("notifications")
+                    data_service.persist_collection("gmail_queue")
+                    st.success(f"{t('ui.pickup_assigned')}: {shipment.get('shipment_id', '')}")
+                    st.rerun()
+            elif assignable_orders and not delivery_partners:
+                st.info(t("ui.no_active_delivery_partners"))
         with tabs[3]:
             my_shipments = [row for row in shipments if str(row.get("owner_email", "")).strip().lower() == email]
             render_table(my_shipments, caption=t("ui.my_shipments"))

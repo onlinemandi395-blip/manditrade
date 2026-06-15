@@ -7,6 +7,8 @@
       "dashboard",
       "products",
       "orders",
+      "profile",
+      "shipments",
       "ledger",
       "notifications"
     ],
@@ -14,6 +16,8 @@
       "dashboard",
       "products",
       "orders",
+      "profile",
+      "shipments",
       "ledger",
       "notifications"
     ],
@@ -21,11 +25,13 @@
       "dashboard",
       "shipments",
       "completed_deliveries",
+      "profile",
       "notifications"
     ],
     "public_buyer": [
       "marketplace",
       "orders",
+      "profile",
       "notifications"
     ],
     "worker": [

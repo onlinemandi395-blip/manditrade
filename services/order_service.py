@@ -287,7 +287,15 @@ class OrderService:
                 "delivery_status": "NOT_ASSIGNED",
                 "otp_status": "NOT_GENERATED",
                 "created_at": datetime.now(UTC).isoformat(),
+                "owner_profile_completed": False,
+                "posting_status": "DUE_FOR_POSTING",
             }
+            receiver_config = self.payment_service.get_receiver_config_for_owner(
+                owner_email=owner.get("email", ""),
+                owner_role=owner.get("role", ""),
+            )
+            record["owner_profile_completed"] = bool(receiver_config.get("profile_completed", False))
+            record["posting_status"] = "READY_TO_POST" if record["owner_profile_completed"] else "DUE_FOR_POSTING"
             self.data_service.get_collection_ref("marketplace_orders").append(record)
             payment_record = self.payment_service.create_payment_record(
                 order_id=record["order_id"],
@@ -295,6 +303,8 @@ class OrderService:
                 amount=record["total_amount"],
                 payment_type="MARKETPLACE",
                 created_by=buyer_email,
+                owner_email=owner.get("email", ""),
+                owner_role=owner.get("role", ""),
             )
             record["payment_id"] = payment_record["payment_id"]
             record["payment_reference"] = payment_record["payment_reference"]
@@ -303,7 +313,7 @@ class OrderService:
             self.notification_service.create_notification(
                 to_email=owner.get("email", ""),
                 title="Order created",
-                message="A new marketplace order is waiting for payment verification.",
+                message="A new marketplace order is waiting for your payment confirmation.",
                 event_type="ORDER_CREATED",
                 to_role=owner.get("role", ""),
                 owner_email=owner.get("email", ""),
@@ -317,18 +327,6 @@ class OrderService:
                 title="Marketplace order created",
                 message="Your marketplace order was created. Complete payment using the generated UPI reference.",
                 event_type="ORDER_CREATED",
-                source_entity="orders",
-                source_id=record["order_id"],
-                metadata={"product_id": record["product_id"], "source_channel": "marketplace"},
-                created_by=buyer_email,
-            )
-            self.notification_service.create_notification(
-                to_email="",
-                title="Marketplace payment pending",
-                message="A marketplace order is awaiting payment verification.",
-                event_type="ORDER_CREATED",
-                to_role="platform_admin",
-                owner_email=owner.get("email", ""),
                 source_entity="orders",
                 source_id=record["order_id"],
                 metadata={"product_id": record["product_id"], "source_channel": "marketplace"},
@@ -415,7 +413,15 @@ class OrderService:
                 "delivery_status": "NOT_ASSIGNED",
                 "otp_status": "NOT_GENERATED",
                 "created_at": datetime.now(UTC).isoformat(),
+                "owner_profile_completed": False,
+                "posting_status": "DUE_FOR_POSTING",
             }
+            receiver_config = self.payment_service.get_receiver_config_for_owner(
+                owner_email=owner.get("email", ""),
+                owner_role=owner.get("role", ""),
+            )
+            record["owner_profile_completed"] = bool(receiver_config.get("profile_completed", False))
+            record["posting_status"] = "READY_TO_POST" if record["owner_profile_completed"] else "DUE_FOR_POSTING"
             self.data_service.get_collection_ref("manditrade_orders").append(record)
             payment_record = self.payment_service.create_payment_record(
                 order_id=record["order_id"],
@@ -423,6 +429,8 @@ class OrderService:
                 amount=record["total_amount"],
                 payment_type="MANDITRADE",
                 created_by=requesting_user_email,
+                owner_email=owner.get("email", ""),
+                owner_role=owner.get("role", ""),
             )
             record["payment_id"] = payment_record["payment_id"]
             record["payment_reference"] = payment_record["payment_reference"]
@@ -432,7 +440,7 @@ class OrderService:
                 self.notification_service.create_notification(
                     to_email=owner.get("email", ""),
                     title="MandiTrade order routed",
-                    message="A MandiTrade order is waiting for payment verification.",
+                    message="A MandiTrade order is waiting for your payment confirmation.",
                     event_type="ORDER_CREATED",
                     to_role=owner.get("role", ""),
                     owner_email=owner.get("email", ""),
@@ -451,32 +459,22 @@ class OrderService:
                 metadata={"source_channel": "manditrade"},
                 created_by=requesting_user_email,
             )
-            self.notification_service.create_notification(
-                to_email="",
-                title="MandiTrade payment pending",
-                message="A MandiTrade order is awaiting payment verification.",
-                event_type="ORDER_CREATED",
-                to_role="platform_admin",
-                owner_email=owner.get("email", ""),
-                source_entity="orders",
-                source_id=record["order_id"],
-                metadata={"source_channel": "manditrade"},
-                created_by=requesting_user_email,
-            )
             return record
 
-    def verify_payment(
+    def owner_verify_payment(
         self,
         *,
         order_id: str,
         amount_received: float,
         transaction_reference: str,
         notes: str,
-        verified_by: str,
+        owner_email: str,
     ) -> dict:
         order = self._find_order(order_id)
         if not order:
             raise ValueError("Order not found.")
+        if str(order.get("owner_email", "")).strip().lower() != str(owner_email or "").strip().lower():
+            raise ValueError("Only the assigned owner can verify this payment.")
         payment = self._find_payment(order.get("payment_id", ""))
         if not payment:
             raise ValueError("Payment record not found.")
@@ -486,37 +484,37 @@ class OrderService:
         payment["notes"] = notes.strip()
         payment["status"] = "PAYMENT_VERIFIED"
         payment["payment_status"] = "VERIFIED"
-        payment["verified_by"] = verified_by
+        payment["verified_by"] = owner_email
         payment["verified_at"] = now
-        order["status"] = "PAYMENT_VERIFIED"
+        order["status"] = "OWNER_ACCEPTED"
         order["payment_status"] = "VERIFIED"
-        order["admin_status"] = "PAYMENT_VERIFIED"
-        order["owner_status"] = "NEW_REQUEST"
+        order["admin_status"] = "OWNER_CONFIRMED"
+        order["owner_status"] = "ACCEPTED"
         order["updated_at"] = now
-        order["updated_by"] = verified_by
+        order["updated_by"] = owner_email
         owner_email = str(order.get("owner_email", "")).strip().lower()
         owner_role = str(order.get("owner_role", "")).strip().lower()
         buyer_email = str(order.get("buyer_email", "") or order.get("requester_email", "")).strip().lower()
         self.notification_service.create_notification(
             to_email=owner_email,
-            title="Payment verified",
-            message=f"Payment verified for order {order_id}. Please review the order.",
+            title="Payment confirmed",
+            message=f"You confirmed payment for order {order_id}. Schedule it for pickup when ready.",
             event_type="PAYMENT_VERIFIED",
             to_role=owner_role,
             owner_email=owner_email,
             source_entity="payments",
             source_id=payment.get("payment_id", ""),
-            created_by=verified_by,
+            created_by=owner_email,
         )
         if buyer_email:
             self.notification_service.create_notification(
                 to_email=buyer_email,
-                title="Payment verified",
-                message=f"Your payment was verified for order {order_id}.",
+                title="Order confirmed",
+                message=f"Your payment was confirmed and order {order_id} is accepted.",
                 event_type="PAYMENT_VERIFIED",
                 source_entity="payments",
                 source_id=payment.get("payment_id", ""),
-                created_by=verified_by,
+                created_by=owner_email,
             )
         return {"order": order, "payment": payment}
 
