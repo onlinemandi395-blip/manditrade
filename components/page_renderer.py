@@ -81,7 +81,7 @@ def _sanitize_cart_rows(items: list[dict]) -> list[dict]:
     ]
 
 
-def _render_marketplace_cart_editor(cart_service: CartService, translator) -> None:
+def _render_marketplace_cart_editor(cart_service: CartService, translator, *, key_prefix: str = "marketplace_editor") -> None:
     t = translator.t if translator else (lambda key: key)
     cart = cart_service.get_cart()
     for item in list(cart.get("items", [])):
@@ -93,14 +93,14 @@ def _render_marketplace_cart_editor(cart_service: CartService, translator) -> No
             min_value=1.0,
             step=1.0,
             value=float(item.get("quantity", 1) or 1),
-            key=f"cart_quantity_{product_id}",
+            key=f"{key_prefix}_cart_quantity_{product_id}",
         )
         if float(updated_quantity or 1) != float(item.get("quantity", 1) or 1):
             cart_service.set_quantity(product_id, updated_quantity)
             st.rerun()
         item_cols[2].write(f"{float(item.get('unit_price', 0) or 0):g}")
         item_cols[3].write(f"{float(item.get('line_total', 0) or 0):g}")
-        if item_cols[4].button("X", key=f"cart_remove_{product_id}", use_container_width=True):
+        if item_cols[4].button("X", key=f"{key_prefix}_cart_remove_{product_id}", use_container_width=True):
             cart_service.remove_item(product_id)
             st.rerun()
 
@@ -680,7 +680,7 @@ def render_app() -> None:
             with cart_cols[0]:
                 with st.container(border=True):
                     st.subheader(translator.t("ui.cart"))
-                    _render_marketplace_cart_editor(cart_service, translator)
+                    _render_marketplace_cart_editor(cart_service, translator, key_prefix=f"marketplace_{current_stage}")
             with cart_cols[1]:
                 checkout_requested = render_cart_panel(cart, cart_service=cart_service, route="marketplace", translator=translator)
                 if not payment_config.get("enabled", False):
