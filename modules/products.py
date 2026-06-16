@@ -878,16 +878,20 @@ def render_products_page(data_service, notification_service, session_service, ca
                 owner_preview_cols[0].caption(f"Owner: {owner_email}")
                 owner_preview_cols[1].caption(f"Owner Role: {owner_role_key}")
         owner_profile_service = UserProfileService(data_service)
-        owner_profile_preview = (
-            owner_profile_service.get_or_create_profile(
-                email=owner_email,
-                role=owner_role_key or "public_buyer",
-                display_name=owner_display_name or owner_email.split("@")[0],
-                mobile=owner_phone,
-            )
-            if owner_email.strip()
-            else {}
-        )
+        owner_profile_preview = {}
+        if owner_email.strip():
+            try:
+                owner_profile_preview = owner_profile_service.get_profile(owner_email)
+            except Exception:
+                owner_profile_preview = {}
+            if not owner_profile_preview:
+                owner_profile_preview = {
+                    "email": owner_email,
+                    "role": owner_role_key or "public_buyer",
+                    "display_name": owner_display_name or owner_email.split("@")[0],
+                    "mobile": owner_phone,
+                    "details": {},
+                }
         owner_details_preview = _normalize_owner_business_details((owner_profile_preview.get("details", {}) if owner_profile_preview else {}) or {})
         owner_identity = f"{owner_role_key}|{owner_email}"
         if st.session_state.get("create_owner_details_identity") != owner_identity:
