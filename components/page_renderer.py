@@ -630,10 +630,12 @@ def render_app() -> None:
     elif page_definition.get("type") == "product_grid":
         products = page_service.filter_rows(datasets.get(page_definition.get("data_source", ""), []), page_definition.get("filters", {}))
         payment_config = order_service.payment_service.get_payment_config()
+        st.session_state.setdefault("mt_marketplace_stage", "browse")
 
         def on_add_to_cart(product: dict) -> None:
             try:
                 cart_service.add_to_cart(product)
+                st.session_state["mt_marketplace_stage"] = "browse"
                 notification_service.create_notification(
                     to_email=session_service.get_user().get("email", ""),
                     title=translator.t("notification.product_added.title"),
@@ -649,9 +651,31 @@ def render_app() -> None:
             except Exception as exc:
                 st.error(str(exc))
 
-        render_marketplace_page(products, on_add_to_cart=on_add_to_cart, media_service=media_service, translator=translator, ui_config=ui_config)
         cart = cart_service.get_cart()
+        current_stage = str(st.session_state.get("mt_marketplace_stage", "browse") or "browse")
+        if not cart.get("items"):
+            st.session_state["mt_marketplace_stage"] = "browse"
+            st.session_state["mt_marketplace_checkout_open"] = False
+            current_stage = "browse"
+
         if cart.get("items"):
+            flow_cols = st.columns([2.2, 1, 1], gap="small")
+            flow_cols[0].caption(
+                f"Shopping Flow: {len(cart.get('items', []))} items in cart | Total Rs. {cart_service.calculate_total():g}"
+            )
+            if flow_cols[1].button("View Cart", use_container_width=True, key="marketplace_view_cart"):
+                st.session_state["mt_marketplace_stage"] = "cart"
+                st.rerun()
+            if current_stage != "browse" and flow_cols[2].button("Continue Shopping", use_container_width=True, key="marketplace_continue_shopping"):
+                st.session_state["mt_marketplace_stage"] = "browse"
+                st.session_state["mt_marketplace_checkout_open"] = False
+                st.rerun()
+
+        if current_stage == "browse":
+            render_marketplace_page(products, on_add_to_cart=on_add_to_cart, media_service=media_service, translator=translator, ui_config=ui_config)
+
+        if cart.get("items") and current_stage in {"cart", "checkout"}:
+            st.markdown("### Cart and Checkout")
             cart_cols = st.columns([2.5, 1], gap="large")
             with cart_cols[0]:
                 with st.container(border=True):
@@ -664,6 +688,7 @@ def render_app() -> None:
                 else:
                     if checkout_requested:
                         st.session_state["mt_marketplace_checkout_open"] = True
+                        st.session_state["mt_marketplace_stage"] = "checkout"
                     if st.session_state.get("mt_marketplace_checkout_open", False):
                         render_checkout_steps(
                             title="Checkout",
@@ -732,6 +757,7 @@ def render_app() -> None:
                                     data_service.persist_collection("gmail_queue")
                                     cart_service.clear_cart()
                                     st.session_state["mt_marketplace_checkout_open"] = False
+                                    st.session_state["mt_marketplace_stage"] = "browse"
                                     st.session_state["mt_last_payment_record_id"] = order.get("payment_id", "")
                                     st.success(f"Order {order.get('order_id', '')} created.")
                                     payment_record = next(
