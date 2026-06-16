@@ -159,7 +159,7 @@ class GoogleDriveService:
         response = service.permissions().list(
             fileId=file_id,
             fields="permissions(id,emailAddress,role,type)",
-            pageSize=200,
+            pageSize=100,
         ).execute()
         return list(response.get("permissions", []))
 
@@ -204,7 +204,7 @@ class GoogleDriveService:
             q=query,
             fields="files(id,name,mimeType,modifiedTime,thumbnailLink,webViewLink)",
             spaces="drive",
-            pageSize=200,
+            pageSize=100,
         ).execute()
         return list(response.get("files", []))
 
