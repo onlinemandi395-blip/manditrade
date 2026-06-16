@@ -81,6 +81,58 @@ def _sanitize_cart_rows(items: list[dict]) -> list[dict]:
     ]
 
 
+def _resolve_dataset_names(*, current_route: str, page_definition: dict, role: str) -> list[str]:
+    page_type = str(page_definition.get("type", "") or "").strip().lower()
+    data_source = str(page_definition.get("data_source", "") or "").strip()
+    dataset_names: list[str] = []
+    if page_type == "dashboard":
+        dataset_names.extend(["products", "orders", "payments", "notifications", "shipments", "ledger"])
+    elif page_type == "product_grid":
+        if data_source:
+            dataset_names.append(data_source)
+    elif page_type == "manditrade":
+        if data_source:
+            dataset_names.append(data_source)
+    elif page_type == "products_admin":
+        dataset_names.extend(["products", "users"])
+    elif current_route == "profile":
+        dataset_names.extend(["products", "users"])
+    elif current_route == "notifications":
+        dataset_names.append("notifications")
+    elif current_route == "payments":
+        dataset_names.extend(["payments", "orders"])
+    elif page_type == "ledger_page":
+        dataset_names.append("ledger")
+    elif page_type == "completed_deliveries_page":
+        dataset_names.extend(["shipments", "orders"])
+    elif current_route == "shipments":
+        dataset_names.extend(["shipments", "orders", "users"])
+    elif page_type in {"crud_table", "table"}:
+        if data_source:
+            dataset_names.append(data_source)
+        if current_route == "orders":
+            dataset_names.extend(["products", "shipments", "payments"])
+    elif page_type == "admin_configuration":
+        dataset_names.append("users")
+    elif page_type == "system" and role == "platform_admin":
+        dataset_names.extend(["users", "products", "orders", "notifications", "gmail_queue", "audit_logs"])
+    unique_names: list[str] = []
+    seen = set()
+    for name in dataset_names:
+        normalized = str(name or "").strip()
+        if normalized and normalized not in seen:
+            unique_names.append(normalized)
+            seen.add(normalized)
+    return unique_names
+
+
+def _load_route_datasets(data_service: DataService, *, current_route: str, page_definition: dict, role: str) -> dict[str, list[dict]]:
+    datasets: dict[str, list[dict]] = {}
+    for name in _resolve_dataset_names(current_route=current_route, page_definition=page_definition, role=role):
+        datasets[name] = data_service.list_collection(name)
+    return datasets
+
+
 def _render_marketplace_cart_editor(cart_service: CartService, translator, *, key_prefix: str = "marketplace_editor") -> None:
     t = translator.t if translator else (lambda key: key)
     cart = cart_service.get_cart()
@@ -494,7 +546,7 @@ def render_app() -> None:
     cache_service = CacheService(config_loader)
     if not st.session_state.get(cache_service.cache_key):
         with performance_service.measure("cache_load"):
-            cache_service.load_all_configs()
+            cache_service.load_core_configs()
     app_config = cache_service.get_config("app_config")
     ui_config = dict((app_config.get("ui") or {}))
 
@@ -548,27 +600,6 @@ def render_app() -> None:
         theme_warning = theme_service.get_background_style().get("warning", "")
         if theme_warning and role == "platform_admin":
             st.warning(theme_warning)
-    data_service = DataService(cache_service)
-    media_service = MediaService(admin_drive_service)
-    notification_service = NotificationService(data_service)
-    order_service = OrderService(data_service, notification_service)
-    address_book_service = AddressBookService(data_service)
-    user_profile_service = UserProfileService(data_service)
-    payment_config_service = PaymentConfigService(data_service, cache_service, admin_drive_service)
-    product_consent_service = ProductConsentService(data_service, cache_service)
-    cart_service = CartService()
-    gmail_queue_service = GmailQueueService(data_service)
-    gmail_delivery_service = GmailDeliveryService(data_service)
-    integration_status_service = IntegrationStatusService(
-        cache_service=cache_service,
-        admin_drive_service=admin_drive_service,
-        gmail_queue_service=gmail_queue_service,
-        oauth_service=oauth_service,
-        data_service=data_service,
-    )
-    form_service = FormService(cache_service)
-    user_profile = user_profile_service.get_profile(user.get("email", ""))
-
     with performance_service.measure("navigation_render"):
         navigation_items = navigation_service.get_navigation(role)
     current_route = session_service.get_current_route_or_landing()
@@ -615,20 +646,21 @@ def render_app() -> None:
         st.warning(translator.t("auth.access_denied"))
     st.markdown(f"<div class='mt-shell'><h2 class='mt-page-title'>{translator.t(page_definition.get('title_key', ''))}</h2><p class='mt-page-subtitle'>{translator.t(page_definition.get('subtitle_key', ''))}</p></div>", unsafe_allow_html=True)
 
-    datasets = {
-        "products": data_service.list_collection("products"),
-        "orders": data_service.list_collection("orders"),
-        "payments": data_service.list_collection("payments"),
-        "notifications": data_service.list_collection("notifications"),
-        "shipments": data_service.list_collection("shipments"),
-        "ledger": data_service.list_collection("ledger"),
-    }
+    data_service = DataService(cache_service)
+    datasets = _load_route_datasets(data_service, current_route=current_route, page_definition=page_definition, role=role)
 
     if page_definition.get("type") == "dashboard":
         cards = cache_service.get_config("dashboards").get("dashboards", {}).get(role, {}).get("cards", [])
         render_dashboard_cards(cards, datasets, translator, current_user=user)
         render_detail_panel("Runtime", cache_service.get_cache_status())
     elif page_definition.get("type") == "product_grid":
+        media_service = MediaService(admin_drive_service)
+        notification_service = NotificationService(data_service)
+        order_service = OrderService(data_service, notification_service)
+        address_book_service = AddressBookService(data_service)
+        user_profile_service = UserProfileService(data_service)
+        cart_service = CartService()
+        user_profile = user_profile_service.get_profile(user.get("email", ""))
         products = page_service.filter_rows(datasets.get(page_definition.get("data_source", ""), []), page_definition.get("filters", {}))
         payment_config = order_service.payment_service.get_payment_config()
         st.session_state.setdefault("mt_marketplace_stage", "browse")
@@ -769,6 +801,12 @@ def render_app() -> None:
                                 except Exception as exc:
                                     st.error(str(exc))
     elif page_definition.get("type") == "manditrade":
+        media_service = MediaService(admin_drive_service)
+        notification_service = NotificationService(data_service)
+        order_service = OrderService(data_service, notification_service)
+        address_book_service = AddressBookService(data_service)
+        user_profile_service = UserProfileService(data_service)
+        user_profile = user_profile_service.get_profile(user.get("email", ""))
         products = page_service.filter_rows(datasets.get(page_definition.get("data_source", ""), []), page_definition.get("filters", {}))
         payment_config = order_service.payment_service.get_payment_config()
 
@@ -874,25 +912,36 @@ def render_app() -> None:
                                 except Exception as exc:
                                     st.error(str(exc))
     elif page_definition.get("type") == "products_admin":
+        notification_service = NotificationService(data_service)
         render_products_page(data_service, notification_service, session_service, cache_service, translator)
     elif current_route == "profile":
         render_profile_page(data_service, session_service)
     elif current_route == "notifications":
+        notification_service = NotificationService(data_service)
         render_notifications_page(notification_service, data_service, session_service, translator)
     elif current_route == "payments":
+        notification_service = NotificationService(data_service)
+        order_service = OrderService(data_service, notification_service)
         render_payments_page(data_service, order_service, notification_service, session_service, translator)
     elif page_definition.get("type") == "ledger_page":
+        notification_service = NotificationService(data_service)
         render_ledger_page(data_service, notification_service, session_service, translator)
     elif page_definition.get("type") == "completed_deliveries_page":
         render_completed_deliveries_page(data_service, session_service)
     elif current_route == "shipments":
+        notification_service = NotificationService(data_service)
+        order_service = OrderService(data_service, notification_service)
         render_shipments_page(data_service, order_service, notification_service, session_service, translator)
     elif page_definition.get("type") == "admin_configuration":
+        notification_service = NotificationService(data_service)
         render_admin_configuration(auth_service, data_service, notification_service, session_service, translator)
     elif page_definition.get("type") in {"crud_table", "table"}:
+        notification_service = NotificationService(data_service)
         source_name = str(page_definition.get("data_source", ""))
         filtered_rows = _filter_role_rows(current_route, datasets.get(source_name, []), role, user.get("email", ""))
         if current_route == "orders":
+            media_service = MediaService(admin_drive_service)
+            order_service = OrderService(data_service, notification_service)
             render_orders_page(
                 filtered_rows,
                 role,
@@ -909,6 +958,7 @@ def render_app() -> None:
             render_table(filtered_rows, caption=f"{source_name} collection")
         form_id = page_definition.get("form_id")
         if form_id:
+            form_service = FormService(cache_service)
             form_definition = form_service.get_form(form_id)
 
             def _handle_submit(values: dict) -> None:
@@ -929,6 +979,16 @@ def render_app() -> None:
 
             render_form(form_definition, translator, _handle_submit)
     elif page_definition.get("type") == "system":
+        gmail_queue_service = GmailQueueService(data_service)
+        gmail_delivery_service = GmailDeliveryService(data_service)
+        payment_config_service = PaymentConfigService(data_service, cache_service, admin_drive_service)
+        integration_status_service = IntegrationStatusService(
+            cache_service=cache_service,
+            admin_drive_service=admin_drive_service,
+            gmail_queue_service=gmail_queue_service,
+            oauth_service=oauth_service,
+            data_service=data_service,
+        )
         status = integration_status_service.get_status()
         drive_manifest = admin_drive_service.get_runtime_manifest(force_refresh=True)
         if status["google_drive_status"] != "connected" or status["required_files_status"] != "ok":

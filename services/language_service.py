@@ -59,8 +59,29 @@ class LanguageService:
         self.language_code = language_code or self.get_current_language()
         st.session_state.setdefault("mt_missing_translation_keys", {})
 
+    def _get_language_codes(self) -> list[str]:
+        preferred_codes = list(self.cache_service.config_loader_service.list_available_language_codes())
+        if "en" not in preferred_codes:
+            preferred_codes.append("en")
+        return sorted({str(code or "").strip().lower() for code in preferred_codes if str(code or "").strip()})
+
+    def _get_language_bundle(self, code: str) -> dict[str, str]:
+        normalized_code = str(code or "").strip().lower()
+        if not normalized_code:
+            return {}
+        cache_key = f"language::{normalized_code}"
+        cached = self.cache_service.get_config(cache_key)
+        if cached:
+            return dict(cached or {})
+        bundle = dict(self.cache_service.config_loader_service.load_language(normalized_code) or {})
+        self.cache_service.update_config(cache_key, bundle)
+        return bundle
+
     def get_language_bundles(self) -> dict[str, dict[str, str]]:
-        return dict(self.cache_service.get_config("languages") or {})
+        return {
+            code: self._get_language_bundle(code)
+            for code in self._get_language_codes()
+        }
 
     def get_available_languages(self) -> list[str]:
         bundles = self.get_language_bundles()
@@ -93,12 +114,12 @@ class LanguageService:
         return labels
 
     def get_current_language(self) -> str:
-        bundles = self.get_language_bundles()
+        bundles = self._get_language_codes()
         default_language = "en"
         selected = str(st.session_state.get(self.SESSION_KEY, default_language) or default_language)
         if selected in bundles:
             return selected
-        return default_language if default_language in bundles else (next(iter(bundles.keys()), default_language))
+        return default_language if default_language in bundles else (bundles[0] if bundles else default_language)
 
     def set_current_language(self, lang_code: str) -> None:
         st.session_state[self.SESSION_KEY] = str(lang_code or "en")
@@ -106,10 +127,10 @@ class LanguageService:
         self.language_code = st.session_state[self.SESSION_KEY]
 
     def get_translator(self) -> Translator:
-        bundles = self.get_language_bundles()
-        code = self.language_code if self.language_code in bundles else self.get_current_language()
-        fallback_bundle = dict(bundles.get("en", {}) or {})
-        return Translator(dict(bundles.get(code, {}) or {}), language_code=code, fallback_bundle=fallback_bundle)
+        available_codes = self._get_language_codes()
+        code = self.language_code if self.language_code in available_codes else self.get_current_language()
+        fallback_bundle = self._get_language_bundle("en")
+        return Translator(self._get_language_bundle(code), language_code=code, fallback_bundle=fallback_bundle)
 
     def t(self, key: str) -> str:
         return self.get_translator().t(key)
