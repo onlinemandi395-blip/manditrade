@@ -12,13 +12,28 @@ class CartService:
 
     def add_to_cart(self, product: dict) -> None:
         sell_price = self.pricing_service.resolve_sell_price(product, "marketplace")
+        product_id = str(product.get("product_id", "")).strip()
+        existing = next(
+            (
+                item
+                for item in st.session_state["mt_next_cart"]["items"]
+                if str(item.get("product_id", "")).strip() == product_id
+            ),
+            None,
+        )
+        if existing:
+            next_quantity = max(1.0, float(existing.get("quantity", 1) or 1) + 1.0)
+            existing["quantity"] = next_quantity
+            existing["unit_price"] = sell_price
+            existing["line_total"] = round(float(sell_price or 0) * next_quantity, 2)
+            return
         item = {
-            "product_id": product.get("product_id", ""),
+            "product_id": product_id,
             "product_name": product.get("product_name", ""),
-            "quantity": 1,
+            "quantity": 1.0,
             "channel": "marketplace",
             "unit_price": sell_price,
-            "line_total": sell_price,
+            "line_total": round(float(sell_price or 0), 2),
         }
         st.session_state["mt_next_cart"]["items"].append(item)
 
