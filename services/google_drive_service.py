@@ -167,6 +167,7 @@ class GoogleDriveService:
         normalized_email = str(user_email or "").strip().lower()
         if not normalized_email:
             raise ValueError("User email is required to assign Drive permission.")
+        target_role = str(role or "writer").strip().lower() or "writer"
         permissions = self.list_permissions(service, file_id)
         existing = next(
             (
@@ -177,12 +178,12 @@ class GoogleDriveService:
         )
         if existing:
             existing_role = str(existing.get("role", "")).strip().lower()
-            if existing_role == str(role or "writer").strip().lower():
+            if existing_role in {target_role, "owner"}:
                 return existing
             return service.permissions().update(
                 fileId=file_id,
                 permissionId=existing["id"],
-                body={"role": role},
+                body={"role": target_role},
                 fields="id,emailAddress,role,type",
             ).execute()
         return service.permissions().create(
@@ -190,7 +191,7 @@ class GoogleDriveService:
             sendNotificationEmail=False,
             body={
                 "type": "user",
-                "role": role,
+                "role": target_role,
                 "emailAddress": normalized_email,
             },
             fields="id,emailAddress,role,type",
