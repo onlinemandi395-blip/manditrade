@@ -680,11 +680,17 @@ def render_app() -> None:
                 )
                 data_service.persist_collection("notifications")
                 data_service.persist_collection("gmail_queue")
-                st.success(f"Added {product.get('product_name', product.get('product_id', 'product'))} to cart.")
+                st.session_state["mt_marketplace_notice"] = (
+                    f"Added {product.get('product_name', product.get('product_id', 'product'))} to cart."
+                )
+                st.rerun()
             except Exception as exc:
                 st.error(str(exc))
 
         cart = cart_service.get_cart()
+        notice_message = str(st.session_state.pop("mt_marketplace_notice", "") or "").strip()
+        if notice_message:
+            st.success(notice_message)
         current_stage = str(st.session_state.get("mt_marketplace_stage", "browse") or "browse")
         if not cart.get("items"):
             st.session_state["mt_marketplace_stage"] = "browse"
