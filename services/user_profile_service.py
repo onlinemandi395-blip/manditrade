@@ -25,6 +25,22 @@ class UserProfileService:
     def _workspace_logical_path(self, email: str) -> str:
         return f"01_identity/profiles/{self._workspace_name(email)}"
 
+    def _default_business_details(self) -> dict:
+        return {
+            "schema_version": 1,
+            "business_name": "",
+            "upi_id": "",
+            "gst_number": "",
+            "invoice_name": "",
+            "invoice_address": "",
+            "invoice_phone": "",
+            "bank_account_name": "",
+            "bank_account_number": "",
+            "bank_ifsc": "",
+            "other_details": "",
+            "profile_completed": False,
+        }
+
     def _default_profile(self, *, email: str, role: str, display_name: str, mobile: str = "") -> dict:
         normalized_email = self._normalize_email(email)
         now = datetime.now(UTC).isoformat()
@@ -37,7 +53,7 @@ class UserProfileService:
                 "mobile": str(mobile or "").strip(),
                 "workspace_folder": self._workspace_logical_path(normalized_email),
                 "addresses": [],
-                "details": {},
+                "details": self._default_business_details(),
                 "created_at": now,
                 "updated_at": now,
             },
@@ -95,7 +111,10 @@ class UserProfileService:
         profile["email"] = normalized_email
         profile["workspace_folder"] = self._workspace_logical_path(normalized_email)
         profile.setdefault("addresses", [])
-        profile.setdefault("details", {})
+        details = dict(profile.get("details", {}) or {})
+        normalized_details = self._default_business_details()
+        normalized_details.update(details)
+        profile["details"] = normalized_details
         return profile
 
     def _read_user_orders_payload(self, email: str) -> dict:
@@ -114,7 +133,7 @@ class UserProfileService:
         existing = self.get_profile(normalized_email)
         if existing:
             existing.setdefault("addresses", [])
-            existing.setdefault("details", {})
+            existing["details"] = dict(existing.get("details", {}) or {})
             changed = False
             if str(display_name or "").strip() and str(existing.get("display_name", "")).strip() != str(display_name).strip():
                 existing["display_name"] = str(display_name).strip()
@@ -184,7 +203,9 @@ class UserProfileService:
         next_profile["email"] = normalized_target
         next_profile["workspace_folder"] = self._workspace_logical_path(normalized_target)
         next_profile["addresses"] = list(next_profile.get("addresses", []) or [])
-        next_profile["details"] = dict(next_profile.get("details", {}) or {})
+        normalized_details = self._default_business_details()
+        normalized_details.update(dict(next_profile.get("details", {}) or {}))
+        next_profile["details"] = normalized_details
         next_profile["updated_at"] = datetime.now(UTC).isoformat()
         self.ensure_user_workspace(
             email=normalized_target,
@@ -197,6 +218,39 @@ class UserProfileService:
             {"schema_version": 1, "user_profile": next_profile},
         )
         return next_profile
+
+    def save_owner_business_details(
+        self,
+        *,
+        actor_email: str,
+        actor_role: str,
+        target_email: str,
+        role: str,
+        display_name: str,
+        mobile: str,
+        business_details: dict,
+    ) -> dict:
+        current = self.get_or_create_profile(
+            email=target_email,
+            role=role,
+            display_name=display_name,
+            mobile=mobile,
+        )
+        next_profile = dict(current)
+        next_profile["display_name"] = str(display_name or current.get("display_name", "")).strip()
+        next_profile["mobile"] = str(mobile or current.get("mobile", "")).strip()
+        merged_details = self._default_business_details()
+        merged_details.update(dict(current.get("details", {}) or {}))
+        merged_details.update(dict(business_details or {}))
+        required_fields = ("business_name", "upi_id", "gst_number", "invoice_name")
+        merged_details["profile_completed"] = all(str(merged_details.get(field, "")).strip() for field in required_fields)
+        next_profile["details"] = merged_details
+        return self.save_profile(
+            actor_email=actor_email,
+            actor_role=actor_role,
+            target_email=target_email,
+            updates=next_profile,
+        )
 
     def sync_order_record(self, *, order: dict) -> None:
         order_id = str(order.get("order_id", "")).strip()

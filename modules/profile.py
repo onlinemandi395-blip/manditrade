@@ -5,7 +5,7 @@ import streamlit as st
 from services.user_profile_service import UserProfileService
 
 
-REQUIRED_OWNER_FIELDS = ("business_name", "upi_id", "gst_number")
+REQUIRED_OWNER_FIELDS = ("business_name", "upi_id", "gst_number", "invoice_name")
 
 
 def owner_profile_completion_status(profile: dict) -> tuple[bool, list[str]]:
@@ -30,11 +30,24 @@ def render_profile_page(data_service, session_service) -> None:
     business_name = st.text_input("Business Name", value=str(details.get("business_name", "") or ""))
     upi_id = st.text_input("UPI ID", value=str(details.get("upi_id", "") or ""))
     gst_number = st.text_input("GST Number", value=str(details.get("gst_number", "") or ""))
+    invoice_name = st.text_input("Invoice Name", value=str(details.get("invoice_name", "") or ""))
+    invoice_address = st.text_area("Invoice Address", value=str(details.get("invoice_address", "") or ""), height=90)
+    invoice_phone = st.text_input("Invoice Contact Phone", value=str(details.get("invoice_phone", "") or ""))
+    bank_account_name = st.text_input("Bank Account Name", value=str(details.get("bank_account_name", "") or ""))
+    bank_account_number = st.text_input("Bank Account Number", value=str(details.get("bank_account_number", "") or ""))
+    bank_ifsc = st.text_input("Bank IFSC", value=str(details.get("bank_ifsc", "") or ""))
     contact_name = st.text_input("Contact Name", value=str(profile.get("display_name", "") or ""))
     mobile = st.text_input("Mobile", value=str(profile.get("mobile", "") or ""))
     other_details = st.text_area("Other Required Details", value=str(details.get("other_details", "") or ""))
 
-    preview_profile = {"details": {"business_name": business_name, "upi_id": upi_id, "gst_number": gst_number}}
+    preview_profile = {
+        "details": {
+            "business_name": business_name,
+            "upi_id": upi_id,
+            "gst_number": gst_number,
+            "invoice_name": invoice_name,
+        }
+    }
     is_complete, missing = owner_profile_completion_status(preview_profile)
     if is_complete:
         st.success("Profile is complete.")
@@ -50,6 +63,12 @@ def render_profile_page(data_service, session_service) -> None:
             "business_name": business_name.strip(),
             "upi_id": upi_id.strip(),
             "gst_number": gst_number.strip(),
+            "invoice_name": invoice_name.strip(),
+            "invoice_address": invoice_address.strip(),
+            "invoice_phone": invoice_phone.strip(),
+            "bank_account_name": bank_account_name.strip(),
+            "bank_account_number": bank_account_number.strip(),
+            "bank_ifsc": bank_ifsc.strip(),
             "other_details": other_details.strip(),
             "profile_completed": is_complete,
         }
@@ -69,6 +88,12 @@ def render_profile_page(data_service, session_service) -> None:
                 "business_name": business_name.strip(),
                 "upi_id": upi_id.strip(),
                 "gst_number": gst_number.strip(),
+                "invoice_name": invoice_name.strip(),
+                "invoice_address": invoice_address.strip(),
+                "invoice_phone": invoice_phone.strip(),
+                "bank_account_name": bank_account_name.strip(),
+                "bank_account_number": bank_account_number.strip(),
+                "bank_ifsc": bank_ifsc.strip(),
                 "other_details": other_details.strip(),
                 "profile_completed": is_complete,
             }

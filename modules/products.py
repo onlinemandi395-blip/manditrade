@@ -160,6 +160,56 @@ def _owner_option_label(owner: dict) -> str:
     return f"{display_name} ({email})" if display_name else email
 
 
+def _delivery_partner_candidates_for_owner(users: list[dict], products: list[dict], owner_email: str) -> list[dict]:
+    normalized_owner_email = str(owner_email or "").strip().lower()
+    candidate_map: dict[str, dict] = {
+        str(user.get("email", "")).strip().lower(): dict(user)
+        for user in _active_users_for_role(users, "delivery_partner")
+    }
+    if normalized_owner_email:
+        for product in products:
+            if str(((product.get("owner") or {}).get("email", ""))).strip().lower() != normalized_owner_email:
+                continue
+            delivery_partner = dict(product.get("delivery_partner", {}) or {})
+            partner_email = str(delivery_partner.get("email", "")).strip().lower()
+            if not partner_email:
+                continue
+            if partner_email not in candidate_map:
+                candidate_map[partner_email] = {
+                    "user_id": str(delivery_partner.get("user_id", "")).strip(),
+                    "email": partner_email,
+                    "role": "delivery_partner",
+                    "status": "ACTIVE",
+                    "display_name": str(delivery_partner.get("display_name", "")).strip(),
+                    "phone": str(delivery_partner.get("phone", "")).strip(),
+                    "source": "owner_delivery_partner_fallback",
+                }
+    return sorted(
+        candidate_map.values(),
+        key=lambda user: (str(user.get("display_name", "")).strip().lower(), str(user.get("email", "")).strip().lower()),
+    )
+
+
+def _normalize_owner_business_details(details: dict) -> dict:
+    payload = dict(details or {})
+    normalized = {
+        "business_name": str(payload.get("business_name", "")).strip(),
+        "upi_id": str(payload.get("upi_id", "")).strip(),
+        "gst_number": str(payload.get("gst_number", "")).strip(),
+        "invoice_name": str(payload.get("invoice_name", "")).strip(),
+        "invoice_address": str(payload.get("invoice_address", "")).strip(),
+        "invoice_phone": str(payload.get("invoice_phone", "")).strip(),
+        "bank_account_name": str(payload.get("bank_account_name", "")).strip(),
+        "bank_account_number": str(payload.get("bank_account_number", "")).strip(),
+        "bank_ifsc": str(payload.get("bank_ifsc", "")).strip(),
+        "other_details": str(payload.get("other_details", "")).strip(),
+    }
+    normalized["profile_completed"] = all(
+        normalized[field] for field in ("business_name", "upi_id", "gst_number", "invoice_name")
+    )
+    return normalized
+
+
 def _render_consent_panel(
     *,
     product_consent_service: ProductConsentService,
@@ -346,6 +396,10 @@ def _apply_product_values(
     owner_profile_completed = bool(owner_business_details.get("profile_completed", False))
     product["posting_status"] = "READY_TO_POST" if owner_profile_completed else "DUE_FOR_POSTING"
     product["owner_business_details"] = owner_business_details
+    product["shipment_management"] = {
+        "managed_by_owner": bool(values.get("managed_by_owner", True)),
+        "preferred_delivery_partner_email": str((((values.get("delivery_partner", {}) or {}).get("email", "")))).strip().lower(),
+    }
     delivery_partner = dict(values.get("delivery_partner", {}) or {})
     product["delivery_partner"] = {
         "email": str(delivery_partner.get("email", "")).strip().lower(),
@@ -785,27 +839,36 @@ def render_products_page(data_service, notification_service, session_service, ca
                 owner_email = st.text_input(translator.t("field.owner_email"), key="create_owner_email").strip().lower()
                 owner_display_name = st.text_input(translator.t("field.owner_display_name"), key="create_owner_display_name")
                 owner_phone = st.text_input(translator.t("field.owner_phone"), key="create_owner_phone")
-            delivery_partner_mode = st.radio("Delivery Partner Selection", options=["Select Existing", "Add New"], horizontal=True, key="create_delivery_partner_mode")
-            delivery_partner_candidates = _owner_candidates_for_role(users, products, "delivery_partner")
-            if delivery_partner_mode == "Select Existing" and delivery_partner_candidates:
-                partner_option_map = {row.get("email", ""): row for row in delivery_partner_candidates}
-                partner_choice = st.selectbox(
-                    "Delivery Partner Email",
-                    options=list(partner_option_map.keys()),
-                    format_func=lambda value: _owner_option_label(partner_option_map.get(value, {})),
-                    key="create_existing_delivery_partner",
-                )
-                selected_partner_row = partner_option_map.get(partner_choice, {})
-                delivery_partner_email = str(selected_partner_row.get("email", "")).strip().lower()
-                delivery_partner_display_name = str(selected_partner_row.get("display_name", "")).strip()
-                delivery_partner_phone = str(selected_partner_row.get("phone", "")).strip()
-                st.caption(f"Selected Delivery Partner: {_owner_option_label(selected_partner_row)}")
+            shipment_management_mode = st.radio(
+                "Shipment Management",
+                options=["Owner Managed", "Owner Preferred Delivery Partner"],
+                horizontal=True,
+                key="create_shipment_management_mode",
+            )
+            if shipment_management_mode == "Owner Preferred Delivery Partner":
+                delivery_partner_mode = st.radio("Delivery Partner Selection", options=["Select Existing", "Add New"], horizontal=True, key="create_delivery_partner_mode")
+                delivery_partner_candidates = _delivery_partner_candidates_for_owner(users, products, owner_email)
+                if delivery_partner_mode == "Select Existing" and delivery_partner_candidates:
+                    partner_option_map = {row.get("email", ""): row for row in delivery_partner_candidates}
+                    partner_choice = st.selectbox(
+                        "Delivery Partner Email",
+                        options=list(partner_option_map.keys()),
+                        format_func=lambda value: _owner_option_label(partner_option_map.get(value, {})),
+                        key="create_existing_delivery_partner",
+                    )
+                    selected_partner_row = partner_option_map.get(partner_choice, {})
+                    delivery_partner_email = str(selected_partner_row.get("email", "")).strip().lower()
+                    delivery_partner_display_name = str(selected_partner_row.get("display_name", "")).strip()
+                    delivery_partner_phone = str(selected_partner_row.get("phone", "")).strip()
+                    st.caption(f"Selected Delivery Partner: {_owner_option_label(selected_partner_row)}")
+                else:
+                    if delivery_partner_mode == "Select Existing" and not delivery_partner_candidates:
+                        st.info("No owner-based active delivery partners found yet. Add a new preferred delivery partner.")
+                    delivery_partner_email = st.text_input("Delivery Partner Email", key="create_delivery_partner_email").strip().lower()
+                    delivery_partner_display_name = st.text_input("Delivery Partner Name", key="create_delivery_partner_display_name")
+                    delivery_partner_phone = st.text_input("Delivery Partner Phone", key="create_delivery_partner_phone")
             else:
-                if delivery_partner_mode == "Select Existing" and not delivery_partner_candidates:
-                    st.info("No existing active delivery partners found. Add a new delivery partner.")
-                delivery_partner_email = st.text_input("Delivery Partner Email", key="create_delivery_partner_email").strip().lower()
-                delivery_partner_display_name = st.text_input("Delivery Partner Name", key="create_delivery_partner_display_name")
-                delivery_partner_phone = st.text_input("Delivery Partner Phone", key="create_delivery_partner_phone")
+                st.caption("Owner will manage shipment handling for this product and can assign a delivery partner later per order.")
         else:
             owner_role_key = current_user_role
             owner_email = str(current_user_email).strip().lower()
@@ -814,8 +877,45 @@ def render_products_page(data_service, notification_service, session_service, ca
             delivery_partner_email = ""
             delivery_partner_display_name = ""
             delivery_partner_phone = ""
+            shipment_management_mode = "Owner Managed"
             st.caption(f"Owner: {owner_email}")
             st.caption(f"Owner Role: {owner_role_key}")
+        owner_profile_service = UserProfileService(data_service)
+        owner_profile_preview = (
+            owner_profile_service.get_or_create_profile(
+                email=owner_email,
+                role=owner_role_key or "public_buyer",
+                display_name=owner_display_name or owner_email.split("@")[0],
+                mobile=owner_phone,
+            )
+            if owner_email.strip()
+            else {}
+        )
+        owner_details_preview = _normalize_owner_business_details((owner_profile_preview.get("details", {}) if owner_profile_preview else {}) or {})
+        owner_identity = f"{owner_role_key}|{owner_email}"
+        if st.session_state.get("create_owner_details_identity") != owner_identity:
+            st.session_state["create_owner_details_identity"] = owner_identity
+            st.session_state["create_owner_business_name"] = owner_details_preview.get("business_name", "")
+            st.session_state["create_owner_upi_id"] = owner_details_preview.get("upi_id", "")
+            st.session_state["create_owner_gst_number"] = owner_details_preview.get("gst_number", "")
+            st.session_state["create_owner_invoice_name"] = owner_details_preview.get("invoice_name", "")
+            st.session_state["create_owner_invoice_address"] = owner_details_preview.get("invoice_address", "")
+            st.session_state["create_owner_invoice_phone"] = owner_details_preview.get("invoice_phone", "")
+            st.session_state["create_owner_bank_account_name"] = owner_details_preview.get("bank_account_name", "")
+            st.session_state["create_owner_bank_account_number"] = owner_details_preview.get("bank_account_number", "")
+            st.session_state["create_owner_bank_ifsc"] = owner_details_preview.get("bank_ifsc", "")
+            st.session_state["create_owner_other_details"] = owner_details_preview.get("other_details", "")
+        st.markdown("#### Owner Billing and Payment Details")
+        owner_business_name = st.text_input("Owner Business Name", key="create_owner_business_name")
+        owner_upi_id = st.text_input("Owner UPI ID", key="create_owner_upi_id")
+        owner_gst_number = st.text_input("Owner GST Number", key="create_owner_gst_number")
+        owner_invoice_name = st.text_input("Invoice Name", key="create_owner_invoice_name")
+        owner_invoice_address = st.text_area("Invoice Address", key="create_owner_invoice_address", height=90)
+        owner_invoice_phone = st.text_input("Invoice Contact Phone", key="create_owner_invoice_phone")
+        owner_bank_account_name = st.text_input("Bank Account Name", key="create_owner_bank_account_name")
+        owner_bank_account_number = st.text_input("Bank Account Number", key="create_owner_bank_account_number")
+        owner_bank_ifsc = st.text_input("Bank IFSC", key="create_owner_bank_ifsc")
+        owner_other_details = st.text_area("Other Owner Details", key="create_owner_other_details", height=90)
         category = st.selectbox(translator.t("field.category"), options=category_names if category_names else [""], key="create_category")
         subcategories = category_index.get(category, [])
         subcategory = st.selectbox(translator.t("field.subcategory"), options=subcategories if subcategories else [""], key="create_subcategory")
@@ -866,6 +966,33 @@ def render_products_page(data_service, notification_service, session_service, ca
             if not product_name.strip():
                 st.error("Product name is required.")
                 return
+            owner_business_details_input = _normalize_owner_business_details(
+                {
+                    "business_name": owner_business_name,
+                    "upi_id": owner_upi_id,
+                    "gst_number": owner_gst_number,
+                    "invoice_name": owner_invoice_name,
+                    "invoice_address": owner_invoice_address,
+                    "invoice_phone": owner_invoice_phone,
+                    "bank_account_name": owner_bank_account_name,
+                    "bank_account_number": owner_bank_account_number,
+                    "bank_ifsc": owner_bank_ifsc,
+                    "other_details": owner_other_details,
+                }
+            )
+            missing_owner_fields = [
+                label
+                for field, label in (
+                    ("business_name", "Owner Business Name"),
+                    ("upi_id", "Owner UPI ID"),
+                    ("gst_number", "Owner GST Number"),
+                    ("invoice_name", "Invoice Name"),
+                )
+                if not owner_business_details_input.get(field)
+            ]
+            if missing_owner_fields:
+                st.error(f"Owner details required during onboarding: {', '.join(missing_owner_fields)}.")
+                return
             if is_admin and owner_email.strip():
                 owner_consent_record = product_consent_service.get_consent_status(
                     product_name=product_name.strip(),
@@ -900,20 +1027,16 @@ def render_products_page(data_service, notification_service, session_service, ca
                     data_service=data_service,
                     id_service=id_service,
                 )
-                owner_profile = UserProfileService(data_service).get_or_create_profile(
-                    email=owner_email,
+                owner_profile = owner_profile_service.save_owner_business_details(
+                    actor_email=current_user_email,
+                    actor_role=current_user_role,
+                    target_email=owner_email,
                     role=owner_role_key,
                     display_name=owner.get("display_name", owner_email.split("@")[0]),
                     mobile=owner.get("phone", owner_phone.strip()),
+                    business_details=owner_business_details_input,
                 )
-                owner_details = dict(owner_profile.get("details", {}) or {})
-                owner_business_details = {
-                    "business_name": str(owner_details.get("business_name", "")).strip(),
-                    "upi_id": str(owner_details.get("upi_id", "")).strip(),
-                    "gst_number": str(owner_details.get("gst_number", "")).strip(),
-                    "other_details": str(owner_details.get("other_details", "")).strip(),
-                    "profile_completed": bool(owner_details.get("profile_completed", False)),
-                }
+                owner_business_details = _normalize_owner_business_details(owner_profile.get("details", {}) or {})
                 delivery_partner = {}
                 if delivery_partner_email:
                     delivery_partner, _ = _resolve_or_create_owner(
@@ -964,6 +1087,7 @@ def render_products_page(data_service, notification_service, session_service, ca
                         "manditrade_increment_quantity": manditrade_increment_quantity,
                         "status": status if is_admin else "PENDING_APPROVAL",
                         "delivery_partner": delivery_partner,
+                        "managed_by_owner": shipment_management_mode == "Owner Managed",
                         "owner_business_details": owner_business_details,
                         "submitted_by": current_user_email,
                         "submitted_at": datetime.now(UTC).isoformat(),
@@ -999,20 +1123,6 @@ def render_products_page(data_service, notification_service, session_service, ca
                     title="Product submitted",
                     message=f"{product_name} was submitted.",
                     event_type="PRODUCT_SUBMITTED",
-                    to_role=owner_role_key,
-                    owner_email=owner_email,
-                    source_entity="products",
-                    source_id=record["product_id"],
-                    created_by=current_user_email,
-                )
-                notification_service.create_notification(
-                    to_email=owner_email,
-                    title="Complete your profile to post products",
-                    message=(
-                        f"Please complete your profile with UPI ID, GST number, and business details. "
-                        f"Until then {product_name} stays due for posting."
-                    ),
-                    event_type="PROFILE_COMPLETION_REQUIRED",
                     to_role=owner_role_key,
                     owner_email=owner_email,
                     source_entity="products",
