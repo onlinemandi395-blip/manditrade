@@ -8,3 +8,5 @@ runtime/oauth/
 runtime/drive_debug/
 *.token.json
 admin_user_token.json
+bootstrap_drive_seed/
+bootstrap_seed/

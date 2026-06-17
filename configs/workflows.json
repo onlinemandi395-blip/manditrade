@@ -1,9 +1,0 @@
-{
-  "workflows": {
-    "checkout": {
-      "steps": ["cart_review", "order_create", "notification_queue"],
-      "order_status": "CREATED",
-      "notification_type": "ORDER_CREATED"
-    }
-  }
-}

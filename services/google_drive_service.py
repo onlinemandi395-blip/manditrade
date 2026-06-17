@@ -7,6 +7,7 @@ from typing import Any
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
+from google.oauth2.service_account import Credentials as ServiceAccountCredentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaInMemoryUpload
 
@@ -42,6 +43,10 @@ class GoogleDriveService:
                 refreshed = self.serialize_credentials(creds, user_token)
                 self.write_token_store(refreshed)
         return build("gmail", "v1", credentials=creds, cache_discovery=False)
+
+    def build_drive_client_from_service_account_info(self, service_account_info: dict[str, Any]):
+        creds = ServiceAccountCredentials.from_service_account_info(service_account_info, scopes=self.SCOPES)
+        return build("drive", "v3", credentials=creds, cache_discovery=False)
 
     def serialize_credentials(self, creds: Credentials, seed: dict[str, Any] | None = None) -> dict[str, Any]:
         payload = dict(seed or {})

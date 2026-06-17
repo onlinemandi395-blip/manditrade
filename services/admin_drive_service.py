@@ -28,8 +28,12 @@ class AdminDriveService:
     def _get_drive_config(self) -> dict[str, str]:
         secrets = dict(st.secrets.get("google_drive", {})) if "google_drive" in st.secrets else {}
         return {
-            "root_folder_id": str(secrets.get("root_folder_id", "") or "").strip(),
-            "root_folder_name": str(secrets.get("root_folder_name", "") or "MANDITRADE_DB").strip(),
+            "root_folder_id": str(
+                secrets.get("root_folder_id", "") or secrets.get("admin_db_root_folder_id", "") or ""
+            ).strip(),
+            "root_folder_name": str(
+                secrets.get("root_folder_name", "") or secrets.get("admin_db_root_folder_name", "") or "MANDITRADE_DB"
+            ).strip(),
         }
 
     def _get_platform_config(self) -> dict[str, str]:
@@ -39,9 +43,17 @@ class AdminDriveService:
             "primary_admin_name": str(secrets.get("primary_admin_name", "") or "Primary Admin").strip(),
         }
 
-    def get_required_files_registry(self) -> list[dict]:
+    def get_selected_bootstrap_mode(self) -> str:
+        mode = str(st.session_state.get("mt_bootstrap_mode", "live") or "live").strip().lower()
+        return mode if mode in {"live", "dummy"} else "live"
+
+    def get_required_files_registry(self, *, mode: str | None = None) -> list[dict]:
         platform = self._get_platform_config()
-        return build_required_drive_files(platform["primary_admin_email"], platform["primary_admin_name"])
+        return build_required_drive_files(
+            platform["primary_admin_email"],
+            platform["primary_admin_name"],
+            mode=mode or self.get_selected_bootstrap_mode(),
+        )
 
     def _get_required_file_definition(self, logical_path: str) -> dict | None:
         return next((item for item in self.get_required_files_registry() if item.get("logical_path") == logical_path), None)
@@ -385,12 +397,12 @@ class AdminDriveService:
             "file_id": result.get("file_id", ""),
         }
 
-    def create_missing_required_files(self) -> dict:
+    def create_missing_required_files(self, *, mode: str | None = None) -> dict:
         resolver = self.get_path_resolver()
         created = []
         existing = []
         updated = []
-        for item in self.get_required_files_registry():
+        for item in self.get_required_files_registry(mode=mode):
             logical_path = item["logical_path"]
             result = resolver.resolve_file_path(logical_path)
             if result["status"] == "FOUND":

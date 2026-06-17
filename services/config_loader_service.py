@@ -9,8 +9,8 @@ from services.performance_service import PerformanceService
 
 
 class ConfigLoaderService:
-    LOCAL_CONFIG_DIR = Path(__file__).resolve().parent.parent / "configs"
-    LOCAL_LANGUAGE_DIR = Path(__file__).resolve().parent.parent / "configs" / "languages"
+    BOOTSTRAP_ROOT = Path(__file__).resolve().parent.parent / "bootstrap_seed"
+    DEFAULT_BOOTSTRAP_MODE = "live"
     DRIVE_PATHS = {
         "app_config": "00_config/app_config.json",
         "auth": "00_config/auth.json",
@@ -40,6 +40,12 @@ class ConfigLoaderService:
     def __init__(self) -> None:
         self.admin_drive_service = AdminDriveService()
         self.performance_service = PerformanceService()
+
+    def _get_local_config_dir(self) -> Path:
+        return self.BOOTSTRAP_ROOT / self.DEFAULT_BOOTSTRAP_MODE / "00_config"
+
+    def _get_local_language_dir(self) -> Path:
+        return self._get_local_config_dir() / "languages"
 
     def validate_runtime(self) -> dict[str, Any]:
         return self.admin_drive_service.get_runtime_manifest()
@@ -71,7 +77,7 @@ class ConfigLoaderService:
     def list_available_language_codes(self) -> list[str]:
         discovered_codes = {
             path.stem.strip().lower()
-            for path in self.LOCAL_LANGUAGE_DIR.glob("*.json")
+            for path in self._get_local_language_dir().glob("*.json")
             if path.stem.strip()
         }
         try:
@@ -90,14 +96,14 @@ class ConfigLoaderService:
         return sorted(code for code in discovered_codes if code)
 
     def _load_local_language_bundle(self, code: str) -> dict[str, Any]:
-        path = self.LOCAL_LANGUAGE_DIR / f"{code}.json"
+        path = self._get_local_language_dir() / f"{code}.json"
         if not path.exists():
             return {}
         payload = json.loads(path.read_text(encoding="utf-8"))
         return dict(payload.get("translations", payload))
 
     def _load_local_config_bundle(self, name: str) -> dict[str, Any]:
-        path = self.LOCAL_CONFIG_DIR / f"{name}.json"
+        path = self._get_local_config_dir() / f"{name}.json"
         if not path.exists():
             return {}
         return json.loads(path.read_text(encoding="utf-8"))

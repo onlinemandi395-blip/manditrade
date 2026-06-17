@@ -40,6 +40,16 @@ def render_setup_console(admin_drive_service, drive_manifest: dict, translator=N
     t = translator.t if translator else (lambda key: key)
     st.markdown(f"## {t('ui.first_time_setup')}")
     st.caption(t("ui.google_drive_database_initialization"))
+    bootstrap_mode = st.radio(
+        "Bootstrap Mode",
+        options=["live", "dummy"],
+        index=1 if admin_drive_service.get_selected_bootstrap_mode() == "dummy" else 0,
+        horizontal=True,
+        key=f"{key_prefix}_bootstrap_mode",
+        format_func=lambda value: "Dummy Simulation" if value == "dummy" else "Live",
+    )
+    st.session_state["mt_bootstrap_mode"] = bootstrap_mode
+    st.caption("Use Dummy Simulation to initialize the app with realistic demo products, orders, payments, shipments, and notifications.")
 
     status_cards = st.columns(6)
     status_cards[0].metric("Google OAuth", "Ready" if drive_manifest.get("connected") else "Missing")
@@ -70,7 +80,7 @@ def render_setup_console(admin_drive_service, drive_manifest: dict, translator=N
             st.error(f"Create Missing Folders failed: {exc}")
     if cols[2].button("Create Missing JSON Files", use_container_width=True, disabled=not drive_manifest.get("missing_files"), key=f"{key_prefix}_create_missing_json_files"):
         try:
-            result = admin_drive_service.create_missing_required_files()
+            result = admin_drive_service.create_missing_required_files(mode=bootstrap_mode)
             st.success(f"Files created: {len(result.get('created', []))}. Database mappings updated: {len(result.get('updated', []))}")
             st.rerun()
         except Exception as exc:
