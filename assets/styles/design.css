@@ -199,6 +199,65 @@ div[data-testid="stVerticalBlock"]:has(> div > .mt-product-grid-row) > div[data-
   margin-bottom: 0.75rem;
 }
 
+.mt-table-shell {
+  margin-bottom: 1rem;
+}
+
+.mt-table-shell__title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--mt-text);
+}
+
+.mt-table-shell__subtitle {
+  margin-top: 0.2rem;
+  color: var(--mt-text-soft);
+  font-size: 0.84rem;
+}
+
+.mt-table-shell__stats {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.mt-table-shell__stats div {
+  min-width: 88px;
+  padding: 0.65rem 0.8rem;
+  border-radius: 14px;
+  background: rgba(31, 47, 64, 0.9);
+  border: 1px solid rgba(159, 177, 193, 0.16);
+  text-align: center;
+}
+
+.mt-table-shell__stats span {
+  display: block;
+  color: var(--mt-text-soft);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.mt-table-shell__stats strong {
+  display: block;
+  margin-top: 0.2rem;
+  color: var(--mt-text);
+  font-size: 1.05rem;
+}
+
+div[data-testid="stTextInput"]:has(input[aria-label="Search table"]) input {
+  background: rgba(24, 36, 49, 0.92);
+  border: 1px solid var(--mt-border);
+  color: var(--mt-text);
+}
+
+div[data-testid="stDataFrame"] {
+  border: 1px solid rgba(159, 177, 193, 0.16);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
 .mt-empty {
   text-align: center;
   padding: 2rem 1rem;

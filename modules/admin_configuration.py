@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 
 import streamlit as st
 
+from components.table_renderer import render_table
 from components.theme_manager import render_theme_manager
 from services.admin_drive_service import AdminDriveService
 from services.cache_service import CacheService
@@ -41,7 +42,7 @@ def render_admin_configuration(auth_service, data_service, notification_service,
 
     with tabs[0]:
         st.subheader(t("ui.admin_users"))
-        st.dataframe(admin_rows, use_container_width=True)
+        render_table(admin_rows, caption=t("ui.admin_users"))
         editable_admins = [row for row in admin_rows if row.get("source") != "toml_primary_admin"]
         if editable_admins:
             selected_admin_email = st.selectbox(t("ui.select_admin"), options=[row["email"] for row in editable_admins])
@@ -117,7 +118,7 @@ def render_admin_configuration(auth_service, data_service, notification_service,
 
     with tabs[1]:
         manifest = admin_drive_service.get_runtime_manifest()
-        st.dataframe(manifest.get("required_files", []), use_container_width=True)
+        render_table(manifest.get("required_files", []), caption=t("ui.required_files"))
         if manifest.get("missing_files"):
             st.error(t("ui.required_drive_files_missing"))
             if st.button(t("ui.create_missing_drive_files"), use_container_width=True):
