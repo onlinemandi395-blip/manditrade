@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import re
+from datetime import date, datetime
+from decimal import Decimal
+import json
 from typing import Any
 
 import pandas as pd
@@ -20,6 +23,37 @@ def _format_column_name(name: str) -> str:
     return label.title() if label else "Value"
 
 
+def _stringify_nested_value(value: Any) -> str:
+    if value in (None, ""):
+        return ""
+    if isinstance(value, bool):
+        return "Yes" if value else "No"
+    if isinstance(value, (int, float, Decimal)) and not isinstance(value, bool):
+        return f"{value:g}" if isinstance(value, float) else str(value)
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    if isinstance(value, dict):
+        parts = []
+        for key, nested_value in value.items():
+            rendered = _stringify_nested_value(nested_value)
+            if rendered:
+                parts.append(f"{_format_column_name(str(key))}: {rendered}")
+        return " | ".join(parts)
+    if isinstance(value, (list, tuple, set)):
+        parts = [_stringify_nested_value(item) for item in value]
+        return ", ".join(part for part in parts if part)
+    text = str(value).strip()
+    if not text:
+        return ""
+    if text.startswith("{") or text.startswith("["):
+        try:
+            parsed = json.loads(text)
+            return _stringify_nested_value(parsed)
+        except Exception:
+            return text
+    return text
+
+
 def _coerce_rows(rows: list[Any]) -> list[dict]:
     coerced: list[dict] = []
     for row in rows:
@@ -35,6 +69,7 @@ def _normalize_rows(rows: list[Any]) -> pd.DataFrame:
     if dataframe.empty:
         return dataframe
     dataframe = dataframe.fillna("")
+    dataframe = dataframe.map(_stringify_nested_value)
     dataframe.columns = [_format_column_name(column) for column in dataframe.columns]
     return dataframe
 
