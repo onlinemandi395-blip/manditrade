@@ -75,8 +75,7 @@
 }
 
 .mt-topbar::before,
-.mt-page-hero::before,
-.mt-table-template::before {
+.mt-page-hero::before {
   content: "";
   position: absolute;
   inset: auto -4rem -4rem auto;
@@ -332,11 +331,34 @@ div[data-testid="stVerticalBlock"]:has(> div > .mt-product-grid-row) > div[data-
   font-size: 0.84rem;
 }
 
-.mt-table-template {
+.mt-table-template-anchor {
+  display: block;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+div[data-testid="stVerticalBlock"]:has(> div > .mt-table-template-anchor) {
   position: relative;
   overflow: hidden;
   margin-bottom: 1rem;
   padding: 1rem;
+  background: linear-gradient(180deg, rgba(25, 25, 25, 0.94), rgba(12, 12, 12, 0.92));
+  border: 1px solid var(--mt-border);
+  border-radius: var(--mt-radius);
+  box-shadow: var(--mt-shadow);
+  backdrop-filter: blur(18px);
+}
+
+div[data-testid="stVerticalBlock"]:has(> div > .mt-table-template-anchor)::before {
+  content: "";
+  position: absolute;
+  inset: auto -4rem -4rem auto;
+  width: 200px;
+  height: 200px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(217, 4, 41, 0.26), transparent 68%);
+  pointer-events: none;
 }
 
 .mt-table-shell__meta {

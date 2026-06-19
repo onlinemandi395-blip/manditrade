@@ -71,6 +71,13 @@ def render_payments_page(data_service, order_service, notification_service, sess
         f"{t('ui.product')}: {related_order.get('product_name', '')} | "
         f"{t('ui.source')}: {related_order.get('source_channel', '')}"
     )
+    financials = dict(related_order.get("financials", {}) or {})
+    if financials:
+        finance_cols = st.columns(4)
+        finance_cols[0].metric("Merchandise", f"Rs. {float(financials.get('merchandise_total', 0) or 0):.2f}")
+        finance_cols[1].metric("Packaging", f"Rs. {float(financials.get('packaging_charge', 0) or 0):.2f}")
+        finance_cols[2].metric("Shipping", f"Rs. {float(financials.get('shipping_charge', 0) or 0):.2f}")
+        finance_cols[3].metric("Owner Payable", f"Rs. {float(financials.get('owner_payable_amount', 0) or 0):.2f}")
     upi_link = str(payment.get("upi_link", "") or "").strip()
     st.code(upi_link)
     if upi_link:

@@ -6,6 +6,31 @@ from components.table_renderer import render_table
 from services.document_service import DocumentService
 
 
+def _decorate_shipment_rows(shipments: list[dict], orders: list[dict]) -> list[dict]:
+    order_map = {
+        str(row.get("order_id", "")).strip(): row
+        for row in orders
+        if str(row.get("order_id", "")).strip()
+    }
+    decorated = []
+    for shipment in shipments:
+        order = dict(order_map.get(str(shipment.get("order_id", "")).strip(), {}) or {})
+        financials = dict(order.get("financials", {}) or {})
+        service_config = dict(order.get("service_config", {}) or {})
+        decorated.append(
+            {
+                **shipment,
+                "source_channel": shipment.get("source_channel", order.get("source_channel", "")),
+                "market_type": shipment.get("market_type", order.get("market_type", "")),
+                "shipping_mode": shipment.get("shipping_mode", service_config.get("shipping_mode", "owner")),
+                "delivery_scope": shipment.get("delivery_scope", service_config.get("delivery_scope", "custom")),
+                "shipping_charge": shipment.get("shipping_charge", financials.get("shipping_charge", 0)),
+                "packaging_charge": shipment.get("packaging_charge", financials.get("packaging_charge", 0)),
+            }
+        )
+    return decorated
+
+
 def render_shipments_page(data_service, order_service, notification_service, session_service, translator=None) -> None:
     t = translator.t if translator else (lambda key: key)
     document_service = DocumentService()
@@ -13,7 +38,7 @@ def render_shipments_page(data_service, order_service, notification_service, ses
     role = str(user.get("role", "")).strip().lower()
     email = str(user.get("email", "")).strip().lower()
     orders = data_service.get_collection_ref("orders")
-    shipments = data_service.get_collection_ref("shipments")
+    shipments = _decorate_shipment_rows(data_service.get_collection_ref("shipments"), orders)
     users = data_service.get_collection_ref("users")
 
     if role == "platform_admin":

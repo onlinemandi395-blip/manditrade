@@ -6,6 +6,16 @@ from components.table_renderer import render_table
 from services.ledger_service import LedgerService
 
 
+def _render_revenue_summary_rows(rows: list[dict]) -> None:
+    if not rows:
+        return
+    metric_cols = st.columns(4)
+    metric_cols[0].metric("Accounts", sum(int(row.get("account_count", 0) or 0) for row in rows))
+    metric_cols[1].metric("Platform Margin", f"Rs. {sum(float(row.get('platform_margin', 0) or 0) for row in rows):.2f}")
+    metric_cols[2].metric("Packaging Revenue", f"Rs. {sum(float(row.get('packaging_revenue', 0) or 0) for row in rows):.2f}")
+    metric_cols[3].metric("Shipping Revenue", f"Rs. {sum(float(row.get('shipping_revenue', 0) or 0) for row in rows):.2f}")
+
+
 def render_ledger_page(data_service, notification_service, session_service, translator=None) -> None:
     t = translator.t if translator else (lambda key: key)
     ledger_service = LedgerService(data_service)
@@ -15,7 +25,9 @@ def render_ledger_page(data_service, notification_service, session_service, tran
     summaries = ledger_service.summarize_accounts(viewer_email=email, role=role)
     if role == "platform_admin":
         grouped_accounts = ledger_service.summarize_accounts_by_owner_role(role=role)
-        render_table(ledger_service.summarize_admin_totals(), caption=t("ui.ledger_overview"))
+        admin_totals = ledger_service.summarize_admin_totals()
+        _render_revenue_summary_rows(admin_totals)
+        render_table(admin_totals, caption=t("ui.ledger_overview"))
         admin_tabs = st.tabs([t("ui.all_accounts"), t("ui.manufacturers"), t("ui.mahajans"), t("ui.other")])
         tab_rows = {
             t("ui.all_accounts"): summaries,
@@ -73,10 +85,31 @@ def render_ledger_page(data_service, notification_service, session_service, tran
         account_rows = [row for row in ledger_rows if str(row.get("account_key", "")).strip() == selected_account]
         payable_rows = [row for row in account_rows if str(row.get("entry_type", "")).upper() == "PAYABLE_TO_OWNER"]
         settlement_rows = [row for row in account_rows if str(row.get("entry_type", "")).upper() == "PAYMENT_TO_OWNER"]
-        render_table(account_rows, caption=t("ui.ledger_entries"))
-        render_table(settlement_rows, caption=t("ui.settlement_history"))
-        if payable_rows:
+        margin_rows = [row for row in account_rows if str(row.get("entry_type", "")).upper() == "PLATFORM_MARGIN"]
+        packaging_rows = [row for row in account_rows if str(row.get("entry_type", "")).upper() == "PACKAGING_FEE"]
+        shipping_rows = [row for row in account_rows if str(row.get("entry_type", "")).upper() == "SHIPPING_FEE"]
+        entry_tabs = st.tabs(
+            [
+                t("ui.ledger_entries"),
+                t("ui.settlement_history"),
+                t("ui.payable_history"),
+                "Platform Margin",
+                "Packaging",
+                "Shipping",
+            ]
+        )
+        with entry_tabs[0]:
+            render_table(account_rows, caption=t("ui.ledger_entries"))
+        with entry_tabs[1]:
+            render_table(settlement_rows, caption=t("ui.settlement_history"))
+        with entry_tabs[2]:
             render_table(payable_rows, caption=t("ui.payable_history"))
+        with entry_tabs[3]:
+            render_table(margin_rows, caption="Platform margin entries")
+        with entry_tabs[4]:
+            render_table(packaging_rows, caption="Packaging entries")
+        with entry_tabs[5]:
+            render_table(shipping_rows, caption="Shipping entries")
         if role == "platform_admin":
             owner = next((row for row in account_rows if str((row.get("party_owner") or {}).get("email", "")).strip()), {})
             owner_email = str((owner.get("party_owner") or {}).get("email", "")).strip().lower()

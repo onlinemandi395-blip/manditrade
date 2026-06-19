@@ -10,6 +10,49 @@ from services.payment_service import PaymentService
 from services.qr_service import QRService
 
 
+def _render_order_financial_summary(selected_order: dict, translator=None) -> None:
+    t = translator.t if translator else (lambda key: key)
+    financials = dict(selected_order.get("financials", {}) or {})
+    service_config = dict(selected_order.get("service_config", {}) or {})
+    cols = st.columns(4)
+    cols[0].metric("Merchandise", f"Rs. {float(financials.get('merchandise_total', selected_order.get('merchandise_total', 0)) or 0):.2f}")
+    cols[1].metric("Platform Margin", f"Rs. {float(financials.get('platform_margin', selected_order.get('admin_margin', 0)) or 0):.2f}")
+    cols[2].metric("Packaging", f"Rs. {float(financials.get('packaging_charge', 0) or 0):.2f}")
+    cols[3].metric("Shipping", f"Rs. {float(financials.get('shipping_charge', 0) or 0):.2f}")
+    secondary_cols = st.columns(4)
+    secondary_cols[0].metric("Owner Payable", f"Rs. {float(financials.get('owner_payable_amount', ((selected_order.get('internal') or {}).get('owner_payable_amount', 0))) or 0):.2f}")
+    secondary_cols[1].metric(t("ui.amount"), f"Rs. {float(financials.get('grand_total', selected_order.get('total_amount', 0)) or 0):.2f}")
+    secondary_cols[2].metric("Packaging Mode", str(service_config.get("packaging_mode", "owner") or "owner").title())
+    secondary_cols[3].metric("Shipping Mode", str(service_config.get("shipping_mode", "owner") or "owner").title())
+    if str(service_config.get("delivery_notes", "")).strip():
+        st.caption(f"Fulfillment note: {service_config.get('delivery_notes', '')}")
+
+
+def _render_order_items(selected_order: dict) -> None:
+    items = [dict(item or {}) for item in (selected_order.get("items", []) or [])]
+    if not items:
+        return
+    render_table(items, caption="Order line items")
+
+
+def _render_order_address(selected_order: dict) -> None:
+    delivery_address = dict(selected_order.get("delivery_address", {}) or {})
+    if not any(str(value or "").strip() for value in delivery_address.values()):
+        return
+    address_parts = [
+        str(delivery_address.get("address_line_1", "")).strip(),
+        str(delivery_address.get("address_line_2", "")).strip(),
+        str(delivery_address.get("city", "")).strip(),
+        str(delivery_address.get("state", "")).strip(),
+        str(delivery_address.get("pin_code", "")).strip(),
+    ]
+    address_text = ", ".join([part for part in address_parts if part])
+    if str(delivery_address.get("landmark", "")).strip():
+        address_text = f"{address_text} | Landmark: {delivery_address.get('landmark', '')}" if address_text else f"Landmark: {delivery_address.get('landmark', '')}"
+    if address_text:
+        st.caption(f"Delivery address: {address_text}")
+
+
 def _tabs_for_role(role: str, current_user_email: str = "", translator=None) -> dict[str, callable]:
     t = translator.t if translator else (lambda key: key)
     active_statuses = {
@@ -235,6 +278,9 @@ def render_orders_page(rows: list[dict], role: str, *, data_service=None, order_
                 f"{t('field.quantity')}: {selected_order.get('quantity', 0)} | "
                 f"{t('ui.amount')}: {selected_order.get('total_amount', 0)}"
             )
+            _render_order_financial_summary(selected_order, translator)
+            _render_order_address(selected_order)
+            _render_order_items(selected_order)
             if _invoice_ready(selected_order):
                 invoice_html = document_service.build_invoice_html(selected_order)
                 st.download_button(
@@ -272,7 +318,7 @@ def render_orders_page(rows: list[dict], role: str, *, data_service=None, order_
                                 order_id=selected_order_id,
                                 deleted_by=session_service.get_user().get("email", ""),
                             )
-                            order_service.persist_order_storage(selected_order_id)
+                            data_service.persist_collection(result.get("collection_name", ""))
                             data_service.persist_collection("payments")
                             data_service.persist_collection("shipments")
                             data_service.persist_collection("ledger")

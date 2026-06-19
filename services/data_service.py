@@ -142,6 +142,8 @@ class DataService:
         pricing.setdefault("marketplace_price", marketplace_channel.get("price", 0))
         pricing.setdefault("manditrade_price", manditrade_channel.get("price", 0))
         pricing.setdefault("currency", "INR")
+        pricing.setdefault("b2c_margin_type", "absolute")
+        pricing.setdefault("b2b_margin_type", "absolute")
         sales_channels["marketplace"] = {
             "enabled": bool(marketplace_channel.get("enabled", False)),
             "minimum_quantity": 1.0,
@@ -164,6 +166,16 @@ class DataService:
         }
         product["sales_channels"] = sales_channels
         product["pricing"] = pricing
+        service_config = dict(product.get("service_config", {}) or {})
+        service_config.setdefault("packaging_mode", "owner")
+        service_config.setdefault("shipping_mode", "owner")
+        service_config.setdefault("delivery_scope", "custom")
+        service_config.setdefault("packaging_cost_b2c", 0.0)
+        service_config.setdefault("packaging_cost_b2b", 0.0)
+        service_config.setdefault("shipping_cost_b2c", 0.0)
+        service_config.setdefault("shipping_cost_b2b", 0.0)
+        service_config.setdefault("delivery_notes", "")
+        product["service_config"] = service_config
         owner = dict(product.get("owner", {}) or {})
         if not owner:
             if product.get("manufacturer"):
@@ -220,6 +232,10 @@ class DataService:
         inventory.setdefault("available_quantity", 0)
         inventory.setdefault("manual_update_only", True)
         product["inventory"] = inventory
+        shipment_management = dict(product.get("shipment_management", {}) or {})
+        shipment_management.setdefault("managed_by_owner", True)
+        shipment_management.setdefault("preferred_delivery_partner_email", str(product["delivery_partner"].get("email", "")).strip().lower())
+        product["shipment_management"] = shipment_management
         approval = dict(product.get("approval", {}) or {})
         approval.setdefault("submitted_by", product.get("created_by", ""))
         approval.setdefault("submitted_at", product.get("created_at", ""))

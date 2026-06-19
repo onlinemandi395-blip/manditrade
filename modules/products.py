@@ -210,6 +210,20 @@ def _normalize_owner_business_details(details: dict) -> dict:
     return normalized
 
 
+def _normalize_service_config(details: dict) -> dict:
+    payload = dict(details or {})
+    return {
+        "packaging_mode": str(payload.get("packaging_mode", "owner") or "owner").strip().lower(),
+        "shipping_mode": str(payload.get("shipping_mode", "owner") or "owner").strip().lower(),
+        "delivery_scope": str(payload.get("delivery_scope", "custom") or "custom").strip().lower(),
+        "packaging_cost_b2c": round(float(payload.get("packaging_cost_b2c", 0) or 0), 2),
+        "packaging_cost_b2b": round(float(payload.get("packaging_cost_b2b", 0) or 0), 2),
+        "shipping_cost_b2c": round(float(payload.get("shipping_cost_b2c", 0) or 0), 2),
+        "shipping_cost_b2b": round(float(payload.get("shipping_cost_b2b", 0) or 0), 2),
+        "delivery_notes": str(payload.get("delivery_notes", "") or "").strip(),
+    }
+
+
 def _render_onboarding_section(title: str, caption: str = ""):
     container = st.container(border=True)
     with container:
@@ -310,6 +324,10 @@ def _build_product_table_rows(products: list[dict]) -> list[dict]:
                 "admin_price": ((product.get("pricing") or {}).get("admin_price", 0)),
                 "marketplace_price": ((product.get("pricing") or {}).get("marketplace_price", 0)),
                 "manditrade_price": ((product.get("pricing") or {}).get("manditrade_price", 0)),
+                "packaging_mode": ((product.get("service_config") or {}).get("packaging_mode", "owner")),
+                "shipping_mode": ((product.get("service_config") or {}).get("shipping_mode", "owner")),
+                "packaging_cost_b2c": ((product.get("service_config") or {}).get("packaging_cost_b2c", 0)),
+                "shipping_cost_b2c": ((product.get("service_config") or {}).get("shipping_cost_b2c", 0)),
                 "manditrade_minimum_quantity": (((product.get("sales_channels") or {}).get("manditrade") or {}).get("minimum_quantity", 1)),
                 "manditrade_increment_quantity": (((product.get("sales_channels") or {}).get("manditrade") or {}).get("increment_quantity", 1)),
                 "quantity": ((product.get("inventory") or {}).get("available_quantity", 0)),
@@ -434,6 +452,7 @@ def _apply_product_values(
         "manditrade_price": values["manditrade_price"],
         "currency": "INR",
     }
+    product["service_config"] = _normalize_service_config(values.get("service_config", {}))
     product["sales_channels"] = {
         "marketplace": {
             "enabled": values["marketplace_enabled"],
@@ -671,6 +690,18 @@ def render_products_page(data_service, notification_service, session_service, ca
                     value=float((((selected_product.get("sales_channels") or {}).get("manditrade") or {}).get("increment_quantity", 1)) or 1),
                     key="edit_manditrade_increment_quantity",
                 )
+                selected_service_config = _normalize_service_config(selected_product.get("service_config", {}) or {})
+                st.markdown("#### Fulfillment Services")
+                service_cols = st.columns(3)
+                edit_packaging_mode = service_cols[0].selectbox("Packaging Mode", options=["owner", "manditrade"], index=["owner", "manditrade"].index(selected_service_config.get("packaging_mode", "owner")), key="edit_packaging_mode")
+                edit_shipping_mode = service_cols[1].selectbox("Shipping Mode", options=["owner", "manditrade"], index=["owner", "manditrade"].index(selected_service_config.get("shipping_mode", "owner")), key="edit_shipping_mode")
+                edit_delivery_scope = service_cols[2].selectbox("Delivery Scope", options=["custom", "local", "zonal", "national"], index=["custom", "local", "zonal", "national"].index(selected_service_config.get("delivery_scope", "custom")) if selected_service_config.get("delivery_scope", "custom") in ["custom", "local", "zonal", "national"] else 0, key="edit_delivery_scope")
+                service_cost_cols = st.columns(4)
+                edit_packaging_cost_b2c = service_cost_cols[0].number_input("Packaging Cost B2C", min_value=0.0, step=1.0, value=float(selected_service_config.get("packaging_cost_b2c", 0) or 0), key="edit_packaging_cost_b2c")
+                edit_shipping_cost_b2c = service_cost_cols[1].number_input("Shipping Cost B2C", min_value=0.0, step=1.0, value=float(selected_service_config.get("shipping_cost_b2c", 0) or 0), key="edit_shipping_cost_b2c")
+                edit_packaging_cost_b2b = service_cost_cols[2].number_input("Packaging Cost B2B", min_value=0.0, step=1.0, value=float(selected_service_config.get("packaging_cost_b2b", 0) or 0), key="edit_packaging_cost_b2b")
+                edit_shipping_cost_b2b = service_cost_cols[3].number_input("Shipping Cost B2B", min_value=0.0, step=1.0, value=float(selected_service_config.get("shipping_cost_b2b", 0) or 0), key="edit_shipping_cost_b2b")
+                edit_delivery_notes = st.text_area("Fulfillment Notes", value=str(selected_service_config.get("delivery_notes", "") or ""), key="edit_delivery_notes", height=80)
                 editable_statuses = _get_editable_status_options(is_admin, selected_product.get("status", "PENDING_APPROVAL"))
                 edit_status = st.selectbox(translator.t("field.status"), options=editable_statuses, index=editable_statuses.index(str(selected_product.get("status", editable_statuses[0])).upper()) if str(selected_product.get("status", editable_statuses[0])).upper() in editable_statuses else 0, key="edit_status")
                 edit_uploaded_files = st.file_uploader(
@@ -739,6 +770,16 @@ def render_products_page(data_service, notification_service, session_service, ca
                                 "manditrade_price": edit_manditrade_price,
                                 "manditrade_minimum_quantity": edit_manditrade_minimum_quantity,
                                 "manditrade_increment_quantity": edit_manditrade_increment_quantity,
+                                "service_config": {
+                                    "packaging_mode": edit_packaging_mode,
+                                    "shipping_mode": edit_shipping_mode,
+                                    "delivery_scope": edit_delivery_scope,
+                                    "packaging_cost_b2c": edit_packaging_cost_b2c,
+                                    "shipping_cost_b2c": edit_shipping_cost_b2c,
+                                    "packaging_cost_b2b": edit_packaging_cost_b2b,
+                                    "shipping_cost_b2b": edit_shipping_cost_b2b,
+                                    "delivery_notes": edit_delivery_notes,
+                                },
                                 "status": edit_status if is_admin else "PENDING_APPROVAL",
                                 "delivery_partner": delivery_partner,
                                 "submitted_by": (selected_product.get("approval") or {}).get("submitted_by", selected_product.get("created_by", current_user_email)),
@@ -987,6 +1028,20 @@ def render_products_page(data_service, notification_service, session_service, ca
             manditrade_minimum_quantity = mandi_qty_cols[0].number_input(translator.t("field.manditrade_minimum_quantity"), min_value=1.0, step=1.0, value=1.0, key="create_manditrade_minimum_quantity")
             manditrade_increment_quantity = mandi_qty_cols[1].number_input(translator.t("field.manditrade_increment_quantity"), min_value=1.0, step=1.0, value=1.0, key="create_manditrade_increment_quantity")
         with _render_onboarding_section(
+            "Fulfillment Services",
+            "Configure optional packaging and shipping services provided by either the owner or MandiTrade.",
+        ):
+            service_mode_cols = st.columns(3)
+            packaging_mode = service_mode_cols[0].selectbox("Packaging Mode", options=["owner", "manditrade"], key="create_packaging_mode")
+            shipping_mode = service_mode_cols[1].selectbox("Shipping Mode", options=["owner", "manditrade"], key="create_shipping_mode")
+            delivery_scope = service_mode_cols[2].selectbox("Delivery Scope", options=["custom", "local", "zonal", "national"], key="create_delivery_scope")
+            service_cost_cols = st.columns(4)
+            packaging_cost_b2c = service_cost_cols[0].number_input("Packaging Cost B2C", min_value=0.0, step=1.0, key="create_packaging_cost_b2c")
+            shipping_cost_b2c = service_cost_cols[1].number_input("Shipping Cost B2C", min_value=0.0, step=1.0, key="create_shipping_cost_b2c")
+            packaging_cost_b2b = service_cost_cols[2].number_input("Packaging Cost B2B", min_value=0.0, step=1.0, key="create_packaging_cost_b2b")
+            shipping_cost_b2b = service_cost_cols[3].number_input("Shipping Cost B2B", min_value=0.0, step=1.0, key="create_shipping_cost_b2b")
+            delivery_notes = st.text_area("Fulfillment Notes", key="create_delivery_notes", height=80)
+        with _render_onboarding_section(
             "Media and Approval",
             "Upload product images, complete consent checks, and choose the initial product status.",
         ):
@@ -1147,6 +1202,16 @@ def render_products_page(data_service, notification_service, session_service, ca
                         "manditrade_price": manditrade_price,
                         "manditrade_minimum_quantity": manditrade_minimum_quantity,
                         "manditrade_increment_quantity": manditrade_increment_quantity,
+                        "service_config": {
+                            "packaging_mode": packaging_mode,
+                            "shipping_mode": shipping_mode,
+                            "delivery_scope": delivery_scope,
+                            "packaging_cost_b2c": packaging_cost_b2c,
+                            "shipping_cost_b2c": shipping_cost_b2c,
+                            "packaging_cost_b2b": packaging_cost_b2b,
+                            "shipping_cost_b2b": shipping_cost_b2b,
+                            "delivery_notes": delivery_notes,
+                        },
                         "status": status if is_admin else "PENDING_APPROVAL",
                         "delivery_partner": delivery_partner,
                         "managed_by_owner": shipment_management_mode == "Owner Managed",

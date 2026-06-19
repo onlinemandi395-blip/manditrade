@@ -80,6 +80,50 @@ class OrderService:
             None,
         )
 
+    def _resolve_service_config(self, product: dict) -> dict:
+        service_config = dict(product.get("service_config", {}) or {})
+        return {
+            "packaging_mode": str(service_config.get("packaging_mode", "owner") or "owner").strip().lower(),
+            "shipping_mode": str(service_config.get("shipping_mode", "owner") or "owner").strip().lower(),
+            "delivery_scope": str(service_config.get("delivery_scope", "custom") or "custom").strip().lower(),
+            "packaging_cost_b2c": round(float(service_config.get("packaging_cost_b2c", 0) or 0), 2),
+            "packaging_cost_b2b": round(float(service_config.get("packaging_cost_b2b", 0) or 0), 2),
+            "shipping_cost_b2c": round(float(service_config.get("shipping_cost_b2c", 0) or 0), 2),
+            "shipping_cost_b2b": round(float(service_config.get("shipping_cost_b2b", 0) or 0), 2),
+            "delivery_notes": str(service_config.get("delivery_notes", "") or "").strip(),
+        }
+
+    def _build_financial_breakdown(self, *, product: dict, channel: str, quantity: float, sell_price: float) -> dict:
+        normalized_channel = "b2c" if str(channel or "").strip().lower() == "marketplace" else "b2b"
+        pricing = dict(product.get("pricing", {}) or {})
+        service_config = self._resolve_service_config(product)
+        merchandise_total = round(float(sell_price or 0) * float(quantity or 0), 2)
+        owner_payable_amount = round(float(pricing.get("admin_price", 0) or 0) * float(quantity or 0), 2)
+        packaging_charge = round(
+            float(service_config.get("packaging_cost_b2c" if normalized_channel == "b2c" else "packaging_cost_b2b", 0) or 0)
+            * float(quantity or 0),
+            2,
+        )
+        shipping_charge = round(
+            float(service_config.get("shipping_cost_b2c" if normalized_channel == "b2c" else "shipping_cost_b2b", 0) or 0)
+            * float(quantity or 0),
+            2,
+        )
+        platform_margin = round(merchandise_total - owner_payable_amount, 2)
+        total_amount = round(merchandise_total + packaging_charge + shipping_charge, 2)
+        return {
+            "merchandise_total": merchandise_total,
+            "owner_payable_amount": owner_payable_amount,
+            "platform_margin": platform_margin,
+            "packaging_charge": packaging_charge,
+            "shipping_charge": shipping_charge,
+            "total_amount": total_amount,
+            "packaging_mode": service_config.get("packaging_mode", "owner"),
+            "shipping_mode": service_config.get("shipping_mode", "owner"),
+            "delivery_scope": service_config.get("delivery_scope", "custom"),
+            "delivery_notes": service_config.get("delivery_notes", ""),
+        }
+
     def list_marketplace_orders(self) -> list[dict]:
         rows = self.data_service.get_collection_ref("marketplace_orders")
         for row in rows:
@@ -114,11 +158,12 @@ class OrderService:
         normalized_order_id = str(order_id or "").strip()
         if not normalized_order_id:
             raise ValueError("Order ID is required.")
-        collection_name = self._get_order_collection_name(order.get("source_channel", ""))
-        orders = self.data_service.get_collection_ref(collection_name)
-        order = next((row for row in orders if str(row.get("order_id", "")).strip() == normalized_order_id), None)
+        order = self._find_order(normalized_order_id)
         if not order:
             raise ValueError("Order not found.")
+        collection_name = self._get_order_collection_name(order.get("source_channel", ""))
+        orders = self.data_service.get_collection_ref(collection_name)
+        order = next((row for row in orders if str(row.get("order_id", "")).strip() == normalized_order_id), order)
 
         payment_id = str(order.get("payment_id", "")).strip()
         shipments = self.data_service.get_collection_ref("shipments")
@@ -175,6 +220,7 @@ class OrderService:
             "order_id": normalized_order_id,
             "payment_id": payment_id,
             "shipment_ids": shipment_ids,
+            "collection_name": collection_name,
             "deleted_notification_count": len(related_notification_ids),
         }
 
@@ -212,6 +258,9 @@ class OrderService:
             delivery_partner = {}
             admin_price = 0.0
             owner_payable_amount = 0.0
+            packaging_total = 0.0
+            shipping_total = 0.0
+            service_config = {}
             for item in items:
                 product_id = str(item.get("product_id", "")).strip()
                 product = dict(product_lookup.get(product_id, {}) or {})
@@ -236,12 +285,17 @@ class OrderService:
                 total_amount += line_total
                 pricing = dict(product.get("pricing", {}) or {})
                 owner_payable_amount += round(float(pricing.get("admin_price", 0) or 0) * quantity, 2)
+                breakdown = self._build_financial_breakdown(product=product, channel="marketplace", quantity=quantity, sell_price=unit_price)
+                packaging_total += float(breakdown.get("packaging_charge", 0) or 0)
+                shipping_total += float(breakdown.get("shipping_charge", 0) or 0)
                 if not owner:
                     owner = dict(product.get("owner", {}) or {})
                     delivery_partner = dict(product.get("delivery_partner", {}) or {})
                     admin_price = float(pricing.get("admin_price", 0) or 0)
+                    service_config = self._resolve_service_config(product)
 
             first_item = normalized_items[0]
+            grand_total = round(total_amount + packaging_total + shipping_total, 2)
             record = {
                 "order_id": self.id_service.next_drive_id(self.data_service.admin_drive_service, "marketplace_order", "MKTORD"),
                 "items": normalized_items,
@@ -271,7 +325,8 @@ class OrderService:
                 "sell_price": float(first_item.get("unit_price", 0) or 0),
                 "admin_price": admin_price,
                 "admin_margin": round(total_amount - owner_payable_amount, 2),
-                "total_amount": round(total_amount, 2),
+                "merchandise_total": round(total_amount, 2),
+                "total_amount": grand_total,
                 "internal": {
                     "owner_email": owner.get("email", ""),
                     "owner_role": owner.get("role", ""),
@@ -279,6 +334,15 @@ class OrderService:
                     "owner_payable_amount": round(owner_payable_amount, 2),
                     "admin_margin": round(total_amount - owner_payable_amount, 2),
                 },
+                "financials": {
+                    "merchandise_total": round(total_amount, 2),
+                    "packaging_charge": round(packaging_total, 2),
+                    "shipping_charge": round(shipping_total, 2),
+                    "platform_margin": round(total_amount - owner_payable_amount, 2),
+                    "owner_payable_amount": round(owner_payable_amount, 2),
+                    "grand_total": grand_total,
+                },
+                "service_config": service_config,
                 "role": "public_buyer",
                 "status": "PAYMENT_PENDING",
                 "payment_status": "PENDING",
@@ -360,6 +424,8 @@ class OrderService:
             sell_price = self.pricing_service.resolve_sell_price(product, "manditrade")
             quantity = self.validate_channel_quantity(product, "manditrade", requested_quantity)
             admin_price = float(pricing.get("admin_price", 0) or 0)
+            service_config = self._resolve_service_config(product)
+            breakdown = self._build_financial_breakdown(product=product, channel="manditrade", quantity=quantity, sell_price=sell_price)
             record = {
                 "order_id": self.id_service.next_drive_id(self.data_service.admin_drive_service, "manditrade_order", "MDTORD"),
                 "source_channel": "manditrade",
@@ -398,7 +464,8 @@ class OrderService:
                 "sell_price": sell_price,
                 "admin_price": admin_price,
                 "admin_margin": round((sell_price - admin_price) * quantity, 2),
-                "total_amount": round(sell_price * quantity, 2),
+                "merchandise_total": round(sell_price * quantity, 2),
+                "total_amount": round(breakdown.get("total_amount", sell_price * quantity), 2),
                 "internal": {
                     "owner_email": owner.get("email", ""),
                     "owner_role": owner.get("role", ""),
@@ -406,6 +473,15 @@ class OrderService:
                     "owner_payable_amount": round(admin_price * quantity, 2),
                     "admin_margin": round((sell_price - admin_price) * quantity, 2),
                 },
+                "financials": {
+                    "merchandise_total": breakdown.get("merchandise_total", round(sell_price * quantity, 2)),
+                    "packaging_charge": breakdown.get("packaging_charge", 0.0),
+                    "shipping_charge": breakdown.get("shipping_charge", 0.0),
+                    "platform_margin": breakdown.get("platform_margin", round((sell_price - admin_price) * quantity, 2)),
+                    "owner_payable_amount": breakdown.get("owner_payable_amount", round(admin_price * quantity, 2)),
+                    "grand_total": breakdown.get("total_amount", round(sell_price * quantity, 2)),
+                },
+                "service_config": service_config,
                 "status": "PAYMENT_PENDING",
                 "payment_status": "PENDING",
                 "admin_status": "PAYMENT_PENDING",
@@ -629,6 +705,8 @@ class OrderService:
         if not order:
             raise ValueError("Order not found.")
         now = datetime.now(UTC).isoformat()
+        financials = dict(order.get("financials", {}) or {})
+        service_config = dict(order.get("service_config", {}) or {})
         shipment = self._find_shipment(order_id)
         if not shipment:
             shipment = {
@@ -638,6 +716,8 @@ class OrderService:
                 "buyer_email": str(order.get("buyer_email", "") or order.get("requester_email", "")).strip().lower(),
                 "owner_email": str(order.get("owner_email", "")).strip().lower(),
                 "owner_role": str(order.get("owner_role", "")).strip().lower(),
+                "source_channel": str(order.get("source_channel", "")).strip().lower(),
+                "market_type": str(order.get("market_type", "")).strip().upper(),
                 "created_at": now,
             }
             self.data_service.get_collection_ref("shipments").append(shipment)
@@ -645,6 +725,11 @@ class OrderService:
         shipment["status"] = "PICKUP_ASSIGNED"
         shipment["assigned_at"] = now
         shipment["assigned_by"] = assigned_by
+        shipment["shipping_mode"] = str(service_config.get("shipping_mode", "owner") or "owner").strip().lower()
+        shipment["delivery_scope"] = str(service_config.get("delivery_scope", "custom") or "custom").strip().lower()
+        shipment["delivery_notes"] = str(service_config.get("delivery_notes", "") or "").strip()
+        shipment["shipping_charge"] = round(float(financials.get("shipping_charge", 0) or 0), 2)
+        shipment["packaging_charge"] = round(float(financials.get("packaging_charge", 0) or 0), 2)
         order["status"] = "PICKUP_ASSIGNED"
         order["admin_status"] = "PICKUP_ASSIGNED"
         order["delivery_status"] = "PICKUP_ASSIGNED"
@@ -692,14 +777,10 @@ class OrderService:
         order["updated_at"] = now
         order["updated_by"] = delivery_partner_email
         if not order.get("ledger_created_at"):
-            self.ledger_service.create_order_receivable(
-                order_id=order["order_id"],
-                source_channel=order.get("source_channel", ""),
-                owner_email=order.get("owner_email", ""),
-                owner_role=order.get("owner_role", ""),
-                amount=round(float(order.get("admin_price", 0) or 0) * float(order.get("quantity", 1) or 1), 2),
-                product_id=order.get("product_id", ""),
-                metadata={"trigger": "PICKED_UP", "buyer_email": str(order.get("buyer_email", "") or order.get("requester_email", "")).strip().lower()},
+            self.ledger_service.create_order_runtime_entries(
+                order=order,
+                trigger="PICKED_UP",
+                created_by=delivery_partner_email,
             )
             order["ledger_created_at"] = now
         buyer_email = str(order.get("buyer_email", "") or order.get("requester_email", "")).strip().lower()
