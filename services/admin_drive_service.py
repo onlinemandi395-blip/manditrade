@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import json
 from pathlib import Path
+import re
 from time import time
 
 import streamlit as st
@@ -34,6 +36,7 @@ class AdminDriveService:
             "root_folder_name": str(
                 secrets.get("root_folder_name", "") or secrets.get("admin_db_root_folder_name", "") or "MANDITRADE_DB"
             ).strip(),
+            "service_account_json": str(secrets.get("service_account_json", "") or "").strip(),
         }
 
     def _get_platform_config(self) -> dict[str, str]:
@@ -71,11 +74,36 @@ class AdminDriveService:
             return token
         return {}
 
+    def _parse_service_account_info(self) -> dict:
+        raw_value = self._get_drive_config().get("service_account_json", "")
+        if not raw_value:
+            return {}
+        try:
+            return json.loads(raw_value)
+        except json.JSONDecodeError:
+            try:
+                repaired = re.sub(
+                    r'("private_key"\s*:\s*")(.*?)(")',
+                    lambda match: match.group(1) + match.group(2).replace("\r", "").replace("\n", "\\n") + match.group(3),
+                    raw_value,
+                    count=1,
+                    flags=re.S,
+                )
+                return json.loads(repaired)
+            except Exception:
+                return {}
+
+    def _get_service_account_info(self) -> dict:
+        return self._parse_service_account_info()
+
     def build_client(self):
         token = self._get_user_token()
-        if not token:
-            raise ValueError("Admin OAuth token required.")
-        return self.google_drive_service.build_drive_client_from_user_oauth(token)
+        if token:
+            return self.google_drive_service.build_drive_client_from_user_oauth(token)
+        service_account_info = self._get_service_account_info()
+        if service_account_info:
+            return self.google_drive_service.build_drive_client_from_service_account_info(service_account_info)
+        raise ValueError("Admin OAuth token or Drive service account required.")
 
     def get_required_folder_paths(self) -> list[str]:
         folder_paths = {
@@ -213,15 +241,16 @@ class AdminDriveService:
                 return cached
         config = self._get_drive_config()
         token = self._get_user_token()
-        if not token:
+        service_account_info = self._get_service_account_info()
+        if not token and not service_account_info:
             return self._store_validation({
                 "connected": False,
-                "mode": "admin_user_oauth_drive",
+                "mode": "google_drive_unavailable",
                 "root_folder_id": config["root_folder_id"],
                 "root_folder_name": config["root_folder_name"],
                 "required_files": [],
-                "missing_files": ["Google OAuth admin token"],
-                "errors": ["Primary admin OAuth token required for Google Drive runtime."],
+                "missing_files": ["Google OAuth admin token or Drive service account"],
+                "errors": ["Primary admin OAuth token or Drive service account required for Google Drive runtime."],
             })
         try:
             with self.performance_service.measure("drive_root_resolution"):
@@ -229,7 +258,7 @@ class AdminDriveService:
         except Exception as exc:
             return self._store_validation({
                 "connected": False,
-                "mode": "admin_user_oauth_drive",
+                "mode": "admin_user_oauth_drive" if token else "service_account_drive",
                 "root_folder_id": config["root_folder_id"],
                 "root_folder_name": config["root_folder_name"],
                 "required_files": [],
@@ -253,7 +282,7 @@ class AdminDriveService:
                     missing_files.append(item["logical_path"])
         return self._store_validation({
             "connected": True,
-            "mode": "admin_user_oauth_drive",
+            "mode": "admin_user_oauth_drive" if token else "service_account_drive",
             "root_folder_id": resolver.root_folder["id"],
             "root_folder_name": resolver.root_folder["name"],
             "required_folders": required_folders,
@@ -447,44 +476,48 @@ class AdminDriveService:
     def get_status(self) -> dict:
         config = self._get_drive_config()
         token = self._get_user_token()
-        if not token:
+        service_account_info = self._get_service_account_info()
+        if not token and not service_account_info:
             return {
                 "connected": False,
-                "mode": "admin_user_oauth_drive",
-                "source": "missing_primary_admin_token",
+                "mode": "google_drive_unavailable",
+                "source": "missing_drive_credentials",
                 "root_folder_id": config["root_folder_id"],
                 "root_folder_name": config["root_folder_name"],
                 "admin_token_available": False,
+                "service_account_available": False,
                 "drive_write_test": "FAIL",
                 "gmail_send_scope": "missing",
                 "required_files_status": "missing",
-                "missing_files": ["Google OAuth admin token"],
+                "missing_files": ["Google OAuth admin token or Drive service account"],
             }
         try:
             manifest = self.get_runtime_manifest()
-            scopes = token.get("scopes", [])
+            scopes = token.get("scopes", []) if token else []
             return {
                 "connected": True,
-                "mode": "admin_user_oauth_drive",
-                "source": "primary_admin_oauth",
+                "mode": manifest.get("mode", "admin_user_oauth_drive" if token else "service_account_drive"),
+                "source": "primary_admin_oauth" if token else "service_account",
                 "root_folder_id": manifest.get("root_folder_id", config["root_folder_id"]),
                 "root_folder_name": manifest.get("root_folder_name", config["root_folder_name"]),
-                "admin_token_available": True,
+                "admin_token_available": bool(token),
+                "service_account_available": bool(service_account_info),
                 "drive_write_test": "PASS",
-                "gmail_send_scope": "available" if "https://www.googleapis.com/auth/gmail.send" in scopes else "missing",
+                "gmail_send_scope": "available" if token and "https://www.googleapis.com/auth/gmail.send" in scopes else "missing",
                 "required_files_status": "ok" if not manifest["missing_files"] else "missing",
                 "missing_files": manifest["missing_files"],
             }
         except Exception:
             return {
                 "connected": False,
-                "mode": "admin_user_oauth_drive",
-                "source": "primary_admin_oauth",
+                "mode": "admin_user_oauth_drive" if token else "service_account_drive",
+                "source": "primary_admin_oauth" if token else "service_account",
                 "root_folder_id": config["root_folder_id"],
                 "root_folder_name": config["root_folder_name"],
-                "admin_token_available": True,
+                "admin_token_available": bool(token),
+                "service_account_available": bool(service_account_info),
                 "drive_write_test": "FAIL",
-                "gmail_send_scope": "available" if "https://www.googleapis.com/auth/gmail.send" in token.get("scopes", []) else "missing",
+                "gmail_send_scope": "available" if token and "https://www.googleapis.com/auth/gmail.send" in token.get("scopes", []) else "missing",
                 "required_files_status": "missing",
                 "missing_files": [],
             }
