@@ -81,12 +81,17 @@ def _sanitize_cart_rows(items: list[dict]) -> list[dict]:
     ]
 
 
-def _resolve_dataset_names(*, current_route: str, page_definition: dict, role: str) -> list[str]:
+def _resolve_dataset_names(*, current_route: str, page_definition: dict, role: str, dashboard_cards: list[dict] | None = None) -> list[str]:
     page_type = str(page_definition.get("type", "") or "").strip().lower()
     data_source = str(page_definition.get("data_source", "") or "").strip()
     dataset_names: list[str] = []
     if page_type == "dashboard":
-        dataset_names.extend(["products", "orders", "payments", "notifications", "shipments", "ledger"])
+        dashboard_sources = [
+            str(card.get("data_source", "")).strip()
+            for card in (dashboard_cards or [])
+            if str(card.get("data_source", "")).strip()
+        ]
+        dataset_names.extend(dashboard_sources or ["products", "orders", "payments", "notifications", "shipments", "ledger"])
     elif page_type == "product_grid":
         if data_source:
             dataset_names.append(data_source)
@@ -126,9 +131,21 @@ def _resolve_dataset_names(*, current_route: str, page_definition: dict, role: s
     return unique_names
 
 
-def _load_route_datasets(data_service: DataService, *, current_route: str, page_definition: dict, role: str) -> dict[str, list[dict]]:
+def _load_route_datasets(
+    data_service: DataService,
+    *,
+    current_route: str,
+    page_definition: dict,
+    role: str,
+    dashboard_cards: list[dict] | None = None,
+) -> dict[str, list[dict]]:
     datasets: dict[str, list[dict]] = {}
-    for name in _resolve_dataset_names(current_route=current_route, page_definition=page_definition, role=role):
+    for name in _resolve_dataset_names(
+        current_route=current_route,
+        page_definition=page_definition,
+        role=role,
+        dashboard_cards=dashboard_cards,
+    ):
         datasets[name] = data_service.list_collection(name)
     return datasets
 
@@ -679,12 +696,21 @@ def render_app() -> None:
         unsafe_allow_html=True,
     )
 
+    dashboard_cards = []
+    if page_definition.get("type") == "dashboard":
+        dashboard_cards = cache_service.get_config("dashboards").get("dashboards", {}).get(role, {}).get("cards", [])
+
     data_service = DataService(cache_service)
-    datasets = _load_route_datasets(data_service, current_route=current_route, page_definition=page_definition, role=role)
+    datasets = _load_route_datasets(
+        data_service,
+        current_route=current_route,
+        page_definition=page_definition,
+        role=role,
+        dashboard_cards=dashboard_cards,
+    )
 
     if page_definition.get("type") == "dashboard":
-        cards = cache_service.get_config("dashboards").get("dashboards", {}).get(role, {}).get("cards", [])
-        render_dashboard_cards(cards, datasets, translator, current_user=user)
+        render_dashboard_cards(dashboard_cards, datasets, translator, current_user=user)
     elif page_definition.get("type") == "product_grid":
         media_service = MediaService(admin_drive_service)
         notification_service = NotificationService(data_service)

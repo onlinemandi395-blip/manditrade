@@ -95,6 +95,8 @@ class CacheService:
     def refresh_cache(self) -> dict:
         st.session_state[self.cache_key] = {}
         st.session_state[self.drive_cache_key] = {}
+        st.session_state["mt_config_loader_cache"] = {}
+        st.session_state["mt_language_codes_cache"] = []
         return self.load_core_configs()
 
     def update_config(self, name: str, payload) -> None:

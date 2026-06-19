@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+from copy import deepcopy
 import json
 from pathlib import Path
 from typing import Any
+
+import streamlit as st
 
 from services.admin_drive_service import AdminDriveService
 from services.performance_service import PerformanceService
@@ -40,6 +43,8 @@ class ConfigLoaderService:
     def __init__(self) -> None:
         self.admin_drive_service = AdminDriveService()
         self.performance_service = PerformanceService()
+        st.session_state.setdefault("mt_config_loader_cache", {})
+        st.session_state.setdefault("mt_language_codes_cache", [])
 
     def _get_local_config_dir(self) -> Path:
         return self.BOOTSTRAP_ROOT / self.DEFAULT_BOOTSTRAP_MODE / "00_config"
@@ -51,6 +56,9 @@ class ConfigLoaderService:
         return self.admin_drive_service.get_runtime_manifest()
 
     def load(self, name: str) -> dict[str, Any]:
+        cached_payload = st.session_state["mt_config_loader_cache"].get(name)
+        if cached_payload is not None:
+            return deepcopy(cached_payload)
         logical_path = self.DRIVE_PATHS.get(name)
         if not logical_path:
             raise KeyError(f"Unsupported Drive config key: {name}")
@@ -58,10 +66,15 @@ class ConfigLoaderService:
             payload = self.admin_drive_service.read_json(logical_path)
         if name == "app_config":
             local_payload = self._load_local_config_bundle("app_config")
-            return self._deep_merge(local_payload, payload)
-        return payload
+            payload = self._deep_merge(local_payload, payload)
+        st.session_state["mt_config_loader_cache"][name] = deepcopy(payload)
+        return deepcopy(payload)
 
     def load_language(self, code: str) -> dict[str, Any]:
+        cache_key = f"language::{str(code or '').strip().lower()}"
+        cached_payload = st.session_state["mt_config_loader_cache"].get(cache_key)
+        if cached_payload is not None:
+            return deepcopy(cached_payload)
         drive_bundle: dict[str, Any] = {}
         with self.performance_service.measure(f"language_load_{code}"):
             try:
@@ -72,9 +85,13 @@ class ConfigLoaderService:
         local_bundle = self._load_local_language_bundle(code)
         merged = dict(drive_bundle)
         merged.update(local_bundle)
-        return merged
+        st.session_state["mt_config_loader_cache"][cache_key] = deepcopy(merged)
+        return deepcopy(merged)
 
     def list_available_language_codes(self) -> list[str]:
+        cached_codes = list(st.session_state.get("mt_language_codes_cache", []) or [])
+        if cached_codes:
+            return cached_codes
         discovered_codes = {
             path.stem.strip().lower()
             for path in self._get_local_language_dir().glob("*.json")
@@ -93,7 +110,9 @@ class ConfigLoaderService:
                         discovered_codes.add(name[:-5].strip().lower())
         except Exception:
             pass
-        return sorted(code for code in discovered_codes if code)
+        resolved_codes = sorted(code for code in discovered_codes if code)
+        st.session_state["mt_language_codes_cache"] = resolved_codes
+        return resolved_codes
 
     def _load_local_language_bundle(self, code: str) -> dict[str, Any]:
         path = self._get_local_language_dir() / f"{code}.json"
