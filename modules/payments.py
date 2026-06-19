@@ -101,4 +101,4 @@ def render_payments_page(data_service, order_service, notification_service, sess
             use_container_width=True,
         )
     st.text_area(t("ui.share_copy_upi_link"), value=upi_link, height=100, key=f"payments_share_{selected_payment_id}")
-    st.info("Payment confirmation now happens directly by the manufacturer or mahajan. Admin can monitor pending payments here.")
+    st.info("Payment confirmation now happens directly by the mahajan. Admin can monitor pending payments here.")

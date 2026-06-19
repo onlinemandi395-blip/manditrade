@@ -182,7 +182,7 @@ class DataService:
                 manufacturer = dict(product.get("manufacturer", {}) or {})
                 owner = {
                     "email": manufacturer.get("email", ""),
-                    "role": "manufacturer",
+                    "role": "mahajan",
                     "display_name": manufacturer.get("name", ""),
                     "user_id": manufacturer.get("manufacturer_id", ""),
                 }
@@ -201,7 +201,7 @@ class DataService:
                     first_owner = legacy_manufacturers[0]
                     owner = {
                         "email": first_owner.get("email", ""),
-                        "role": "manufacturer",
+                        "role": "mahajan",
                         "display_name": first_owner.get("name", ""),
                         "user_id": first_owner.get("manufacturer_id", ""),
                     }
@@ -214,6 +214,8 @@ class DataService:
                         "user_id": first_owner.get("mahajan_id", ""),
                     }
         product["owner"] = owner
+        if str(product["owner"].get("role", "")).strip().lower() == "manufacturer":
+            product["owner"]["role"] = "mahajan"
         delivery_partner = dict(product.get("delivery_partner", {}) or {})
         product["delivery_partner"] = {
             "email": str(delivery_partner.get("email", "")).strip().lower(),

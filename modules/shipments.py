@@ -46,7 +46,7 @@ def render_shipments_page(data_service, order_service, notification_service, ses
         with tabs[0]:
             ready_orders = [row for row in orders if str(row.get("status", "")).upper() == "READY_FOR_PICKUP"]
             render_table(ready_orders, caption=t("ui.ready_for_pickup_orders"))
-            st.info("Shipment assignment is managed by the manufacturer or mahajan. Admin can monitor progress here.")
+            st.info("Shipment assignment is managed by the mahajan. Admin can monitor progress here.")
         with tabs[1]:
             assigned_shipments = [row for row in shipments if str(row.get("status", "")).upper() in {"PICKUP_ASSIGNED", "PICKED_UP", "IN_TRANSIT"}]
             render_table(assigned_shipments, caption=t("ui.assigned_pickups"))

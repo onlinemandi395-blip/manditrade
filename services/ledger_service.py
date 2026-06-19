@@ -222,12 +222,13 @@ class LedgerService:
     def summarize_accounts_by_owner_role(self, *, viewer_email: str = "", role: str = "platform_admin") -> dict[str, list[dict]]:
         summaries = self.summarize_accounts(viewer_email=viewer_email, role=role)
         grouped: dict[str, list[dict]] = {
-            "manufacturer": [],
             "mahajan": [],
             "other": [],
         }
         for row in summaries:
             owner_role = str(row.get("owner_role", "")).strip().lower()
+            if owner_role == "manufacturer":
+                owner_role = "mahajan"
             if owner_role in grouped:
                 grouped[owner_role].append(row)
             else:

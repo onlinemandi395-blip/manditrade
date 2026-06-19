@@ -414,7 +414,7 @@ def _filter_role_rows(route: str, rows: list[dict], role: str, user_email: str) 
                     or str(row.get("owner_email", "")).strip().lower() == normalized_email
                 )
             ]
-        if role == "public_buyer":
+        if role in {"public_buyer", "client_buyer"}:
             return [
                 row
                 for row in rows
@@ -490,7 +490,6 @@ def _build_superadmin_role_switcher_options(*, cache_service: CacheService, tran
         }
     )
     role_rows = [{"role_id": role_id, "label_key": f"role.{role_id}"} for role_id in runtime_role_ids]
-    user_rows = list(cache_service.get_config("users").get("users", []) or [])
     options: list[dict] = [
         {
             "value": "__self__",
@@ -521,49 +520,21 @@ def _build_superadmin_role_switcher_options(*, cache_service: CacheService, tran
                 },
             }
         )
-        if role_id == "public_buyer":
-            options.append(
-                {
-                    "value": "user::__superadmin_public_buyer__",
-                    "label": "Public Buyer Test Profile",
-                    "caption": "Use one dedicated buyer profile for superadmin testing.",
-                    "mode": "real_user",
-                    "user": {
-                        "email": "superadmin+public_buyer@view.local",
-                        "role": "public_buyer",
-                        "status": "ACTIVE",
-                        "display_name": "Public Buyer Test Profile",
-                        "landing_page": landing_page,
-                    },
-                }
-            )
-            continue
-        matching_users = [
-            row
-            for row in user_rows
-            if str(row.get("role", "")).strip().lower() == role_id
-            and str(row.get("status", "ACTIVE")).strip().upper() == "ACTIVE"
-            and str(row.get("email", "")).strip()
-        ]
-        for user_row in matching_users:
-            email = str(user_row.get("email", "")).strip().lower()
-            display_name = str(user_row.get("display_name", "") or email).strip()
-            options.append(
-                {
-                    "value": f"user::{email}",
-                    "label": f"{display_name} ({role_label})",
-                    "caption": f"Act as {display_name} and use their role-based view.",
-                    "mode": "real_user",
-                    "user": {
-                        "email": email,
-                        "role": role_id,
-                        "status": "ACTIVE",
-                        "display_name": display_name,
-                        "photo_url": str(user_row.get("photo_url", "") or "").strip(),
-                        "landing_page": landing_page,
-                    },
-                }
-            )
+        options.append(
+            {
+                "value": f"user::__superadmin_{role_id}__",
+                "label": f"{role_label} Test Profile",
+                "caption": f"Use one dedicated {role_label.lower()} profile for superadmin testing.",
+                "mode": "real_user",
+                "user": {
+                    "email": synthetic_email,
+                    "role": role_id,
+                    "status": "ACTIVE",
+                    "display_name": f"{role_label} Test Profile",
+                    "landing_page": landing_page,
+                },
+            }
+        )
     return options
 
 
