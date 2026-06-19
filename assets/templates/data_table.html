@@ -4,13 +4,13 @@
   <meta charset="utf-8" />
   <style>
     :root {
-      --mt-bg: rgba(255, 255, 255, 0.68);
-      --mt-panel: rgba(255, 251, 244, 0.9);
-      --mt-border: rgba(108, 76, 39, 0.14);
-      --mt-text: #1f1a14;
-      --mt-text-soft: #6f6355;
-      --mt-accent: #bc6c25;
-      --mt-accent-soft: rgba(188, 108, 37, 0.08);
+      --mt-bg: rgba(0, 0, 0, 0.82);
+      --mt-panel: rgba(12, 12, 12, 0.94);
+      --mt-border: rgba(255, 255, 255, 0.12);
+      --mt-text: #ffffff;
+      --mt-text-soft: rgba(255, 255, 255, 0.72);
+      --mt-accent: #d90429;
+      --mt-accent-soft: rgba(217, 4, 41, 0.12);
     }
     * { box-sizing: border-box; }
     body {
@@ -21,7 +21,7 @@
       font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
     }
     .mt-js-table {
-      background: var(--mt-panel);
+      background: linear-gradient(180deg, rgba(18,18,18,0.96), rgba(8,8,8,0.96));
       border: 1px solid var(--mt-border);
       border-radius: 18px;
       overflow: hidden;
@@ -33,7 +33,7 @@
       align-items: center;
       padding: 0.9rem 1rem;
       border-bottom: 1px solid var(--mt-border);
-      background: linear-gradient(180deg, rgba(255,255,255,0.4), rgba(255,255,255,0.1));
+      background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(217,4,41,0.08));
     }
     .mt-js-table__meta {
       display: flex;
@@ -47,20 +47,20 @@
       font-size: 12px;
       background: var(--mt-accent-soft);
       color: var(--mt-accent);
-      border: 1px solid rgba(188, 108, 37, 0.16);
+      border: 1px solid rgba(217, 4, 41, 0.28);
     }
     .mt-js-table__search {
       width: min(320px, 100%);
       border: 1px solid var(--mt-border);
-      background: rgba(255, 255, 255, 0.76);
+      background: rgba(255, 255, 255, 0.08);
       border-radius: 12px;
       padding: 0.7rem 0.8rem;
       color: var(--mt-text);
       outline: none;
     }
     .mt-js-table__search:focus {
-      border-color: rgba(188, 108, 37, 0.38);
-      box-shadow: 0 0 0 3px rgba(188, 108, 37, 0.1);
+      border-color: rgba(217, 4, 41, 0.42);
+      box-shadow: 0 0 0 3px rgba(217, 4, 41, 0.12);
     }
     .mt-js-table__wrap {
       overflow: auto;
@@ -75,7 +75,7 @@
       position: sticky;
       top: 0;
       z-index: 1;
-      background: rgba(245, 236, 223, 0.98);
+      background: rgba(24, 24, 24, 0.98);
       color: var(--mt-text);
       text-align: left;
       font-size: 12px;
@@ -86,17 +86,17 @@
     }
     tbody td {
       padding: 0.82rem 0.9rem;
-      border-bottom: 1px solid rgba(108, 76, 39, 0.08);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
       color: var(--mt-text);
       font-size: 13px;
       vertical-align: top;
       word-break: break-word;
     }
     tbody tr:nth-child(even) {
-      background: rgba(255, 255, 255, 0.32);
+      background: rgba(255, 255, 255, 0.03);
     }
     tbody tr:hover {
-      background: rgba(221, 161, 94, 0.09);
+      background: rgba(217, 4, 41, 0.1);
     }
     .mt-js-table__empty {
       padding: 2rem 1rem;

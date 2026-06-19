@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from components.html_renderer import load_template, render_template
 from components.image_slideshow import open_slideshow
 from services.pricing_service import PricingService
 
@@ -29,7 +30,7 @@ def render_product_card(
     inventory = dict(product.get("inventory", {}) or {})
     manditrade_rules = dict(((product.get("sales_channels") or {}).get("manditrade") or {}))
     with st.container(border=True):
-        st.markdown("<div class='mt-product-card'>", unsafe_allow_html=True)
+        render_template("product_card_wrapper_open.html")
         media = st.empty()
         renderable = media_service.get_renderable_image(primary_image) if media_service else {"render_mode": "placeholder", "bytes": None, "url": "", "error": ""}
         if renderable["render_mode"] == "bytes" and renderable.get("bytes"):
@@ -37,7 +38,8 @@ def render_product_card(
         elif renderable["render_mode"] == "url" and renderable.get("url"):
             media.image(renderable["url"], use_container_width=True)
         else:
-            media.markdown("<div class='mt-product-card__media'>No Image</div>", unsafe_allow_html=True)
+            media.markdown(load_template("product_card_media_placeholder.html", label="No Image"), unsafe_allow_html=True)
+
         image_count = len(images)
         badge_mode = str(gallery_card_config.get("badge_mode", "counter") or "counter").strip().lower()
         if badge_mode == "count":
@@ -57,23 +59,16 @@ def render_product_card(
                 slideshow_context=f"{view}_{return_route}_{card_context}",
             )
             st.rerun()
-        st.markdown(
-            f"<div class='mt-product-card__title'>{product.get('product_name', product.get('product_id', t('ui.product')))}</div>",
-            unsafe_allow_html=True,
-        )
-        st.markdown(
-            f"<div class='mt-product-card__meta'>{product.get('category', 'General')} • {product.get('subcategory', 'General')}</div>",
-            unsafe_allow_html=True,
-        )
+
+        render_template("product_card_title.html", title=str(product.get("product_name", product.get("product_id", t("ui.product")))))
+        render_template("product_card_meta.html", meta=f"{product.get('category', 'General')} • {product.get('subcategory', 'General')}")
+
         if view == "marketplace":
             valid_price, price_error = pricing_service.validate_channel_price(product, "marketplace")
             if valid_price:
-                st.markdown(
-                    f"<div class='mt-product-card__price'>Rs. {float(pricing_service.resolve_sell_price(product, 'marketplace') or 0):g}</div>",
-                    unsafe_allow_html=True,
-                )
-                st.markdown("<div class='mt-product-card__badge'>4.2 ★ • Best Value</div>", unsafe_allow_html=True)
-                st.markdown("<div class='mt-product-card__promise'>Delivery by MandiTrade</div>", unsafe_allow_html=True)
+                render_template("product_card_price.html", price=f"Rs. {float(pricing_service.resolve_sell_price(product, 'marketplace') or 0):g}")
+                render_template("product_card_badge.html", label="4.2 ★ • Best Value")
+                render_template("product_card_promise.html", label="Delivery by MandiTrade")
             else:
                 st.error(price_error)
             action_cols = st.columns(2, gap="small")
@@ -84,12 +79,9 @@ def render_product_card(
         elif view == "manditrade":
             valid_price, price_error = pricing_service.validate_channel_price(product, "manditrade")
             if valid_price:
-                st.markdown(
-                    f"<div class='mt-product-card__price'>Rs. {float(pricing_service.resolve_sell_price(product, 'manditrade') or 0):g}</div>",
-                    unsafe_allow_html=True,
-                )
-                st.markdown("<div class='mt-product-card__badge'>B2B Price</div>", unsafe_allow_html=True)
-                st.markdown("<div class='mt-product-card__promise'>Business Delivery</div>", unsafe_allow_html=True)
+                render_template("product_card_price.html", price=f"Rs. {float(pricing_service.resolve_sell_price(product, 'manditrade') or 0):g}")
+                render_template("product_card_badge.html", label="B2B Price")
+                render_template("product_card_promise.html", label="Business Delivery")
             else:
                 st.error(price_error)
             st.caption(
@@ -112,4 +104,5 @@ def render_product_card(
             st.caption(f"{t('ui.owner')}: {owner.get('email', '-')}")
             st.caption(f"{t('ui.owner_role')}: {owner.get('role', '-')}")
             st.caption(f"{t('ui.inventory')}: {inventory.get('available_quantity', 0)} {product.get('unit', 'piece')}")
-        st.markdown("</div>", unsafe_allow_html=True)
+
+        render_template("product_card_wrapper_close.html")

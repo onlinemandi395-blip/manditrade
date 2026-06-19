@@ -8,7 +8,7 @@ from components.dashboard_renderer import render_dashboard_cards
 from components.detail_panel import render_detail_panel
 from components.empty_state import render_empty_state
 from components.form_renderer import render_form
-from components.html_renderer import inject_css, inject_inline_css
+from components.html_renderer import inject_css, inject_inline_css, render_template
 from components.cart_panel import render_cart_panel
 from components.checkout_steps import render_checkout_steps
 from components.sidebar import render_sidebar
@@ -683,17 +683,11 @@ def render_app() -> None:
         session_service.set_route(current_route)
         page_definition = page_service.get_page_definition(current_route, role)
         st.warning(translator.t("auth.access_denied"))
-    st.markdown(
-        (
-            "<div class='mt-shell'>"
-            "<section class='mt-page-hero mt-surface'>"
-            f"<div class='mt-page-hero__eyebrow'>{translator.t(f'role.{role}')}</div>"
-            f"<h2 class='mt-page-title'>{translator.t(page_definition.get('title_key', ''))}</h2>"
-            f"<p class='mt-page-subtitle'>{translator.t(page_definition.get('subtitle_key', ''))}</p>"
-            "</section>"
-            "</div>"
-        ),
-        unsafe_allow_html=True,
+    render_template(
+        "page_hero.html",
+        role_label=translator.t(f"role.{role}"),
+        title=translator.t(page_definition.get("title_key", "")),
+        subtitle=translator.t(page_definition.get("subtitle_key", "")),
     )
 
     dashboard_cards = []

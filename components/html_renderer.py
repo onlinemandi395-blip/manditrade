@@ -29,3 +29,7 @@ def load_template(template_name: str, **context: str) -> str:
         raise FileNotFoundError(f"Template not found: {template_path}")
     template_text = template_path.read_text(encoding="utf-8")
     return Template(template_text).safe_substitute(**context)
+
+
+def render_template(template_name: str, **context: str) -> None:
+    render_html(load_template(template_name, **context))

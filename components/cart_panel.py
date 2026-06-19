@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import streamlit as st
 
+from components.html_renderer import render_template
+
 
 def render_cart_panel(cart: dict, *, cart_service, route: str, translator=None) -> bool:
     t = translator.t if translator else (lambda key: key)
     items = list(cart.get("items", []) or [])
-    st.markdown("<div class='mt-commerce-summary'>", unsafe_allow_html=True)
+    render_template("cart_summary_open.html")
     st.markdown("### Cart")
     for index, item in enumerate(items):
         product_id = str(item.get("product_id", "")).strip()
@@ -33,5 +35,5 @@ def render_cart_panel(cart: dict, *, cart_service, route: str, translator=None) 
     st.caption("Delivery Fee: Rs. 0")
     st.markdown(f"**Total Amount: Rs. {total:g}**")
     proceed = st.button("Proceed to Checkout", use_container_width=True, key=f"{route}_proceed_checkout")
-    st.markdown("</div>", unsafe_allow_html=True)
+    render_template("html_close_div.html")
     return proceed

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import streamlit as st
+from components.html_renderer import render_template
 
 
 def render_empty_state(message: str) -> None:
-    st.markdown(f"<div class='mt-empty'>{message}</div>", unsafe_allow_html=True)
+    render_template("empty_state.html", message=message)

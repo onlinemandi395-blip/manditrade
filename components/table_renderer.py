@@ -13,7 +13,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 from components.empty_state import render_empty_state
-from components.html_renderer import load_template, render_html
+from components.html_renderer import load_template, render_template
 
 
 _TABLE_INSTANCE_COUNTER = itertools.count()
@@ -116,29 +116,18 @@ def render_table(rows: list[dict], *, caption: str = "") -> None:
         preview_columns = f"{preview_columns} +{len(columns) - 4} more"
 
     with st.container():
-        render_html("<div class='mt-table-template mt-surface'>")
+        render_template("table_shell_open.html")
         header_left, header_right = st.columns([3, 2])
         with header_left:
-            st.markdown(f"<div class='mt-table-shell__title'>{title}</div>", unsafe_allow_html=True)
-            st.markdown("<div class='mt-table-shell__subtitle'>Browse records in a searchable workspace.</div>", unsafe_allow_html=True)
-            st.markdown(
-                f"<div class='mt-table-shell__meta'><span>Visible fields</span><strong>{preview_columns}</strong></div>",
-                unsafe_allow_html=True,
-            )
+            render_template("table_shell_title.html", title=title)
+            render_template("table_shell_subtitle.html", subtitle="Browse records in a searchable workspace.")
+            render_template("table_shell_meta.html", label="Visible fields", value=preview_columns)
         with header_right:
-            st.markdown(
-                (
-                    "<div class='mt-table-shell__stats'>"
-                    f"<div><span>Rows</span><strong>{len(dataframe)}</strong></div>"
-                    f"<div><span>Columns</span><strong>{len(dataframe.columns)}</strong></div>"
-                    "</div>"
-                ),
-                unsafe_allow_html=True,
-            )
+            render_template("table_shell_stats.html", rows=str(len(dataframe)), columns=str(len(dataframe.columns)))
 
         if dataframe.empty:
             render_empty_state("No rows found.")
-            render_html("</div>")
+            render_template("table_shell_close.html")
             return
 
         query = st.text_input(
@@ -155,14 +144,11 @@ def render_table(rows: list[dict], *, caption: str = "") -> None:
             else:
                 st.caption(f"Showing {len(filtered)} of {len(dataframe)} rows")
         with helper_right:
-            st.markdown(
-                f"<div class='mt-table-shell__hint'>Search, scan, and inspect without touching raw JSON.</div>",
-                unsafe_allow_html=True,
-            )
+            render_template("table_shell_hint.html", hint="Search, scan, and inspect without touching raw JSON.")
         table_height = min(max(280, 220 + (min(len(filtered), 10) * 34)), 760)
         components.html(
             _build_html_table(title, filtered, table_key),
             height=table_height,
             scrolling=False,
         )
-        render_html("</div>")
+        render_template("table_shell_close.html")

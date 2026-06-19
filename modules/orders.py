@@ -4,6 +4,7 @@ import streamlit as st
 
 from components.empty_state import render_empty_state
 from components.table_renderer import render_table
+from components.html_renderer import render_template
 from services.document_service import DocumentService
 from services.payment_service import PaymentService
 from services.qr_service import QRService
@@ -157,7 +158,7 @@ def _render_order_cards(
                     elif renderable.get("render_mode") == "url" and renderable.get("url"):
                         st.image(renderable["url"], use_container_width=True)
                     else:
-                        st.markdown("<div class='mt-product-card__media'>No Image</div>", unsafe_allow_html=True)
+                        render_template("product_card_media_placeholder.html", label="No Image")
                     st.markdown(f"**{order.get('product_name', order.get('order_id', 'Order'))}**")
                     st.caption(f"{order.get('order_id', '')} | {order.get('source_channel', '').upper()}")
                     st.caption(

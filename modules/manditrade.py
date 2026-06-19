@@ -5,6 +5,7 @@ import streamlit as st
 from components.category_strip import render_category_strip
 from components.commerce_search import render_commerce_search
 from components.filter_bar import render_filter_bar
+from components.html_renderer import render_template
 from components.product_grid import render_product_grid
 
 
@@ -32,14 +33,14 @@ def _sort_products(products: list[dict], sort_by: str) -> list[dict]:
 
 
 def render_manditrade_page(products: list[dict], on_request=None, media_service=None, translator=None, ui_config: dict | None = None) -> None:
-    st.markdown("<div class='mt-commerce-hero mt-commerce-surface'>", unsafe_allow_html=True)
+    render_template("commerce_shell_open.html")
     query = render_commerce_search(route="manditrade", placeholder="Search for bulk products, categories, brands...")
     categories = sorted({str(product.get("category", "")).strip() for product in products if str(product.get("category", "")).strip()})
     selected_category = render_category_strip(route="manditrade", categories=categories, selected_category="All")
-    st.markdown("<div class='mt-commerce-toolbar'>", unsafe_allow_html=True)
+    render_template("commerce_toolbar_open.html")
     filters = render_filter_bar(route="manditrade")
-    st.markdown("</div>", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
+    render_template("html_close_div.html")
+    render_template("html_close_div.html")
     manditrade_products = [
         product
         for product in products

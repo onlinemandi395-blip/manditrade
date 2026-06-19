@@ -5,6 +5,7 @@ import streamlit as st
 from components.image_slideshow import SLIDESHOW_CONTEXT_KEY, SLIDESHOW_PRODUCT_KEY, is_slideshow_active, render_image_slideshow
 from components.product_card import render_product_card
 from components.empty_state import render_empty_state
+from components.html_renderer import render_template
 
 
 def render_product_grid(
@@ -43,7 +44,7 @@ def render_product_grid(
     desktop_columns = 4
     for row_start in range(0, len(products), desktop_columns):
         row_products = products[row_start:row_start + desktop_columns]
-        st.markdown("<div class='mt-product-grid-row'></div>", unsafe_allow_html=True)
+        render_template("product_grid_row_marker.html")
         columns = st.columns(desktop_columns, gap="small")
         for column_index, column in enumerate(columns):
             if column_index >= len(row_products):

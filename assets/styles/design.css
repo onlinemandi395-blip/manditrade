@@ -1,26 +1,26 @@
 :root {
-  --mt-bg: #f4efe5;
-  --mt-panel: rgba(255, 251, 244, 0.82);
-  --mt-panel-2: rgba(255, 248, 236, 0.92);
-  --mt-border: rgba(108, 76, 39, 0.18);
-  --mt-border-strong: rgba(108, 76, 39, 0.28);
-  --mt-text: #1f1a14;
-  --mt-text-soft: #6f6355;
-  --mt-accent: #bc6c25;
-  --mt-accent-2: #386641;
-  --mt-accent-3: #dda15e;
-  --mt-danger: #b34747;
-  --mt-success: #2f7a4f;
+  --mt-bg: #050505;
+  --mt-panel: rgba(18, 18, 18, 0.88);
+  --mt-panel-2: rgba(28, 28, 28, 0.94);
+  --mt-border: rgba(255, 255, 255, 0.12);
+  --mt-border-strong: rgba(217, 4, 41, 0.42);
+  --mt-text: #ffffff;
+  --mt-text-soft: rgba(255, 255, 255, 0.72);
+  --mt-accent: #d90429;
+  --mt-accent-2: #a1031f;
+  --mt-accent-3: #ff4d6d;
+  --mt-danger: #ff4d6d;
+  --mt-success: #d90429;
   --mt-radius: 22px;
   --mt-gap: 1rem;
-  --mt-shadow: 0 24px 60px rgba(77, 55, 28, 0.14);
+  --mt-shadow: 0 26px 60px rgba(0, 0, 0, 0.42);
 }
 
 .stApp {
   background:
-    radial-gradient(circle at top left, rgba(221, 161, 94, 0.22), transparent 26%),
-    radial-gradient(circle at right 20%, rgba(56, 102, 65, 0.12), transparent 28%),
-    linear-gradient(180deg, #f6f1e6 0%, #efe6d6 100%);
+    radial-gradient(circle at top left, rgba(217, 4, 41, 0.28), transparent 28%),
+    radial-gradient(circle at right 18%, rgba(255, 255, 255, 0.08), transparent 24%),
+    linear-gradient(180deg, #000000 0%, #090909 42%, #12030a 100%);
   color: var(--mt-text);
 }
 
@@ -29,12 +29,14 @@
 }
 
 [data-testid="stHeader"] {
-  background: rgba(246, 241, 230, 0.74);
+  background: rgba(0, 0, 0, 0.72);
   backdrop-filter: blur(12px);
 }
 
 [data-testid="stSidebar"] {
-  background: linear-gradient(180deg, rgba(53, 38, 24, 0.96), rgba(33, 24, 17, 0.94)) !important;
+  background:
+    radial-gradient(circle at top, rgba(217, 4, 41, 0.2), transparent 24%),
+    linear-gradient(180deg, rgba(6, 6, 6, 0.98), rgba(18, 18, 18, 0.97)) !important;
   border-right: 1px solid rgba(255, 255, 255, 0.08);
 }
 
@@ -44,7 +46,7 @@
 }
 
 [data-testid="stSidebar"] * {
-  color: #f5ecdf;
+  color: #ffffff;
 }
 
 .mt-shell {
@@ -54,7 +56,8 @@
 .mt-surface,
 .mt-panel,
 .mt-card {
-  background: var(--mt-panel);
+  background:
+    linear-gradient(180deg, rgba(25, 25, 25, 0.94), rgba(12, 12, 12, 0.92));
   border: 1px solid var(--mt-border);
   border-radius: var(--mt-radius);
   box-shadow: var(--mt-shadow);
@@ -77,10 +80,10 @@
   content: "";
   position: absolute;
   inset: auto -4rem -4rem auto;
-  width: 180px;
-  height: 180px;
+  width: 200px;
+  height: 200px;
   border-radius: 999px;
-  background: radial-gradient(circle, rgba(221, 161, 94, 0.22), transparent 68%);
+  background: radial-gradient(circle, rgba(217, 4, 41, 0.26), transparent 68%);
   pointer-events: none;
 }
 
@@ -97,7 +100,7 @@
   letter-spacing: 0.14em;
   font-size: 0.72rem;
   font-weight: 700;
-  color: var(--mt-accent);
+  color: var(--mt-accent-3);
 }
 
 .mt-topbar__meta h1,
@@ -132,8 +135,8 @@
 }
 
 .mt-context-card {
-  background: rgba(255, 255, 255, 0.42);
-  border: 1px solid rgba(108, 76, 39, 0.12);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(217, 4, 41, 0.08));
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 18px;
   padding: 0.9rem;
   display: flex;
@@ -168,9 +171,9 @@
   align-items: center;
   padding: 0.35rem 0.75rem;
   border-radius: 999px;
-  background: rgba(188, 108, 37, 0.08);
-  color: var(--mt-accent);
-  border: 1px solid rgba(188, 108, 37, 0.18);
+  background: rgba(217, 4, 41, 0.12);
+  color: #ffffff;
+  border: 1px solid rgba(217, 4, 41, 0.28);
   font-size: 0.8rem;
   font-weight: 600;
 }
@@ -200,6 +203,7 @@
 .mt-card h3,
 .mt-panel h3 {
   margin-top: 0;
+  color: var(--mt-text);
 }
 
 .mt-kpi-value {
@@ -217,7 +221,7 @@
 .mt-product-card__media {
   height: 132px;
   border-radius: 12px;
-  background: linear-gradient(135deg, #233246, #1b2837);
+  background: linear-gradient(135deg, #1a1a1a, #3b000f 58%, #0d0d0d);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -246,15 +250,33 @@
   -webkit-line-clamp: 2;
   overflow: hidden;
   min-height: 2.45rem;
+  color: var(--mt-text);
 }
 
-.mt-product-card [data-testid="stCaptionContainer"] {
-  font-size: 0.72rem;
-}
-
+.mt-product-card__meta,
+.mt-product-card__promise,
+.mt-product-card [data-testid="stCaptionContainer"],
 .mt-product-card [data-testid="stMarkdownContainer"] p,
 .mt-product-card [data-testid="stText"] {
-  font-size: 0.84rem;
+  color: var(--mt-text-soft);
+}
+
+.mt-product-card__price {
+  color: #ffffff;
+  font-size: 1.15rem;
+  font-weight: 800;
+}
+
+.mt-product-card__badge {
+  display: inline-flex;
+  margin-top: 0.4rem;
+  padding: 0.28rem 0.62rem;
+  border-radius: 999px;
+  background: rgba(217, 4, 41, 0.12);
+  border: 1px solid rgba(217, 4, 41, 0.3);
+  color: #ffffff;
+  font-size: 0.76rem;
+  font-weight: 600;
 }
 
 .mt-product-card button[kind] {
@@ -275,7 +297,7 @@ div[data-testid="stVerticalBlock"]:has(> div > .mt-product-grid-row) > div[data-
 .mt-slideshow__thumb-placeholder {
   min-height: 96px;
   border-radius: 12px;
-  background: linear-gradient(135deg, rgba(35, 50, 70, 0.92), rgba(27, 40, 55, 0.92));
+  background: linear-gradient(135deg, rgba(16, 16, 16, 0.96), rgba(87, 0, 20, 0.94));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -325,8 +347,8 @@ div[data-testid="stVerticalBlock"]:has(> div > .mt-product-grid-row) > div[data-
   align-items: center;
   padding: 0.45rem 0.7rem;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.5);
-  border: 1px solid rgba(108, 76, 39, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .mt-table-shell__meta span,
@@ -351,8 +373,8 @@ div[data-testid="stVerticalBlock"]:has(> div > .mt-product-grid-row) > div[data-
   min-width: 88px;
   padding: 0.65rem 0.8rem;
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.5);
-  border: 1px solid rgba(108, 76, 39, 0.14);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(217, 4, 41, 0.08));
+  border: 1px solid rgba(255, 255, 255, 0.1);
   text-align: center;
 }
 
@@ -372,17 +394,17 @@ div[data-testid="stVerticalBlock"]:has(> div > .mt-product-grid-row) > div[data-
 }
 
 div[data-testid="stTextInput"]:has(input[aria-label="Search table"]) input {
-  background: rgba(255, 255, 255, 0.7);
-  border: 1px solid rgba(108, 76, 39, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   color: var(--mt-text);
   border-radius: 14px;
 }
 
 div[data-testid="stDataFrame"] {
-  border: 1px solid rgba(108, 76, 39, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 16px;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.66);
+  background: rgba(15, 15, 15, 0.8);
 }
 
 .mt-empty {
@@ -415,8 +437,8 @@ div[data-testid="stDataFrame"] {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #dda15e, #bc6c25);
-  color: #fff7ef;
+  background: linear-gradient(135deg, #ff4d6d, #d90429 55%, #5e0012);
+  color: #ffffff;
   font-weight: 800;
 }
 
@@ -426,7 +448,7 @@ div[data-testid="stDataFrame"] {
 }
 
 .mt-sidebar-brand__sub {
-  color: rgba(245, 236, 223, 0.7);
+  color: rgba(255, 255, 255, 0.7);
   font-size: 0.78rem;
 }
 
@@ -434,7 +456,7 @@ div[data-testid="stDataFrame"] {
   margin-bottom: 1rem;
   padding: 0.9rem;
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
@@ -446,13 +468,13 @@ div[data-testid="stDataFrame"] {
 .mt-sidebar-user__email,
 .mt-sidebar-user__role {
   margin-top: 0.2rem;
-  color: rgba(245, 236, 223, 0.78);
+  color: rgba(255, 255, 255, 0.78);
   font-size: 0.8rem;
 }
 
 .mt-sidebar-section-label {
   margin: 0.9rem 0 0.4rem;
-  color: rgba(245, 236, 223, 0.76);
+  color: rgba(255, 255, 255, 0.76);
 }
 
 [data-testid="stSidebar"] div[data-testid="stButton"] button {
@@ -462,14 +484,14 @@ div[data-testid="stDataFrame"] {
 }
 
 [data-testid="stSidebar"] div[data-testid="stButton"] button[kind="primary"] {
-  background: linear-gradient(135deg, #dda15e, #bc6c25);
-  color: #fff9f2;
+  background: linear-gradient(135deg, #ff4d6d, #d90429 56%, #8b0018);
+  color: #ffffff;
   border-color: transparent;
 }
 
 [data-testid="stSidebar"] div[data-testid="stButton"] button[kind="secondary"] {
   background: rgba(255, 255, 255, 0.05);
-  color: #f5ecdf;
+  color: #ffffff;
 }
 
 div[data-baseweb="tab-list"] {
@@ -478,20 +500,20 @@ div[data-baseweb="tab-list"] {
 
 button[data-baseweb="tab"] {
   border-radius: 999px !important;
-  background: rgba(255, 255, 255, 0.46) !important;
-  border: 1px solid rgba(108, 76, 39, 0.12) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
   color: var(--mt-text) !important;
   padding: 0.45rem 0.9rem !important;
 }
 
 button[data-baseweb="tab"][aria-selected="true"] {
-  background: linear-gradient(135deg, rgba(221, 161, 94, 0.18), rgba(188, 108, 37, 0.18)) !important;
-  border-color: rgba(188, 108, 37, 0.24) !important;
+  background: linear-gradient(135deg, rgba(217, 4, 41, 0.24), rgba(255, 255, 255, 0.08)) !important;
+  border-color: rgba(217, 4, 41, 0.34) !important;
 }
 
 div[data-testid="stMetric"] {
-  background: rgba(255, 255, 255, 0.52);
-  border: 1px solid rgba(108, 76, 39, 0.12);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(217, 4, 41, 0.06));
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 18px;
   padding: 0.75rem 0.85rem;
 }
@@ -500,6 +522,23 @@ div[data-testid="stSelectbox"] > div,
 div[data-testid="stTextInput"] > div,
 div[data-testid="stNumberInput"] > div {
   border-radius: 14px;
+}
+
+div[data-testid="stButton"] button[kind="primary"] {
+  background: linear-gradient(135deg, #ff4d6d, #d90429 60%, #7a0016);
+  color: #ffffff;
+  border: 1px solid transparent;
+}
+
+div[data-testid="stButton"] button[kind="secondary"] {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--mt-text);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+div[data-testid="stButton"] button:hover,
+button[data-baseweb="tab"]:hover {
+  filter: brightness(1.08);
 }
 
 @media (max-width: 900px) {

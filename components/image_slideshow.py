@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import streamlit as st
 
+from components.html_renderer import render_template
+
 
 SLIDESHOW_PRODUCT_KEY = "active_slideshow_product_id"
 SLIDESHOW_INDEX_KEY = "active_slideshow_index"
@@ -109,7 +111,7 @@ def render_image_slideshow(
                 elif preview.get("render_mode") == "url" and preview.get("url"):
                     st.image(preview["url"], use_container_width=True)
                 else:
-                    st.markdown("<div class='mt-slideshow__thumb-placeholder'>No Image</div>", unsafe_allow_html=True)
+                    render_template("slideshow_thumb_placeholder.html", label="No Image")
                 if st.button(
                     f"{t('ui.image')} {index + 1}",
                     use_container_width=True,

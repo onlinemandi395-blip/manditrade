@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import streamlit as st
 
+from components.html_renderer import render_template
+
 
 def render_login_page(
     auth_service,
@@ -24,7 +26,7 @@ def render_login_page(
             f"<span class='mt-badge'>{item.get('icon', '')} {translator.t(item.get('label_key', ''))}</span>"
             for item in feature_rows
         )
-        st.markdown(f"<div class='mt-badge-row'>{feature_markup}</div>", unsafe_allow_html=True)
+        render_template("login_badge_row.html", feature_markup=feature_markup)
 
     if login_config.get("show_language_selector", False):
         selected_language = st.selectbox(
