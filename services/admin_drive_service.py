@@ -41,9 +41,18 @@ class AdminDriveService:
 
     def _get_platform_config(self) -> dict[str, str]:
         secrets = dict(st.secrets.get("platform", {})) if "platform" in st.secrets else {}
+        admin_secrets = dict(st.secrets.get("admin", {})) if "admin" in st.secrets else {}
         return {
-            "primary_admin_email": str(secrets.get("primary_admin_email", "")).strip().lower(),
-            "primary_admin_name": str(secrets.get("primary_admin_name", "") or "Primary Admin").strip(),
+            "primary_admin_email": str(
+                secrets.get("primary_admin_email", "")
+                or admin_secrets.get("email", "")
+                or admin_secrets.get("admin_email", "")
+            ).strip().lower(),
+            "primary_admin_name": str(
+                secrets.get("primary_admin_name", "")
+                or admin_secrets.get("name", "")
+                or "Primary Admin"
+            ).strip(),
         }
 
     def get_selected_bootstrap_mode(self) -> str:

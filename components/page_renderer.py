@@ -338,7 +338,14 @@ def _render_missing_files_screen(drive_manifest: dict, session_service: SessionS
     is_admin = bool(user.get("is_authenticated")) and (
         str(user.get("role", "")).strip().lower() == "platform_admin" or bootstrap_admin
     )
+    root_missing = not str(drive_manifest.get("root_folder_id", "") or "").strip()
+    admin_email = str(get_bootstrap_primary_admin().get("email", "") or "").strip().lower()
     if is_admin:
+        if root_missing:
+            st.warning(
+                "Google Drive root is not initialized yet. "
+                "Use the setup console below to create the root and load the bootstrap seed in live or dummy mode."
+            )
         render_setup_console(admin_drive_service, drive_manifest, translator=None)
         with st.expander("Bootstrap Admin Debug", expanded=False):
             st.write(
@@ -347,15 +354,28 @@ def _render_missing_files_screen(drive_manifest: dict, session_service: SessionS
                     "primary_admin_email_from_toml": get_bootstrap_primary_admin().get("email", ""),
                     "is_bootstrap_admin": bootstrap_admin,
                     "current_session_role": user.get("role", ""),
-                    "drive_setup_complete": not bool(drive_manifest.get("missing_files")),
+                    "drive_setup_complete": not bool(drive_manifest.get("missing_files")) and not root_missing,
+                    "root_missing": root_missing,
                     "missing_file_count": len(drive_manifest.get("missing_files", [])),
                 }
             )
     elif user.get("is_authenticated"):
-        st.error("Platform setup is incomplete. Please contact admin.")
-        render_table(drive_manifest.get("required_files", []), caption="Required Drive files")
+        st.error(
+            "Platform is initializing and is currently available only to the superadmin. "
+            f"Please contact {admin_email or 'the configured admin'} after bootstrap is completed."
+        )
+        if root_missing:
+            st.info("Waiting for Google Drive root setup and bootstrap seed sync.")
+        else:
+            render_table(drive_manifest.get("required_files", []), caption="Required Drive files")
     else:
-        st.warning("Google Drive runtime is missing required JSON files.")
+        if root_missing:
+            st.warning(
+                "Platform bootstrap is pending. "
+                f"Only the configured superadmin ({admin_email or 'admin'}) can complete first-time setup."
+            )
+        else:
+            st.warning("Google Drive runtime is missing required JSON files.")
         _render_bootstrap_login(GoogleOAuthService(), session_service)
 
 
