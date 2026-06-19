@@ -8,8 +8,8 @@
   --mt-text-soft: rgba(255, 255, 255, 0.72);
   --mt-accent: #d90429;
   --mt-accent-2: #a1031f;
-  --mt-accent-3: #ff4d6d;
-  --mt-danger: #ff4d6d;
+  --mt-accent-3: #f20530;
+  --mt-danger: #f20530;
   --mt-success: #d90429;
   --mt-radius: 22px;
   --mt-gap: 1rem;
@@ -459,7 +459,7 @@ div[data-testid="stDataFrame"] {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #ff4d6d, #d90429 55%, #5e0012);
+  background: linear-gradient(135deg, #f20530, #d90429 55%, #5e0012);
   color: #ffffff;
   font-weight: 800;
 }
@@ -506,7 +506,7 @@ div[data-testid="stDataFrame"] {
 }
 
 [data-testid="stSidebar"] div[data-testid="stButton"] button[kind="primary"] {
-  background: linear-gradient(135deg, #ff4d6d, #d90429 56%, #8b0018);
+  background: linear-gradient(135deg, #f20530, #d90429 56%, #8b0018);
   color: #ffffff;
   border-color: transparent;
 }
@@ -547,7 +547,7 @@ div[data-testid="stNumberInput"] > div {
 }
 
 div[data-testid="stButton"] button[kind="primary"] {
-  background: linear-gradient(135deg, #ff4d6d, #d90429 60%, #7a0016);
+  background: linear-gradient(135deg, #f20530, #d90429 60%, #7a0016);
   color: #ffffff;
   border: 1px solid transparent;
 }

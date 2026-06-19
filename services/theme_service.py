@@ -107,7 +107,7 @@ class ThemeService:
         return {
             "enabled": True,
             "data_url": data_url,
-            "overlay": str(background.get("overlay", "linear-gradient(rgba(3,7,18,0.82), rgba(3,7,18,0.9))")),
+            "overlay": str(background.get("overlay", "linear-gradient(rgba(20,0,0,0.82), rgba(0,0,0,0.9))")),
             "opacity": background.get("opacity", 0.35),
             "position": str(background.get("position", "center center")),
             "size": str(background.get("size", "cover")),
@@ -204,7 +204,7 @@ class ThemeService:
             "file_name": background.get("file_name", ""),
             "local_cache_key": f"theme_{background.get('file_id', 'app_background')}",
             "opacity": existing_background.get("opacity", 0.35),
-            "overlay": existing_background.get("overlay", "linear-gradient(rgba(3,7,18,0.82), rgba(3,7,18,0.9))"),
+            "overlay": existing_background.get("overlay", "linear-gradient(rgba(20,0,0,0.82), rgba(0,0,0,0.9))"),
             "position": existing_background.get("position", "center center"),
             "size": existing_background.get("size", "cover"),
             "repeat": existing_background.get("repeat", "no-repeat"),
