@@ -477,9 +477,9 @@ def _render_root_setup_console(session_service: SessionService, admin_drive_serv
             {
                 "connected": True,
                 "root_folder_id": "",
-                "root_folder_name": "MANDITRADE_DB",
+                "root_folder_name": admin_drive_service.FIXED_ROOT_FOLDER_NAME,
                 "required_folders": [],
-                "missing_folders": ["MANDITRADE_DB"],
+                "missing_folders": [admin_drive_service.FIXED_ROOT_FOLDER_NAME],
                 "required_files": [],
                 "missing_files": [],
             },

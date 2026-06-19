@@ -16,6 +16,7 @@ from services.required_drive_files import build_required_drive_files
 
 
 class AdminDriveService:
+    FIXED_ROOT_FOLDER_NAME = "MANDITRADE_DB"
     VALIDATION_KEY = "drive_validation_result"
     FILE_INDEX_KEY = "drive_file_index"
     ROOT_KEY = "drive_root_metadata"
@@ -33,9 +34,7 @@ class AdminDriveService:
             "root_folder_id": str(
                 secrets.get("root_folder_id", "") or secrets.get("admin_db_root_folder_id", "") or ""
             ).strip(),
-            "root_folder_name": str(
-                secrets.get("root_folder_name", "") or secrets.get("admin_db_root_folder_name", "") or "MANDITRADE_DB"
-            ).strip(),
+            "root_folder_name": self.FIXED_ROOT_FOLDER_NAME,
             "service_account_json": str(secrets.get("service_account_json", "") or "").strip(),
         }
 
@@ -146,6 +145,10 @@ class AdminDriveService:
         if root_folder_id:
             try:
                 root = service.files().get(fileId=root_folder_id, fields="id,name,mimeType").execute()
+                if str(root.get("name", "")).strip() != root_folder_name:
+                    raise FileNotFoundError(
+                        f"Configured Drive root ID points to '{root.get('name', '')}', expected '{root_folder_name}'."
+                    )
                 st.session_state[self.ROOT_KEY] = root
                 return root
             except Exception as exc:
@@ -163,6 +166,10 @@ class AdminDriveService:
         root_folder_name = config["root_folder_name"]
         if root_folder_id:
             root = service.files().get(fileId=root_folder_id, fields="id,name,mimeType").execute()
+            if str(root.get("name", "")).strip() != root_folder_name:
+                raise FileNotFoundError(
+                    f"Configured Drive root ID points to '{root.get('name', '')}', expected '{root_folder_name}'."
+                )
             return {
                 "logical_path": root_folder_name,
                 "status": "FOUND",
@@ -501,7 +508,7 @@ class AdminDriveService:
                 "missing_files": ["Google OAuth admin token or Drive service account"],
             }
         try:
-            manifest = self.get_runtime_manifest()
+            manifest = self.get_runtime_manifest(force_refresh=True)
             scopes = token.get("scopes", []) if token else []
             return {
                 "connected": True,
