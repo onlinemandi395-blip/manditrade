@@ -31,9 +31,7 @@ class AdminDriveService:
     def _get_drive_config(self) -> dict[str, str]:
         secrets = dict(st.secrets.get("google_drive", {})) if "google_drive" in st.secrets else {}
         return {
-            "root_folder_id": str(
-                secrets.get("root_folder_id", "") or secrets.get("admin_db_root_folder_id", "") or ""
-            ).strip(),
+            "root_folder_id": "",
             "root_folder_name": self.FIXED_ROOT_FOLDER_NAME,
             "service_account_json": str(secrets.get("service_account_json", "") or "").strip(),
         }
