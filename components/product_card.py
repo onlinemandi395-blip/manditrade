@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from components.html_renderer import load_template, render_template
+from components.html_renderer import render_template, render_template_markup
 from components.image_slideshow import open_slideshow
 from services.pricing_service import PricingService
 
@@ -38,7 +38,7 @@ def render_product_card(
         elif renderable["render_mode"] == "url" and renderable.get("url"):
             media.image(renderable["url"], use_container_width=True)
         else:
-            media.markdown(load_template("product_card_media_placeholder.html", label="No Image"), unsafe_allow_html=True)
+            media.markdown(render_template_markup("product_card_media_placeholder.html", label="No Image"), unsafe_allow_html=True)
 
         image_count = len(images)
         badge_mode = str(gallery_card_config.get("badge_mode", "counter") or "counter").strip().lower()
