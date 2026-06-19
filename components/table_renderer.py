@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import itertools
 import re
 from datetime import date, datetime
 from decimal import Decimal
@@ -11,6 +12,9 @@ import streamlit as st
 
 from components.empty_state import render_empty_state
 from components.html_renderer import render_html
+
+
+_TABLE_INSTANCE_COUNTER = itertools.count()
 
 
 def _slugify(value: str) -> str:
@@ -84,7 +88,7 @@ def _filter_dataframe(dataframe: pd.DataFrame, query: str) -> pd.DataFrame:
 
 def render_table(rows: list[dict], *, caption: str = "") -> None:
     title = caption or "Data table"
-    table_key = _slugify(title)
+    table_key = f"{_slugify(title)}_{next(_TABLE_INSTANCE_COUNTER)}"
     dataframe = _normalize_rows(rows)
 
     with st.container():
