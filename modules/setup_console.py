@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import streamlit as st
 
 from components.table_renderer import render_table
@@ -64,6 +66,18 @@ def render_setup_console(admin_drive_service, drive_manifest: dict, translator=N
     )
     st.session_state["mt_bootstrap_mode"] = bootstrap_mode
     st.caption("Use Dummy Simulation to initialize the app with realistic demo products, orders, payments, shipments, and notifications.")
+    st.markdown("### Bootstrap Seed Import")
+    st.caption(
+        "Upload a zip of the selected bootstrap folder structure. "
+        "The system will create `MANDITRADE_DB`, required folders, and JSON files in one pass from this archive."
+    )
+    bootstrap_archive = st.file_uploader(
+        "Upload Bootstrap Zip",
+        type=["zip"],
+        key=f"{key_prefix}_bootstrap_archive",
+    )
+    seed_folder_hint = Path("bootstrap_seed") / bootstrap_mode
+    st.code(str(seed_folder_hint))
 
     status_cards = st.columns(6)
     status_cards[0].metric("Google OAuth", "Ready" if drive_manifest.get("connected") else "Missing")
@@ -76,59 +90,24 @@ def render_setup_console(admin_drive_service, drive_manifest: dict, translator=N
     root_missing = not drive_manifest.get("root_folder_id")
     setup_complete = not drive_manifest.get("missing_files") and not drive_manifest.get("missing_folders") and not root_missing
     database_status = admin_drive_service.get_database_config_status()
-    cols = st.columns(7)
-    if cols[0].button("Create Root Folder", use_container_width=True, disabled=not root_missing, key=f"{key_prefix}_create_root_folder"):
+    cols = st.columns(3)
+    if cols[0].button("Import Bootstrap Seed", use_container_width=True, disabled=bootstrap_archive is None, key=f"{key_prefix}_import_bootstrap_seed"):
         try:
-            result = admin_drive_service.ensure_root_folder()
-            st.success(f"Root folder {result['status'].lower()}.")
-            admin_drive_service.clear_runtime_cache()
-            st.rerun()
-        except Exception as exc:
-            st.error(f"Create Root Folder failed: {exc}")
-    if cols[1].button("Create Missing Folders", use_container_width=True, disabled=not drive_manifest.get("missing_folders"), key=f"{key_prefix}_create_missing_folders"):
-        try:
-            result = admin_drive_service.create_missing_required_folders()
-            st.success(f"Folders created: {len(result.get('created', []))}")
-            st.rerun()
-        except Exception as exc:
-            st.error(f"Create Missing Folders failed: {exc}")
-    if cols[2].button("Create Missing JSON Files", use_container_width=True, disabled=not drive_manifest.get("missing_files"), key=f"{key_prefix}_create_missing_json_files"):
-        try:
-            result = admin_drive_service.create_missing_required_files(mode=bootstrap_mode)
-            st.success(f"Files created: {len(result.get('created', []))}. Database mappings updated: {len(result.get('updated', []))}")
-            st.rerun()
-        except Exception as exc:
-            st.error(f"Create Missing JSON Files failed: {exc}")
-    if cols[3].button(
-        "Refresh database.json Mappings",
-        use_container_width=True,
-        disabled=database_status.get("status") == "OK",
-        key=f"{key_prefix}_refresh_database_mappings",
-    ):
-        try:
-            result = admin_drive_service.refresh_database_config_mapping()
+            result = admin_drive_service.import_bootstrap_archive(
+                bootstrap_archive.getvalue(),
+                mode=bootstrap_mode,
+            )
             st.success(
-                f"database.json {str(result.get('status', 'UPDATED')).lower()}. Added mappings: "
-                f"{', '.join(result.get('added_collections', [])) or 'none'}"
+                f"Bootstrap imported: {len(result.get('imported', []))} files. "
+                f"Skipped: {len(result.get('skipped', []))}."
             )
             st.rerun()
         except Exception as exc:
-            st.error(f"database.json refresh failed: {exc}")
-    if cols[4].button("Migrate Root Orders", use_container_width=True, key=f"{key_prefix}_migrate_root_orders"):
-        try:
-            result = admin_drive_service.migrate_root_orders()
-            st.success(
-                f"Root orders migration: {result.get('status', 'DONE')}. "
-                f"Marketplace added: {result.get('marketplace_added', 0)}, "
-                f"MandiTrade added: {result.get('manditrade_added', 0)}"
-            )
-            st.rerun()
-        except Exception as exc:
-            st.error(f"Root orders migration failed: {exc}")
-    if cols[5].button("Reload Cache", use_container_width=True, key=f"{key_prefix}_reload_cache"):
+            st.error(f"Bootstrap import failed: {exc}")
+    if cols[1].button("Reload Cache", use_container_width=True, key=f"{key_prefix}_reload_cache"):
         admin_drive_service.clear_runtime_cache()
         st.rerun()
-    if cols[6].button("Continue to App", use_container_width=True, disabled=not setup_complete, key=f"{key_prefix}_continue_to_app"):
+    if cols[2].button("Continue to App", use_container_width=True, disabled=not setup_complete, key=f"{key_prefix}_continue_to_app"):
         admin_drive_service.clear_runtime_cache()
         st.rerun()
 

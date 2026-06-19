@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import io
 import json
 from pathlib import Path
 import re
 from time import time
+import zipfile
 
 import streamlit as st
 
@@ -195,6 +197,17 @@ class AdminDriveService:
             "actual_path": created.get("name", root_folder_name),
             "error": "",
         }
+
+    def _ensure_bootstrap_root_folder(self, service) -> dict:
+        config = self._get_drive_config()
+        root_folder_name = config["root_folder_name"]
+        root = self.google_drive_service.find_child(service, "root", root_folder_name)
+        if root:
+            st.session_state[self.ROOT_KEY] = root
+            return root
+        created = self.google_drive_service.find_or_create_folder(service, root_folder_name, None)
+        st.session_state[self.ROOT_KEY] = created
+        return created
 
     def get_path_resolver(self) -> DrivePathResolver:
         service = self.build_client()
@@ -486,6 +499,45 @@ class AdminDriveService:
             created.append(resolver.ensure_folder_path(folder_path))
         self.clear_runtime_cache(clear_validation=True, clear_file_index=False)
         return {"created": created, "existing": existing}
+
+    def import_bootstrap_archive(self, archive_bytes: bytes, *, mode: str) -> dict:
+        if not archive_bytes:
+            raise ValueError("Bootstrap archive is empty.")
+        required_paths = {
+            item["logical_path"]
+            for item in self.get_required_files_registry(mode=mode)
+        }
+        imported: list[str] = []
+        skipped: list[str] = []
+        service = self.build_client()
+        root = self._ensure_bootstrap_root_folder(service)
+        resolver = DrivePathResolver(self.google_drive_service, service, root)
+        for folder_path in self.get_required_folder_paths():
+            resolver.ensure_folder_path(folder_path)
+        with zipfile.ZipFile(io.BytesIO(archive_bytes)) as archive:
+            for member in archive.infolist():
+                if member.is_dir():
+                    continue
+                archive_path = str(member.filename or "").strip().replace("\\", "/")
+                if not archive_path.lower().endswith(".json"):
+                    continue
+                parts = [part for part in archive_path.split("/") if part]
+                normalized_parts = list(parts)
+                if normalized_parts and normalized_parts[0] == "bootstrap_seed":
+                    normalized_parts = normalized_parts[1:]
+                if normalized_parts and normalized_parts[0] in {"live", "dummy"}:
+                    normalized_parts = normalized_parts[1:]
+                logical_path = "/".join(normalized_parts)
+                if logical_path not in required_paths:
+                    skipped.append(archive_path)
+                    continue
+                payload = json.loads(archive.read(member).decode("utf-8"))
+                resolver.create_or_update_json_file(logical_path, payload)
+                imported.append(logical_path)
+        if not imported:
+            raise ValueError("No recognized bootstrap JSON files were found in the uploaded archive.")
+        self.clear_runtime_cache(clear_validation=True, clear_file_index=False)
+        return {"imported": sorted(set(imported)), "skipped": sorted(set(skipped))}
 
     def get_status(self) -> dict:
         config = self._get_drive_config()
