@@ -36,6 +36,20 @@ def _get_bootstrap_payment_settings(admin_drive_service) -> dict:
         }
 
 
+def _get_bootstrap_consent_settings(admin_drive_service) -> list[dict]:
+    definition = admin_drive_service._get_required_file_definition("00_config/product_owner_consent.json")  # noqa: SLF001
+    default_payload = dict((definition or {}).get("default_payload", {}) or {})
+    owner_config = dict(default_payload.get("product_owner_consent", {}) or {})
+    delivery_partner_config = dict(default_payload.get("delivery_partner_consent", {}) or {})
+    try:
+        payload = dict(admin_drive_service.read_json("00_config/product_owner_consent.json") or {})
+        owner_config = dict(payload.get("product_owner_consent", owner_config) or owner_config)
+        delivery_partner_config = dict(payload.get("delivery_partner_consent", delivery_partner_config) or delivery_partner_config)
+    except Exception:
+        pass
+    return [owner_config, delivery_partner_config]
+
+
 def render_setup_console(admin_drive_service, drive_manifest: dict, translator=None, key_prefix: str = "setup") -> None:
     t = translator.t if translator else (lambda key: key)
     st.markdown(f"## {t('ui.first_time_setup')}")
@@ -199,13 +213,8 @@ def render_setup_console(admin_drive_service, drive_manifest: dict, translator=N
     st.markdown("### Required JSON Files")
     render_table(drive_manifest.get("required_files", []), caption="Required Drive files")
     st.markdown("### Product Owner Consent Configuration")
-    cache_service = CacheService(ConfigLoaderService())
-    consent_service = ProductConsentService(DataService(cache_service), cache_service)
     render_table(
-        [
-            consent_service.get_config("owner"),
-            consent_service.get_config("delivery_partner"),
-        ],
+        _get_bootstrap_consent_settings(admin_drive_service),
         caption="Onboarding consent config",
     )
     theme_file = next(
