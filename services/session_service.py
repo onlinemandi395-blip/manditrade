@@ -13,12 +13,15 @@ class SessionService:
     LANGUAGE_KEY = "mt_language"
     SESSION_QUERY_PARAM = "mt_session"
     SESSION_TTL_SECONDS = 604800
+    USER_KEY = "mt_next_user"
+    EFFECTIVE_USER_KEY = "mt_next_effective_user"
 
     def __init__(self, app_config: dict) -> None:
         self.app_config = app_config
         initial_language = self._resolve_initial_language()
         restored_user = self._restore_user_from_query_session(initial_language)
-        st.session_state.setdefault("mt_next_user", restored_user or self._build_default_user(initial_language))
+        st.session_state.setdefault(self.USER_KEY, restored_user or self._build_default_user(initial_language))
+        st.session_state.setdefault(self.EFFECTIVE_USER_KEY, None)
         if self.LANGUAGE_KEY not in st.session_state:
             st.session_state[self.LANGUAGE_KEY] = initial_language
         elif "mt_next_language" in st.session_state and self.LANGUAGE_KEY not in st.session_state:
@@ -27,9 +30,15 @@ class SessionService:
             )
         st.session_state[self.LANGUAGE_KEY] = self._normalize_language(st.session_state.get(self.LANGUAGE_KEY, initial_language))
         st.session_state["mt_next_language"] = st.session_state[self.LANGUAGE_KEY]
-        st.session_state.setdefault("mt_next_route", st.session_state["mt_next_user"].get("landing_page", "marketplace"))
+        st.session_state.setdefault("mt_next_route", st.session_state[self.get_active_user_key()].get("landing_page", "marketplace"))
         self._persist_user_session()
         self._sync_language_query_param(st.session_state[self.LANGUAGE_KEY])
+
+    def get_active_user_key(self) -> str:
+        effective_user = st.session_state.get(self.EFFECTIVE_USER_KEY)
+        if isinstance(effective_user, dict) and effective_user.get("is_authenticated"):
+            return self.EFFECTIVE_USER_KEY
+        return self.USER_KEY
 
     def _build_default_user(self, language: str) -> dict:
         default_role = self.app_config.get("default_role", "public_buyer")
@@ -157,7 +166,7 @@ class SessionService:
             return None
 
     def _persist_user_session(self) -> None:
-        user = dict(st.session_state.get("mt_next_user", {}) or {})
+        user = self.get_authenticated_user()
         if user.get("is_authenticated"):
             self._sync_session_query_param(self._serialize_user_for_session(user))
         else:
@@ -167,11 +176,17 @@ class SessionService:
         return bool(self.get_user().get("is_authenticated", False))
 
     def get_user(self) -> dict:
-        return dict(st.session_state.get("mt_next_user", {}))
+        effective_user = st.session_state.get(self.EFFECTIVE_USER_KEY)
+        if isinstance(effective_user, dict) and effective_user.get("is_authenticated"):
+            return dict(effective_user)
+        return self.get_authenticated_user()
+
+    def get_authenticated_user(self) -> dict:
+        return dict(st.session_state.get(self.USER_KEY, {}))
 
     def authenticate(self, user: dict) -> None:
         current_language = self.get_language()
-        st.session_state["mt_next_user"] = {
+        st.session_state[self.USER_KEY] = {
             "is_authenticated": True,
             "email": str(user.get("email", "")).strip().lower(),
             "role": str(user.get("role", self.app_config.get("default_role", "public_buyer"))),
@@ -182,14 +197,44 @@ class SessionService:
             "language": self._normalize_language(user.get("language", current_language)),
             "landing_page": str(user.get("landing_page", "marketplace")),
         }
-        st.session_state["mt_next_route"] = st.session_state["mt_next_user"]["landing_page"]
-        self._sync_language_query_param(st.session_state["mt_next_user"]["language"])
+        st.session_state[self.EFFECTIVE_USER_KEY] = None
+        st.session_state["mt_next_route"] = st.session_state[self.USER_KEY]["landing_page"]
+        self._sync_language_query_param(st.session_state[self.USER_KEY]["language"])
         self._persist_user_session()
 
     def logout(self) -> None:
-        st.session_state["mt_next_user"] = self._build_default_user(self.get_language())
-        st.session_state["mt_next_route"] = st.session_state["mt_next_user"]["landing_page"]
+        st.session_state[self.USER_KEY] = self._build_default_user(self.get_language())
+        st.session_state[self.EFFECTIVE_USER_KEY] = None
+        st.session_state["mt_next_route"] = st.session_state[self.USER_KEY]["landing_page"]
         self._persist_user_session()
+
+    def set_effective_user(self, user: dict | None) -> None:
+        if not user:
+            st.session_state[self.EFFECTIVE_USER_KEY] = None
+            active_user = self.get_authenticated_user()
+            st.session_state["mt_next_route"] = str(active_user.get("landing_page", "marketplace") or "marketplace")
+            return
+        current_language = self.get_language()
+        st.session_state[self.EFFECTIVE_USER_KEY] = {
+            "is_authenticated": True,
+            "email": str(user.get("email", "")).strip().lower(),
+            "role": str(user.get("role", self.app_config.get("default_role", "public_buyer"))),
+            "status": str(user.get("status", "ACTIVE")),
+            "display_name": str(user.get("display_name", "")),
+            "photo_url": str(user.get("photo_url", "")),
+            "oauth_token": {},
+            "language": self._normalize_language(user.get("language", current_language)),
+            "landing_page": str(user.get("landing_page", "marketplace")),
+            "acting_as": True,
+        }
+        st.session_state["mt_next_route"] = st.session_state[self.EFFECTIVE_USER_KEY]["landing_page"]
+
+    def clear_effective_user(self) -> None:
+        self.set_effective_user(None)
+
+    def is_acting_as_user(self) -> bool:
+        effective_user = st.session_state.get(self.EFFECTIVE_USER_KEY)
+        return isinstance(effective_user, dict) and bool(effective_user.get("is_authenticated"))
 
     def get_user_role(self) -> str:
         return str(self.get_user().get("role", self.app_config.get("default_role", "public_buyer")))
