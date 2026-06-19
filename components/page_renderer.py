@@ -480,10 +480,17 @@ def _filter_role_rows(route: str, rows: list[dict], role: str, user_email: str) 
 
 def _build_superadmin_role_switcher_options(*, cache_service: CacheService, translator, navigation_service: NavigationService) -> list[dict]:
     t = translator.t if translator else (lambda key: key)
-    roles_payload = cache_service.get_config("roles")
-    role_rows = list((roles_payload.get("roles", []) if isinstance(roles_payload, dict) else []) or [])
-    user_rows = list(cache_service.get_config("users").get("users", []) or [])
+    permissions_map = dict(cache_service.get_config("permissions").get("permissions", {}) or {})
     role_views = cache_service.get_config("role_views").get("role_views", {})
+    runtime_role_ids = sorted(
+        {
+            str(role_id or "").strip().lower()
+            for role_id in [*permissions_map.keys(), *role_views.keys()]
+            if str(role_id or "").strip()
+        }
+    )
+    role_rows = [{"role_id": role_id, "label_key": f"role.{role_id}"} for role_id in runtime_role_ids]
+    user_rows = list(cache_service.get_config("users").get("users", []) or [])
     options: list[dict] = [
         {
             "value": "__self__",
