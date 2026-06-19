@@ -612,6 +612,8 @@ def render_app() -> None:
 
     role = session_service.get_user_role()
     user = session_service.get_user()
+    current_user_email = str(user.get("email", "") or "").strip().lower()
+    is_superadmin = is_bootstrap_admin(current_user_email)
     theme_service = ThemeService(admin_drive_service, cache_service)
     theme_css = theme_service.build_background_css()
     if theme_css:
@@ -683,7 +685,6 @@ def render_app() -> None:
     if page_definition.get("type") == "dashboard":
         cards = cache_service.get_config("dashboards").get("dashboards", {}).get(role, {}).get("cards", [])
         render_dashboard_cards(cards, datasets, translator, current_user=user)
-        render_detail_panel("Runtime", cache_service.get_cache_status())
     elif page_definition.get("type") == "product_grid":
         media_service = MediaService(admin_drive_service)
         notification_service = NotificationService(data_service)
@@ -1216,20 +1217,19 @@ def render_app() -> None:
             except Exception as exc:
                 st.error(f"Save Payment Receiver Settings failed: {exc}")
         render_theme_manager(theme_service, allow_set_default=(role == "platform_admin"), title="Theme Background Control", key_prefix="system_health_theme")
-        render_detail_panel("Cache Status", status["cache_status"])
+        if is_superadmin:
+            render_detail_panel("Runtime", status["cache_status"])
+            with st.expander("Auth Runtime Debug", expanded=False):
+                st.write(
+                    {
+                        "user": session_service.get_user(),
+                        "permissions": rbac_service.get_permissions(role),
+                        "landing_page": page_service.get_landing_page(role, navigation_service),
+                        "filtered_nav_count": len(navigation_items),
+                        "current_route": current_route,
+                    }
+                )
+            with st.expander("Performance Debug", expanded=False):
+                st.write(performance_service.get_metrics())
     else:
         render_empty_state("Unsupported page type.")
-
-    if bool(app_config.get("debug_auth", False)):
-        with st.expander("Auth Runtime Debug", expanded=False):
-            st.write(
-                {
-                    "user": session_service.get_user(),
-                    "permissions": rbac_service.get_permissions(role),
-                    "landing_page": page_service.get_landing_page(role, navigation_service),
-                    "filtered_nav_count": len(navigation_items),
-                    "current_route": current_route,
-                }
-            )
-        with st.expander("Performance Debug", expanded=False):
-            st.write(performance_service.get_metrics())
