@@ -90,13 +90,21 @@ def render_table(rows: list[dict], *, caption: str = "") -> None:
     title = caption or "Data table"
     table_key = f"{_slugify(title)}_{next(_TABLE_INSTANCE_COUNTER)}"
     dataframe = _normalize_rows(rows)
+    columns = list(dataframe.columns)
+    preview_columns = ", ".join(columns[:4]) if columns else "No columns"
+    if len(columns) > 4:
+        preview_columns = f"{preview_columns} +{len(columns) - 4} more"
 
     with st.container():
-        render_html("<div class='mt-table-template'>")
+        render_html("<div class='mt-table-template mt-surface'>")
         header_left, header_right = st.columns([3, 2])
         with header_left:
             st.markdown(f"<div class='mt-table-shell__title'>{title}</div>", unsafe_allow_html=True)
             st.markdown("<div class='mt-table-shell__subtitle'>Browse records in a searchable workspace.</div>", unsafe_allow_html=True)
+            st.markdown(
+                f"<div class='mt-table-shell__meta'><span>Visible fields</span><strong>{preview_columns}</strong></div>",
+                unsafe_allow_html=True,
+            )
         with header_right:
             st.markdown(
                 (
@@ -120,9 +128,16 @@ def render_table(rows: list[dict], *, caption: str = "") -> None:
             label_visibility="collapsed",
         )
         filtered = _filter_dataframe(dataframe, query)
-        if query.strip() and filtered.empty:
-            st.caption(f"No matches found for '{query.strip()}'.")
-        else:
-            st.caption(f"Showing {len(filtered)} of {len(dataframe)} rows")
+        helper_left, helper_right = st.columns([3, 2])
+        with helper_left:
+            if query.strip() and filtered.empty:
+                st.caption(f"No matches found for '{query.strip()}'.")
+            else:
+                st.caption(f"Showing {len(filtered)} of {len(dataframe)} rows")
+        with helper_right:
+            st.markdown(
+                f"<div class='mt-table-shell__hint'>Search, scan, and inspect without touching raw JSON.</div>",
+                unsafe_allow_html=True,
+            )
         st.dataframe(filtered, use_container_width=True, hide_index=True)
         render_html("</div>")

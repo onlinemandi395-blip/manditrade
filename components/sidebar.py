@@ -38,22 +38,38 @@ def render_sidebar(
 ) -> str:
     chosen = selected_route
     with st.sidebar:
+        st.markdown("<div class='mt-sidebar-shell'>", unsafe_allow_html=True)
+        st.markdown(
+            """
+            <div class='mt-sidebar-brand'>
+              <div class='mt-sidebar-brand__mark'>MT</div>
+              <div>
+                <div class='mt-sidebar-brand__name'>MandiTrade</div>
+                <div class='mt-sidebar-brand__sub'>Commerce command center</div>
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
         if user:
             photo_url = str(user.get("photo_url", "") or "").strip()
             if photo_url:
                 st.image(photo_url, width=64)
             display_name = str(user.get("display_name", "") or "").strip()
             email = str(user.get("email", "") or "").strip()
+            st.markdown("<div class='mt-sidebar-card'>", unsafe_allow_html=True)
             if display_name:
-                st.markdown(f"**{display_name}**")
+                st.markdown(f"<div class='mt-sidebar-user__name'>{display_name}</div>", unsafe_allow_html=True)
             if email:
-                st.caption(email)
+                st.markdown(f"<div class='mt-sidebar-user__email'>{email}</div>", unsafe_allow_html=True)
             if role_label:
-                st.caption(role_label)
+                st.markdown(f"<div class='mt-sidebar-user__role'>{role_label}</div>", unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
         if language_options and set_language is not None:
             normalized_options = [str(option or "").strip().lower() for option in language_options if str(option or "").strip()]
             normalized_current = str(current_language or "en").strip().lower() or "en"
             if normalized_options:
+                st.markdown("<div class='mt-sidebar-section-label'>Language</div>", unsafe_allow_html=True)
                 language_choice = st.selectbox(
                     language_label,
                     options=normalized_options,
@@ -67,6 +83,7 @@ def render_sidebar(
         if theme_service is not None:
             backgrounds = theme_service.list_available_backgrounds()
             if backgrounds:
+                st.markdown("<div class='mt-sidebar-section-label'>Theme</div>", unsafe_allow_html=True)
                 options = [{"label": "Default Theme", "value": ""}] + [
                     {"label": row.get("file_name", row.get("file_id", "Theme")), "value": row.get("file_id", "")}
                     for row in backgrounds
@@ -88,6 +105,7 @@ def render_sidebar(
                         theme_service.clear_selected_background()
                     theme_service.clear_theme_cache()
                     st.rerun()
+        st.markdown("<div class='mt-sidebar-section-label'>Navigation</div>", unsafe_allow_html=True)
         for item in navigation_items:
             icon = _resolve_icon(str(item.get("icon", "")))
             label = f"{icon} {item.get('label', item.get('route', ''))}".strip()
@@ -99,4 +117,5 @@ def render_sidebar(
                 type="primary" if route == selected_route else "secondary",
             ):
                 chosen = route
+        st.markdown("</div>", unsafe_allow_html=True)
     return chosen

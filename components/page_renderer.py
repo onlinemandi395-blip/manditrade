@@ -664,7 +664,18 @@ def render_app() -> None:
         session_service.set_route(current_route)
         page_definition = page_service.get_page_definition(current_route, role)
         st.warning(translator.t("auth.access_denied"))
-    st.markdown(f"<div class='mt-shell'><h2 class='mt-page-title'>{translator.t(page_definition.get('title_key', ''))}</h2><p class='mt-page-subtitle'>{translator.t(page_definition.get('subtitle_key', ''))}</p></div>", unsafe_allow_html=True)
+    st.markdown(
+        (
+            "<div class='mt-shell'>"
+            "<section class='mt-page-hero mt-surface'>"
+            f"<div class='mt-page-hero__eyebrow'>{translator.t(f'role.{role}')}</div>"
+            f"<h2 class='mt-page-title'>{translator.t(page_definition.get('title_key', ''))}</h2>"
+            f"<p class='mt-page-subtitle'>{translator.t(page_definition.get('subtitle_key', ''))}</p>"
+            "</section>"
+            "</div>"
+        ),
+        unsafe_allow_html=True,
+    )
 
     data_service = DataService(cache_service)
     datasets = _load_route_datasets(data_service, current_route=current_route, page_definition=page_definition, role=role)
