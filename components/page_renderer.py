@@ -504,7 +504,6 @@ def _build_superadmin_role_switcher_options(*, cache_service: CacheService, tran
             continue
         role_label = t(str(role_row.get("label_key", "") or f"role.{role_id}"))
         landing_page = str(role_views.get(role_id, {}).get("landing_page", navigation_service.get_default_route(role_id)) or "dashboard")
-        synthetic_email = f"superadmin+{role_id}@view.local"
         options.append(
             {
                 "value": f"role::{role_id}",
@@ -512,25 +511,10 @@ def _build_superadmin_role_switcher_options(*, cache_service: CacheService, tran
                 "caption": f"Open the app as a {role_label.lower()} view.",
                 "mode": "role_view",
                 "user": {
-                    "email": synthetic_email,
+                    "email": f"superadmin+{role_id}@view.local",
                     "role": role_id,
                     "status": "ACTIVE",
                     "display_name": role_label,
-                    "landing_page": landing_page,
-                },
-            }
-        )
-        options.append(
-            {
-                "value": f"user::__superadmin_{role_id}__",
-                "label": f"{role_label} Test Profile",
-                "caption": f"Use one dedicated {role_label.lower()} profile for superadmin testing.",
-                "mode": "real_user",
-                "user": {
-                    "email": synthetic_email,
-                    "role": role_id,
-                    "status": "ACTIVE",
-                    "display_name": f"{role_label} Test Profile",
                     "landing_page": landing_page,
                 },
             }
