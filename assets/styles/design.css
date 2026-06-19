@@ -49,6 +49,54 @@
   color: #ffffff;
 }
 
+[data-baseweb="input"] > div,
+[data-baseweb="select"] > div,
+[data-testid="stTextInputRootElement"],
+[data-testid="stNumberInputRootElement"],
+[data-testid="stDateInputField"],
+[data-testid="stTimeInput"] input,
+textarea,
+input {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
+}
+
+[data-baseweb="input"] > div:focus-within,
+[data-baseweb="select"] > div:focus-within,
+[data-testid="stTextInputRootElement"]:focus-within,
+[data-testid="stNumberInputRootElement"]:focus-within,
+[data-testid="stDateInputField"]:focus-within {
+  border-color: rgba(217, 4, 41, 0.42) !important;
+  box-shadow: 0 0 0 1px rgba(217, 4, 41, 0.42), 0 0 0 4px rgba(217, 4, 41, 0.12) !important;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none !important;
+  border-color: rgba(217, 4, 41, 0.42) !important;
+  box-shadow: 0 0 0 1px rgba(217, 4, 41, 0.42), 0 0 0 4px rgba(217, 4, 41, 0.12) !important;
+}
+
+[data-baseweb="popover"],
+[role="listbox"] {
+  background: linear-gradient(180deg, rgba(22, 22, 22, 0.98), rgba(8, 8, 8, 0.98)) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: #ffffff !important;
+}
+
+[role="option"] {
+  background: transparent !important;
+  color: #ffffff !important;
+}
+
+[role="option"][aria-selected="true"],
+[role="option"]:hover {
+  background: linear-gradient(135deg, rgba(217, 4, 41, 0.2), rgba(255, 255, 255, 0.06)) !important;
+  color: #ffffff !important;
+}
+
 .mt-shell {
   padding-bottom: 2rem;
 }
@@ -175,6 +223,117 @@
   border: 1px solid rgba(217, 4, 41, 0.28);
   font-size: 0.8rem;
   font-weight: 600;
+}
+
+.mt-login-hero {
+  position: relative;
+  overflow: hidden;
+  padding: 1.4rem;
+  margin-bottom: 0.9rem;
+}
+
+.mt-login-hero::before {
+  content: "";
+  position: absolute;
+  inset: -3rem auto auto -3rem;
+  width: 220px;
+  height: 220px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(217, 4, 41, 0.24), transparent 68%);
+  pointer-events: none;
+}
+
+.mt-login-hero__brand,
+.mt-login-hero__rail {
+  position: relative;
+  z-index: 1;
+}
+
+.mt-login-hero__brand {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  gap: 1rem;
+  align-items: center;
+}
+
+.mt-login-hero__logo {
+  width: 110px;
+  height: 110px;
+  border-radius: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(135deg, #000000, #d90429 55%, #ffffff 160%);
+  display: grid;
+  place-items: center;
+  position: relative;
+  box-shadow: 0 26px 60px rgba(0, 0, 0, 0.42);
+}
+
+.mt-login-hero__logo span {
+  position: absolute;
+  font-weight: 900;
+  font-size: 2.4rem;
+  color: #ffffff;
+  letter-spacing: 0.06em;
+}
+
+.mt-login-hero__logo span:first-child {
+  transform: translateX(-14px);
+}
+
+.mt-login-hero__logo span:last-child {
+  transform: translateX(14px);
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.mt-login-hero__eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--mt-accent-3);
+}
+
+.mt-login-hero__title {
+  margin: 0.3rem 0 0;
+  color: #ffffff;
+  font-size: 2rem;
+  line-height: 1.05;
+}
+
+.mt-login-hero__subtitle {
+  margin: 0.55rem 0 0;
+  color: rgba(255, 255, 255, 0.76);
+  line-height: 1.6;
+  max-width: 680px;
+}
+
+.mt-login-hero__rail {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.mt-login-hero__card {
+  padding: 0.9rem;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(217, 4, 41, 0.08));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.mt-login-hero__card span {
+  display: block;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.mt-login-hero__card strong {
+  display: block;
+  margin-top: 0.32rem;
+  color: #ffffff;
+  line-height: 1.45;
 }
 
 .mt-page-hero {
@@ -564,6 +723,23 @@ button[data-baseweb="tab"]:hover {
 }
 
 @media (max-width: 900px) {
+  .mt-login-hero__brand {
+    grid-template-columns: 1fr;
+  }
+
+  .mt-login-hero__logo {
+    width: 88px;
+    height: 88px;
+  }
+
+  .mt-login-hero__title {
+    font-size: 1.6rem;
+  }
+
+  .mt-login-hero__rail {
+    grid-template-columns: 1fr;
+  }
+
   .mt-topbar {
     grid-template-columns: 1fr;
   }

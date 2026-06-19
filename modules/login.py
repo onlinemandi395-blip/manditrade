@@ -17,8 +17,9 @@ def render_login_page(
     auth_config = auth_service.get_auth_config()
     login_config = auth_config.get("login_page", {})
 
-    st.markdown(f"## {translator.t(login_config.get('title_key', 'auth.title'))}")
-    st.caption(translator.t(login_config.get("subtitle_key", "auth.subtitle")))
+    title = translator.t(login_config.get("title_key", "auth.title"))
+    subtitle = translator.t(login_config.get("subtitle_key", "auth.subtitle"))
+    render_template("login_hero.html", title=title, subtitle=subtitle)
 
     feature_rows = login_config.get("features", [])
     if feature_rows:
@@ -27,6 +28,7 @@ def render_login_page(
             for item in feature_rows
         )
         render_template("login_badge_row.html", feature_markup=feature_markup)
+    st.caption("Choose your language and continue with Google to open your workspace.")
 
     if login_config.get("show_language_selector", False):
         selected_language = st.selectbox(
