@@ -505,6 +505,7 @@ def _build_superadmin_role_switcher_options(*, cache_service: CacheService, tran
             continue
         role_label = t(str(role_row.get("label_key", "") or f"role.{role_id}"))
         landing_page = str(role_views.get(role_id, {}).get("landing_page", navigation_service.get_default_route(role_id)) or "dashboard")
+        synthetic_email = f"superadmin+{role_id}@view.local"
         options.append(
             {
                 "value": f"role::{role_id}",
@@ -512,7 +513,7 @@ def _build_superadmin_role_switcher_options(*, cache_service: CacheService, tran
                 "caption": f"Open the app as a {role_label.lower()} view.",
                 "mode": "role_view",
                 "user": {
-                    "email": f"{role_id}@view.local",
+                    "email": synthetic_email,
                     "role": role_id,
                     "status": "ACTIVE",
                     "display_name": role_label,
@@ -520,6 +521,23 @@ def _build_superadmin_role_switcher_options(*, cache_service: CacheService, tran
                 },
             }
         )
+        if role_id == "public_buyer":
+            options.append(
+                {
+                    "value": "user::__superadmin_public_buyer__",
+                    "label": "Public Buyer Test Profile",
+                    "caption": "Use one dedicated buyer profile for superadmin testing.",
+                    "mode": "real_user",
+                    "user": {
+                        "email": "superadmin+public_buyer@view.local",
+                        "role": "public_buyer",
+                        "status": "ACTIVE",
+                        "display_name": "Public Buyer Test Profile",
+                        "landing_page": landing_page,
+                    },
+                }
+            )
+            continue
         matching_users = [
             row
             for row in user_rows
