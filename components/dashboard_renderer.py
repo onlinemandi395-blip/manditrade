@@ -648,18 +648,18 @@ def _render_summary_cards(cards: list[dict], dataset_lookup: dict[str, list[dict
         dataset_name = str(card.get("data_source", "")).strip()
         rows = dataset_lookup.get(dataset_name, [])
         cards_markup.append(
-            """
-            <a class="mt-dashboard-preview__tile mt-dashboard-preview__tile--summary" href="{href}">
-              <div class="mt-dashboard-preview__head">
-                <span class="mt-dashboard-preview__eyebrow">{eyebrow}</span>
-                <span class="mt-dashboard-preview__index">{index_label}</span>
-              </div>
-              <div class="mt-dashboard-preview__title">{title}</div>
-              <div class="mt-dashboard-preview__value">{value}</div>
-              <div class="mt-dashboard-preview__subtitle">{subtitle}</div>
-              {sparkline}
-            </a>
-            """.format(
+            (
+                '<a class="mt-dashboard-preview__tile mt-dashboard-preview__tile--summary" href="{href}">'
+                '<div class="mt-dashboard-preview__head">'
+                '<span class="mt-dashboard-preview__eyebrow">{eyebrow}</span>'
+                '<span class="mt-dashboard-preview__index">{index_label}</span>'
+                "</div>"
+                '<div class="mt-dashboard-preview__title">{title}</div>'
+                '<div class="mt-dashboard-preview__value">{value}</div>'
+                '<div class="mt-dashboard-preview__subtitle">{subtitle}</div>'
+                "{sparkline}"
+                "</a>"
+            ).format(
                 href=_build_query_href(mt_route=_resolve_card_route(card), mt_widget=""),
                 eyebrow=escape(str(card.get("eyebrow", "Summary"))),
                 index_label=f"{index + 1:02d}",
@@ -709,17 +709,17 @@ def _render_widget_board(role: str, scoped: dict[str, list[dict]]) -> None:
         title, subtitle, _chart_fn = spec
         widget_id = f"{role}_{index}"
         widgets_markup.append(
-            """
-            <a class="mt-dashboard-preview__tile mt-dashboard-preview__tile--widget" href="{href}">
-              <div class="mt-dashboard-preview__head">
-                <span class="mt-dashboard-preview__eyebrow">Widget</span>
-                <span class="mt-dashboard-preview__index">{index_label}</span>
-              </div>
-              <div class="mt-dashboard-preview__title">{title}</div>
-              <div class="mt-dashboard-preview__subtitle">{subtitle}</div>
-              {sparkline}
-            </a>
-            """.format(
+            (
+                '<a class="mt-dashboard-preview__tile mt-dashboard-preview__tile--widget" href="{href}">'
+                '<div class="mt-dashboard-preview__head">'
+                '<span class="mt-dashboard-preview__eyebrow">Widget</span>'
+                '<span class="mt-dashboard-preview__index">{index_label}</span>'
+                "</div>"
+                '<div class="mt-dashboard-preview__title">{title}</div>'
+                '<div class="mt-dashboard-preview__subtitle">{subtitle}</div>'
+                "{sparkline}"
+                "</a>"
+            ).format(
                 href=_build_query_href(mt_widget=widget_id),
                 index_label=f"{index + 1:02d}",
                 title=escape(title),
