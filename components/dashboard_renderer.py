@@ -734,6 +734,7 @@ def _render_summary_cards(cards: list[dict], dataset_lookup: dict[str, list[dict
                 '<div class="mt-dashboard-preview__value">{value}</div>'
                 '<div class="mt-dashboard-preview__subtitle">{subtitle}</div>'
                 "{sparkline}"
+                '<div class="mt-dashboard-preview__hint">Inspect live records</div>'
                 "</a>"
             ).format(
                 href=f"{_build_query_href(mt_focus=focus_id)}#mt-dashboard-detail",
@@ -769,6 +770,7 @@ def _render_widget_board(role: str, scoped: dict[str, list[dict]]) -> list[dict]
                 '<div class="mt-dashboard-preview__title">{title}</div>'
                 '<div class="mt-dashboard-preview__subtitle">{subtitle}</div>'
                 "{sparkline}"
+                '<div class="mt-dashboard-preview__hint">Open graph detail</div>'
                 "</a>"
             ).format(
                 href=f"{_build_query_href(mt_focus=focus_id)}#mt-dashboard-detail",
