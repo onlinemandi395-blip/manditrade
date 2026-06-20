@@ -593,6 +593,11 @@ def _same_tab_attrs(href: str) -> str:
     )
 
 
+def _dashboard_focus_key(role: str) -> str:
+    normalized_role = str(role or "viewer").strip().lower() or "viewer"
+    return f"mt_dashboard_focus::{normalized_role}"
+
+
 def _widget_preview_series(role: str, scoped: dict[str, list[dict]], index: int) -> list[int | float]:
     orders = scoped.get("orders", [])
     shipments = scoped.get("shipments", [])
@@ -737,9 +742,9 @@ def _get_widget_specs(role: str, scoped: dict[str, list[dict]]) -> list[dict]:
 
 
 def _render_summary_cards(cards: list[dict], dataset_lookup: dict[str, list[dict]], current_user: dict) -> list[dict]:
-    cards_markup = []
     summary_specs: list[dict] = []
     summary_cards = cards[:6]
+    st.markdown("#### Business Snapshot")
     for index, card in enumerate(summary_cards):
         focus_id = f"summary_{index}"
         dataset_name = str(card.get("data_source", "")).strip()
@@ -758,30 +763,19 @@ def _render_summary_cards(cards: list[dict], dataset_lookup: dict[str, list[dict
                 "series": series,
             }
         )
-        cards_markup.append(
-            (
-                '<a class="mt-dashboard-preview__tile mt-dashboard-preview__tile--summary" {href_attrs}>'
-                '<div class="mt-dashboard-preview__head">'
-                '<span class="mt-dashboard-preview__eyebrow">{eyebrow}</span>'
-                '<span class="mt-dashboard-preview__index">{index_label}</span>'
-                "</div>"
-                '<div class="mt-dashboard-preview__title">{title}</div>'
-                '<div class="mt-dashboard-preview__value">{value}</div>'
-                '<div class="mt-dashboard-preview__subtitle">{subtitle}</div>'
-                "{sparkline}"
-                '<div class="mt-dashboard-preview__hint">Inspect live records</div>'
-                "</a>"
-            ).format(
-                href_attrs=_same_tab_attrs(f"{_build_query_href(mt_focus=focus_id)}#mt-dashboard-detail"),
-                eyebrow=escape(str(card.get("eyebrow", "Summary"))),
-                index_label=f"{index + 1:02d}",
-                title=escape(str(card.get("title", ""))),
-                value=escape(_format_metric_value(_resolve_card_value(card, rows, current_user))),
-                subtitle=escape(str(card.get("subtitle", "")).strip()),
-                sparkline=_build_sparkline_svg(series),
-            )
-        )
-    render_template("dashboard_overview.html", section_title="Business Snapshot", section_subtitle="Use the graph views below to inspect the live data on this same page.", section_class="mt-dashboard-preview__summary-grid", tiles_markup="".join(cards_markup))
+    for start in range(0, len(summary_specs), 3):
+        columns = st.columns(3, gap="small")
+        for column, item in zip(columns, summary_specs[start:start + 3]):
+            with column:
+                with st.container(border=True):
+                    st.caption(item["caption"])
+                    if st.button(item["title"], key=f"dashboard_summary_focus_{item['focus_id']}", use_container_width=True):
+                        st.session_state[_dashboard_focus_key(current_user.get("role", ""))] = item["focus_id"]
+                        st.rerun()
+                    st.markdown(f"### {item['value']}")
+                    if item["subtitle"]:
+                        st.caption(item["subtitle"])
+                    render_html(_build_sparkline_svg(item["series"]))
     return summary_specs
 
 
@@ -789,33 +783,27 @@ def _render_widget_board(role: str, scoped: dict[str, list[dict]]) -> list[dict]
     if plt is None:
         return []
     widget_specs = _get_widget_specs(role, scoped)
-    widgets_markup = []
     widget_details: list[dict] = []
+    st.markdown("#### Business Widgets")
     for index, spec in enumerate(widget_specs):
         title, subtitle, chart_fn = spec
         focus_id = f"widget_{index}"
         widget_details.append({"focus_id": focus_id, "title": title, "subtitle": subtitle, "chart_fn": chart_fn})
-        widgets_markup.append(
-            (
-                '<a class="mt-dashboard-preview__tile mt-dashboard-preview__tile--widget" {href_attrs}>'
-                '<div class="mt-dashboard-preview__head">'
-                '<span class="mt-dashboard-preview__eyebrow">Widget</span>'
-                '<span class="mt-dashboard-preview__index">{index_label}</span>'
-                "</div>"
-                '<div class="mt-dashboard-preview__title">{title}</div>'
-                '<div class="mt-dashboard-preview__subtitle">{subtitle}</div>'
-                "{sparkline}"
-                '<div class="mt-dashboard-preview__hint">Open graph detail</div>'
-                "</a>"
-            ).format(
-                href_attrs=_same_tab_attrs(f"{_build_query_href(mt_focus=focus_id)}#mt-dashboard-detail"),
-                index_label=f"{index + 1:02d}",
-                title=escape(title),
-                subtitle=escape(subtitle),
-                sparkline=_build_sparkline_svg(_widget_preview_series(role, scoped, index)),
-            )
-        )
-    render_template("dashboard_overview.html", section_title="Business Widgets", section_subtitle="Open any graph view to load its detailed chart and related records below.", section_class="mt-dashboard-preview__widget-grid", tiles_markup="".join(widgets_markup))
+    for start in range(0, len(widget_details), 3):
+        columns = st.columns(3, gap="small")
+        for offset, column in enumerate(columns):
+            index = start + offset
+            if index >= len(widget_details):
+                continue
+            item = widget_details[index]
+            with column:
+                with st.container(border=True):
+                    st.caption("Widget")
+                    if st.button(item["title"], key=f"dashboard_widget_focus_{item['focus_id']}", use_container_width=True):
+                        st.session_state[_dashboard_focus_key(role)] = item["focus_id"]
+                        st.rerun()
+                    st.caption(item["subtitle"])
+                    render_html(_build_sparkline_svg(_widget_preview_series(role, scoped, index), height=52))
     return widget_details
 
 
@@ -838,6 +826,7 @@ def _render_focus_detail(focus_id: str, summary_specs: list[dict], widget_specs:
     render_html('<div id="mt-dashboard-detail"></div>')
     summary_lookup = {item["focus_id"]: item for item in summary_specs}
     widget_lookup = {item["focus_id"]: item for item in widget_specs}
+    focus_key = _dashboard_focus_key(role)
     if not focus_id:
         render_html(
             (
@@ -861,7 +850,7 @@ def _render_focus_detail(focus_id: str, summary_specs: list[dict], widget_specs:
                 '<div class="mt-dashboard-detail__title">{title}</div>'
                 '<div class="mt-dashboard-detail__subtitle">{subtitle}</div>'
                 '</div>'
-                '<a class="mt-dashboard-preview__back" {clear_href_attrs}>Clear</a>'
+                '<div></div>'
                 '</div>'
                 '<div class="mt-dashboard-detail__metric">{value}</div>'
                 '</section>'
@@ -869,10 +858,12 @@ def _render_focus_detail(focus_id: str, summary_specs: list[dict], widget_specs:
                 eyebrow=escape(item["caption"]),
                 title=escape(item["title"]),
                 subtitle=escape(item["subtitle"] or item["caption"]),
-                clear_href_attrs=_same_tab_attrs(_build_query_href(mt_focus="")),
                 value=escape(item["value"]),
             )
         )
+        if st.button("Clear", key=f"dashboard_detail_clear_summary_{focus_id}", use_container_width=True):
+            st.session_state[focus_key] = ""
+            st.rerun()
         figure = _series_detail_chart(item["title"], item["series"])
         if figure is not None:
             st.pyplot(figure, use_container_width=True)
@@ -890,15 +881,17 @@ def _render_focus_detail(focus_id: str, summary_specs: list[dict], widget_specs:
                 '<div class="mt-dashboard-detail__title">{title}</div>'
                 '<div class="mt-dashboard-detail__subtitle">{subtitle}</div>'
                 '</div>'
-                '<a class="mt-dashboard-preview__back" {clear_href_attrs}>Clear</a>'
+                '<div></div>'
                 '</div>'
                 '</section>'
             ).format(
                 title=escape(item["title"]),
                 subtitle=escape(item["subtitle"]),
-                clear_href_attrs=_same_tab_attrs(_build_query_href(mt_focus="")),
             )
         )
+        if st.button("Clear", key=f"dashboard_detail_clear_widget_{focus_id}", use_container_width=True):
+            st.session_state[focus_key] = ""
+            st.rerun()
         figure = item["chart_fn"]()
         if figure is not None:
             st.pyplot(figure, use_container_width=True)
@@ -910,7 +903,6 @@ def _render_focus_detail(focus_id: str, summary_specs: list[dict], widget_specs:
 
 def render_dashboard_cards(cards: list[dict], dataset_lookup: dict[str, list[dict]], translator, current_user: dict | None = None) -> str | None:
     current_user = current_user or {}
-    focus_id = _peek_query_value("mt_focus")
     translated_cards = []
     for index, card in enumerate(cards):
         dataset_name = str(card.get("data_source", "")).strip()
@@ -928,6 +920,8 @@ def render_dashboard_cards(cards: list[dict], dataset_lookup: dict[str, list[dic
 
     role = str(current_user.get("role", "")).strip().lower()
     scoped = _scoped_datasets(dataset_lookup, current_user)
+    focus_key = _dashboard_focus_key(role)
+    focus_id = str(st.session_state.get(focus_key, "") or "").strip()
     board_col, detail_col = st.columns([2.25, 1.05], gap="small")
     with board_col:
         summary_specs = _render_summary_cards(translated_cards, dataset_lookup, current_user)
