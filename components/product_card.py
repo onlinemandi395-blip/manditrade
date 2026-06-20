@@ -34,6 +34,7 @@ def render_product_card(
     *,
     view: str = "marketplace",
     on_add_to_cart=None,
+    on_buy_now=None,
     media_service=None,
     return_route: str = "",
     card_context: str = "",
@@ -150,8 +151,11 @@ def render_product_card(
             st.rerun()
         if action_cols[1].button(t("action.add_to_cart"), key=f"marketplace_{product.get('product_id', '')}_cart", use_container_width=True) and on_add_to_cart:
             on_add_to_cart(product)
-        if action_cols[2].button("Buy Now", key=f"marketplace_{product.get('product_id', '')}_buy", use_container_width=True) and on_add_to_cart:
-            on_add_to_cart(product)
+        if action_cols[2].button("Buy Now", key=f"marketplace_{product.get('product_id', '')}_buy", use_container_width=True):
+            if on_buy_now:
+                on_buy_now(product)
+            elif on_add_to_cart:
+                on_add_to_cart(product)
     elif view == "manditrade":
         action_cols = st.columns([1.25, 1], gap="small")
         if action_cols[0].button(

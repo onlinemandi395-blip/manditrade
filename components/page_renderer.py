@@ -952,6 +952,16 @@ def render_app() -> None:
             except Exception as exc:
                 st.error(str(exc))
 
+        def on_buy_now(product: dict) -> None:
+            try:
+                cart_service.clear_cart()
+                cart_service.add_to_cart(product)
+                st.session_state["mt_marketplace_checkout_open"] = True
+                st.session_state["mt_marketplace_stage"] = "checkout"
+                st.rerun()
+            except Exception as exc:
+                st.error(str(exc))
+
         cart = cart_service.get_cart()
         notice_message = str(st.session_state.pop("mt_marketplace_notice", "") or "").strip()
         if notice_message:
@@ -985,7 +995,14 @@ def render_app() -> None:
                 st.rerun()
 
         if current_stage == "browse":
-            render_marketplace_page(products, on_add_to_cart=on_add_to_cart, media_service=media_service, translator=translator, ui_config=ui_config)
+            render_marketplace_page(
+                products,
+                on_add_to_cart=on_add_to_cart,
+                on_buy_now=on_buy_now,
+                media_service=media_service,
+                translator=translator,
+                ui_config=ui_config,
+            )
 
         if cart.get("items") and current_stage in {"cart", "checkout"}:
             st.markdown("### Cart and Checkout")

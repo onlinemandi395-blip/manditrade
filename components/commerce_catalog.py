@@ -42,6 +42,7 @@ def render_commerce_catalog_page(
     translator=None,
     ui_config: dict | None = None,
     on_add_to_cart=None,
+    on_buy_now=None,
     on_request=None,
 ) -> None:
     query = render_commerce_search(route=route, placeholder=placeholder)
@@ -68,6 +69,7 @@ def render_commerce_catalog_page(
         visible_products,
         view=channel,
         on_add_to_cart=on_add_to_cart,
+        on_buy_now=on_buy_now,
         on_request=on_request,
         media_service=media_service,
         return_route=route,

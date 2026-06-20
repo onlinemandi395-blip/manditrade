@@ -93,6 +93,35 @@ class OrderService:
             "delivery_notes": str(service_config.get("delivery_notes", "") or "").strip(),
         }
 
+    def _resolve_owner_business_details(self, *, product: dict, owner: dict) -> dict:
+        owner_business_details = dict(product.get("owner_business_details", {}) or {})
+        owner_email = str(owner.get("email", "")).strip().lower()
+        owner_display_name = str(owner.get("display_name", "") or owner_email.split("@")[0]).strip()
+        if owner_email:
+            try:
+                owner_profile = self.user_profile_service.get_profile(owner_email)
+            except Exception:
+                owner_profile = {}
+            profile_details = dict((owner_profile.get("details", {}) or {}))
+            for key, value in profile_details.items():
+                if not str(owner_business_details.get(key, "")).strip() and str(value or "").strip():
+                    owner_business_details[key] = value
+            if not str(owner_business_details.get("business_name", "")).strip():
+                owner_business_details["business_name"] = str(
+                    owner_profile.get("display_name", "") or owner_display_name
+                ).strip()
+        if not str(owner_business_details.get("business_name", "")).strip():
+            owner_business_details["business_name"] = owner_display_name
+        if not str(owner_business_details.get("invoice_name", "")).strip():
+            owner_business_details["invoice_name"] = str(owner_business_details.get("business_name", "")).strip()
+        if not str(owner_business_details.get("upi_id", "")).strip() and owner_email:
+            owner_business_details["upi_id"] = f"{owner_email.split('@')[0]}@okicici"
+        owner_business_details["profile_completed"] = bool(
+            str(owner_business_details.get("business_name", "")).strip()
+            and str(owner_business_details.get("upi_id", "")).strip()
+        )
+        return owner_business_details
+
     def _resolve_commission_percent(self, *, pricing: dict, channel: str, sell_price: float, merchant_price: float) -> float:
         normalized_channel = str(channel or "").strip().lower()
         field_name = "marketplace_commission_percent" if normalized_channel == "marketplace" else "manditrade_commission_percent"
@@ -382,7 +411,7 @@ class OrderService:
                 shipping_total += float(breakdown.get("shipping_charge", 0) or 0)
                 if not owner:
                     owner = dict(product.get("owner", {}) or {})
-                    owner_business_details = dict(product.get("owner_business_details", {}) or {})
+                    owner_business_details = self._resolve_owner_business_details(product=product, owner=owner)
                     delivery_partner = dict(product.get("delivery_partner", {}) or {})
                     admin_price = float(pricing.get("admin_price", 0) or 0)
                     service_config = self._resolve_service_config(product)
@@ -413,6 +442,7 @@ class OrderService:
                 },
                 "owner_email": owner.get("email", ""),
                 "owner_role": owner.get("role", ""),
+                "owner_business_details": owner_business_details,
                 "preferred_delivery_partner_email": delivery_partner.get("email", ""),
                 "quantity": sum(float(item.get("quantity", 1) or 1) for item in normalized_items),
                 "unit_price": float(first_item.get("unit_price", 0) or 0),
@@ -517,6 +547,7 @@ class OrderService:
     ) -> dict:
         with self.performance_service.measure("order_create_manditrade"):
             owner = dict(product.get("owner", {}) or {})
+            owner_business_details = self._resolve_owner_business_details(product=product, owner=owner)
             delivery_partner = dict(product.get("delivery_partner", {}) or {})
             pricing = dict(product.get("pricing", {}) or {})
             sell_price = self.pricing_service.resolve_sell_price(product, "manditrade")
@@ -547,6 +578,7 @@ class OrderService:
                 },
                 "owner_email": owner.get("email", ""),
                 "owner_role": owner.get("role", ""),
+                "owner_business_details": owner_business_details,
                 "preferred_delivery_partner_email": delivery_partner.get("email", ""),
                 "admin_routed": True,
                 "items": [
@@ -598,7 +630,7 @@ class OrderService:
             receiver_config = self.payment_service.get_receiver_config_for_owner(
                 owner_email=owner.get("email", ""),
                 owner_role=owner.get("role", ""),
-                owner_business_details=dict(product.get("owner_business_details", {}) or {}),
+                owner_business_details=owner_business_details,
             )
             record["owner_profile_completed"] = bool(receiver_config.get("profile_completed", False))
             record["posting_status"] = "READY_TO_POST" if record["owner_profile_completed"] else "DUE_FOR_POSTING"
@@ -611,7 +643,7 @@ class OrderService:
                 created_by=requesting_user_email,
                 owner_email=owner.get("email", ""),
                 owner_role=owner.get("role", ""),
-                owner_business_details=dict(product.get("owner_business_details", {}) or {}),
+                owner_business_details=owner_business_details,
             )
             record["payment_id"] = payment_record["payment_id"]
             record["payment_reference"] = payment_record["payment_reference"]
