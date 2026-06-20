@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import UTC, datetime
+import logging
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 class UserProfileService:
@@ -74,12 +78,20 @@ class UserProfileService:
             raise ValueError("User email is required.")
         resolver = self.admin_drive_service.get_path_resolver()
         folder_result = resolver.ensure_folder_path(self._workspace_logical_path(normalized_email))
-        self.admin_drive_service.google_drive_service.ensure_user_permission(
-            resolver.service,
-            folder_result["folder_id"],
-            normalized_email,
-            role="writer",
-        )
+        try:
+            self.admin_drive_service.google_drive_service.ensure_user_permission(
+                resolver.service,
+                folder_result["folder_id"],
+                normalized_email,
+                role="writer",
+            )
+        except Exception as exc:
+            LOGGER.warning(
+                "Skipping Drive permission assignment for %s on folder %s: %s",
+                normalized_email,
+                folder_result.get("folder_id", ""),
+                exc,
+            )
         resolver.create_or_update_json_file(
             self._profile_logical_path(normalized_email),
             (
