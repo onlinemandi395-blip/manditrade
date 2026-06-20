@@ -389,6 +389,7 @@ def render_orders_page(rows: list[dict], role: str, *, data_service=None, order_
                     )
                     data_service.persist_collection("payments")
                     order_service.persist_order_storage(selected_order_id)
+                    data_service.persist_collection("ledger")
                     data_service.persist_collection("notifications")
                     data_service.persist_collection("gmail_queue")
                     st.success("Payment confirmed and order accepted.")

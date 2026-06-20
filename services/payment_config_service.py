@@ -70,22 +70,12 @@ class PaymentConfigService:
             payment_status = str(payment.get("payment_status", payment.get("status", ""))).strip().upper()
             if payment_status not in self.PENDING_PAYMENT_STATUSES:
                 continue
-            reference = str(payment.get("payment_reference", "")).strip()
-            if not reference:
-                continue
-            amount = float(payment.get("amount_payable", payment.get("amount_due", 0)) or 0)
-            upi_link = self.payment_service.build_upi_link(amount=amount, reference=reference) if payments_enabled else ""
-            payment["upi_link"] = upi_link
-            payment["qr_payload"] = upi_link
-            payment["receiver_upi_id"] = payment_config.get("upi_id", "")
-            payment["receiver_payee_name"] = payment_config.get("payee_name", "")
-            payment["receiver_currency"] = payment_config.get("currency", "INR")
-            payment["payment_enabled"] = payments_enabled
-            payment["receiver_updated_at"] = now
+            if self.payment_service.ensure_payment_link_fields(payment):
+                payment["receiver_updated_at"] = now
             pending_payment_map[str(payment.get("order_id", "")).strip()] = {
-                "upi_link": upi_link,
-                "qr_payload": upi_link,
-                "payment_enabled": payments_enabled,
+                "upi_link": str(payment.get("upi_link", "") or "").strip(),
+                "qr_payload": str(payment.get("qr_payload", "") or "").strip(),
+                "payment_enabled": bool(payment.get("payment_enabled", payments_enabled)),
                 "receiver_updated_at": now,
             }
             updated_payments += 1

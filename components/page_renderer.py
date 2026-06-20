@@ -260,6 +260,12 @@ def _render_payment_pending_panel(payment_record: dict) -> None:
     st.caption(f"Order Reference: {payment_record.get('payment_reference', '')}")
     st.write(f"Amount: Rs. {payment_record.get('amount_payable', payment_record.get('amount_due', 0))}")
     st.write("Payment Method: UPI")
+    receiver_upi_id = str(payment_record.get("receiver_upi_id", "") or "").strip()
+    receiver_payee_name = str(payment_record.get("receiver_payee_name", "") or "").strip()
+    if receiver_payee_name:
+        st.caption(f"Merchant: {receiver_payee_name}")
+    if receiver_upi_id:
+        st.caption(f"Merchant UPI ID: {receiver_upi_id}")
     upi_link = str(payment_record.get("upi_link", "") or "").strip()
     qr_bytes = qr_service.build_qr_png_bytes(payment_record.get("qr_payload", "") or upi_link)
     if qr_bytes:

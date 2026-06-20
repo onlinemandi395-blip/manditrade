@@ -231,6 +231,18 @@ class PaymentService:
                 "profile_completed": bool(record.get("receiver_profile_completed", False)),
                 "source": "product_owner_business_details",
             }
+        elif existing_upi_id and str(receiver_config.get("source", "")).strip() == "platform_fallback":
+            receiver_config = {
+                "upi_id": existing_upi_id,
+                "payee_name": existing_payee_name or "Merchant",
+                "currency": str(record.get("receiver_currency", "INR")).strip() or "INR",
+                "enabled": True,
+                "owner_email": receiver_owner_email,
+                "owner_role": receiver_owner_role,
+                "gst_number": existing_gst_number,
+                "profile_completed": bool(record.get("receiver_profile_completed", False)),
+                "source": receiver_source or "payment_record",
+            }
         elif not str(receiver_config.get("upi_id", "")).strip() and existing_upi_id:
             receiver_config = {
                 "upi_id": existing_upi_id,

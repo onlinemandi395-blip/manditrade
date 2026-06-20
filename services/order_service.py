@@ -700,6 +700,13 @@ class OrderService:
         payment["platform_commission_percent_effective"] = effective_commission_percent
         payment["platform_commission_amount"] = realized_platform_margin
         payment["owner_payable_amount"] = realized_owner_payable
+        if not order.get("ledger_created_at"):
+            self.ledger_service.create_order_runtime_entries(
+                order=order,
+                trigger="PAYMENT_VERIFIED",
+                created_by=owner_email,
+            )
+            order["ledger_created_at"] = now
         order["status"] = "OWNER_ACCEPTED"
         order["payment_status"] = "VERIFIED"
         order["admin_status"] = "OWNER_CONFIRMED"
