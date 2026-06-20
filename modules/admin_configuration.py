@@ -29,15 +29,6 @@ def _available_navigation_options(cache_service, translator) -> list[dict]:
         )
     return sorted(options, key=lambda row: row["label"].lower())
 
-
-def _normalize_admin_types(value) -> list[str]:
-    if isinstance(value, list):
-        return [str(item).strip() for item in value if str(item).strip()]
-    if isinstance(value, str) and str(value).strip():
-        return [str(value).strip()]
-    return []
-
-
 def _normalize_admin_routes(value) -> list[str]:
     if isinstance(value, list):
         return [str(item).strip() for item in value if str(item).strip()]
@@ -53,7 +44,6 @@ def render_admin_configuration(auth_service, data_service, notification_service,
     admin_drive_service = AdminDriveService()
     navigation_options = _available_navigation_options(cache_service, translator)
     navigation_route_map = {row["route"]: row["label"] for row in navigation_options}
-    profile_options = ["operations", "catalog", "finance", "support", "logistics", "custom"]
     admin_rows = []
     if primary_admin.get("email"):
         admin_rows.append(
@@ -72,7 +62,6 @@ def render_admin_configuration(auth_service, data_service, notification_service,
         [
             {
                 **user,
-                "admin_type": ", ".join(_normalize_admin_types(user.get("admin_types", user.get("admin_type", [])))) or str(user.get("admin_type", "")).strip(),
                 "admin_navigation_labels": ", ".join(
                     navigation_route_map.get(route, route)
                     for route in _normalize_admin_routes(user.get("admin_navigation_routes", []))
@@ -95,17 +84,11 @@ def render_admin_configuration(auth_service, data_service, notification_service,
             selected_admin = next((row for row in users if str(row.get("email", "")).strip().lower() == selected_admin_email), None)
             if selected_admin:
                 st.markdown("### Manage Selected Admin")
-                selected_admin.setdefault("admin_types", _normalize_admin_types(selected_admin.get("admin_type", [])))
                 selected_admin.setdefault("admin_navigation_routes", _normalize_admin_routes(selected_admin.get("admin_navigation_routes", [])))
                 with st.form("edit_admin_form"):
                     edit_email = st.text_input("Admin Email", value=str(selected_admin.get("email", "")).strip(), disabled=True)
                     edit_display_name = st.text_input("Display Name", value=str(selected_admin.get("display_name", "")).strip())
                     edit_status = st.selectbox("Status", options=["ACTIVE", "INACTIVE"], index=0 if str(selected_admin.get("status", "ACTIVE")).upper() == "ACTIVE" else 1)
-                    edit_admin_types = st.multiselect(
-                        "Admin Profile",
-                        options=profile_options,
-                        default=_normalize_admin_types(selected_admin.get("admin_types", selected_admin.get("admin_type", []))),
-                    )
                     edit_admin_routes = st.multiselect(
                         "Admin Type / Navigation Access",
                         options=[row["route"] for row in navigation_options],
@@ -133,8 +116,6 @@ def render_admin_configuration(auth_service, data_service, notification_service,
                         else:
                             selected_admin["status"] = edit_status
                         selected_admin["display_name"] = edit_display_name.strip() or str(selected_admin.get("email", "")).split("@")[0]
-                        selected_admin["admin_types"] = edit_admin_types
-                        selected_admin["admin_type"] = edit_admin_types[0] if edit_admin_types else "custom"
                         selected_admin["admin_navigation_routes"] = edit_admin_routes
                         selected_admin["updated_at"] = datetime.now(UTC).isoformat()
                         selected_admin["updated_by"] = session_service.get_user().get("email", "")
@@ -150,7 +131,6 @@ def render_admin_configuration(auth_service, data_service, notification_service,
         with st.form("add_admin_form"):
             email = st.text_input(t("ui.admin_email"))
             display_name = st.text_input(t("ui.display_name"))
-            admin_profiles = st.multiselect("Admin Profile", options=profile_options, default=["operations"])
             admin_navigation_routes = st.multiselect(
                 "Admin Type / Navigation Access",
                 options=[row["route"] for row in navigation_options],
@@ -175,8 +155,6 @@ def render_admin_configuration(auth_service, data_service, notification_service,
                     "role": "platform_admin",
                     "status": "ACTIVE",
                     "display_name": display_name.strip() or normalized_email.split("@")[0],
-                    "admin_type": admin_profiles[0] if admin_profiles else "custom",
-                    "admin_types": admin_profiles,
                     "admin_navigation_routes": admin_navigation_routes,
                     "created_at": datetime.now(UTC).isoformat(),
                     "created_by": session_service.get_user().get("email", ""),
