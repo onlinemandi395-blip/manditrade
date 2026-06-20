@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 
 import streamlit as st
 
-from components.html_renderer import render_template
+from components.html_renderer import inject_inline_css, render_template
 from components.product_grid import render_product_grid
 from components.table_renderer import render_table
 from services.auth_service import is_bootstrap_admin
@@ -72,6 +72,64 @@ CREATE_PRODUCT_DRAFT_KEYS = [
     "create_manditrade_increment_quantity",
     "create_status",
 ]
+
+_PRODUCT_ONBOARDING_WIDGET_CSS = """
+div[data-testid="stSelectbox"] > div,
+div[data-testid="stTextInput"] > div,
+div[data-testid="stNumberInput"] > div,
+div[data-testid="stTextArea"] > div,
+div[data-testid="stFileUploader"] > section,
+div[data-testid="stMultiSelect"] > div {
+  background: linear-gradient(180deg, rgba(18, 18, 18, 0.98), rgba(28, 8, 12, 0.98)) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: 16px !important;
+  box-shadow: none !important;
+}
+
+div[data-testid="stSelectbox"] [data-baseweb="select"],
+div[data-testid="stMultiSelect"] [data-baseweb="select"],
+div[data-testid="stTextInput"] input,
+div[data-testid="stNumberInput"] input,
+div[data-testid="stTextArea"] textarea {
+  background: transparent !important;
+  color: #ffffff !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+div[data-testid="stSelectbox"] *:focus,
+div[data-testid="stMultiSelect"] *:focus,
+div[data-testid="stTextInput"] *:focus,
+div[data-testid="stNumberInput"] *:focus,
+div[data-testid="stTextArea"] *:focus,
+div[data-testid="stFileUploader"] *:focus {
+  outline: none !important;
+  box-shadow: 0 0 0 1px #d90429 !important;
+}
+
+div[data-testid="stSelectbox"] svg,
+div[data-testid="stMultiSelect"] svg {
+  fill: #d90429 !important;
+}
+
+div[data-testid="stCheckbox"] label,
+div[data-testid="stRadio"] label,
+div[data-testid="stFileUploader"] small,
+div[data-testid="stFileUploader"] span {
+  color: #ffffff !important;
+}
+
+div[data-testid="stCheckbox"] [data-baseweb="checkbox"] > div,
+div[data-testid="stRadio"] [role="radiogroup"] > label > div:first-child {
+  border-color: #d90429 !important;
+  background: #111111 !important;
+}
+
+div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
+  color: #ffffff !important;
+  border-bottom-color: #d90429 !important;
+}
+"""
 MASTER_CATEGORY_ROWS = [
     {"category": "Textile", "subcategories": ["Towel", "Bedsheet", "Curtain", "Blanket", "Fabric Roll", "Uniform", "Pillow Cover", "Mattress Cover", "Bath Linen", "Home Furnishing"]},
     {"category": "Raw Material", "subcategories": ["Cotton", "Thread", "Yarn", "Packaging", "Dye", "Chemical", "Polyester", "Foam", "Elastic", "Buttons"]},
@@ -1175,6 +1233,7 @@ def render_products_page(data_service, notification_service, session_service, ca
         )
 
     with tabs[6]:
+        inject_inline_css(_PRODUCT_ONBOARDING_WIDGET_CSS)
         _initialize_create_product_draft(
             is_admin=is_admin,
             current_user_email=current_user_email,
@@ -1211,13 +1270,49 @@ def render_products_page(data_service, notification_service, session_service, ca
         if draft_notice:
             st.success(draft_notice)
 
+        product_name = str(st.session_state.get("create_product_name", "") or "").strip()
+        category = str(st.session_state.get("create_category", "") or "").strip()
+        subcategory = str(st.session_state.get("create_subcategory", "") or "").strip()
+        unit = str(st.session_state.get("create_unit", "piece") or "piece").strip()
+        available_quantity = float(st.session_state.get("create_available_quantity", 0) or 0)
+        description = str(st.session_state.get("create_description", "") or "").strip()
         owner_role_key = "merchant"
         owner_email = str(st.session_state.get("create_owner_email", "") or "").strip().lower()
         owner_display_name = str(st.session_state.get("create_owner_display_name", "") or "").strip()
         owner_phone = str(st.session_state.get("create_owner_phone", "") or "").strip()
+        owner_business_name = str(st.session_state.get("create_owner_business_name", "") or "").strip()
+        owner_upi_id = str(st.session_state.get("create_owner_upi_id", "") or "").strip()
+        owner_gst_number = str(st.session_state.get("create_owner_gst_number", "") or "").strip()
+        owner_invoice_name = str(st.session_state.get("create_owner_invoice_name", "") or "").strip()
+        owner_invoice_address = str(st.session_state.get("create_owner_invoice_address", "") or "").strip()
+        owner_invoice_phone = str(st.session_state.get("create_owner_invoice_phone", "") or "").strip()
+        owner_bank_account_name = str(st.session_state.get("create_owner_bank_account_name", "") or "").strip()
+        owner_bank_account_number = str(st.session_state.get("create_owner_bank_account_number", "") or "").strip()
+        owner_bank_ifsc = str(st.session_state.get("create_owner_bank_ifsc", "") or "").strip()
+        owner_other_details = str(st.session_state.get("create_owner_other_details", "") or "").strip()
+        shipment_management_mode = str(st.session_state.get("create_shipment_management_mode", "Merchant Managed") or "Merchant Managed")
         delivery_partner_email = str(st.session_state.get("create_delivery_partner_email", "") or "").strip().lower()
         delivery_partner_display_name = str(st.session_state.get("create_delivery_partner_display_name", "") or "").strip()
         delivery_partner_phone = str(st.session_state.get("create_delivery_partner_phone", "") or "").strip()
+        packaging_mode = str(st.session_state.get("create_packaging_mode", "owner") or "owner").strip().lower()
+        shipping_mode = str(st.session_state.get("create_shipping_mode", "owner") or "owner").strip().lower()
+        delivery_scope = str(st.session_state.get("create_delivery_scope", "custom") or "custom").strip().lower()
+        packaging_cost_b2c = float(st.session_state.get("create_packaging_cost_b2c", 0) or 0)
+        shipping_cost_b2c = float(st.session_state.get("create_shipping_cost_b2c", 0) or 0)
+        packaging_cost_b2b = float(st.session_state.get("create_packaging_cost_b2b", 0) or 0)
+        shipping_cost_b2b = float(st.session_state.get("create_shipping_cost_b2b", 0) or 0)
+        delivery_notes = str(st.session_state.get("create_delivery_notes", "") or "").strip()
+        admin_price = float(st.session_state.get("create_admin_price", 0) or 0)
+        marketplace_price = float(st.session_state.get("create_marketplace_price", 0) or 0)
+        manditrade_price = float(st.session_state.get("create_manditrade_price", 0) or 0)
+        marketplace_commission_percent = float(st.session_state.get("create_marketplace_commission_percent", 0) or 0)
+        manditrade_commission_percent = float(st.session_state.get("create_manditrade_commission_percent", 0) or 0)
+        marketplace_enabled = bool(st.session_state.get("create_marketplace_enabled", True))
+        manditrade_enabled = bool(st.session_state.get("create_manditrade_enabled", True))
+        manditrade_minimum_quantity = float(st.session_state.get("create_manditrade_minimum_quantity", 1) or 1)
+        manditrade_increment_quantity = float(st.session_state.get("create_manditrade_increment_quantity", 1) or 1)
+        uploaded_files = st.session_state.get("create_product_images") or []
+        status = str(st.session_state.get("create_status", "APPROVED" if is_admin else "PENDING_APPROVAL") or "PENDING_APPROVAL")
 
         if current_stage == "basics":
             with _render_onboarding_section(
@@ -1466,49 +1561,6 @@ def render_products_page(data_service, notification_service, session_service, ca
             st.session_state["mt_create_product_notice"] = f"{CREATE_PRODUCT_STAGES[stage_index][1]} saved for this session."
             st.session_state["mt_create_product_stage"] = CREATE_PRODUCT_STAGES[stage_index + 1][0]
             st.rerun()
-
-        product_name = str(st.session_state.get("create_product_name", "") or "").strip()
-        category = str(st.session_state.get("create_category", "") or "").strip()
-        subcategory = str(st.session_state.get("create_subcategory", "") or "").strip()
-        unit = str(st.session_state.get("create_unit", "piece") or "piece").strip()
-        available_quantity = float(st.session_state.get("create_available_quantity", 0) or 0)
-        description = str(st.session_state.get("create_description", "") or "").strip()
-        owner_email = str(st.session_state.get("create_owner_email", "") or "").strip().lower()
-        owner_display_name = str(st.session_state.get("create_owner_display_name", "") or "").strip()
-        owner_phone = str(st.session_state.get("create_owner_phone", "") or "").strip()
-        owner_business_name = str(st.session_state.get("create_owner_business_name", "") or "").strip()
-        owner_upi_id = str(st.session_state.get("create_owner_upi_id", "") or "").strip()
-        owner_gst_number = str(st.session_state.get("create_owner_gst_number", "") or "").strip()
-        owner_invoice_name = str(st.session_state.get("create_owner_invoice_name", "") or "").strip()
-        owner_invoice_address = str(st.session_state.get("create_owner_invoice_address", "") or "").strip()
-        owner_invoice_phone = str(st.session_state.get("create_owner_invoice_phone", "") or "").strip()
-        owner_bank_account_name = str(st.session_state.get("create_owner_bank_account_name", "") or "").strip()
-        owner_bank_account_number = str(st.session_state.get("create_owner_bank_account_number", "") or "").strip()
-        owner_bank_ifsc = str(st.session_state.get("create_owner_bank_ifsc", "") or "").strip()
-        owner_other_details = str(st.session_state.get("create_owner_other_details", "") or "").strip()
-        shipment_management_mode = str(st.session_state.get("create_shipment_management_mode", "Merchant Managed") or "Merchant Managed")
-        delivery_partner_email = str(st.session_state.get("create_delivery_partner_email", "") or "").strip().lower()
-        delivery_partner_display_name = str(st.session_state.get("create_delivery_partner_display_name", "") or "").strip()
-        delivery_partner_phone = str(st.session_state.get("create_delivery_partner_phone", "") or "").strip()
-        packaging_mode = str(st.session_state.get("create_packaging_mode", "owner") or "owner").strip().lower()
-        shipping_mode = str(st.session_state.get("create_shipping_mode", "owner") or "owner").strip().lower()
-        delivery_scope = str(st.session_state.get("create_delivery_scope", "custom") or "custom").strip().lower()
-        packaging_cost_b2c = float(st.session_state.get("create_packaging_cost_b2c", 0) or 0)
-        shipping_cost_b2c = float(st.session_state.get("create_shipping_cost_b2c", 0) or 0)
-        packaging_cost_b2b = float(st.session_state.get("create_packaging_cost_b2b", 0) or 0)
-        shipping_cost_b2b = float(st.session_state.get("create_shipping_cost_b2b", 0) or 0)
-        delivery_notes = str(st.session_state.get("create_delivery_notes", "") or "").strip()
-        admin_price = float(st.session_state.get("create_admin_price", 0) or 0)
-        marketplace_price = float(st.session_state.get("create_marketplace_price", 0) or 0)
-        manditrade_price = float(st.session_state.get("create_manditrade_price", 0) or 0)
-        marketplace_commission_percent = float(st.session_state.get("create_marketplace_commission_percent", 0) or 0)
-        manditrade_commission_percent = float(st.session_state.get("create_manditrade_commission_percent", 0) or 0)
-        marketplace_enabled = bool(st.session_state.get("create_marketplace_enabled", True))
-        manditrade_enabled = bool(st.session_state.get("create_manditrade_enabled", True))
-        manditrade_minimum_quantity = float(st.session_state.get("create_manditrade_minimum_quantity", 1) or 1)
-        manditrade_increment_quantity = float(st.session_state.get("create_manditrade_increment_quantity", 1) or 1)
-        uploaded_files = st.session_state.get("create_product_images") or []
-        status = str(st.session_state.get("create_status", "APPROVED" if is_admin else "PENDING_APPROVAL") or "PENDING_APPROVAL")
 
         submitted = current_stage == "media" and st.button(translator.t("action.add_product"), use_container_width=True, key="save_product_button")
 
