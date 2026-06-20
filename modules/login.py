@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from components.frontend_layer import render_frontend_cta_link, render_frontend_section
 from components.html_renderer import render_template
 
 
@@ -28,7 +29,11 @@ def render_login_page(
             for item in feature_rows
         )
         render_template("login_badge_row.html", feature_markup=feature_markup)
-    st.caption("Choose your language and continue with Google to open your workspace.")
+    render_frontend_section(
+        eyebrow="Access",
+        title="Open your workspace",
+        subtitle="Choose your language and continue with Google to enter the platform.",
+    )
 
     if login_config.get("show_language_selector", False):
         selected_language = st.selectbox(
@@ -49,6 +54,6 @@ def render_login_page(
     provider = next((provider for provider in auth_service.get_enabled_providers() if provider.get("provider_id") == "google"), None)
     if provider:
         label = f"{provider.get('icon', '')} {translator.t(provider.get('label_key', 'auth.login_google'))}".strip()
-        st.link_button(label, oauth_service.get_authorize_url(), use_container_width=True)
+        render_frontend_cta_link(label=label, href=oauth_service.get_authorize_url())
 
     st.info(translator.t("auth.unknown_user_note"))

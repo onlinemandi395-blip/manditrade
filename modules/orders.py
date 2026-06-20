@@ -75,7 +75,7 @@ def _tabs_for_role(role: str, current_user_email: str = "", translator=None) -> 
             t("ui.in_progress"): lambda rows: [row for row in rows if str(row.get("status", "")).upper() in active_statuses],
             t("ui.completed"): lambda rows: [row for row in rows if str(row.get("status", "")).upper() in completed_statuses],
         }
-    if role == "mahajan":
+    if role == "merchant":
         return {
             t("ui.payment_pending"): lambda rows: [
                 row
@@ -97,7 +97,7 @@ def _tabs_for_role(role: str, current_user_email: str = "", translator=None) -> 
 def _can_pay_order(selected_order: dict, role: str, current_user_email: str) -> bool:
     normalized_email = str(current_user_email or "").strip().lower()
     return (
-        role in {"public_buyer", "client_buyer", "mahajan"}
+        role in {"public_buyer", "client_buyer", "merchant"}
         and str(selected_order.get("status", "")).upper() == "PAYMENT_PENDING"
         and normalized_email in {
             str(selected_order.get("buyer_email", "")).strip().lower(),
@@ -309,7 +309,7 @@ def render_orders_page(rows: list[dict], role: str, *, data_service=None, order_
                     f"Next action: admin_status={selected_order.get('admin_status', '')}, "
                     f"payment_id={selected_order.get('payment_id', '')}"
                 )
-                st.caption("Shipment execution and pickup assignment are handled directly by the mahajan.")
+                st.caption("Shipment execution and pickup assignment are handled directly by the merchant.")
                 if data_service is not None and order_service is not None and session_service is not None:
                     st.markdown(f"##### {t('ui.admin_cleanup')}")
                     if st.button(t("ui.delete_order"), use_container_width=True, type="primary", key=f"delete_order_{key_prefix}_{selected_order_id}"):
@@ -352,7 +352,7 @@ def render_orders_page(rows: list[dict], role: str, *, data_service=None, order_
                         data_service.persist_collection("payments")
                     _render_payment_panel(payment_record, payment_service=payment_service, translator=translator)
             if (
-                role == "mahajan"
+                role == "merchant"
                 and data_service is not None
                 and order_service is not None
                 and str(selected_order.get("owner_email", "")).strip().lower() == current_user_email

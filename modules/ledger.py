@@ -28,10 +28,10 @@ def render_ledger_page(data_service, notification_service, session_service, tran
         admin_totals = ledger_service.summarize_admin_totals()
         _render_revenue_summary_rows(admin_totals)
         render_table(admin_totals, caption=t("ui.ledger_overview"))
-        admin_tabs = st.tabs([t("ui.all_accounts"), t("ui.mahajans"), t("ui.other")])
+        admin_tabs = st.tabs([t("ui.all_accounts"), t("ui.merchants"), t("ui.other")])
         tab_rows = {
             t("ui.all_accounts"): summaries,
-            t("ui.mahajans"): grouped_accounts.get("mahajan", []),
+            t("ui.merchants"): grouped_accounts.get("merchant", []),
             t("ui.other"): grouped_accounts.get("other", []),
         }
         for tab, label in zip(admin_tabs, tab_rows.keys()):
@@ -44,7 +44,7 @@ def render_ledger_page(data_service, notification_service, session_service, tran
     if role == "platform_admin":
         owner_type_options = {
             t("ui.all"): "all",
-            t("ui.mahajan"): "mahajan",
+            t("ui.merchant"): "merchant",
             t("ui.other"): "other",
         }
         owner_role_filter = st.selectbox(
@@ -57,7 +57,7 @@ def render_ledger_page(data_service, notification_service, session_service, tran
         if selected_filter != "all":
             if selected_filter == "other":
                 filtered_summaries = [
-                    row for row in summaries if str(row.get("owner_role", "")).strip().lower() != "mahajan"
+                    row for row in summaries if str(row.get("owner_role", "")).strip().lower() != "merchant"
                 ]
             else:
                 filtered_summaries = [

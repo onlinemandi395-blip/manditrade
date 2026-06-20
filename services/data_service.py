@@ -177,23 +177,23 @@ class DataService:
         service_config.setdefault("delivery_notes", "")
         product["service_config"] = service_config
         owner = dict(product.get("owner", {}) or {})
-        if not owner and product.get("mahajan"):
-            mahajan = dict(product.get("mahajan", {}) or {})
+        if not owner and product.get("merchant"):
+            merchant = dict(product.get("merchant", {}) or {})
             owner = {
-                "email": mahajan.get("email", ""),
-                "role": "mahajan",
-                "display_name": mahajan.get("name", ""),
-                "user_id": mahajan.get("mahajan_id", ""),
+                "email": merchant.get("email", ""),
+                "role": "merchant",
+                "display_name": merchant.get("name", ""),
+                "user_id": merchant.get("merchant_id", ""),
             }
         elif not owner:
-            legacy_mahajans = product.get("mahajan_tags") or []
-            if legacy_mahajans:
-                first_owner = legacy_mahajans[0]
+            legacy_merchants = product.get("merchant_tags") or []
+            if legacy_merchants:
+                first_owner = legacy_merchants[0]
                 owner = {
                     "email": first_owner.get("email", ""),
-                    "role": "mahajan",
+                    "role": "merchant",
                     "display_name": first_owner.get("name", ""),
-                    "user_id": first_owner.get("mahajan_id", ""),
+                    "user_id": first_owner.get("merchant_id", ""),
                 }
         product["owner"] = owner
         delivery_partner = dict(product.get("delivery_partner", {}) or {})
@@ -204,9 +204,9 @@ class DataService:
             "user_id": str(delivery_partner.get("user_id", "")).strip(),
             "phone": str(delivery_partner.get("phone", "")).strip(),
         }
-        product.pop("mahajan_tags", None)
-        product.pop("mahajan_mapping", None)
-        product.pop("mahajan", None)
+        product.pop("merchant_tags", None)
+        product.pop("merchant_mapping", None)
+        product.pop("merchant", None)
         inventory = dict(product.get("inventory", {}) or {})
         inventory.setdefault("available_quantity", 0)
         inventory.setdefault("manual_update_only", True)

@@ -402,7 +402,7 @@ def _filter_role_rows(route: str, rows: list[dict], role: str, user_email: str) 
     if role == "platform_admin":
         return rows
     if route == "orders":
-        if role == "mahajan":
+        if role == "merchant":
             return [
                 row
                 for row in rows
@@ -459,8 +459,8 @@ def _filter_role_rows(route: str, rows: list[dict], role: str, user_email: str) 
                     if str(recipient or "").strip()
                 }
                 or (
-                    normalized_role == "mahajan"
-                    and str(row.get("to_role", "")).strip().lower() == "mahajan"
+                    normalized_role == "merchant"
+                    and str(row.get("to_role", "")).strip().lower() == "merchant"
                     and str(row.get("owner_email", "")).strip().lower() == normalized_email
                 )
             )

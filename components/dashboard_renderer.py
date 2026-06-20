@@ -57,9 +57,9 @@ def _build_card_series(metric: str, rows: list[dict], current_user: dict) -> lis
     if metric in {"active_shipments", "my_active_shipments"}:
         scoped_rows = rows if metric == "active_shipments" else [row for row in rows if str(row.get("owner_email", "")).strip().lower() == current_email]
         return _status_series(scoped_rows, ["PICKUP_ASSIGNED", "PICKED_UP", "IN_TRANSIT", "DELIVERED"])
-    if metric in {"mahajans_count", "client_buyers_count", "public_buyers_count", "workers_count"}:
+    if metric in {"merchants_count", "client_buyers_count", "public_buyers_count", "workers_count"}:
         role_map = {
-            "mahajans_count": "mahajan",
+            "merchants_count": "merchant",
             "client_buyers_count": "client_buyer",
             "public_buyers_count": "public_buyer",
             "workers_count": "worker",
@@ -101,8 +101,8 @@ def _resolve_card_value(card: dict, rows: list[dict], current_user: dict) -> int
     metric = card.get("metric", "count")
     current_email = str(current_user.get("email", "")).strip().lower()
     current_role = str(current_user.get("role", "")).strip().lower()
-    if metric == "mahajans_count":
-        return len([row for row in rows if str(row.get("role", "")).strip().lower() == "mahajan"])
+    if metric == "merchants_count":
+        return len([row for row in rows if str(row.get("role", "")).strip().lower() == "merchant"])
     if metric == "client_buyers_count":
         return len([row for row in rows if str(row.get("role", "")).strip().lower() == "client_buyer"])
     if metric == "public_buyers_count":

@@ -68,7 +68,7 @@ class NotificationService:
             return True
         if normalized_email and normalized_email in recipients:
             return True
-        if normalized_role == "mahajan" and to_role == "mahajan" and owner_email == normalized_email:
+        if normalized_role == "merchant" and to_role == "merchant" and owner_email == normalized_email:
             return True
         return False
 

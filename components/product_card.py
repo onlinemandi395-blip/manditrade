@@ -1,10 +1,31 @@
 from __future__ import annotations
 
+import base64
+import html
+
 import streamlit as st
 
-from components.html_renderer import render_template, render_template_markup
+from components.html_renderer import render_template
 from components.image_slideshow import open_slideshow
 from services.pricing_service import PricingService
+
+
+def _build_thumbnail_markup(primary_image: dict, media_service) -> str:
+    renderable = media_service.get_renderable_image(primary_image) if media_service and primary_image else {
+        "render_mode": "placeholder",
+        "bytes": None,
+        "url": "",
+    }
+    if renderable.get("render_mode") == "bytes" and renderable.get("bytes"):
+        encoded = base64.b64encode(renderable["bytes"]).decode("ascii")
+        return f"<div class='mt-catalog-card__thumb'><img src='data:image/png;base64,{encoded}' alt='Product image'></div>"
+    if renderable.get("render_mode") == "url" and renderable.get("url"):
+        return (
+            "<div class='mt-catalog-card__thumb'>"
+            f"<img src='{html.escape(str(renderable['url']))}' alt='Product image'>"
+            "</div>"
+        )
+    return "<div class='mt-catalog-card__thumb-placeholder'>No Image</div>"
 
 
 def render_product_card(
@@ -29,27 +50,78 @@ def render_product_card(
     owner = dict(product.get("owner", {}) or {})
     inventory = dict(product.get("inventory", {}) or {})
     manditrade_rules = dict(((product.get("sales_channels") or {}).get("manditrade") or {}))
-    with st.container(border=True):
-        render_template("product_card_wrapper_open.html")
-        media = st.empty()
-        renderable = media_service.get_renderable_image(primary_image) if media_service else {"render_mode": "placeholder", "bytes": None, "url": "", "error": ""}
-        if renderable["render_mode"] == "bytes" and renderable.get("bytes"):
-            media.image(renderable["bytes"], use_container_width=True)
-        elif renderable["render_mode"] == "url" and renderable.get("url"):
-            media.image(renderable["url"], use_container_width=True)
-        else:
-            media.markdown(render_template_markup("product_card_media_placeholder.html", label="No Image"), unsafe_allow_html=True)
 
-        image_count = len(images)
-        badge_mode = str(gallery_card_config.get("badge_mode", "counter") or "counter").strip().lower()
-        if badge_mode == "count":
-            badge_label = f"{image_count} {t('ui.images')}" if image_count else t("ui.no_images")
+    title = html.escape(str(product.get("product_name", product.get("product_id", t("ui.product")))))
+    meta = html.escape(f"{product.get('category', 'General')} | {product.get('subcategory', 'General')}")
+    thumbnail_markup = _build_thumbnail_markup(primary_image, media_service)
+    image_count = len(images)
+    badge_mode = str(gallery_card_config.get("badge_mode", "counter") or "counter").strip().lower()
+    if badge_mode == "count":
+        image_badge = f"{image_count} {t('ui.images')}" if image_count else t("ui.no_images")
+    else:
+        image_badge = f"{1 if image_count else 0} / {image_count}" if image_count > 1 else (t("ui.one_image") if image_count == 1 else t("ui.no_images"))
+
+    price_label = "-"
+    badge_label = image_badge
+    promise_label = "Preview ready"
+    details = []
+
+    if view == "marketplace":
+        valid_price, price_error = pricing_service.validate_channel_price(product, "marketplace")
+        if valid_price:
+            price_label = f"Rs. {float(pricing_service.resolve_sell_price(product, 'marketplace') or 0):g}"
+            badge_label = "B2C"
+            promise_label = "Ready for direct purchase"
+            details = [
+                f"<span class='mt-catalog-card__detail'>{html.escape(t('ui.inventory'))}: {inventory.get('available_quantity', 0)} {html.escape(str(product.get('unit', 'piece')))}</span>",
+                f"<span class='mt-catalog-card__detail'>{image_badge}</span>",
+            ]
         else:
-            badge_label = f"{1 if image_count else 0} / {image_count}" if image_count > 1 else (t("ui.one_image") if image_count == 1 else t("ui.no_images"))
-        button_label = str(gallery_card_config.get("open_button_label_key", "ui.open_images") or "ui.open_images")
-        if st.button(
-            f"{t(button_label)} ({badge_label})",
-            key=f"open_slideshow_{view}_{return_route}_{card_context}_{product.get('product_id', '')}",
+            st.error(price_error)
+    elif view == "manditrade":
+        valid_price, price_error = pricing_service.validate_channel_price(product, "manditrade")
+        if valid_price:
+            price_label = f"Rs. {float(pricing_service.resolve_sell_price(product, 'manditrade') or 0):g}"
+            badge_label = "B2B"
+            promise_label = "Bulk order ready"
+            details = [
+                f"<span class='mt-catalog-card__detail'>{html.escape(t('ui.minimum_quantity'))}: {float(manditrade_rules.get('minimum_quantity', 1) or 1):g}</span>",
+                f"<span class='mt-catalog-card__detail'>{html.escape(t('ui.increment_quantity'))}: {float(manditrade_rules.get('increment_quantity', 1) or 1):g}</span>",
+                f"<span class='mt-catalog-card__detail'>{html.escape(t('ui.inventory'))}: {inventory.get('available_quantity', 0)} {html.escape(str(product.get('unit', 'piece')))}</span>",
+            ]
+        else:
+            st.error(price_error)
+    else:
+        price_label = f"Rs. {float(pricing.get('admin_price', 0) or 0):g}"
+        badge_label = "Admin"
+        promise_label = "Catalog control"
+        details = [
+            f"<span class='mt-catalog-card__detail'>{html.escape(t('module.marketplace.title'))}: {html.escape(t('ui.on') if marketplace.get('enabled') else t('ui.off'))}</span>",
+            f"<span class='mt-catalog-card__detail'>{html.escape(t('module.manditrade.title'))}: {html.escape(t('ui.on') if manditrade.get('enabled') else t('ui.off'))}</span>",
+            f"<span class='mt-catalog-card__detail'>{html.escape(t('ui.owner'))}: {html.escape(str(owner.get('email', '-')))}</span>",
+        ]
+
+    render_template(
+        "catalog_product_card.html",
+        view=view,
+        thumbnail_markup=thumbnail_markup,
+        channel_label=html.escape(view.title()),
+        badge_label=html.escape(badge_label),
+        title=title,
+        meta=meta,
+        price=html.escape(price_label),
+        promise_label=html.escape(promise_label),
+        details_markup="".join(details),
+    )
+
+    button_label = str(gallery_card_config.get("open_button_label_key", "ui.open_images") or "ui.open_images")
+    slideshow_key = f"open_slideshow_{view}_{return_route}_{card_context}_{product.get('product_id', '')}"
+    st.markdown("<div class='mt-catalog-actions'>", unsafe_allow_html=True)
+    if view == "marketplace":
+        action_cols = st.columns([1.2, 1, 1], gap="small")
+        if action_cols[0].button(
+            f"{t(button_label)} ({image_badge})",
+            key=slideshow_key,
             use_container_width=True,
             disabled=not bool(images),
         ):
@@ -59,50 +131,37 @@ def render_product_card(
                 slideshow_context=f"{view}_{return_route}_{card_context}",
             )
             st.rerun()
-
-        render_template("product_card_title.html", title=str(product.get("product_name", product.get("product_id", t("ui.product")))))
-        render_template("product_card_meta.html", meta=f"{product.get('category', 'General')} • {product.get('subcategory', 'General')}")
-
-        if view == "marketplace":
-            valid_price, price_error = pricing_service.validate_channel_price(product, "marketplace")
-            if valid_price:
-                render_template("product_card_price.html", price=f"Rs. {float(pricing_service.resolve_sell_price(product, 'marketplace') or 0):g}")
-                render_template("product_card_badge.html", label="4.2 ★ • Best Value")
-                render_template("product_card_promise.html", label="Delivery by MandiTrade")
-            else:
-                st.error(price_error)
-            action_cols = st.columns(2, gap="small")
-            if valid_price and action_cols[0].button(t("action.add_to_cart"), key=f"marketplace_{product.get('product_id', '')}_cart", use_container_width=True) and on_add_to_cart:
-                on_add_to_cart(product)
-            if valid_price and action_cols[1].button("Buy Now", key=f"marketplace_{product.get('product_id', '')}_buy", use_container_width=True) and on_add_to_cart:
-                on_add_to_cart(product)
-        elif view == "manditrade":
-            valid_price, price_error = pricing_service.validate_channel_price(product, "manditrade")
-            if valid_price:
-                render_template("product_card_price.html", price=f"Rs. {float(pricing_service.resolve_sell_price(product, 'manditrade') or 0):g}")
-                render_template("product_card_badge.html", label="B2B Price")
-                render_template("product_card_promise.html", label="Business Delivery")
-            else:
-                st.error(price_error)
-            st.caption(
-                f"{t('ui.minimum_quantity')}: {float(manditrade_rules.get('minimum_quantity', 1) or 1):g} | "
-                f"{t('ui.increment_quantity')}: {float(manditrade_rules.get('increment_quantity', 1) or 1):g}"
+        if action_cols[1].button(t("action.add_to_cart"), key=f"marketplace_{product.get('product_id', '')}_cart", use_container_width=True) and on_add_to_cart:
+            on_add_to_cart(product)
+        if action_cols[2].button("Buy Now", key=f"marketplace_{product.get('product_id', '')}_buy", use_container_width=True) and on_add_to_cart:
+            on_add_to_cart(product)
+    elif view == "manditrade":
+        action_cols = st.columns([1.25, 1], gap="small")
+        if action_cols[0].button(
+            f"{t(button_label)} ({image_badge})",
+            key=slideshow_key,
+            use_container_width=True,
+            disabled=not bool(images),
+        ):
+            open_slideshow(
+                product_id=product.get("product_id", ""),
+                return_route=return_route,
+                slideshow_context=f"{view}_{return_route}_{card_context}",
             )
-            st.caption(f"{t('ui.inventory')}: {inventory.get('available_quantity', 0)} {product.get('unit', 'piece')}")
-            if valid_price and st.button(t("ui.request_order"), key=f"manditrade_{product.get('product_id', '')}_request", use_container_width=True) and on_add_to_cart:
-                on_add_to_cart(product)
-        else:
-            marketplace_price = pricing.get("marketplace_price", "")
-            manditrade_price = pricing.get("manditrade_price", "")
-            st.write(f"{t('module.marketplace.title')}: {t('ui.on') if marketplace.get('enabled') else t('ui.off')} | {t('field.price')}: {marketplace_price}")
-            st.write(f"{t('module.manditrade.title')}: {t('ui.on') if manditrade.get('enabled') else t('ui.off')} | {t('field.price')}: {manditrade_price}")
-            st.caption(
-                f"{t('ui.minimum_quantity')}: {float(manditrade_rules.get('minimum_quantity', 1) or 1):g} | "
-                f"{t('ui.increment_quantity')}: {float(manditrade_rules.get('increment_quantity', 1) or 1):g}"
+            st.rerun()
+        if action_cols[1].button(t("ui.request_order"), key=f"manditrade_{product.get('product_id', '')}_request", use_container_width=True) and on_add_to_cart:
+            on_add_to_cart(product)
+    else:
+        if st.button(
+            f"{t(button_label)} ({image_badge})",
+            key=slideshow_key,
+            use_container_width=True,
+            disabled=not bool(images),
+        ):
+            open_slideshow(
+                product_id=product.get("product_id", ""),
+                return_route=return_route,
+                slideshow_context=f"{view}_{return_route}_{card_context}",
             )
-            st.caption(f"{t('field.admin_price')}: {pricing.get('admin_price', 0)}")
-            st.caption(f"{t('ui.owner')}: {owner.get('email', '-')}")
-            st.caption(f"{t('ui.owner_role')}: {owner.get('role', '-')}")
-            st.caption(f"{t('ui.inventory')}: {inventory.get('available_quantity', 0)} {product.get('unit', 'piece')}")
-
-        render_template("product_card_wrapper_close.html")
+            st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)

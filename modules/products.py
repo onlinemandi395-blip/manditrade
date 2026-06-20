@@ -14,7 +14,7 @@ from services.product_consent_service import ProductConsentService
 from services.user_profile_service import UserProfileService
 
 
-OWNER_TYPES = {"Mahajan": "mahajan"}
+OWNER_TYPES = {"Merchant": "merchant"}
 STATUSES = ["PENDING_APPROVAL", "APPROVED", "REJECTED", "ARCHIVED"]
 MASTER_CATEGORY_ROWS = [
     {"category": "Textile", "subcategories": ["Towel", "Bedsheet", "Curtain", "Blanket", "Fabric Roll", "Uniform", "Pillow Cover", "Mattress Cover", "Bath Linen", "Home Furnishing"]},
@@ -86,7 +86,7 @@ def _get_owner_type_label(product: dict) -> str:
     for label, value in OWNER_TYPES.items():
         if value == owner_role:
             return label
-    return "Mahajan"
+    return "Merchant"
 
 
 def _build_category_index(category_rows: list[dict]) -> dict[str, list[str]]:
@@ -881,7 +881,7 @@ def render_products_page(data_service, notification_service, session_service, ca
             delivery_partner_phone = ""
             with _render_onboarding_section(
                 "Owner Setup",
-                "Choose an existing mahajan, or onboard a new one directly from this form.",
+                "Choose an existing merchant, or onboard a new one directly from this form.",
             ):
                 owner_cols = st.columns([1.1, 1.3])
                 owner_type = owner_cols[0].selectbox(translator.t("field.owner_type"), options=list(OWNER_TYPES.keys()), key="create_owner_type")

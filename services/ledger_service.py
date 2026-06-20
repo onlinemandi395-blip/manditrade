@@ -222,7 +222,7 @@ class LedgerService:
     def summarize_accounts_by_owner_role(self, *, viewer_email: str = "", role: str = "platform_admin") -> dict[str, list[dict]]:
         summaries = self.summarize_accounts(viewer_email=viewer_email, role=role)
         grouped: dict[str, list[dict]] = {
-            "mahajan": [],
+            "merchant": [],
             "other": [],
         }
         for row in summaries:

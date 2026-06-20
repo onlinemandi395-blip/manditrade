@@ -41,9 +41,16 @@ def render_product_grid(
     if not products:
         render_empty_state(translator.t("ui.no_products_found") if translator else "No products found.")
         return
-    desktop_columns = 4
-    for row_start in range(0, len(products), desktop_columns):
-        row_products = products[row_start:row_start + desktop_columns]
+    visible_products = products
+    if view in {"marketplace", "manditrade"}:
+        page_size = 10
+        state_key = f"mt_grid_visible_count::{slideshow_context}"
+        st.session_state.setdefault(state_key, page_size)
+        st.session_state[state_key] = max(page_size, int(st.session_state.get(state_key, page_size) or page_size))
+        visible_products = products[: min(len(products), st.session_state[state_key])]
+    desktop_columns = 2 if view in {"marketplace", "manditrade"} else 4
+    for row_start in range(0, len(visible_products), desktop_columns):
+        row_products = visible_products[row_start:row_start + desktop_columns]
         render_template("product_grid_row_marker.html")
         columns = st.columns(desktop_columns, gap="small")
         for column_index, column in enumerate(columns):
@@ -61,3 +68,11 @@ def render_product_grid(
                     translator=translator,
                     ui_config=ui_config,
                 )
+    if view in {"marketplace", "manditrade"} and len(visible_products) < len(products):
+        if st.button(
+            f"Load next 10 products ({len(visible_products)}/{len(products)})",
+            key=f"{slideshow_context}_load_more",
+            use_container_width=True,
+        ):
+            st.session_state[f"mt_grid_visible_count::{slideshow_context}"] = len(visible_products) + 10
+            st.rerun()

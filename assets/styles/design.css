@@ -51,9 +51,21 @@
 
 [data-baseweb="input"] > div,
 [data-baseweb="select"] > div,
+[data-baseweb="textarea"] > div,
 [data-testid="stTextInputRootElement"],
 [data-testid="stNumberInputRootElement"],
 [data-testid="stDateInputField"],
+[data-testid="stSelectbox"] [data-baseweb="select"] > div,
+[data-testid="stMultiSelect"] [data-baseweb="select"] > div,
+[data-testid="stFileUploaderDropzone"],
+[data-testid="stFileUploaderDropzoneInstructions"],
+[data-testid="stFileUploaderFileData"],
+[data-testid="stCheckbox"] label,
+[data-testid="stRadio"] label,
+[data-testid="stMarkdownContainer"] a,
+[data-testid="stLinkButton"] a,
+[data-testid="stDownloadButton"] button,
+[data-testid="stButton"] button,
 [data-testid="stTimeInput"] input,
 textarea,
 input {
@@ -64,9 +76,11 @@ input {
 
 [data-baseweb="input"] > div:focus-within,
 [data-baseweb="select"] > div:focus-within,
+[data-baseweb="textarea"] > div:focus-within,
 [data-testid="stTextInputRootElement"]:focus-within,
 [data-testid="stNumberInputRootElement"]:focus-within,
-[data-testid="stDateInputField"]:focus-within {
+[data-testid="stDateInputField"]:focus-within,
+[data-testid="stFileUploaderDropzone"]:focus-within {
   border-color: rgba(217, 4, 41, 0.42) !important;
   box-shadow: 0 0 0 1px rgba(217, 4, 41, 0.42), 0 0 0 4px rgba(217, 4, 41, 0.12) !important;
 }
@@ -77,6 +91,30 @@ select:focus {
   outline: none !important;
   border-color: rgba(217, 4, 41, 0.42) !important;
   box-shadow: 0 0 0 1px rgba(217, 4, 41, 0.42), 0 0 0 4px rgba(217, 4, 41, 0.12) !important;
+}
+
+input,
+textarea,
+select,
+button,
+a,
+[role="button"] {
+  outline: none !important;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: #d90429 !important;
+}
+
+[data-testid="stCheckbox"] label,
+[data-testid="stRadio"] label {
+  color: #ffffff !important;
+}
+
+[data-testid="stCheckbox"] label > div:first-child,
+[data-testid="stRadio"] label > div:first-child {
+  border-color: rgba(217, 4, 41, 0.36) !important;
 }
 
 [data-baseweb="popover"],
@@ -94,6 +132,38 @@ select:focus {
 [role="option"][aria-selected="true"],
 [role="option"]:hover {
   background: linear-gradient(135deg, rgba(217, 4, 41, 0.2), rgba(255, 255, 255, 0.06)) !important;
+  color: #ffffff !important;
+}
+
+[data-baseweb="menu"] *,
+[role="listbox"] * {
+  color: #ffffff !important;
+}
+
+[data-testid="stMarkdownContainer"] a,
+[data-testid="stLinkButton"] a,
+.mt-frontend-cta {
+  background: linear-gradient(135deg, #f20530, #d90429 60%, #7a0016) !important;
+  color: #ffffff !important;
+  border: 1px solid transparent !important;
+  border-radius: 14px !important;
+  text-decoration: none !important;
+  box-shadow: none !important;
+}
+
+[data-testid="stLinkButton"] a:hover,
+.mt-frontend-cta:hover {
+  filter: brightness(1.08);
+  color: #ffffff !important;
+}
+
+[data-testid="stFileUploaderDropzone"] {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(217, 4, 41, 0.06)) !important;
+  border: 1px dashed rgba(217, 4, 41, 0.36) !important;
+  border-radius: 18px !important;
+}
+
+[data-testid="stFileUploaderDropzone"] * {
   color: #ffffff !important;
 }
 
@@ -341,6 +411,58 @@ select:focus {
   overflow: hidden;
   padding: 1.25rem 1.3rem;
   margin-bottom: 1rem;
+}
+
+.mt-frontend-shell,
+.mt-frontend-section {
+  position: relative;
+  overflow: hidden;
+  padding: 1.15rem 1.2rem;
+  margin-bottom: 0.9rem;
+}
+
+.mt-frontend-shell {
+  background: linear-gradient(180deg, rgba(18, 18, 18, 0.9), rgba(7, 7, 7, 0.94));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 24px;
+  box-shadow: var(--mt-shadow);
+}
+
+.mt-frontend-shell__header,
+.mt-frontend-section__header {
+  position: relative;
+  z-index: 1;
+}
+
+.mt-frontend-shell__eyebrow,
+.mt-frontend-section__eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--mt-accent-3);
+}
+
+.mt-frontend-shell__title,
+.mt-frontend-section__title {
+  margin: 0.25rem 0 0;
+  color: #ffffff;
+}
+
+.mt-frontend-shell__subtitle,
+.mt-frontend-section__subtitle {
+  margin: 0.42rem 0 0;
+  color: rgba(255, 255, 255, 0.74);
+  line-height: 1.55;
+}
+
+.mt-frontend-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 2.8rem;
+  font-weight: 700;
 }
 
 .mt-grid {
@@ -718,7 +840,8 @@ div[data-testid="stButton"] button[kind="secondary"] {
 }
 
 div[data-testid="stButton"] button:hover,
-button[data-baseweb="tab"]:hover {
+button[data-baseweb="tab"]:hover,
+[data-testid="stLinkButton"] a:hover {
   filter: brightness(1.08);
 }
 

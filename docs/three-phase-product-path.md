@@ -5,7 +5,7 @@
 The current workspace already supports a meaningful trade facilitation flow:
 
 - Google Drive bootstrapped JSON runtime with role-based modules
-- user roles for `platform_admin`, `manufacturer`, `mahajan`, `delivery_partner`, `public_buyer`, and `worker`
+- user roles for `platform_admin`, `manufacturer`, `merchant`, `delivery_partner`, `public_buyer`, and `worker`
 - product onboarding and owner-linked catalog management
 - two commercial channels:
   - `marketplace` for B2C
@@ -18,7 +18,7 @@ The current workspace already supports a meaningful trade facilitation flow:
 #### Identity and access
 
 - `platform_admin` controls the platform, bootstrap, runtime setup, and system health
-- `manufacturer` and `mahajan` act as business owners with their own products
+- `manufacturer` and `merchant` act as business owners with their own products
 - `public_buyer` places B2C marketplace orders
 - `delivery_partner` handles assigned deliveries
 - `worker` is currently lightweight and mostly notification-focused
@@ -90,7 +90,7 @@ Best experience:
 - packaging and shipping service revenue console
 - business KPIs split by channel and service type
 
-#### Manufacturer / Mahajan
+#### Manufacturer / Merchant
 
 Needs:
 
@@ -153,7 +153,7 @@ Goal:
 Scope:
 
 - standardize role catalog, permissions, navigation, and labels
-- tighten businessman onboarding flow for `manufacturer` and `mahajan`
+- tighten businessman onboarding flow for `manufacturer` and `merchant`
 - make product onboarding owner-first with:
   - owner identity
   - B2C enablement
