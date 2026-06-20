@@ -498,6 +498,12 @@ class OrderService:
                 owner_role=owner.get("role", ""),
                 owner_business_details=owner_business_details,
             )
+            self.payment_service.force_receiver_from_business_details(
+                payment_record,
+                owner_email=owner.get("email", ""),
+                owner_role=owner.get("role", ""),
+                owner_business_details=owner_business_details,
+            )
             record["payment_id"] = payment_record["payment_id"]
             record["payment_reference"] = payment_record["payment_reference"]
             record["upi_link"] = payment_record["upi_link"]
@@ -641,6 +647,12 @@ class OrderService:
                 amount=record["total_amount"],
                 payment_type="MANDITRADE",
                 created_by=requesting_user_email,
+                owner_email=owner.get("email", ""),
+                owner_role=owner.get("role", ""),
+                owner_business_details=owner_business_details,
+            )
+            self.payment_service.force_receiver_from_business_details(
+                payment_record,
                 owner_email=owner.get("email", ""),
                 owner_role=owner.get("role", ""),
                 owner_business_details=owner_business_details,

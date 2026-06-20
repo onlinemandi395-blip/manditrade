@@ -878,6 +878,7 @@ def render_products_page(data_service, notification_service, session_service, ca
                         "subcategory": selected_product.get("subcategory", ""),
                         "unit": selected_product.get("unit", "piece"),
                         "merchant_email": ((selected_product.get("owner") or {}).get("email", "")),
+                        "merchant_upi_id": ((selected_product.get("owner_business_details") or {}).get("upi_id", "")),
                         "merchant_role": _normalize_role_key(((selected_product.get("owner") or {}).get("role", ""))),
                         "worker_email": ((selected_product.get("delivery_partner") or {}).get("email", "")),
                         "marketplace_enabled": "Yes" if ((selected_product.get("sales_channels") or {}).get("marketplace") or {}).get("enabled") else "No",
@@ -954,6 +955,9 @@ def render_products_page(data_service, notification_service, session_service, ca
                 edit_owner_email = str(selected_owner.get("email", "")).strip().lower()
                 edit_owner_display_name = str(selected_owner.get("display_name", "")).strip()
                 edit_owner_phone = str(selected_owner.get("phone", "")).strip()
+                selected_owner_business_details = _normalize_owner_business_details(
+                    (selected_product.get("owner_business_details", {}) or {})
+                )
                 selected_delivery_partner = dict(selected_product.get("delivery_partner", {}) or {})
                 edit_delivery_partner_email = str(selected_delivery_partner.get("email", "")).strip().lower()
                 edit_delivery_partner_display_name = str(selected_delivery_partner.get("display_name", "")).strip()
@@ -1028,6 +1032,53 @@ def render_products_page(data_service, notification_service, session_service, ca
                     edit_delivery_partner_phone = str(selected_delivery_partner.get("phone", "")).strip()
                     st.caption(f"Merchant: {edit_owner_email}")
                     st.caption(f"Merchant Role: {edit_role_key}")
+                edit_owner_profile = {}
+                if edit_owner_email:
+                    try:
+                        edit_owner_profile = owner_profile_service.get_profile(edit_owner_email)
+                    except Exception:
+                        edit_owner_profile = {}
+                edit_owner_profile_details = _normalize_owner_business_details(
+                    (edit_owner_profile.get("details", {}) if edit_owner_profile else {}) or {}
+                )
+                merged_edit_owner_details = {
+                    **edit_owner_profile_details,
+                    **{key: value for key, value in selected_owner_business_details.items() if value},
+                }
+                st.markdown("#### Merchant Billing")
+                edit_owner_business_cols = st.columns(2)
+                edit_owner_business_name = edit_owner_business_cols[0].text_input(
+                    "Business Name",
+                    value=str(merged_edit_owner_details.get("business_name", "") or ""),
+                    key="edit_owner_business_name",
+                )
+                edit_owner_upi_id = edit_owner_business_cols[1].text_input(
+                    "Merchant UPI ID",
+                    value=str(merged_edit_owner_details.get("upi_id", "") or ""),
+                    key="edit_owner_upi_id",
+                )
+                edit_owner_tax_cols = st.columns(2)
+                edit_owner_gst_number = edit_owner_tax_cols[0].text_input(
+                    "GST Number",
+                    value=str(merged_edit_owner_details.get("gst_number", "") or ""),
+                    key="edit_owner_gst_number",
+                )
+                edit_owner_invoice_phone = edit_owner_tax_cols[1].text_input(
+                    "Invoice Contact Phone",
+                    value=str(merged_edit_owner_details.get("invoice_phone", "") or ""),
+                    key="edit_owner_invoice_phone",
+                )
+                edit_owner_invoice_name = st.text_input(
+                    "Invoice Name",
+                    value=str(merged_edit_owner_details.get("invoice_name", "") or ""),
+                    key="edit_owner_invoice_name",
+                )
+                edit_owner_invoice_address = st.text_area(
+                    "Invoice Address",
+                    value=str(merged_edit_owner_details.get("invoice_address", "") or ""),
+                    key="edit_owner_invoice_address",
+                    height=90,
+                )
                 edit_category = st.selectbox(
                     translator.t("field.category"),
                     options=category_names if category_names else [""],
@@ -1112,6 +1163,34 @@ def render_products_page(data_service, notification_service, session_service, ca
                     previous_users_snapshot = deepcopy(users)
                     try:
                         _validate_category_selection(edit_category, edit_subcategory, category_index)
+                        edit_owner_business_details = _normalize_owner_business_details(
+                            {
+                                "business_name": edit_owner_business_name,
+                                "upi_id": edit_owner_upi_id,
+                                "gst_number": edit_owner_gst_number,
+                                "invoice_name": edit_owner_invoice_name,
+                                "invoice_address": edit_owner_invoice_address,
+                                "invoice_phone": edit_owner_invoice_phone,
+                                "bank_account_name": merged_edit_owner_details.get("bank_account_name", ""),
+                                "bank_account_number": merged_edit_owner_details.get("bank_account_number", ""),
+                                "bank_ifsc": merged_edit_owner_details.get("bank_ifsc", ""),
+                                "other_details": merged_edit_owner_details.get("other_details", ""),
+                            }
+                        )
+                        missing_edit_owner_fields = [
+                            label
+                            for field, label in (
+                                ("business_name", "Merchant Business Name"),
+                                ("upi_id", "Merchant UPI ID"),
+                                ("gst_number", "Merchant GST Number"),
+                                ("invoice_name", "Invoice Name"),
+                            )
+                            if not edit_owner_business_details.get(field)
+                        ]
+                        if missing_edit_owner_fields:
+                            raise ValueError(
+                                f"Merchant details required: {', '.join(missing_edit_owner_fields)}."
+                            )
                         owner, _ = _resolve_or_create_owner(
                             users=users,
                             owner_email=edit_owner_email,
@@ -1121,6 +1200,15 @@ def render_products_page(data_service, notification_service, session_service, ca
                             current_user_email=current_user_email,
                             data_service=data_service,
                             id_service=id_service,
+                        )
+                        owner_profile_service.save_owner_business_details(
+                            actor_email=current_user_email,
+                            actor_role=current_user_role,
+                            target_email=edit_owner_email,
+                            role=edit_role_key,
+                            display_name=owner.get("display_name", edit_owner_email.split("@")[0]),
+                            mobile=owner.get("phone", edit_owner_phone.strip()),
+                            business_details=edit_owner_business_details,
                         )
                         delivery_partner = {}
                         if edit_delivery_partner_email:
@@ -1177,6 +1265,7 @@ def render_products_page(data_service, notification_service, session_service, ca
                                 },
                                 "status": edit_status if is_admin else "PENDING_APPROVAL",
                                 "delivery_partner": delivery_partner,
+                                "owner_business_details": edit_owner_business_details,
                                 "submitted_by": (selected_product.get("approval") or {}).get("submitted_by", selected_product.get("created_by", current_user_email)),
                                 "submitted_at": (selected_product.get("approval") or {}).get("submitted_at", selected_product.get("created_at", datetime.now(UTC).isoformat())),
                             },

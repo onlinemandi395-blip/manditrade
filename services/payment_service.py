@@ -199,6 +199,7 @@ class PaymentService:
             "receiver_owner_role": str(receiver_config.get("owner_role", "")).strip().lower(),
             "receiver_profile_completed": bool(receiver_config.get("profile_completed", False)),
             "receiver_source": str(receiver_config.get("source", "")).strip(),
+            "receiver_business_details": dict(owner_business_details or {}),
         }
         self.data_service.get_collection_ref("payments").append(record)
         return record
@@ -215,11 +216,19 @@ class PaymentService:
         existing_payee_name = str(record.get("receiver_payee_name", "")).strip()
         existing_gst_number = str(record.get("receiver_gst_number", "")).strip()
         receiver_source = str(record.get("receiver_source", "")).strip()
+        receiver_business_details = dict(record.get("receiver_business_details", {}) or {})
         receiver_config = self.get_receiver_config_for_owner(
             owner_email=receiver_owner_email,
             owner_role=receiver_owner_role,
+            owner_business_details=receiver_business_details,
         )
-        if receiver_source == "product_owner_business_details" and existing_upi_id:
+        if str(receiver_business_details.get("upi_id", "")).strip():
+            receiver_config = self.get_receiver_config_for_owner(
+                owner_email=receiver_owner_email,
+                owner_role=receiver_owner_role,
+                owner_business_details=receiver_business_details,
+            )
+        elif receiver_source == "product_owner_business_details" and existing_upi_id:
             receiver_config = {
                 "upi_id": existing_upi_id,
                 "payee_name": existing_payee_name or receiver_config.get("payee_name", "MandiTrade"),
@@ -278,6 +287,7 @@ class PaymentService:
             "receiver_owner_role": str(receiver_config.get("owner_role", "")).strip().lower(),
             "receiver_profile_completed": bool(receiver_config.get("profile_completed", False)),
             "receiver_source": str(receiver_config.get("source", "")).strip(),
+            "receiver_business_details": receiver_business_details,
             "payment_enabled": bool(receiver_config.get("enabled", False)),
         }
         for key, value in receiver_fields.items():
@@ -285,6 +295,24 @@ class PaymentService:
                 payment_record[key] = value
                 changed = True
         return changed
+
+    def force_receiver_from_business_details(
+        self,
+        payment_record: dict,
+        *,
+        owner_email: str,
+        owner_role: str,
+        owner_business_details: dict | None = None,
+    ) -> bool:
+        business_details = dict(owner_business_details or {})
+        upi_id = str(business_details.get("upi_id", "")).strip()
+        if not upi_id:
+            return self.ensure_payment_link_fields(payment_record)
+        payment_record["receiver_owner_email"] = str(owner_email or "").strip().lower()
+        payment_record["receiver_owner_role"] = str(owner_role or "").strip().lower()
+        payment_record["receiver_business_details"] = business_details
+        payment_record["receiver_source"] = "product_owner_business_details"
+        return self.ensure_payment_link_fields(payment_record)
 
     def find_payments_by_reference(self, search_text: str, *, pending_only: bool = False) -> list[dict]:
         normalized_search = self.normalize_search_token(search_text)
