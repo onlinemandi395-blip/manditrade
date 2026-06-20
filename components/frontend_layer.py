@@ -21,9 +21,10 @@ def render_frontend_section(*, eyebrow: str, title: str, subtitle: str = "") -> 
     )
 
 
-def render_frontend_cta_link(*, label: str, href: str) -> None:
+def render_frontend_cta_link(*, label: str, href: str, target: str = "_self") -> None:
     render_template(
         "frontend_cta_link.html",
         label=label,
         href=href,
+        target=target,
     )

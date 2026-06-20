@@ -502,7 +502,36 @@ def _filter_role_rows(route: str, rows: list[dict], role: str, user_email: str) 
 
 
 def _build_superadmin_role_switcher_options(*, cache_service: CacheService, translator, navigation_service: NavigationService) -> list[dict]:
-    return []
+    users_payload = cache_service.get_config("users")
+    user_rows = list(users_payload.get("users", []))
+    seen_roles: set[str] = set()
+    options: list[dict] = [
+        {
+            "label": "My Superadmin View",
+            "value": "__self__",
+            "role": "platform_admin",
+            "email": "",
+            "display_name": "My Superadmin View",
+            "landing_page": navigation_service.get_default_route("platform_admin"),
+        }
+    ]
+    for row in user_rows:
+        role = str(row.get("role", "")).strip().lower()
+        email = str(row.get("email", "")).strip().lower()
+        if not role or not email or role == "platform_admin" or role in seen_roles:
+            continue
+        seen_roles.add(role)
+        options.append(
+            {
+                "label": f"{translator.t(f'role.{role}')} View",
+                "value": email,
+                "role": role,
+                "email": email,
+                "display_name": str(row.get("display_name", email.split("@")[0])),
+                "landing_page": navigation_service.get_default_route(role),
+            }
+        )
+    return options
 
 
 def _render_root_setup_console(session_service: SessionService, admin_drive_service: AdminDriveService, errors: list[str]) -> None:
@@ -646,6 +675,8 @@ def render_app() -> None:
     current_user_email = str(user.get("email", "") or "").strip().lower()
     authenticated_email = str(authenticated_user.get("email", "") or "").strip().lower()
     is_superadmin = is_bootstrap_admin(authenticated_email)
+    role_switcher_options: list[dict] = []
+    current_role_view = "__self__"
     theme_service = ThemeService(admin_drive_service, cache_service)
     theme_css = theme_service.build_background_css()
     if theme_css:
@@ -664,10 +695,16 @@ def render_app() -> None:
     if current_route not in valid_routes or not rbac_service.can_access(role, current_route):
         current_route = page_service.get_landing_page(role, navigation_service)
         session_service.set_route(current_route)
-    if session_service.is_acting_as_user():
-        session_service.clear_effective_user()
-        st.rerun()
-    chosen = render_sidebar(
+    if str(authenticated_user.get("role", "")).strip().lower() == "platform_admin" or is_superadmin:
+        role_switcher_options = _build_superadmin_role_switcher_options(
+            cache_service=cache_service,
+            translator=translator,
+            navigation_service=navigation_service,
+        )
+        effective_user = st.session_state.get(SessionService.EFFECTIVE_USER_KEY)
+        if isinstance(effective_user, dict) and effective_user.get("is_authenticated"):
+            current_role_view = str(effective_user.get("email", "") or "__self__").strip().lower() or "__self__"
+    chosen, selected_role_view = render_sidebar(
         navigation_items,
         current_route,
         user=user,
@@ -678,7 +715,28 @@ def render_app() -> None:
         current_language=session_service.get_language(),
         language_label=translator.t("auth.language"),
         set_language=session_service.set_language,
+        role_switcher_options=role_switcher_options,
+        current_role_view=current_role_view,
     )
+    if role_switcher_options and str(selected_role_view or "__self__") != str(current_role_view or "__self__"):
+        if selected_role_view == "__self__":
+            session_service.clear_effective_user()
+        else:
+            selected_option = next(
+                (option for option in role_switcher_options if str(option.get("value", "__self__")) == str(selected_role_view)),
+                None,
+            )
+            if selected_option:
+                session_service.set_effective_user(
+                    {
+                        "email": selected_option.get("email", ""),
+                        "role": selected_option.get("role", "public_buyer"),
+                        "status": "ACTIVE",
+                        "display_name": selected_option.get("display_name", ""),
+                        "landing_page": selected_option.get("landing_page", "marketplace"),
+                    }
+                )
+        st.rerun()
     if chosen != current_route:
         session_service.set_route(chosen)
         st.rerun()

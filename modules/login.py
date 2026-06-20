@@ -76,7 +76,7 @@ def render_login_page(
     label = "Continue with Google"
     if provider:
         label = f"{provider.get('icon', '')} {translator.t(provider.get('label_key', 'auth.login_google'))}".strip()
-    render_frontend_cta_link(label=label, href=oauth_service.get_authorize_url())
+    render_frontend_cta_link(label=label, href=oauth_service.get_authorize_url(), target="_top")
 
     if show_unknown_user_note:
         st.info(translator.t("auth.unknown_user_note"))

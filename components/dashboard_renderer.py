@@ -585,6 +585,14 @@ def _peek_query_value(name: str) -> str:
     return str(st.query_params.get(name, "") or "").strip()
 
 
+def _same_tab_attrs(href: str) -> str:
+    safe_href = escape(str(href or ""))
+    return (
+        f'href="{safe_href}" target="_self" '
+        f'onclick="window.parent.location.href=\'{safe_href}\'; return false;"'
+    )
+
+
 def _widget_preview_series(role: str, scoped: dict[str, list[dict]], index: int) -> list[int | float]:
     orders = scoped.get("orders", [])
     shipments = scoped.get("shipments", [])
@@ -752,7 +760,7 @@ def _render_summary_cards(cards: list[dict], dataset_lookup: dict[str, list[dict
         )
         cards_markup.append(
             (
-                '<a class="mt-dashboard-preview__tile mt-dashboard-preview__tile--summary" href="{href}">'
+                '<a class="mt-dashboard-preview__tile mt-dashboard-preview__tile--summary" {href_attrs}>'
                 '<div class="mt-dashboard-preview__head">'
                 '<span class="mt-dashboard-preview__eyebrow">{eyebrow}</span>'
                 '<span class="mt-dashboard-preview__index">{index_label}</span>'
@@ -764,7 +772,7 @@ def _render_summary_cards(cards: list[dict], dataset_lookup: dict[str, list[dict
                 '<div class="mt-dashboard-preview__hint">Inspect live records</div>'
                 "</a>"
             ).format(
-                href=f"{_build_query_href(mt_focus=focus_id)}#mt-dashboard-detail",
+                href_attrs=_same_tab_attrs(f"{_build_query_href(mt_focus=focus_id)}#mt-dashboard-detail"),
                 eyebrow=escape(str(card.get("eyebrow", "Summary"))),
                 index_label=f"{index + 1:02d}",
                 title=escape(str(card.get("title", ""))),
@@ -789,7 +797,7 @@ def _render_widget_board(role: str, scoped: dict[str, list[dict]]) -> list[dict]
         widget_details.append({"focus_id": focus_id, "title": title, "subtitle": subtitle, "chart_fn": chart_fn})
         widgets_markup.append(
             (
-                '<a class="mt-dashboard-preview__tile mt-dashboard-preview__tile--widget" href="{href}">'
+                '<a class="mt-dashboard-preview__tile mt-dashboard-preview__tile--widget" {href_attrs}>'
                 '<div class="mt-dashboard-preview__head">'
                 '<span class="mt-dashboard-preview__eyebrow">Widget</span>'
                 '<span class="mt-dashboard-preview__index">{index_label}</span>'
@@ -800,7 +808,7 @@ def _render_widget_board(role: str, scoped: dict[str, list[dict]]) -> list[dict]
                 '<div class="mt-dashboard-preview__hint">Open graph detail</div>'
                 "</a>"
             ).format(
-                href=f"{_build_query_href(mt_focus=focus_id)}#mt-dashboard-detail",
+                href_attrs=_same_tab_attrs(f"{_build_query_href(mt_focus=focus_id)}#mt-dashboard-detail"),
                 index_label=f"{index + 1:02d}",
                 title=escape(title),
                 subtitle=escape(subtitle),
@@ -853,7 +861,7 @@ def _render_focus_detail(focus_id: str, summary_specs: list[dict], widget_specs:
                 '<div class="mt-dashboard-detail__title">{title}</div>'
                 '<div class="mt-dashboard-detail__subtitle">{subtitle}</div>'
                 '</div>'
-                '<a class="mt-dashboard-preview__back" href="{clear_href}">Clear</a>'
+                '<a class="mt-dashboard-preview__back" {clear_href_attrs}>Clear</a>'
                 '</div>'
                 '<div class="mt-dashboard-detail__metric">{value}</div>'
                 '</section>'
@@ -861,7 +869,7 @@ def _render_focus_detail(focus_id: str, summary_specs: list[dict], widget_specs:
                 eyebrow=escape(item["caption"]),
                 title=escape(item["title"]),
                 subtitle=escape(item["subtitle"] or item["caption"]),
-                clear_href=_build_query_href(mt_focus=""),
+                clear_href_attrs=_same_tab_attrs(_build_query_href(mt_focus="")),
                 value=escape(item["value"]),
             )
         )
@@ -882,13 +890,13 @@ def _render_focus_detail(focus_id: str, summary_specs: list[dict], widget_specs:
                 '<div class="mt-dashboard-detail__title">{title}</div>'
                 '<div class="mt-dashboard-detail__subtitle">{subtitle}</div>'
                 '</div>'
-                '<a class="mt-dashboard-preview__back" href="{clear_href}">Clear</a>'
+                '<a class="mt-dashboard-preview__back" {clear_href_attrs}>Clear</a>'
                 '</div>'
                 '</section>'
             ).format(
                 title=escape(item["title"]),
                 subtitle=escape(item["subtitle"]),
-                clear_href=_build_query_href(mt_focus=""),
+                clear_href_attrs=_same_tab_attrs(_build_query_href(mt_focus="")),
             )
         )
         figure = item["chart_fn"]()

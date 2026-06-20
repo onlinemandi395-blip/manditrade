@@ -40,8 +40,11 @@ def render_sidebar(
     current_language: str = "en",
     language_label: str = "Language",
     set_language=None,
-) -> str:
+    role_switcher_options: list[dict] | None = None,
+    current_role_view: str = "__self__",
+) -> tuple[str, str]:
     chosen = selected_route
+    selected_view = str(current_role_view or "__self__")
     with st.sidebar:
         render_template("sidebar_brand.html")
         render_frontend_section(
@@ -76,6 +79,29 @@ def render_sidebar(
                 if language_choice != normalized_current:
                     set_language(language_choice)
                     st.rerun()
+        if role_switcher_options:
+            render_template("sidebar_section_label.html", label="Role View")
+            selected_view = st.selectbox(
+                "Role View",
+                options=[str(option.get("value", "__self__")) for option in role_switcher_options],
+                index=next(
+                    (
+                        idx
+                        for idx, option in enumerate(role_switcher_options)
+                        if str(option.get("value", "__self__")) == str(current_role_view or "__self__")
+                    ),
+                    0,
+                ),
+                format_func=lambda value: next(
+                    (
+                        str(option.get("label", "Role View"))
+                        for option in role_switcher_options
+                        if str(option.get("value", "__self__")) == str(value)
+                    ),
+                    "Role View",
+                ),
+                key="sidebar_role_view_choice",
+            )
         if theme_service is not None:
             backgrounds = theme_service.list_available_backgrounds()
             if backgrounds:
@@ -113,4 +139,4 @@ def render_sidebar(
                 type="primary" if route == selected_route else "secondary",
             ):
                 chosen = route
-    return chosen
+    return chosen, selected_view
