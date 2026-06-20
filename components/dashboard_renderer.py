@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from collections import Counter
+from html import escape
+from urllib.parse import urlencode
 
 import pandas as pd
 import streamlit as st
@@ -8,6 +10,7 @@ try:
     import matplotlib.pyplot as plt
 except ModuleNotFoundError:  # pragma: no cover - runtime fallback for lean deploys
     plt = None
+from components.html_renderer import render_template
 
 RED = "#d90429"
 RED_SOFT = "#8f1123"
@@ -517,6 +520,101 @@ def _render_analytics(current_user: dict, dataset_lookup: dict[str, list[dict]])
     return
 
 
+def _build_sparkline_svg(series: list[int | float], *, height: int = 38) -> str:
+    values = [float(value or 0) for value in (series or [0, 0, 0, 0, 0, 0, 0])]
+    if not values:
+        values = [0, 0, 0, 0, 0, 0, 0]
+    width = 240
+    max_value = max(max(values), 1.0)
+    step = width / max(len(values) - 1, 1)
+    points: list[tuple[float, float]] = []
+    for index, value in enumerate(values):
+        x = index * step
+        y = height - ((value / max_value) * (height - 6)) - 3
+        points.append((x, y))
+    line_path = " ".join(f"{'M' if index == 0 else 'L'}{x:.2f},{y:.2f}" for index, (x, y) in enumerate(points))
+    fill_path = f"{line_path} L {width},{height} L 0,{height} Z"
+    dots = "".join(
+        f'<circle cx="{x:.2f}" cy="{y:.2f}" r="2.8" fill="{WHITE}" stroke="{RED}" stroke-width="1.4"></circle>'
+        for x, y in points
+    )
+    guides = "".join(
+        f'<line x1="0" y1="{guide}" x2="{width}" y2="{guide}" stroke="rgba(255,255,255,0.08)" stroke-width="1"></line>'
+        for guide in (8, 20, 32)
+    )
+    return (
+        f'<svg class="mt-dashboard-preview__spark" viewBox="0 0 {width} {height}" preserveAspectRatio="none" aria-hidden="true">'
+        f"{guides}"
+        f'<path d="{fill_path}" fill="rgba(217, 4, 41, 0.18)"></path>'
+        f'<path d="{line_path}" fill="none" stroke="{RED}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path>'
+        f"{dots}</svg>"
+    )
+
+
+def _current_query_params() -> dict[str, str]:
+    params: dict[str, str] = {}
+    for key in st.query_params.keys():
+        value = st.query_params.get(key, "")
+        normalized = str(value or "").strip()
+        if normalized:
+            params[str(key)] = normalized
+    return params
+
+
+def _build_query_href(**updates: str | None) -> str:
+    params = _current_query_params()
+    for key, value in updates.items():
+        normalized_key = str(key)
+        normalized_value = str(value or "").strip()
+        if normalized_value:
+            params[normalized_key] = normalized_value
+        elif normalized_key in params:
+            del params[normalized_key]
+    query = urlencode(params)
+    return f"?{query}" if query else "?"
+
+
+def _consume_query_value(name: str) -> str:
+    value = str(st.query_params.get(name, "") or "").strip()
+    if value and name in st.query_params:
+        del st.query_params[name]
+    return value
+
+
+def _widget_preview_series(role: str, scoped: dict[str, list[dict]], index: int) -> list[int | float]:
+    orders = scoped.get("orders", [])
+    shipments = scoped.get("shipments", [])
+    payments = scoped.get("payments", [])
+    products = scoped.get("products", [])
+    users = scoped.get("users", [])
+    ledger = scoped.get("ledger", [])
+    if role == "platform_admin":
+        series_map = {
+            0: _status_series(orders, ["PAYMENT_PENDING", "OWNER_ACCEPTED", "PICKUP_ASSIGNED", "IN_TRANSIT", "COMPLETED"]),
+            1: _recent_activity_series(orders),
+            2: _status_series(orders, ["marketplace", "manditrade"], key="source_channel"),
+            3: _status_series(shipments, ["PICKUP_ASSIGNED", "PICKED_UP", "IN_TRANSIT", "DELIVERED"]),
+            4: _recent_activity_series(payments),
+            5: _recent_activity_series(products),
+            6: _recent_activity_series(orders),
+            7: _recent_activity_series(users),
+            8: _recent_activity_series(ledger),
+        }
+        return series_map.get(index, _recent_activity_series(orders))
+    series_map = {
+        0: _status_series(orders, ["PAYMENT_PENDING", "OWNER_ACCEPTED", "PICKUP_ASSIGNED", "IN_TRANSIT", "COMPLETED"]),
+        1: _recent_activity_series(orders),
+        2: _status_series(orders, ["marketplace", "manditrade"], key="source_channel"),
+        3: _status_series(shipments, ["PICKUP_ASSIGNED", "PICKED_UP", "IN_TRANSIT", "DELIVERED"]),
+        4: _recent_activity_series(payments),
+        5: _recent_activity_series(products),
+        6: _status_series(products, ["0", "5", "10"], key="stock_band"),
+        7: _recent_activity_series(ledger),
+        8: _recent_activity_series(orders),
+    }
+    return series_map.get(index, _recent_activity_series(orders))
+
+
 def _get_widget_specs(role: str, scoped: dict[str, list[dict]]) -> list[dict]:
     if role == "platform_admin":
         return [
@@ -543,41 +641,48 @@ def _get_widget_specs(role: str, scoped: dict[str, list[dict]]) -> list[dict]:
         ]
 
 
-def _render_summary_cards(cards: list[dict], dataset_lookup: dict[str, list[dict]], current_user: dict) -> str | None:
-    selected_route = None
+def _render_summary_cards(cards: list[dict], dataset_lookup: dict[str, list[dict]], current_user: dict) -> None:
+    cards_markup = []
     summary_cards = cards[:6]
-    columns = st.columns(len(summary_cards) if summary_cards else 1, gap="small")
-    for column, card in zip(columns, summary_cards):
+    for index, card in enumerate(summary_cards):
         dataset_name = str(card.get("data_source", "")).strip()
         rows = dataset_lookup.get(dataset_name, [])
-        with column:
-            with st.container(border=True):
-                st.caption(str(card.get("eyebrow", "Summary")))
-                st.markdown(f"**{card.get('title', '')}**")
-                st.markdown(f"### {_format_metric_value(_resolve_card_value(card, rows, current_user))}")
-                subtitle = str(card.get("subtitle", "")).strip()
-                if subtitle:
-                    st.caption(subtitle)
-                route = _resolve_card_route(card)
-                if route:
-                    if st.button("Open", key=f"dashboard_card_{card.get('id', route)}", use_container_width=True):
-                        selected_route = route
-    return selected_route
+        cards_markup.append(
+            """
+            <a class="mt-dashboard-preview__tile mt-dashboard-preview__tile--summary" href="{href}">
+              <div class="mt-dashboard-preview__head">
+                <span class="mt-dashboard-preview__eyebrow">{eyebrow}</span>
+                <span class="mt-dashboard-preview__index">{index_label}</span>
+              </div>
+              <div class="mt-dashboard-preview__title">{title}</div>
+              <div class="mt-dashboard-preview__value">{value}</div>
+              <div class="mt-dashboard-preview__subtitle">{subtitle}</div>
+              {sparkline}
+            </a>
+            """.format(
+                href=_build_query_href(mt_route=_resolve_card_route(card), mt_widget=""),
+                eyebrow=escape(str(card.get("eyebrow", "Summary"))),
+                index_label=f"{index + 1:02d}",
+                title=escape(str(card.get("title", ""))),
+                value=escape(_format_metric_value(_resolve_card_value(card, rows, current_user))),
+                subtitle=escape(str(card.get("subtitle", "")).strip()),
+                sparkline=_build_sparkline_svg(_build_card_series(str(card.get("metric", "count")), rows, current_user)),
+            )
+        )
+    render_template("dashboard_overview.html", section_title="Business Snapshot", section_subtitle="Open any summary to move into that working area.", section_class="mt-dashboard-preview__summary-grid", tiles_markup="".join(cards_markup))
 
 
 def _render_widget_board(role: str, scoped: dict[str, list[dict]]) -> None:
     if plt is None:
         return
     widget_specs = _get_widget_specs(role, scoped)
-    selected_key = f"mt_dashboard_widget::{role}"
-    selected_widget = str(st.session_state.get(selected_key, "") or "").strip()
+    selected_widget = str(st.query_params.get("mt_widget", "") or "").strip()
     selected_spec = None
-    if selected_widget:
-        for index, spec in enumerate(widget_specs):
-            widget_id = f"{role}_{index}"
-            if selected_widget == widget_id:
-                selected_spec = (widget_id, *spec)
-                break
+    for index, spec in enumerate(widget_specs):
+        widget_id = f"{role}_{index}"
+        if selected_widget == widget_id:
+            selected_spec = (widget_id, *spec)
+            break
     if selected_spec:
         _, title, subtitle, chart_fn = selected_spec
         st.markdown("### Active Widget")
@@ -587,9 +692,10 @@ def _render_widget_board(role: str, scoped: dict[str, list[dict]]) -> None:
                 st.markdown(f"**{title}**")
                 st.caption(subtitle)
             with top_cols[1]:
-                if st.button("Back", key=f"close_widget_panel_{role}", use_container_width=True):
-                    st.session_state[selected_key] = ""
-                    st.rerun()
+                st.markdown(
+                    f'<a class="mt-dashboard-preview__back" href="{_build_query_href(mt_widget="")}">Back</a>',
+                    unsafe_allow_html=True,
+                )
             figure = chart_fn()
             if figure is not None:
                 st.pyplot(figure, use_container_width=True)
@@ -598,25 +704,37 @@ def _render_widget_board(role: str, scoped: dict[str, list[dict]]) -> None:
                 st.caption("No data available for this widget.")
         return
 
-    st.markdown("### Business Widgets")
-    st.caption("Click one tile to open that business view.")
+    widgets_markup = []
     for index, spec in enumerate(widget_specs):
-        title, subtitle, chart_fn = spec
-        if index % 3 == 0:
-            columns = st.columns(3, gap="small")
-        column = columns[index % 3]
+        title, subtitle, _chart_fn = spec
         widget_id = f"{role}_{index}"
-        with column:
-            with st.container(border=True):
-                st.markdown(f"**{title}**")
-                st.caption(subtitle)
-                if st.button("Open Widget", key=f"open_widget_{widget_id}", use_container_width=True):
-                    st.session_state[selected_key] = widget_id
-                    st.rerun()
+        widgets_markup.append(
+            """
+            <a class="mt-dashboard-preview__tile mt-dashboard-preview__tile--widget" href="{href}">
+              <div class="mt-dashboard-preview__head">
+                <span class="mt-dashboard-preview__eyebrow">Widget</span>
+                <span class="mt-dashboard-preview__index">{index_label}</span>
+              </div>
+              <div class="mt-dashboard-preview__title">{title}</div>
+              <div class="mt-dashboard-preview__subtitle">{subtitle}</div>
+              {sparkline}
+            </a>
+            """.format(
+                href=_build_query_href(mt_widget=widget_id),
+                index_label=f"{index + 1:02d}",
+                title=escape(title),
+                subtitle=escape(subtitle),
+                sparkline=_build_sparkline_svg(_widget_preview_series(role, scoped, index)),
+            )
+        )
+    render_template("dashboard_overview.html", section_title="Business Widgets", section_subtitle="Mini views stay on this screen. Open one to inspect it in detail.", section_class="mt-dashboard-preview__widget-grid", tiles_markup="".join(widgets_markup))
 
 
 def render_dashboard_cards(cards: list[dict], dataset_lookup: dict[str, list[dict]], translator, current_user: dict | None = None) -> str | None:
     current_user = current_user or {}
+    selected_route = _consume_query_value("mt_route")
+    if selected_route:
+        return selected_route
     translated_cards = []
     for index, card in enumerate(cards):
         dataset_name = str(card.get("data_source", "")).strip()
@@ -634,6 +752,6 @@ def render_dashboard_cards(cards: list[dict], dataset_lookup: dict[str, list[dic
 
     role = str(current_user.get("role", "")).strip().lower()
     scoped = _scoped_datasets(dataset_lookup, current_user)
-    selected_route = _render_summary_cards(translated_cards, dataset_lookup, current_user)
+    _render_summary_cards(translated_cards, dataset_lookup, current_user)
     _render_widget_board(role, scoped)
-    return selected_route
+    return None
