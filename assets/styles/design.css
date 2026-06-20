@@ -320,10 +320,10 @@ div[role="radiogroup"] [aria-checked="true"] {
 
 .mt-topbar {
   display: grid;
-  grid-template-columns: minmax(0, 1.8fr) minmax(280px, 1fr);
-  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
   margin-bottom: 1rem;
-  padding: 1.2rem 1.25rem;
+  padding: 1rem 1.1rem;
   position: relative;
   overflow: hidden;
 }
@@ -365,7 +365,7 @@ div[role="radiogroup"] [aria-checked="true"] {
 }
 
 .mt-topbar__meta h1 {
-  font-size: 2rem;
+  font-size: 1.85rem;
 }
 
 .mt-page-title {
@@ -423,55 +423,53 @@ div[data-testid="stHorizontalBlock"] {
   line-height: 1.55;
 }
 
-.mt-topbar__context {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.75rem;
-  align-self: stretch;
-}
-
-.mt-context-card {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(217, 4, 41, 0.08));
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 18px;
-  padding: 0.9rem;
+.mt-control-surface__identity {
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  min-height: 96px;
+  gap: 0.15rem;
+  padding: 0.85rem 0.95rem;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(217, 4, 41, 0.07));
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.mt-context-card span {
+.mt-control-surface__identity strong {
+  font-size: 1rem;
+  color: var(--mt-text);
+}
+
+.mt-control-surface__identity span {
   color: var(--mt-text-soft);
-  font-size: 0.76rem;
+  font-size: 0.85rem;
+}
+
+.mt-control-surface__summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.mt-control-surface__item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  padding: 0.75rem 0.85rem;
+  min-height: 72px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(217, 4, 41, 0.05));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.mt-control-surface__item span {
+  color: var(--mt-text-soft);
+  font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
 
-.mt-context-card strong {
+.mt-control-surface__item strong {
   color: var(--mt-text);
-  font-size: 1rem;
-  margin-top: 0.35rem;
-}
-
-.mt-badge-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-top: 0.15rem;
-  grid-column: 1 / -1;
-}
-
-.mt-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.35rem 0.75rem;
-  border-radius: 999px;
-  background: rgba(217, 4, 41, 0.12);
-  color: #ffffff;
-  border: 1px solid rgba(217, 4, 41, 0.28);
-  font-size: 0.8rem;
-  font-weight: 600;
+  font-size: 0.96rem;
 }
 
 .mt-login-hero {
