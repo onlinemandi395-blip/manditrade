@@ -41,9 +41,12 @@ def _build_user_index(users: list[dict]) -> dict[str, dict]:
 
 def _active_users_for_role(users: list[dict], role: str) -> list[dict]:
     normalized_role = str(role).strip().lower()
+    accepted_roles = {normalized_role}
+    if normalized_role == "worker":
+        accepted_roles.add("delivery_partner")
     rows = [
         user for user in users
-        if str(user.get("role", "")).strip().lower() == normalized_role
+        if str(user.get("role", "")).strip().lower() in accepted_roles
         and str(user.get("status", "ACTIVE")).strip().upper() == "ACTIVE"
         and str(user.get("email", "")).strip()
     ]
@@ -164,7 +167,7 @@ def _delivery_partner_candidates_for_owner(users: list[dict], products: list[dic
     normalized_owner_email = str(owner_email or "").strip().lower()
     candidate_map: dict[str, dict] = {
         str(user.get("email", "")).strip().lower(): dict(user)
-        for user in _active_users_for_role(users, "delivery_partner")
+        for user in _active_users_for_role(users, "worker")
     }
     if normalized_owner_email:
         for product in products:
@@ -178,7 +181,7 @@ def _delivery_partner_candidates_for_owner(users: list[dict], products: list[dic
                 candidate_map[partner_email] = {
                     "user_id": str(delivery_partner.get("user_id", "")).strip(),
                     "email": partner_email,
-                    "role": "delivery_partner",
+                    "role": "worker",
                     "status": "ACTIVE",
                     "display_name": str(delivery_partner.get("display_name", "")).strip(),
                     "phone": str(delivery_partner.get("phone", "")).strip(),
@@ -430,7 +433,7 @@ def _apply_product_values(
     delivery_partner = dict(values.get("delivery_partner", {}) or {})
     product["delivery_partner"] = {
         "email": str(delivery_partner.get("email", "")).strip().lower(),
-        "role": "delivery_partner" if str(delivery_partner.get("email", "")).strip() else "",
+        "role": "worker" if str(delivery_partner.get("email", "")).strip() else "",
         "display_name": str(delivery_partner.get("display_name", "")).strip(),
         "user_id": str(delivery_partner.get("user_id", "")).strip(),
         "phone": str(delivery_partner.get("phone", "")).strip(),
@@ -615,17 +618,17 @@ def render_products_page(data_service, notification_service, session_service, ca
                         edit_owner_display_name = st.text_input("Owner Display Name", value=edit_owner_display_name, key="edit_owner_display_name")
                         edit_owner_phone = st.text_input("Owner Phone", value=edit_owner_phone, key="edit_owner_phone")
                     edit_delivery_partner_mode = st.radio(
-                        "Delivery Partner Selection",
+                        "Worker Selection",
                         options=["Select Existing", "Add New"],
                         horizontal=True,
                         index=0 if edit_delivery_partner_email else 1,
                         key="edit_delivery_partner_mode",
                     )
-                    edit_delivery_partner_candidates = _owner_candidates_for_role(users, products, "delivery_partner")
+                    edit_delivery_partner_candidates = _owner_candidates_for_role(users, products, "worker")
                     if edit_delivery_partner_mode == "Select Existing" and edit_delivery_partner_candidates:
                         edit_partner_map = {row.get("email", ""): row for row in edit_delivery_partner_candidates}
                         edit_partner_choice = st.selectbox(
-                            "Delivery Partner Email",
+                            "Worker Email",
                             options=list(edit_partner_map.keys()),
                             format_func=lambda value: _owner_option_label(edit_partner_map.get(value, {})),
                             index=next((idx for idx, value in enumerate(edit_partner_map.keys()) if str(value).strip().lower() == edit_delivery_partner_email), 0),
@@ -635,13 +638,13 @@ def render_products_page(data_service, notification_service, session_service, ca
                         edit_delivery_partner_email = str(selected_partner.get("email", "")).strip().lower()
                         edit_delivery_partner_display_name = str(selected_partner.get("display_name", "")).strip()
                         edit_delivery_partner_phone = str(selected_partner.get("phone", "")).strip()
-                        st.caption(f"Selected Delivery Partner: {_owner_option_label(selected_partner)}")
+                        st.caption(f"Selected Worker: {_owner_option_label(selected_partner)}")
                     else:
                         if edit_delivery_partner_mode == "Select Existing" and not edit_delivery_partner_candidates:
-                            st.info("No existing active delivery partners found. Add a new delivery partner.")
-                        edit_delivery_partner_email = st.text_input("Delivery Partner Email", value=edit_delivery_partner_email, key="edit_delivery_partner_email").strip().lower()
-                        edit_delivery_partner_display_name = st.text_input("Delivery Partner Name", value=edit_delivery_partner_display_name, key="edit_delivery_partner_display_name")
-                        edit_delivery_partner_phone = st.text_input("Delivery Partner Phone", value=edit_delivery_partner_phone, key="edit_delivery_partner_phone")
+                            st.info("No existing active workers found. Add a new worker.")
+                        edit_delivery_partner_email = st.text_input("Worker Email", value=edit_delivery_partner_email, key="edit_delivery_partner_email").strip().lower()
+                        edit_delivery_partner_display_name = st.text_input("Worker Name", value=edit_delivery_partner_display_name, key="edit_delivery_partner_display_name")
+                        edit_delivery_partner_phone = st.text_input("Worker Phone", value=edit_delivery_partner_phone, key="edit_delivery_partner_phone")
                 else:
                     edit_role_key = current_user_role
                     edit_owner_email = str(current_user_email).strip().lower()
@@ -734,7 +737,7 @@ def render_products_page(data_service, notification_service, session_service, ca
                             delivery_partner, _ = _resolve_or_create_owner(
                                 users=users,
                                 owner_email=edit_delivery_partner_email,
-                                owner_role="delivery_partner",
+                                owner_role="worker",
                                 owner_display_name=edit_delivery_partner_display_name,
                                 owner_phone=edit_delivery_partner_phone,
                                 current_user_email=current_user_email,
@@ -971,17 +974,17 @@ def render_products_page(data_service, notification_service, session_service, ca
             if is_admin:
                 shipment_management_mode = st.radio(
                     "Shipment Management",
-                    options=["Owner Managed", "Owner Preferred Delivery Partner"],
+                    options=["Owner Managed", "Owner Preferred Worker"],
                     horizontal=True,
                     key="create_shipment_management_mode",
                 )
-                if shipment_management_mode == "Owner Preferred Delivery Partner":
-                    delivery_partner_mode = st.radio("Delivery Partner Selection", options=["Select Existing", "Add New"], horizontal=True, key="create_delivery_partner_mode")
+                if shipment_management_mode == "Owner Preferred Worker":
+                    delivery_partner_mode = st.radio("Worker Selection", options=["Select Existing", "Add New"], horizontal=True, key="create_delivery_partner_mode")
                     delivery_partner_candidates = _delivery_partner_candidates_for_owner(users, products, owner_email)
                     if delivery_partner_mode == "Select Existing" and delivery_partner_candidates:
                         partner_option_map = {row.get("email", ""): row for row in delivery_partner_candidates}
                         partner_choice = st.selectbox(
-                            "Delivery Partner Email",
+                            "Worker Email",
                             options=list(partner_option_map.keys()),
                             format_func=lambda value: _owner_option_label(partner_option_map.get(value, {})),
                             key="create_existing_delivery_partner",
@@ -990,18 +993,18 @@ def render_products_page(data_service, notification_service, session_service, ca
                         delivery_partner_email = str(selected_partner_row.get("email", "")).strip().lower()
                         delivery_partner_display_name = str(selected_partner_row.get("display_name", "")).strip()
                         delivery_partner_phone = str(selected_partner_row.get("phone", "")).strip()
-                        st.caption(f"Selected Delivery Partner: {_owner_option_label(selected_partner_row)}")
+                        st.caption(f"Selected Worker: {_owner_option_label(selected_partner_row)}")
                     else:
                         if delivery_partner_mode == "Select Existing" and not delivery_partner_candidates:
-                            st.info("No owner-based active delivery partners found yet. Add a new preferred delivery partner.")
+                            st.info("No owner-based active workers found yet. Add a new preferred worker.")
                         shipment_partner_cols = st.columns(3)
-                        delivery_partner_email = shipment_partner_cols[0].text_input("Delivery Partner Email", key="create_delivery_partner_email").strip().lower()
-                        delivery_partner_display_name = shipment_partner_cols[1].text_input("Delivery Partner Name", key="create_delivery_partner_display_name")
-                        delivery_partner_phone = shipment_partner_cols[2].text_input("Delivery Partner Phone", key="create_delivery_partner_phone")
+                        delivery_partner_email = shipment_partner_cols[0].text_input("Worker Email", key="create_delivery_partner_email").strip().lower()
+                        delivery_partner_display_name = shipment_partner_cols[1].text_input("Worker Name", key="create_delivery_partner_display_name")
+                        delivery_partner_phone = shipment_partner_cols[2].text_input("Worker Phone", key="create_delivery_partner_phone")
                 else:
-                    st.caption("Owner will manage shipment handling for this product and can assign a delivery partner later per order.")
+                    st.caption("Owner will manage shipment handling for this product and can assign a worker later per order.")
             else:
-                st.caption("You will manage shipment handling for this product and can assign a delivery partner later per order.")
+                st.caption("You will manage shipment handling for this product and can assign a worker later per order.")
         with _render_onboarding_section(
             "Catalog Details",
             "Define the product information, inventory, and descriptions used across the catalog.",
@@ -1072,8 +1075,8 @@ def render_products_page(data_service, notification_service, session_service, ca
                     recipient_email=delivery_partner_email,
                     requested_by=current_user_email,
                     consent_role="delivery_partner",
-                    title="Delivery Partner Consent",
-                    recipient_label="Delivery Partner",
+                    title="Worker Consent",
+                    recipient_label="Worker",
                     session_prefix="create_delivery_partner_consent",
                 )
             status = st.selectbox(translator.t("field.status"), options=["APPROVED", "PENDING_APPROVAL"] if is_admin else ["PENDING_APPROVAL"], index=0, key="create_status")
@@ -1128,7 +1131,7 @@ def render_products_page(data_service, notification_service, session_service, ca
                     consent_role="delivery_partner",
                 )
                 if str(delivery_partner_consent_record.get("status", "")).strip().upper() != "VERIFIED":
-                    st.error("Delivery partner consent OTP verification is required before product onboarding.")
+                    st.error("Worker consent OTP verification is required before product onboarding.")
                     return
             previous_users_snapshot = deepcopy(users)
             product_code = ""
@@ -1159,7 +1162,7 @@ def render_products_page(data_service, notification_service, session_service, ca
                     delivery_partner, _ = _resolve_or_create_owner(
                         users=users,
                         owner_email=delivery_partner_email,
-                        owner_role="delivery_partner",
+                        owner_role="worker",
                         owner_display_name=delivery_partner_display_name,
                         owner_phone=delivery_partner_phone,
                         current_user_email=current_user_email,

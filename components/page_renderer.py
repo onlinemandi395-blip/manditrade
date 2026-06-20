@@ -28,6 +28,7 @@ from modules.profile import render_profile_page
 from modules.products import render_products_page
 from modules.shipments import render_shipments_page
 from modules.setup_console import render_setup_console
+from modules.system_health import render_system_health_page
 from services.admin_drive_service import AdminDriveService
 from services.address_book_service import AddressBookService
 from services.auth_service import AuthService, get_bootstrap_primary_admin, is_bootstrap_admin
@@ -401,7 +402,7 @@ def _filter_role_rows(route: str, rows: list[dict], role: str, user_email: str) 
     if role == "platform_admin":
         return rows
     if route == "orders":
-        if role in {"manufacturer", "mahajan"}:
+        if role == "mahajan":
             return [
                 row
                 for row in rows
@@ -458,8 +459,8 @@ def _filter_role_rows(route: str, rows: list[dict], role: str, user_email: str) 
                     if str(recipient or "").strip()
                 }
                 or (
-                    normalized_role in {"manufacturer", "mahajan"}
-                    and str(row.get("to_role", "")).strip().lower() == normalized_role
+                    normalized_role == "mahajan"
+                    and str(row.get("to_role", "")).strip().lower() == "mahajan"
                     and str(row.get("owner_email", "")).strip().lower() == normalized_email
                 )
             )
@@ -1105,219 +1106,23 @@ def render_app() -> None:
 
             render_form(form_definition, translator, _handle_submit)
     elif page_definition.get("type") == "system":
-        gmail_queue_service = GmailQueueService(data_service)
-        gmail_delivery_service = GmailDeliveryService(data_service)
-        payment_config_service = PaymentConfigService(data_service, cache_service, admin_drive_service)
-        integration_status_service = IntegrationStatusService(
-            cache_service=cache_service,
+        render_system_health_page(
             admin_drive_service=admin_drive_service,
-            gmail_queue_service=gmail_queue_service,
-            oauth_service=oauth_service,
+            cache_service=cache_service,
             data_service=data_service,
+            oauth_service=oauth_service,
+            language_service=language_service,
+            translator=translator,
+            session_service=session_service,
+            rbac_service=rbac_service,
+            page_service=page_service,
+            navigation_service=navigation_service,
+            performance_service=performance_service,
+            theme_service=theme_service,
+            role=role,
+            is_superadmin=is_superadmin,
+            navigation_items=navigation_items,
+            current_route=current_route,
         )
-        status = integration_status_service.get_status()
-        drive_manifest = admin_drive_service.get_runtime_manifest(force_refresh=True)
-        if status["google_drive_status"] != "connected" or status["required_files_status"] != "ok":
-            st.error("Drive-only runtime is blocked. Required Google Drive files are missing or unavailable.")
-        with st.expander("First Time Setup", expanded=bool(drive_manifest.get("missing_files") or drive_manifest.get("missing_folders"))):
-            render_setup_console(admin_drive_service, drive_manifest, translator, key_prefix="system_setup")
-        refresh_cols = st.columns(7)
-        if refresh_cols[0].button("Create Missing Drive Files", use_container_width=True):
-            try:
-                result = admin_drive_service.create_missing_required_files()
-                st.success(
-                    f"Created {len(result.get('created', []))} missing files. "
-                    f"database.json updates: {len(result.get('updated', []))}"
-                )
-                st.rerun()
-            except Exception as exc:
-                st.error(f"Create Missing Drive Files failed: {exc}")
-        if refresh_cols[1].button(
-            "Refresh database.json Mappings",
-            use_container_width=True,
-            disabled=status["database_config_status"].get("status") == "OK",
-        ):
-            try:
-                result = admin_drive_service.refresh_database_config_mapping()
-                st.success(
-                    f"database.json {str(result.get('status', 'UPDATED')).lower()}. Added mappings: "
-                    f"{', '.join(result.get('added_collections', [])) or 'none'}"
-                )
-                st.rerun()
-            except Exception as exc:
-                st.error(f"database.json refresh failed: {exc}")
-        if refresh_cols[2].button("Migrate Root Orders", use_container_width=True):
-            try:
-                result = admin_drive_service.migrate_root_orders()
-                st.success(
-                    f"Root orders migration: {result.get('status', 'DONE')}. "
-                    f"Marketplace added: {result.get('marketplace_added', 0)}, "
-                    f"MandiTrade added: {result.get('manditrade_added', 0)}"
-                )
-                st.rerun()
-            except Exception as exc:
-                st.error(f"Root orders migration failed: {exc}")
-        if refresh_cols[3].button("Refresh Validation", use_container_width=True):
-            admin_drive_service.clear_runtime_cache(clear_validation=True, clear_file_index=False)
-            st.rerun()
-        if refresh_cols[4].button("Refresh Data Cache", use_container_width=True):
-            cache_service.refresh_cache()
-            st.success("Data cache refreshed.")
-        if refresh_cols[5].button("Clear Cache and Reload", use_container_width=True):
-            admin_drive_service.clear_runtime_cache(clear_validation=True, clear_file_index=True)
-            st.rerun()
-        if refresh_cols[6].button("Send Pending Emails", use_container_width=True):
-            try:
-                result = gmail_delivery_service.process_queue(limit=50)
-                st.success(
-                    f"Email queue processed: {result.get('processed', 0)} | "
-                    f"sent: {result.get('sent', 0)} | failed: {result.get('failed', 0)}"
-                )
-                st.rerun()
-            except Exception as exc:
-                st.error(f"Send Pending Emails failed: {exc}")
-        render_table(
-            [
-                {"key": "google_oauth_status", "value": status["google_oauth_status"]},
-                {"key": "drive_mode", "value": status["drive_mode"]},
-                {"key": "google_drive_status", "value": status["google_drive_status"]},
-                {"key": "drive_root_status", "value": status["drive_root_status"]},
-                {"key": "admin_token_status", "value": status["admin_token_status"]},
-                {"key": "drive_write_test", "value": status["drive_write_test"]},
-                {"key": "gmail_send_scope", "value": status["gmail_send_scope"]},
-                {"key": "required_files_status", "value": status["required_files_status"]},
-                {"key": "gmail_status", "value": status["gmail_status"]},
-                {"key": "gmail_delivery_ready", "value": status["gmail_delivery_ready"]},
-                {"key": "gmail_delivery_reason", "value": status["gmail_delivery_reason"]},
-                {"key": "loaded_collection_count", "value": status["loaded_collection_count"]},
-                {"key": "users_count", "value": status["users_count"]},
-                {"key": "products_count", "value": status["products_count"]},
-                {"key": "order_count", "value": status["order_count"]},
-                {"key": "required_folders_count", "value": status["required_folders_count"]},
-                {"key": "required_files_count", "value": status["required_files_count"]},
-                {"key": "missing_files_count", "value": status["missing_files_count"]},
-                {"key": "notifications_count", "value": status["notification_queue_count"]},
-                {"key": "audit_log_count", "value": status["audit_log_count"]},
-                {"key": "queue_count", "value": status["queue_count"]},
-                {"key": "language_files_loaded", "value": status["language_files_loaded"]},
-                {"key": "language_selected", "value": status["language_selected"]},
-                {"key": "available_languages", "value": ", ".join(status["available_languages"])},
-                {"key": "primary_admin_email", "value": status["primary_admin_email"]},
-                {"key": "database_config_status", "value": status["database_config_status"].get("status", "MISSING")},
-                {
-                    "key": "database_mapping_missing_count",
-                    "value": len(status["database_config_status"].get("missing_collections", [])),
-                },
-                {"key": "theme_background_status", "value": status["theme_status"].get("status", "MISSING")},
-                {"key": "theme_background_message", "value": status["theme_status"].get("message", "")},
-                {"key": "theme_background_count", "value": status.get("theme_background_count", 0)},
-                {"key": "theme_active_background_id", "value": status.get("theme_active_background_id", "")},
-                {"key": "user_profiles_folder", "value": status.get("user_profiles_folder", "")},
-                {"key": "user_profiles_count", "value": status.get("user_profiles_count", 0)},
-                {"key": "product_owner_consent_enabled", "value": status.get("product_owner_consent_config", {}).get("enabled", False)},
-                {"key": "product_owner_consent_count", "value": status.get("product_owner_consent_count", 0)},
-                {"key": "delivery_partner_consent_enabled", "value": status.get("delivery_partner_consent_config", {}).get("enabled", False)},
-                {"key": "delivery_partner_consent_count", "value": status.get("delivery_partner_consent_count", 0)},
-            ],
-            caption="Integration status",
-        )
-        render_table([status["database_config_status"]], caption="database.json mapping status")
-        render_table(status["required_folders"], caption="Required Drive folders")
-        render_table(status["required_files"], caption="Required Drive files")
-        render_table(
-            [{"profile_path": path} for path in status.get("user_profile_sample_paths", [])],
-            caption="User profile file samples",
-        )
-        render_table([status.get("product_owner_consent_config", {})], caption="Product owner consent config")
-        render_table([status.get("delivery_partner_consent_config", {})], caption="Delivery partner consent config")
-        render_table([status["theme_status"]], caption="Theme background trace")
-        render_table(
-            [
-                {
-                    "selected_language": language_service.get_current_language(),
-                    "available_languages": ", ".join(language_service.get_available_languages()),
-                    "loaded_key_counts": ", ".join(f"{code}:{count}" for code, count in language_service.get_key_count_map().items()),
-                    "missing_key_count": len(language_service.get_missing_keys_for_current_language()),
-                    "sample_sidebar_products": translator.t("sidebar.products"),
-                    "sample_module_products_title": translator.t("module.products.title"),
-                    "sample_auth_title": translator.t("auth.title"),
-                }
-            ],
-            caption="Language Runtime",
-        )
-        st.markdown("### Merchant Payment Configuration")
-        payment_config_status = dict(status.get("payment_config", {}) or {})
-        render_table([payment_config_status], caption="Current payment receiver settings")
-        payment_cols = st.columns(2)
-        payment_enabled = payment_cols[0].checkbox(
-            "UPI Payments Enabled",
-            value=bool(payment_config_status.get("enabled", True)),
-            key="system_health_payment_enabled",
-        )
-        payment_currency = payment_cols[1].text_input(
-            "Currency",
-            value=str(payment_config_status.get("currency", "INR") or "INR"),
-            key="system_health_payment_currency",
-        )
-        payment_upi_id = st.text_input(
-            "Merchant UPI ID",
-            value=str(payment_config_status.get("upi_id", "") or ""),
-            key="system_health_payment_upi_id",
-        )
-        payment_payee_name = st.text_input(
-            "Payee Name",
-            value=str(payment_config_status.get("payee_name", "") or ""),
-            key="system_health_payment_payee_name",
-        )
-        if payment_enabled and str(payment_upi_id).strip():
-            payment_link = PaymentService.build_upi_link_from_values(
-                upi_id=str(payment_upi_id).strip(),
-                payee_name=str(payment_payee_name or "MandiTrade").strip(),
-                amount=1.0,
-                currency=str(payment_currency or "INR").strip() or "INR",
-                reference="PREVIEW0001",
-            )
-            st.caption("Live UPI Preview")
-            st.code(payment_link)
-            qr_bytes = QRService().build_qr_png_bytes(payment_link)
-            if qr_bytes:
-                st.image(qr_bytes, width=180)
-        if st.button("Save Payment Receiver Settings", use_container_width=True, key="system_health_save_payment_config"):
-            try:
-                result = payment_config_service.save_payment_receiver_settings(
-                    enabled=bool(payment_enabled),
-                    currency=str(payment_currency or "INR"),
-                    upi_id=str(payment_upi_id or ""),
-                    payee_name=str(payment_payee_name or ""),
-                    changed_by=session_service.get_user().get("email", ""),
-                    source_screen="system_health",
-                )
-                if result.get("changed"):
-                    impact = result.get("impact", {}) or {}
-                    st.success(
-                        "Merchant payment receiver settings saved. "
-                        f"Pending payments updated: {impact.get('pending_payments_updated', 0)} | "
-                        f"Pending orders updated: {impact.get('pending_orders_updated', 0)}"
-                    )
-                else:
-                    st.success("Merchant payment receiver settings saved. No live queue updates were required.")
-                st.rerun()
-            except Exception as exc:
-                st.error(f"Save Payment Receiver Settings failed: {exc}")
-        render_theme_manager(theme_service, allow_set_default=(role == "platform_admin"), title="Theme Background Control", key_prefix="system_health_theme")
-        if is_superadmin:
-            render_detail_panel("Runtime", status["cache_status"])
-            with st.expander("Auth Runtime Debug", expanded=False):
-                st.write(
-                    {
-                        "user": session_service.get_user(),
-                        "permissions": rbac_service.get_permissions(role),
-                        "landing_page": page_service.get_landing_page(role, navigation_service),
-                        "filtered_nav_count": len(navigation_items),
-                        "current_route": current_route,
-                    }
-                )
-            with st.expander("Performance Debug", expanded=False):
-                st.write(performance_service.get_metrics())
     else:
         render_empty_state("Unsupported page type.")

@@ -27,7 +27,7 @@ class ProductConsentService:
         config_key = self.ROLE_CONFIG_KEYS.get(normalized_role, "product_owner_consent")
         config = dict(self.cache_service.get_config("product_owner_consent") or {})
         consent = dict(config.get(config_key, config.get("product_owner_consent", config)) or {})
-        default_title = "Product Onboarding Consent Agreement" if normalized_role == "owner" else "Delivery Partner Pickup and Safe Delivery Consent Agreement"
+        default_title = "Product Onboarding Consent Agreement" if normalized_role == "owner" else "Worker Pickup and Safe Delivery Consent Agreement"
         default_subject = "Consent OTP for product onboarding" if normalized_role == "owner" else "Consent OTP for delivery partner onboarding"
         return {
             "enabled": bool(consent.get("enabled", True)),

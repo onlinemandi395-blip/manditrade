@@ -177,58 +177,35 @@ class DataService:
         service_config.setdefault("delivery_notes", "")
         product["service_config"] = service_config
         owner = dict(product.get("owner", {}) or {})
-        if not owner:
-            if product.get("manufacturer"):
-                manufacturer = dict(product.get("manufacturer", {}) or {})
+        if not owner and product.get("mahajan"):
+            mahajan = dict(product.get("mahajan", {}) or {})
+            owner = {
+                "email": mahajan.get("email", ""),
+                "role": "mahajan",
+                "display_name": mahajan.get("name", ""),
+                "user_id": mahajan.get("mahajan_id", ""),
+            }
+        elif not owner:
+            legacy_mahajans = product.get("mahajan_tags") or []
+            if legacy_mahajans:
+                first_owner = legacy_mahajans[0]
                 owner = {
-                    "email": manufacturer.get("email", ""),
+                    "email": first_owner.get("email", ""),
                     "role": "mahajan",
-                    "display_name": manufacturer.get("name", ""),
-                    "user_id": manufacturer.get("manufacturer_id", ""),
+                    "display_name": first_owner.get("name", ""),
+                    "user_id": first_owner.get("mahajan_id", ""),
                 }
-            elif product.get("mahajan"):
-                mahajan = dict(product.get("mahajan", {}) or {})
-                owner = {
-                    "email": mahajan.get("email", ""),
-                    "role": "mahajan",
-                    "display_name": mahajan.get("name", ""),
-                    "user_id": mahajan.get("mahajan_id", ""),
-                }
-            else:
-                legacy_manufacturers = product.get("manufacturer_tags") or []
-                legacy_mahajans = product.get("mahajan_tags") or []
-                if legacy_manufacturers:
-                    first_owner = legacy_manufacturers[0]
-                    owner = {
-                        "email": first_owner.get("email", ""),
-                        "role": "mahajan",
-                        "display_name": first_owner.get("name", ""),
-                        "user_id": first_owner.get("manufacturer_id", ""),
-                    }
-                elif legacy_mahajans:
-                    first_owner = legacy_mahajans[0]
-                    owner = {
-                        "email": first_owner.get("email", ""),
-                        "role": "mahajan",
-                        "display_name": first_owner.get("name", ""),
-                        "user_id": first_owner.get("mahajan_id", ""),
-                    }
         product["owner"] = owner
-        if str(product["owner"].get("role", "")).strip().lower() == "manufacturer":
-            product["owner"]["role"] = "mahajan"
         delivery_partner = dict(product.get("delivery_partner", {}) or {})
         product["delivery_partner"] = {
             "email": str(delivery_partner.get("email", "")).strip().lower(),
-            "role": "delivery_partner" if str(delivery_partner.get("email", "")).strip() else "",
+            "role": "worker" if str(delivery_partner.get("email", "")).strip() else "",
             "display_name": str(delivery_partner.get("display_name", "")).strip(),
             "user_id": str(delivery_partner.get("user_id", "")).strip(),
             "phone": str(delivery_partner.get("phone", "")).strip(),
         }
-        product.pop("manufacturer_tags", None)
         product.pop("mahajan_tags", None)
-        product.pop("manufacturer_mapping", None)
         product.pop("mahajan_mapping", None)
-        product.pop("manufacturer", None)
         product.pop("mahajan", None)
         inventory = dict(product.get("inventory", {}) or {})
         inventory.setdefault("available_quantity", 0)

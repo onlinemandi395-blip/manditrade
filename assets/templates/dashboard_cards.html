@@ -13,14 +13,14 @@
     }
     .mt-dashboard-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 1rem;
       padding: 0.05rem 0.05rem 0.35rem;
     }
     .mt-dashboard-card {
       position: relative;
       overflow: hidden;
-      min-height: 168px;
+      min-height: 210px;
       padding: 1.05rem;
       border-radius: 22px;
       background:
@@ -60,6 +60,36 @@
       color: rgba(255, 255, 255, 0.72);
       font-size: 13px;
     }
+    .mt-dashboard-card__chart {
+      margin-top: 0.9rem;
+      width: 100%;
+      height: 52px;
+      display: block;
+    }
+    .mt-dashboard-card__chart-grid {
+      stroke: rgba(255, 255, 255, 0.08);
+      stroke-width: 1;
+    }
+    .mt-dashboard-card__chart-fill {
+      fill: rgba(217, 4, 41, 0.16);
+    }
+    .mt-dashboard-card__chart-line {
+      fill: none;
+      stroke: #f20530;
+      stroke-width: 3;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .mt-dashboard-card__chart-dot {
+      fill: #ffffff;
+      stroke: #d90429;
+      stroke-width: 2;
+    }
+    @media (max-width: 900px) {
+      .mt-dashboard-grid {
+        grid-template-columns: 1fr;
+      }
+    }
   </style>
 </head>
 <body>
@@ -73,15 +103,40 @@
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#39;");
+    const buildSparkline = (series) => {
+      const values = Array.isArray(series) && series.length ? series.map((value) => Number(value || 0)) : [0, 0, 0, 0, 0, 0, 0];
+      const width = 280;
+      const height = 52;
+      const max = Math.max(...values, 1);
+      const step = values.length > 1 ? width / (values.length - 1) : width;
+      const points = values.map((value, index) => {
+        const x = index * step;
+        const y = height - ((value / max) * (height - 6)) - 3;
+        return [x, y];
+      });
+      const linePath = points.map((point, index) => `${index === 0 ? "M" : "L"}${point[0]},${point[1]}`).join(" ");
+      const fillPath = `${linePath} L ${width},${height} L 0,${height} Z`;
+      const dots = points.map((point) => `<circle class="mt-dashboard-card__chart-dot" cx="${point[0]}" cy="${point[1]}" r="3"></circle>`).join("");
+      const guides = [12, 26, 40].map((y) => `<line class="mt-dashboard-card__chart-grid" x1="0" y1="${y}" x2="${width}" y2="${y}"></line>`).join("");
+      return `
+        <svg class="mt-dashboard-card__chart" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
+          ${guides}
+          <path class="mt-dashboard-card__chart-fill" d="${fillPath}"></path>
+          <path class="mt-dashboard-card__chart-line" d="${linePath}"></path>
+          ${dots}
+        </svg>
+      `;
+    };
     root.innerHTML = cards.map((card, index) => `
       <article class="mt-dashboard-card">
-        <div class="mt-dashboard-card__eyebrow">Metric ${index + 1}</div>
+        <div class="mt-dashboard-card__eyebrow">${escapeHtml(card.eyebrow || `Metric ${index + 1}`)}</div>
         <div class="mt-dashboard-card__title">${escapeHtml(card.title)}</div>
         <div class="mt-dashboard-card__value">${escapeHtml(card.value)}</div>
         <div class="mt-dashboard-card__subtitle">${escapeHtml(card.subtitle)}</div>
+        ${buildSparkline(card.series)}
       </article>
     `).join("");
-    const height = Math.min(Math.max(document.body.scrollHeight + 12, 180), 520);
+    const height = Math.min(Math.max(document.body.scrollHeight + 12, 360), 980);
     if (window.parent) {
       window.parent.postMessage({ type: "streamlit:setFrameHeight", height }, "*");
     }

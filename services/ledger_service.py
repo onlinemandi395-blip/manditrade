@@ -227,8 +227,6 @@ class LedgerService:
         }
         for row in summaries:
             owner_role = str(row.get("owner_role", "")).strip().lower()
-            if owner_role == "manufacturer":
-                owner_role = "mahajan"
             if owner_role in grouped:
                 grouped[owner_role].append(row)
             else:

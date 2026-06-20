@@ -57,7 +57,7 @@ def render_shipments_page(data_service, order_service, notification_service, ses
             render_table(shipments, caption=t("ui.all_shipments"))
         return
 
-    if role in {"manufacturer", "mahajan"}:
+    if role == "mahajan":
         my_orders = [row for row in orders if str(row.get("owner_email", "")).strip().lower() == email]
         tabs = st.tabs(["Payment Pending", t("ui.accepted"), t("ui.ready_for_pickup"), t("ui.my_shipments")])
         with tabs[0]:
@@ -80,7 +80,7 @@ def render_shipments_page(data_service, order_service, notification_service, ses
             assignable_orders = [row for row in my_orders if str(row.get("status", "")).upper() == "READY_FOR_PICKUP"]
             delivery_partners = [
                 row for row in users
-                if str(row.get("role", "")).strip().lower() == "delivery_partner"
+                if str(row.get("role", "")).strip().lower() in {"worker", "delivery_partner"}
                 and str(row.get("status", "ACTIVE")).strip().upper() == "ACTIVE"
             ]
             if assignable_orders and delivery_partners:
@@ -88,7 +88,7 @@ def render_shipments_page(data_service, order_service, notification_service, ses
                 partner_map = {row.get("email", ""): row for row in delivery_partners}
                 selected_order_id = st.selectbox("Ready Order", options=[""] + list(order_map.keys()), key="owner_shipments_ready_order")
                 selected_partner_email = st.selectbox(
-                    t("role.delivery_partner"),
+                    t("role.worker"),
                     options=[""] + list(partner_map.keys()),
                     format_func=lambda value: (
                         f"{partner_map[value].get('display_name', value)} ({value})" if value in partner_map else value
@@ -109,13 +109,13 @@ def render_shipments_page(data_service, order_service, notification_service, ses
                     st.success(f"{t('ui.pickup_assigned')}: {shipment.get('shipment_id', '')}")
                     st.rerun()
             elif assignable_orders and not delivery_partners:
-                st.info(t("ui.no_active_delivery_partners"))
+                st.info("No active workers are available for shipment assignment.")
         with tabs[3]:
             my_shipments = [row for row in shipments if str(row.get("owner_email", "")).strip().lower() == email]
             render_table(my_shipments, caption=t("ui.my_shipments"))
         return
 
-    if role == "delivery_partner":
+    if role in {"worker", "delivery_partner"}:
         my_shipments = [row for row in shipments if str(row.get("delivery_partner_email", "")).strip().lower() == email]
         tabs = st.tabs([t("ui.pickup_queue"), t("ui.picked_up"), t("ui.in_transit"), t("ui.delivered"), t("ui.all_assigned")])
         with tabs[0]:

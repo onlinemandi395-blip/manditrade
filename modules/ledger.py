@@ -57,11 +57,11 @@ def render_ledger_page(data_service, notification_service, session_service, tran
         if selected_filter != "all":
             if selected_filter == "other":
                 filtered_summaries = [
-                    row for row in summaries if str(row.get("owner_role", "")).strip().lower() not in {"manufacturer", "mahajan"}
+                    row for row in summaries if str(row.get("owner_role", "")).strip().lower() != "mahajan"
                 ]
             else:
                 filtered_summaries = [
-                    row for row in summaries if str(row.get("owner_role", "")).strip().lower() in {selected_filter, "manufacturer"}
+                    row for row in summaries if str(row.get("owner_role", "")).strip().lower() == selected_filter
                 ]
         selected_account = st.selectbox(
             t("ui.open_ledger_account"),

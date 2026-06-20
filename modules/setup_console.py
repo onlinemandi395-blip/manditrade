@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
 
 import streamlit as st
 
@@ -14,6 +15,39 @@ from services.payment_config_service import PaymentConfigService
 from services.product_consent_service import ProductConsentService
 from services.qr_service import QRService
 from services.theme_service import ThemeService
+
+
+def _read_seed_payload(path: Path) -> dict:
+    if not path.exists():
+        return {}
+    return json.loads(path.read_text(encoding="utf-8-sig"))
+
+
+def _build_seed_summary(mode: str) -> list[dict]:
+    seed_root = Path("bootstrap_seed") / mode
+    users = _read_seed_payload(seed_root / "01_identity" / "users.json").get("users", [])
+    products = _read_seed_payload(seed_root / "02_catalog" / "products.json").get("products", [])
+    marketplace_orders = _read_seed_payload(seed_root / "05_orders" / "marketplace" / "orders.json").get("orders", [])
+    manditrade_orders = _read_seed_payload(seed_root / "05_orders" / "mandiplace" / "orders.json").get("orders", [])
+    shipments = _read_seed_payload(seed_root / "06_shipments" / "shipments.json").get("shipments", [])
+    payments = _read_seed_payload(seed_root / "07_ledger" / "payments.json").get("payments", [])
+    ledger = _read_seed_payload(seed_root / "07_ledger" / "ledger.json").get("ledger", [])
+    notifications = _read_seed_payload(seed_root / "09_notifications" / "notifications.json").get("notifications", [])
+    role_counts: dict[str, int] = {}
+    for user in users:
+        role = str(user.get("role", "")).strip().lower()
+        if role:
+            role_counts[role] = role_counts.get(role, 0) + 1
+    return [
+        {"area": "Users", "count": len(users), "detail": ", ".join(f"{role}: {count}" for role, count in sorted(role_counts.items()))},
+        {"area": "Products", "count": len(products), "detail": "Catalog ready"},
+        {"area": "Marketplace Orders", "count": len(marketplace_orders), "detail": "B2C order simulation"},
+        {"area": "MandiTrade Orders", "count": len(manditrade_orders), "detail": "B2B order simulation"},
+        {"area": "Shipments", "count": len(shipments), "detail": "Pickup to delivery stages"},
+        {"area": "Payments", "count": len(payments), "detail": "Pending and verified payment records"},
+        {"area": "Ledger", "count": len(ledger), "detail": "Runtime accounting entries"},
+        {"area": "Notifications", "count": len(notifications), "detail": "System and role updates"},
+    ]
 
 
 def _get_bootstrap_payment_settings(admin_drive_service) -> dict:
@@ -66,6 +100,7 @@ def render_setup_console(admin_drive_service, drive_manifest: dict, translator=N
     )
     st.session_state["mt_bootstrap_mode"] = bootstrap_mode
     st.caption("Use Dummy Simulation to initialize the app with realistic demo products, orders, payments, shipments, and notifications.")
+    render_table(_build_seed_summary(bootstrap_mode), caption="Bootstrap seed summary")
     st.markdown("### Bootstrap Seed Import")
     st.caption(
         "Upload a zip of the selected bootstrap folder structure. "
@@ -78,6 +113,7 @@ def render_setup_console(admin_drive_service, drive_manifest: dict, translator=N
     )
     seed_folder_hint = Path("bootstrap_seed") / bootstrap_mode
     st.code(str(seed_folder_hint))
+    st.caption("Zip the full selected seed folder so the archive contains the config, identity, catalog, orders, shipments, ledger, notifications, and runtime folders together.")
 
     status_cards = st.columns(6)
     status_cards[0].metric("Google OAuth", "Ready" if drive_manifest.get("connected") else "Missing")

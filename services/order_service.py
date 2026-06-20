@@ -740,7 +740,7 @@ class OrderService:
             title="Pickup assigned",
             message=f"Pickup assigned for order {order_id}.",
             event_type="PICKUP_ASSIGNED",
-            to_role="delivery_partner",
+            to_role="worker",
             source_entity="shipments",
             source_id=shipment.get("shipment_id", ""),
             created_by=assigned_by,
@@ -764,7 +764,7 @@ class OrderService:
         if not order or not shipment:
             raise ValueError("Shipment not found.")
         if str(shipment.get("delivery_partner_email", "")).strip().lower() != str(delivery_partner_email).strip().lower():
-            raise ValueError("Shipment is not assigned to this delivery partner.")
+            raise ValueError("Shipment is not assigned to this worker.")
         now = datetime.now(UTC).isoformat()
         shipment["status"] = "PICKED_UP"
         shipment["picked_up_at"] = now
@@ -826,7 +826,7 @@ class OrderService:
         if not order or not shipment:
             raise ValueError("Shipment not found.")
         if str(shipment.get("delivery_partner_email", "")).strip().lower() != str(delivery_partner_email).strip().lower():
-            raise ValueError("Shipment is not assigned to this delivery partner.")
+            raise ValueError("Shipment is not assigned to this worker.")
         now = datetime.now(UTC).isoformat()
         shipment["status"] = "IN_TRANSIT"
         shipment["in_transit_at"] = now
@@ -842,7 +842,7 @@ class OrderService:
         if not order or not shipment:
             raise ValueError("Shipment not found.")
         if str(shipment.get("delivery_partner_email", "")).strip().lower() != str(delivery_partner_email).strip().lower():
-            raise ValueError("Shipment is not assigned to this delivery partner.")
+            raise ValueError("Shipment is not assigned to this worker.")
         expected_otp = str(order.get("delivery_otp", "")).strip()
         provided_otp = str(otp_code or "").strip()
         if not expected_otp or provided_otp != expected_otp:

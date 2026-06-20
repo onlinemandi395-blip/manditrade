@@ -80,14 +80,14 @@ def build_required_drive_files(primary_admin_email: str, primary_admin_name: str
                         "enabled": True,
                         "otp_length": 6,
                         "otp_expiry_minutes": 15,
-                        "agreement_title": "Delivery Partner Pickup and Safe Delivery Consent Agreement",
+                        "agreement_title": "Worker Pickup and Safe Delivery Consent Agreement",
                         "agreement_body": (
-                            "This agreement confirms that the delivery partner {owner_email} authorizes MandiTrade admin "
+                            "This agreement confirms that the worker {owner_email} authorizes MandiTrade admin "
                             "{requested_by} to assign pickup and delivery for the product '{product_name}'."
                         ),
-                        "email_subject": "Consent OTP for delivery partner onboarding on MandiTrade",
+                        "email_subject": "Consent OTP for worker onboarding on MandiTrade",
                         "email_body_template": (
-                            "{agreement_title}\n\n{agreement_body}\n\nProduct: {product_name}\nDelivery Partner Email: {owner_email}\n"
+                            "{agreement_title}\n\n{agreement_body}\n\nProduct: {product_name}\nWorker Email: {owner_email}\n"
                             "Requested By: {requested_by}\nConsent OTP: {otp_code}\n"
                         ),
                     },
