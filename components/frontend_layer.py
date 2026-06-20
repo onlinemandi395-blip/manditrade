@@ -51,16 +51,38 @@ def render_frontend_cta_link(*, label: str, href: str, target: str = "_self") ->
               padding: 0.72rem 1rem;
               box-sizing: border-box;
               border-radius: 14px;
-              text-decoration: none;
               color: #ffffff;
               background: linear-gradient(135deg, #f20530, #d90429 60%, #7a0016);
               border: 1px solid transparent;
               font-weight: 700;
+              cursor: pointer;
+              appearance: none;
+              text-decoration: none;
             }}
           </style>
         </head>
         <body>
-          <a class="mt-cta-link" href="{safe_href}" target="{safe_target}" rel="noopener noreferrer">{safe_label}</a>
+          <button class="mt-cta-link" type="button" id="mt-cta">{safe_label}</button>
+          <script>
+            const href = {safe_href!r};
+            const target = {safe_target!r};
+            const openLink = () => {{
+              try {{
+                if (target === "_top" && window.top) {{
+                  window.top.location.href = href;
+                  return;
+                }}
+              }} catch (error) {{}}
+              try {{
+                if (window.parent) {{
+                  window.parent.location.href = href;
+                  return;
+                }}
+              }} catch (error) {{}}
+              window.location.href = href;
+            }};
+            document.getElementById("mt-cta")?.addEventListener("click", openLink);
+          </script>
         </body>
         </html>
         """,

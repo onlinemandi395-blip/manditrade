@@ -20,7 +20,7 @@ def render_login_page(
     status_body: str = "Use the configured Google account to enter your workspace.",
     access_title: str = "Shared access",
     access_body: str = "All roles enter through the same secure sign-in and are routed by their account permissions.",
-    show_unknown_user_note: bool = True,
+    show_unknown_user_note: bool = False,
 ) -> None:
     auth_config = auth_service.get_auth_config() if auth_service is not None else {}
     login_config = auth_config.get("login_page", {})
