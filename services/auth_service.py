@@ -3,6 +3,13 @@ from __future__ import annotations
 import streamlit as st
 
 
+def normalize_role(role: str) -> str:
+    normalized = str(role or "").strip().lower()
+    return {
+        "client_buyer": "merchant_buyer",
+    }.get(normalized, normalized)
+
+
 def get_bootstrap_primary_admin() -> dict:
     platform_section = dict(st.secrets.get("platform", {})) if "platform" in st.secrets else {}
     admin_section = dict(st.secrets.get("admin", {})) if "admin" in st.secrets else {}
@@ -42,7 +49,7 @@ class AuthService:
         return [provider for provider in providers if provider.get("enabled", False)]
 
     def get_unknown_user_default_role(self) -> str:
-        return str(self.get_auth_config().get("unknown_user_default_role", "public_buyer"))
+        return normalize_role(str(self.get_auth_config().get("unknown_user_default_role", "public_buyer")))
 
     def get_registered_users(self) -> list[dict]:
         return list(self.cache_service.get_config("users").get("users", []))
@@ -73,7 +80,7 @@ class AuthService:
             return {
                 **matched,
                 "email": normalized_email,
-                "role": str(matched.get("role", self.get_unknown_user_default_role())),
+                "role": normalize_role(str(matched.get("role", self.get_unknown_user_default_role()))),
                 "status": "ACTIVE",
                 "display_name": str(matched.get("display_name", normalized_email.split("@")[0] if normalized_email else "")),
                 "known_user": True,

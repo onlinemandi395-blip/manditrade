@@ -21,6 +21,13 @@ WHITE_SOFT = "#f3f3f3"
 GRID = "#3a3a3a"
 
 
+def _normalize_role(value: str) -> str:
+    normalized = str(value or "").strip().lower()
+    return {
+        "client_buyer": "merchant_buyer",
+    }.get(normalized, normalized)
+
+
 def _recent_activity_series(rows: list[dict], *, key: str = "created_at") -> list[int]:
     counts = Counter()
     for row in rows:
@@ -70,17 +77,17 @@ def _build_card_series(metric: str, rows: list[dict], current_user: dict) -> lis
     if metric in {"active_shipments", "my_active_shipments"}:
         scoped_rows = rows if metric == "active_shipments" else [row for row in rows if str(row.get("owner_email", "")).strip().lower() == current_email]
         return _status_series(scoped_rows, ["PICKUP_ASSIGNED", "PICKED_UP", "IN_TRANSIT", "DELIVERED"])
-    if metric in {"merchants_count", "client_buyers_count", "public_buyers_count", "workers_count"}:
+    if metric in {"merchants_count", "merchant_buyers_count", "public_buyers_count", "workers_count"}:
         role_map = {
             "merchants_count": "merchant",
-            "client_buyers_count": "client_buyer",
+            "merchant_buyers_count": "merchant_buyer",
             "public_buyers_count": "public_buyer",
             "workers_count": "worker",
         }
         if metric == "workers_count":
-            scoped_rows = [row for row in rows if str(row.get("role", "")).strip().lower() in {"worker", "delivery_partner"}]
+            scoped_rows = [row for row in rows if _normalize_role(row.get("role", "")) in {"worker", "delivery_partner"}]
         else:
-            scoped_rows = [row for row in rows if str(row.get("role", "")).strip().lower() == role_map[metric]]
+            scoped_rows = [row for row in rows if _normalize_role(row.get("role", "")) == role_map[metric]]
         return _recent_activity_series(scoped_rows, key="created_at")
     if metric == "owned_products":
         scoped_rows = [row for row in rows if str(((row.get("owner") or {}).get("email", ""))).strip().lower() == current_email]
@@ -116,12 +123,12 @@ def _resolve_card_value(card: dict, rows: list[dict], current_user: dict) -> int
     current_role = str(current_user.get("role", "")).strip().lower()
     if metric == "merchants_count":
         return len([row for row in rows if str(row.get("role", "")).strip().lower() == "merchant"])
-    if metric == "client_buyers_count":
-        return len([row for row in rows if str(row.get("role", "")).strip().lower() == "client_buyer"])
+    if metric == "merchant_buyers_count":
+        return len([row for row in rows if _normalize_role(row.get("role", "")) == "merchant_buyer"])
     if metric == "public_buyers_count":
-        return len([row for row in rows if str(row.get("role", "")).strip().lower() == "public_buyer"])
+        return len([row for row in rows if _normalize_role(row.get("role", "")) == "public_buyer"])
     if metric == "workers_count":
-        return len([row for row in rows if str(row.get("role", "")).strip().lower() in {"worker", "delivery_partner"}])
+        return len([row for row in rows if _normalize_role(row.get("role", "")) in {"worker", "delivery_partner"}])
     if metric == "owned_products":
         return len([row for row in rows if str(((row.get("owner") or {}).get("email", ""))).strip().lower() == current_email])
     if metric == "orders_received":
@@ -636,8 +643,8 @@ def _summary_filtered_rows(metric: str, rows: list[dict], current_user: dict) ->
     current_email = str(current_user.get("email", "")).strip().lower()
     if metric == "merchants_count":
         return [row for row in rows if str(row.get("role", "")).strip().lower() == "merchant"]
-    if metric == "client_buyers_count":
-        return [row for row in rows if str(row.get("role", "")).strip().lower() == "client_buyer"]
+    if metric == "merchant_buyers_count":
+        return [row for row in rows if _normalize_role(row.get("role", "")) == "merchant_buyer"]
     if metric == "public_buyers_count":
         return [row for row in rows if str(row.get("role", "")).strip().lower() == "public_buyer"]
     if metric == "workers_count":

@@ -104,7 +104,7 @@ def _tabs_for_role(role: str, current_user_email: str = "", translator=None) -> 
 def _can_pay_order(selected_order: dict, role: str, current_user_email: str) -> bool:
     normalized_email = str(current_user_email or "").strip().lower()
     return (
-        role in {"public_buyer", "client_buyer", "merchant"}
+        _normalize_role(role) in {"public_buyer", "merchant_buyer", "merchant"}
         and str(selected_order.get("status", "")).upper() == "PAYMENT_PENDING"
         and normalized_email in {
             str(selected_order.get("buyer_email", "")).strip().lower(),
@@ -113,6 +113,13 @@ def _can_pay_order(selected_order: dict, role: str, current_user_email: str) -> 
             str(((selected_order.get("requester") or {}).get("email", ""))).strip().lower(),
         }
     )
+
+
+def _normalize_role(role: str) -> str:
+    normalized = str(role or "").strip().lower()
+    return {
+        "client_buyer": "merchant_buyer",
+    }.get(normalized, normalized)
 
 
 def _render_payment_panel(payment_record: dict, *, payment_service: PaymentService | None = None, translator=None) -> None:
@@ -241,7 +248,7 @@ def render_orders_page(rows: list[dict], role: str, *, data_service=None, order_
             key_prefix = f"{role}_{label}_{str(label).strip().lower().replace(' ', '_')}"
             filtered_rows = filter_fn(rows)
             if not filtered_rows:
-                if role in {"public_buyer", "client_buyer"}:
+                if _normalize_role(role) in {"public_buyer", "merchant_buyer"}:
                     render_empty_state("No orders found.")
                 else:
                     render_table(filtered_rows, caption=label)
@@ -253,7 +260,7 @@ def render_orders_page(rows: list[dict], role: str, *, data_service=None, order_
                     for row in data_service.get_collection_ref("products")
                     if str(row.get("product_id", "")).strip()
                 }
-            if role in {"public_buyer", "client_buyer"}:
+            if _normalize_role(role) in {"public_buyer", "merchant_buyer"}:
                 selected_order_id = _render_order_cards(
                     filtered_rows,
                     products_by_id=products_by_id,
@@ -265,7 +272,7 @@ def render_orders_page(rows: list[dict], role: str, *, data_service=None, order_
                 render_table(filtered_rows, caption=label)
                 selected_order_id = ""
             order_map = {str(row.get("order_id", "")).strip(): row for row in filtered_rows if str(row.get("order_id", "")).strip()}
-            if role not in {"public_buyer", "client_buyer"}:
+            if _normalize_role(role) not in {"public_buyer", "merchant_buyer"}:
                 selected_order_id = st.selectbox(
                     f"{label} {t('ui.order_detail')}",
                     options=[""] + list(order_map.keys()),
@@ -338,7 +345,7 @@ def render_orders_page(rows: list[dict], role: str, *, data_service=None, order_
                             st.rerun()
                         except Exception as exc:
                             st.error(f"Delete Order failed: {exc}")
-            if role in {"public_buyer", "client_buyer"}:
+            if _normalize_role(role) in {"public_buyer", "merchant_buyer"}:
                 st.markdown(f"#### {t('ui.order_status_tracker')}")
                 _render_buyer_status_tracker(selected_order, translator)
                 otp_status = str(selected_order.get("otp_status", "")).upper()

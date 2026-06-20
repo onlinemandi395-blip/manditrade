@@ -174,6 +174,7 @@ def _normalize_role_key(role: str) -> str:
         "mahajan": "merchant",
         "manufacturer": "merchant",
         "delivery_partner": "worker",
+        "client_buyer": "merchant_buyer",
     }
     return legacy_role_map.get(normalized_role, normalized_role)
 

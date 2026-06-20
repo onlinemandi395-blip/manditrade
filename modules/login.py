@@ -29,7 +29,7 @@ def render_login_page(
     subtitle = translator.t(login_config.get("subtitle_key", "auth.subtitle"))
     feature_rows = login_config.get("features", []) or [
         {"icon": "[MJ]", "label_key": "login.feature.merchants"},
-        {"icon": "[CB]", "label_key": "login.feature.client_buyers"},
+        {"icon": "[MB]", "label_key": "login.feature.merchant_buyers"},
         {"icon": "[MK]", "label_key": "login.feature.marketplace"},
     ]
     feature_markup = "".join(

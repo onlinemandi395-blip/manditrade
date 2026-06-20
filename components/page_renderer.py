@@ -101,6 +101,13 @@ _DASHBOARD_VIEWPORT_CSS = """
 _REQUIRED_BUSINESS_FIELDS = ("business_name", "upi_id", "gst_number", "invoice_name")
 
 
+def _normalize_role(role: str) -> str:
+    normalized = str(role or "").strip().lower()
+    return {
+        "client_buyer": "merchant_buyer",
+    }.get(normalized, normalized)
+
+
 def _sanitize_cart_rows(items: list[dict]) -> list[dict]:
     return [
         {
@@ -560,7 +567,7 @@ def _filter_role_rows(route: str, rows: list[dict], role: str, user_email: str) 
                     or str(row.get("owner_email", "")).strip().lower() == normalized_email
                 )
             ]
-        if role in {"public_buyer", "client_buyer"}:
+        if _normalize_role(role) in {"public_buyer", "merchant_buyer"}:
             return [
                 row
                 for row in rows
@@ -1114,7 +1121,7 @@ def render_app() -> None:
 
         def on_request(product: dict) -> None:
             try:
-                effective_bulk_channel = "manditrade" if role == "client_buyer" else "marketplace"
+                effective_bulk_channel = "manditrade" if _normalize_role(role) == "merchant_buyer" else "marketplace"
                 rules = order_service.get_channel_quantity_rules(product, effective_bulk_channel)
                 cart_service.add_to_cart(product, channel=effective_bulk_channel, quantity=float(rules.get("minimum_quantity", 1) or 1))
                 st.session_state["mt_manditrade_stage"] = "browse"
@@ -1180,7 +1187,7 @@ def render_app() -> None:
                             geography_payload=cache_service.get_config("india_geography"),
                         )
                         profile_complete, missing_profile_fields = _profile_business_completion_status(user_profile)
-                        requires_business_profile = role == "client_buyer"
+                        requires_business_profile = _normalize_role(role) == "merchant_buyer"
                         business_profile = {"details": {}, "missing": []}
                         if requires_business_profile and not profile_complete:
                             business_profile = _render_checkout_business_profile_form(
@@ -1241,7 +1248,7 @@ def render_app() -> None:
                                         )
                                     product_lookup = manditrade_product_lookup
                                     created_orders = []
-                                    if role == "client_buyer":
+                                    if _normalize_role(role) == "merchant_buyer":
                                         for item in cart.get("items", []):
                                             product = product_lookup.get(str(item.get("product_id", "")).strip())
                                             if not product:

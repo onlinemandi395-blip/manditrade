@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from services.auth_service import normalize_role
 
 class PageService:
     ESSENTIAL_DEFINITIONS = {
@@ -29,6 +30,7 @@ class PageService:
         self.rbac_service = rbac_service
 
     def get_page_definition(self, route: str, role: str) -> dict:
+        role = normalize_role(role)
         definition = self.cache_service.get_config("modules").get("modules", {}).get(route, {})
         if not definition and route in self.ESSENTIAL_DEFINITIONS and self.rbac_service.can_access(role, route):
             return {
@@ -52,6 +54,7 @@ class PageService:
         return definition
 
     def get_landing_page(self, role: str, navigation_service, user: dict | None = None) -> str:
+        role = normalize_role(role)
         role_views = self.cache_service.get_config("role_views").get("role_views", {})
         route = str(role_views.get(role, {}).get("landing_page", ""))
         if route and self.rbac_service.can_access(role, route):

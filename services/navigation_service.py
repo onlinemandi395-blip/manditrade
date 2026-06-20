@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from services.auth_service import is_bootstrap_admin
+from services.auth_service import is_bootstrap_admin, normalize_role
 
 
 class NavigationService:
@@ -26,7 +26,7 @@ class NavigationService:
         return rows
 
     def _get_admin_allowed_routes(self, role: str, user: dict | None = None) -> list[str]:
-        if str(role or "").strip().lower() != "platform_admin" or not isinstance(user, dict):
+        if normalize_role(role) != "platform_admin" or not isinstance(user, dict):
             return []
         if is_bootstrap_admin(str(user.get("email", "") or "").strip().lower()):
             return []
@@ -40,6 +40,7 @@ class NavigationService:
         ]
 
     def get_navigation(self, role: str, user: dict | None = None) -> list[dict]:
+        role = normalize_role(role)
         rows = self._get_navigation_rows()
         restricted_routes = set(self._get_admin_allowed_routes(role, user))
         visible_items = []
@@ -57,6 +58,7 @@ class NavigationService:
         return visible_items
 
     def get_default_route(self, role: str, user: dict | None = None) -> str:
+        role = normalize_role(role)
         role_views = self.cache_service.get_config("role_views").get("role_views", {})
         route = str(role_views.get(role, {}).get("landing_page", ""))
         allowed_routes = set(self._get_admin_allowed_routes(role, user))

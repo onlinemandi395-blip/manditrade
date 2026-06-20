@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from services.auth_service import normalize_role
+
 
 class RBACService:
     def __init__(self, cache_service) -> None:
         self.cache_service = cache_service
 
     def get_permissions(self, role: str) -> list[str]:
+        role = normalize_role(role)
         permissions = self.cache_service.get_config("permissions").get("permissions", {})
         if role in permissions:
             return list(permissions.get(role, []))
