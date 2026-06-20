@@ -13,7 +13,6 @@ except ModuleNotFoundError:  # pragma: no cover - runtime fallback for lean depl
     plt = None
 
 from components.html_renderer import load_template
-from components.html_renderer import render_template
 
 
 RED = "#d90429"
@@ -524,7 +523,6 @@ def _render_analytics(current_user: dict, dataset_lookup: dict[str, list[dict]])
         return
 
     scoped = _scoped_datasets(dataset_lookup, current_user)
-    render_template("dashboard_analytics_scroll_open.html")
     st.markdown("### Business Snapshot")
     if role == "platform_admin":
         st.caption("A live management view across merchants, buyers, payments, shipping, and platform earnings.")
@@ -558,7 +556,6 @@ def _render_analytics(current_user: dict, dataset_lookup: dict[str, list[dict]])
             title, subtitle, chart_fn = spec
             with column:
                 _render_chart(title, subtitle, chart_fn)
-    render_template("dashboard_analytics_scroll_close.html")
 
 
 def render_dashboard_cards(cards: list[dict], dataset_lookup: dict[str, list[dict]], translator, current_user: dict | None = None) -> None:
@@ -580,12 +577,10 @@ def render_dashboard_cards(cards: list[dict], dataset_lookup: dict[str, list[dic
     if not rendered_cards:
         return
 
-    render_template("dashboard_screen_open.html")
     payload_json = json.dumps(rendered_cards, ensure_ascii=True)
     markup = load_template("dashboard_cards.html", payload_json=payload_json)
     desktop_columns = 3
     row_count = max(1, math.ceil(len(rendered_cards) / desktop_columns))
-    card_frame_height = min(max(240, 40 + (row_count * 178)), 590)
+    card_frame_height = min(max(240, 40 + (row_count * 178)), 620)
     components.html(markup, height=card_frame_height, scrolling=False)
     _render_analytics(current_user, dataset_lookup)
-    render_template("dashboard_screen_close.html")

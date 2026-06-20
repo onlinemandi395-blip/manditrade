@@ -250,34 +250,6 @@ div[role="radiogroup"] [aria-checked="true"] {
   padding-bottom: 2rem;
 }
 
-.mt-dashboard-screen {
-  display: grid;
-  gap: 0.6rem;
-  min-height: calc(100vh - 220px);
-  max-height: calc(100vh - 220px);
-  overflow: hidden;
-}
-
-.mt-dashboard-analytics-scroll {
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding-right: 0.2rem;
-}
-
-.mt-dashboard-analytics-scroll::-webkit-scrollbar {
-  width: 8px;
-}
-
-.mt-dashboard-analytics-scroll::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, rgba(217, 4, 41, 0.95), rgba(255, 255, 255, 0.32));
-  border-radius: 999px;
-}
-
-.mt-dashboard-analytics-scroll::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.04);
-}
-
 .mt-surface,
 .mt-panel,
 .mt-card {
@@ -356,16 +328,16 @@ div[role="radiogroup"] [aria-checked="true"] {
   display: none;
 }
 
-.mt-dashboard-screen h3 {
+[data-testid="stVerticalBlock"] h3 {
   margin-top: 0.2rem;
   margin-bottom: 0.2rem;
 }
 
-.mt-dashboard-screen [data-testid="stMarkdownContainer"] p {
+[data-testid="stVerticalBlock"] [data-testid="stMarkdownContainer"] p {
   margin-bottom: 0.3rem;
 }
 
-.mt-dashboard-screen div[data-testid="stHorizontalBlock"] {
+div[data-testid="stHorizontalBlock"] {
   gap: 0.72rem;
 }
 
@@ -1123,17 +1095,6 @@ button[data-baseweb="tab"]:hover,
 }
 
 @media (max-width: 900px) {
-  .mt-dashboard-screen {
-    min-height: auto;
-    max-height: none;
-    overflow: visible;
-  }
-
-  .mt-dashboard-analytics-scroll {
-    overflow: visible;
-    max-height: none;
-  }
-
   .mt-login-hero__brand {
     grid-template-columns: 1fr;
   }
