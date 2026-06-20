@@ -51,12 +51,12 @@ class PageService:
             }
         return definition
 
-    def get_landing_page(self, role: str, navigation_service) -> str:
+    def get_landing_page(self, role: str, navigation_service, user: dict | None = None) -> str:
         role_views = self.cache_service.get_config("role_views").get("role_views", {})
         route = str(role_views.get(role, {}).get("landing_page", ""))
         if route and self.rbac_service.can_access(role, route):
             return route
-        navigation_items = navigation_service.get_navigation(role)
+        navigation_items = navigation_service.get_navigation(role, user=user)
         if navigation_items:
             return str(navigation_items[0].get("route", "dashboard"))
         return "dashboard"

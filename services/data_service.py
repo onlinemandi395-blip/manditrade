@@ -141,6 +141,14 @@ class DataService:
         pricing.setdefault("admin_price", 0)
         pricing.setdefault("marketplace_price", marketplace_channel.get("price", 0))
         pricing.setdefault("manditrade_price", manditrade_channel.get("price", 0))
+        if "marketplace_commission_percent" not in pricing:
+            marketplace_price = float(pricing.get("marketplace_price", 0) or 0)
+            admin_price = float(pricing.get("admin_price", 0) or 0)
+            pricing["marketplace_commission_percent"] = round((((marketplace_price - admin_price) / marketplace_price) * 100), 2) if marketplace_price > 0 else 0.0
+        if "manditrade_commission_percent" not in pricing:
+            manditrade_price = float(pricing.get("manditrade_price", 0) or 0)
+            admin_price = float(pricing.get("admin_price", 0) or 0)
+            pricing["manditrade_commission_percent"] = round((((manditrade_price - admin_price) / manditrade_price) * 100), 2) if manditrade_price > 0 else 0.0
         pricing.setdefault("currency", "INR")
         pricing.setdefault("b2c_margin_type", "absolute")
         pricing.setdefault("b2b_margin_type", "absolute")

@@ -93,12 +93,54 @@ class OrderService:
             "delivery_notes": str(service_config.get("delivery_notes", "") or "").strip(),
         }
 
+    def _resolve_commission_percent(self, *, pricing: dict, channel: str, sell_price: float, merchant_price: float) -> float:
+        normalized_channel = str(channel or "").strip().lower()
+        field_name = "marketplace_commission_percent" if normalized_channel == "marketplace" else "manditrade_commission_percent"
+        commission_percent = float(pricing.get(field_name, 0) or 0)
+        if commission_percent > 0:
+            return round(min(100.0, max(0.0, commission_percent)), 2)
+        if float(sell_price or 0) <= 0:
+            return 0.0
+        derived_percent = ((float(sell_price or 0) - float(merchant_price or 0)) / float(sell_price or 1)) * 100
+        return round(min(100.0, max(0.0, derived_percent)), 2)
+
+    def _build_commission_totals(self, *, merchandise_total: float, sell_price: float, merchant_price: float, quantity: float, commission_percent: float) -> dict:
+        normalized_commission_percent = round(min(100.0, max(0.0, float(commission_percent or 0))), 2)
+        if normalized_commission_percent > 0:
+            platform_margin = round(float(merchandise_total or 0) * normalized_commission_percent / 100, 2)
+            owner_payable_amount = round(float(merchandise_total or 0) - platform_margin, 2)
+            merchant_unit_price = round(owner_payable_amount / float(quantity or 1), 2) if float(quantity or 0) > 0 else round(float(merchant_price or 0), 2)
+        else:
+            owner_payable_amount = round(float(merchant_price or 0) * float(quantity or 0), 2)
+            platform_margin = round(float(merchandise_total or 0) - owner_payable_amount, 2)
+            merchant_unit_price = round(float(merchant_price or 0), 2)
+        return {
+            "platform_commission_percent": normalized_commission_percent,
+            "platform_margin": round(platform_margin, 2),
+            "owner_payable_amount": round(owner_payable_amount, 2),
+            "merchant_unit_price": merchant_unit_price,
+        }
+
     def _build_financial_breakdown(self, *, product: dict, channel: str, quantity: float, sell_price: float) -> dict:
         normalized_channel = "b2c" if str(channel or "").strip().lower() == "marketplace" else "b2b"
         pricing = dict(product.get("pricing", {}) or {})
         service_config = self._resolve_service_config(product)
         merchandise_total = round(float(sell_price or 0) * float(quantity or 0), 2)
-        owner_payable_amount = round(float(pricing.get("admin_price", 0) or 0) * float(quantity or 0), 2)
+        merchant_price = round(float(pricing.get("admin_price", 0) or 0), 2)
+        commission_percent = self._resolve_commission_percent(
+            pricing=pricing,
+            channel=channel,
+            sell_price=sell_price,
+            merchant_price=merchant_price,
+        )
+        commission_totals = self._build_commission_totals(
+            merchandise_total=merchandise_total,
+            sell_price=sell_price,
+            merchant_price=merchant_price,
+            quantity=quantity,
+            commission_percent=commission_percent,
+        )
+        owner_payable_amount = round(float(commission_totals.get("owner_payable_amount", 0) or 0), 2)
         packaging_charge = round(
             float(service_config.get("packaging_cost_b2c" if normalized_channel == "b2c" else "packaging_cost_b2b", 0) or 0)
             * float(quantity or 0),
@@ -109,12 +151,14 @@ class OrderService:
             * float(quantity or 0),
             2,
         )
-        platform_margin = round(merchandise_total - owner_payable_amount, 2)
+        platform_margin = round(float(commission_totals.get("platform_margin", 0) or 0), 2)
         total_amount = round(merchandise_total + packaging_charge + shipping_charge, 2)
         return {
             "merchandise_total": merchandise_total,
             "owner_payable_amount": owner_payable_amount,
             "platform_margin": platform_margin,
+            "platform_commission_percent": round(float(commission_totals.get("platform_commission_percent", commission_percent) or commission_percent), 2),
+            "merchant_unit_price": round(float(commission_totals.get("merchant_unit_price", merchant_price) or merchant_price), 2),
             "packaging_charge": packaging_charge,
             "shipping_charge": shipping_charge,
             "total_amount": total_amount,
@@ -258,6 +302,8 @@ class OrderService:
             delivery_partner = {}
             admin_price = 0.0
             owner_payable_amount = 0.0
+            platform_margin_total = 0.0
+            commission_totals = 0.0
             packaging_total = 0.0
             shipping_total = 0.0
             service_config = {}
@@ -273,6 +319,8 @@ class OrderService:
                 )
                 unit_price = self.pricing_service.resolve_sell_price(product, "marketplace")
                 line_total = round(unit_price * quantity, 2)
+                pricing = dict(product.get("pricing", {}) or {})
+                breakdown = self._build_financial_breakdown(product=product, channel="marketplace", quantity=quantity, sell_price=unit_price)
                 normalized_items.append(
                     {
                         "product_id": product_id,
@@ -280,12 +328,14 @@ class OrderService:
                         "quantity": quantity,
                         "unit_price": unit_price,
                         "line_total": line_total,
+                        "platform_commission_percent": breakdown.get("platform_commission_percent", 0),
+                        "merchant_unit_price": breakdown.get("merchant_unit_price", float(pricing.get("admin_price", 0) or 0)),
                     }
                 )
                 total_amount += line_total
-                pricing = dict(product.get("pricing", {}) or {})
-                owner_payable_amount += round(float(pricing.get("admin_price", 0) or 0) * quantity, 2)
-                breakdown = self._build_financial_breakdown(product=product, channel="marketplace", quantity=quantity, sell_price=unit_price)
+                owner_payable_amount += float(breakdown.get("owner_payable_amount", 0) or 0)
+                platform_margin_total += float(breakdown.get("platform_margin", 0) or 0)
+                commission_totals += float(breakdown.get("platform_commission_percent", 0) or 0) * line_total
                 packaging_total += float(breakdown.get("packaging_charge", 0) or 0)
                 shipping_total += float(breakdown.get("shipping_charge", 0) or 0)
                 if not owner:
@@ -324,7 +374,7 @@ class OrderService:
                 "unit_price": float(first_item.get("unit_price", 0) or 0),
                 "sell_price": float(first_item.get("unit_price", 0) or 0),
                 "admin_price": admin_price,
-                "admin_margin": round(total_amount - owner_payable_amount, 2),
+                "admin_margin": round(platform_margin_total, 2),
                 "merchandise_total": round(total_amount, 2),
                 "total_amount": grand_total,
                 "internal": {
@@ -332,15 +382,17 @@ class OrderService:
                     "owner_role": owner.get("role", ""),
                     "admin_price": admin_price,
                     "owner_payable_amount": round(owner_payable_amount, 2),
-                    "admin_margin": round(total_amount - owner_payable_amount, 2),
+                    "admin_margin": round(platform_margin_total, 2),
+                    "platform_commission_percent_effective": round((commission_totals / total_amount), 2) if total_amount > 0 else 0.0,
                 },
                 "financials": {
                     "merchandise_total": round(total_amount, 2),
                     "packaging_charge": round(packaging_total, 2),
                     "shipping_charge": round(shipping_total, 2),
-                    "platform_margin": round(total_amount - owner_payable_amount, 2),
+                    "platform_margin": round(platform_margin_total, 2),
                     "owner_payable_amount": round(owner_payable_amount, 2),
                     "grand_total": grand_total,
+                    "platform_commission_percent_effective": round((commission_totals / total_amount), 2) if total_amount > 0 else 0.0,
                 },
                 "service_config": service_config,
                 "role": "public_buyer",
@@ -457,21 +509,24 @@ class OrderService:
                         "quantity": quantity,
                         "unit_price": sell_price,
                         "line_total": round(sell_price * quantity, 2),
+                        "platform_commission_percent": breakdown.get("platform_commission_percent", 0),
+                        "merchant_unit_price": breakdown.get("merchant_unit_price", admin_price),
                     }
                 ],
                 "quantity": quantity,
                 "unit_price": sell_price,
                 "sell_price": sell_price,
                 "admin_price": admin_price,
-                "admin_margin": round((sell_price - admin_price) * quantity, 2),
+                "admin_margin": round(float(breakdown.get("platform_margin", 0) or 0), 2),
                 "merchandise_total": round(sell_price * quantity, 2),
                 "total_amount": round(breakdown.get("total_amount", sell_price * quantity), 2),
                 "internal": {
                     "owner_email": owner.get("email", ""),
                     "owner_role": owner.get("role", ""),
                     "admin_price": admin_price,
-                    "owner_payable_amount": round(admin_price * quantity, 2),
-                    "admin_margin": round((sell_price - admin_price) * quantity, 2),
+                    "owner_payable_amount": breakdown.get("owner_payable_amount", round(admin_price * quantity, 2)),
+                    "admin_margin": round(float(breakdown.get("platform_margin", 0) or 0), 2),
+                    "platform_commission_percent_effective": round(float(breakdown.get("platform_commission_percent", 0) or 0), 2),
                 },
                 "financials": {
                     "merchandise_total": breakdown.get("merchandise_total", round(sell_price * quantity, 2)),
@@ -480,6 +535,7 @@ class OrderService:
                     "platform_margin": breakdown.get("platform_margin", round((sell_price - admin_price) * quantity, 2)),
                     "owner_payable_amount": breakdown.get("owner_payable_amount", round(admin_price * quantity, 2)),
                     "grand_total": breakdown.get("total_amount", round(sell_price * quantity, 2)),
+                    "platform_commission_percent_effective": round(float(breakdown.get("platform_commission_percent", 0) or 0), 2),
                 },
                 "service_config": service_config,
                 "status": "PAYMENT_PENDING",
@@ -562,6 +618,39 @@ class OrderService:
         payment["payment_status"] = "VERIFIED"
         payment["verified_by"] = owner_email
         payment["verified_at"] = now
+        financials = dict(order.get("financials", {}) or {})
+        internal = dict(order.get("internal", {}) or {})
+        if "quoted_financials" not in order:
+            order["quoted_financials"] = dict(financials)
+        if "quoted_internal" not in order:
+            order["quoted_internal"] = dict(internal)
+        packaging_charge = round(float(financials.get("packaging_charge", 0) or 0), 2)
+        shipping_charge = round(float(financials.get("shipping_charge", 0) or 0), 2)
+        quoted_merchandise_total = round(float(financials.get("merchandise_total", order.get("merchandise_total", 0)) or 0), 2)
+        effective_commission_percent = round(float(internal.get("platform_commission_percent_effective", financials.get("platform_commission_percent_effective", 0)) or 0), 2)
+        realized_grand_total = round(float(amount_received or 0), 2)
+        realized_merchandise_total = max(0.0, round(realized_grand_total - packaging_charge - shipping_charge, 2))
+        if realized_merchandise_total <= 0 and quoted_merchandise_total > 0:
+            realized_merchandise_total = quoted_merchandise_total
+        realized_platform_margin = round(realized_merchandise_total * effective_commission_percent / 100, 2)
+        realized_owner_payable = round(realized_merchandise_total - realized_platform_margin, 2)
+        financials["merchandise_total"] = realized_merchandise_total
+        financials["platform_margin"] = realized_platform_margin
+        financials["owner_payable_amount"] = realized_owner_payable
+        financials["grand_total"] = realized_grand_total
+        financials["platform_commission_percent_effective"] = effective_commission_percent
+        financials["commission_confirmed_at"] = now
+        internal["owner_payable_amount"] = realized_owner_payable
+        internal["admin_margin"] = realized_platform_margin
+        internal["platform_commission_percent_effective"] = effective_commission_percent
+        order["financials"] = financials
+        order["internal"] = internal
+        order["admin_margin"] = realized_platform_margin
+        order["merchandise_total"] = realized_merchandise_total
+        order["total_amount"] = realized_grand_total
+        payment["platform_commission_percent_effective"] = effective_commission_percent
+        payment["platform_commission_amount"] = realized_platform_margin
+        payment["owner_payable_amount"] = realized_owner_payable
         order["status"] = "OWNER_ACCEPTED"
         order["payment_status"] = "VERIFIED"
         order["admin_status"] = "OWNER_CONFIRMED"

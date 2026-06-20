@@ -64,6 +64,8 @@ CREATE_PRODUCT_DRAFT_KEYS = [
     "create_admin_price",
     "create_marketplace_price",
     "create_manditrade_price",
+    "create_marketplace_commission_percent",
+    "create_manditrade_commission_percent",
     "create_marketplace_enabled",
     "create_manditrade_enabled",
     "create_manditrade_minimum_quantity",
@@ -309,6 +311,15 @@ def _normalize_service_config(details: dict) -> dict:
     }
 
 
+def _derive_commission_percent(sell_price: float, merchant_price: float) -> float:
+    normalized_sell_price = float(sell_price or 0)
+    normalized_merchant_price = float(merchant_price or 0)
+    if normalized_sell_price <= 0:
+        return 0.0
+    margin = max(0.0, normalized_sell_price - normalized_merchant_price)
+    return round((margin / normalized_sell_price) * 100, 2)
+
+
 def _initialize_create_product_draft(*, is_admin: bool, current_user_email: str, current_user_record: dict, current_user_role: str, category_names: list[str], category_index: dict[str, list[str]]) -> None:
     default_category = category_names[0] if category_names else ""
     default_subcategory_options = category_index.get(default_category, [])
@@ -354,6 +365,8 @@ def _initialize_create_product_draft(*, is_admin: bool, current_user_email: str,
         "create_admin_price": 0.0,
         "create_marketplace_price": 0.0,
         "create_manditrade_price": 0.0,
+        "create_marketplace_commission_percent": 0.0,
+        "create_manditrade_commission_percent": 0.0,
         "create_marketplace_enabled": True,
         "create_manditrade_enabled": True,
         "create_manditrade_minimum_quantity": 1.0,
@@ -387,7 +400,13 @@ def _create_product_stage_statuses(*, is_admin: bool) -> dict[str, bool]:
             and invoice_name
         ),
         "delivery": True,
-        "pricing": bool(marketplace_price > 0 or mandiplace_price > 0),
+        "pricing": bool(
+            (marketplace_price > 0 or mandiplace_price > 0)
+            and (
+                float(st.session_state.get("create_marketplace_commission_percent", 0) or 0) >= 0
+                or float(st.session_state.get("create_manditrade_commission_percent", 0) or 0) >= 0
+            )
+        ),
         "media": True,
     }
 
@@ -523,6 +542,20 @@ def _build_product_table_rows(products: list[dict]) -> list[dict]:
                 "admin_price": ((product.get("pricing") or {}).get("admin_price", 0)),
                 "marketplace_price": ((product.get("pricing") or {}).get("marketplace_price", 0)),
                 "manditrade_price": ((product.get("pricing") or {}).get("manditrade_price", 0)),
+                "marketplace_commission_percent": (product.get("pricing") or {}).get(
+                    "marketplace_commission_percent",
+                    _derive_commission_percent(
+                        ((product.get("pricing") or {}).get("marketplace_price", 0)),
+                        ((product.get("pricing") or {}).get("admin_price", 0)),
+                    ),
+                ),
+                "manditrade_commission_percent": (product.get("pricing") or {}).get(
+                    "manditrade_commission_percent",
+                    _derive_commission_percent(
+                        ((product.get("pricing") or {}).get("manditrade_price", 0)),
+                        ((product.get("pricing") or {}).get("admin_price", 0)),
+                    ),
+                ),
                 "packaging_mode": ((product.get("service_config") or {}).get("packaging_mode", "owner")),
                 "shipping_mode": ((product.get("service_config") or {}).get("shipping_mode", "owner")),
                 "packaging_cost_b2c": ((product.get("service_config") or {}).get("packaging_cost_b2c", 0)),
@@ -649,6 +682,8 @@ def _apply_product_values(
         "admin_price": values["admin_price"],
         "marketplace_price": values["marketplace_price"],
         "manditrade_price": values["manditrade_price"],
+        "marketplace_commission_percent": round(float(values.get("marketplace_commission_percent", 0) or 0), 2),
+        "manditrade_commission_percent": round(float(values.get("manditrade_commission_percent", 0) or 0), 2),
         "currency": "INR",
     }
     product["service_config"] = _normalize_service_config(values.get("service_config", {}))
@@ -775,6 +810,20 @@ def render_products_page(data_service, notification_service, session_service, ca
                         "admin_price": ((selected_product.get("pricing") or {}).get("admin_price", 0)),
                         "marketplace_price": ((selected_product.get("pricing") or {}).get("marketplace_price", 0)),
                         "mandiplace_price": ((selected_product.get("pricing") or {}).get("manditrade_price", 0)),
+                        "marketplace_commission_percent": (selected_product.get("pricing") or {}).get(
+                            "marketplace_commission_percent",
+                            _derive_commission_percent(
+                                ((selected_product.get("pricing") or {}).get("marketplace_price", 0)),
+                                ((selected_product.get("pricing") or {}).get("admin_price", 0)),
+                            ),
+                        ),
+                        "mandiplace_commission_percent": (selected_product.get("pricing") or {}).get(
+                            "manditrade_commission_percent",
+                            _derive_commission_percent(
+                                ((selected_product.get("pricing") or {}).get("manditrade_price", 0)),
+                                ((selected_product.get("pricing") or {}).get("admin_price", 0)),
+                            ),
+                        ),
                         "packaging_mode": selected_service_config.get("packaging_mode", "owner"),
                         "shipping_mode": selected_service_config.get("shipping_mode", "owner"),
                         "delivery_scope": selected_service_config.get("delivery_scope", "custom"),
@@ -926,6 +975,23 @@ def render_products_page(data_service, notification_service, session_service, ca
                 edit_marketplace_price = st.number_input(translator.t("field.marketplace_price"), min_value=0.0, step=1.0, value=float(((selected_product.get("pricing") or {}).get("marketplace_price", 0))), key="edit_marketplace_price")
                 edit_manditrade_enabled = st.checkbox(translator.t("field.available_manditrade"), value=((selected_product.get("sales_channels") or {}).get("manditrade") or {}).get("enabled", False), key="edit_manditrade_enabled")
                 edit_manditrade_price = st.number_input(translator.t("field.manditrade_price"), min_value=0.0, step=1.0, value=float(((selected_product.get("pricing") or {}).get("manditrade_price", 0))), key="edit_manditrade_price")
+                commission_cols = st.columns(2)
+                edit_marketplace_commission_percent = commission_cols[0].number_input(
+                    "Marketplace Commission %",
+                    min_value=0.0,
+                    max_value=100.0,
+                    step=0.5,
+                    value=float(((selected_product.get("pricing") or {}).get("marketplace_commission_percent", _derive_commission_percent(((selected_product.get("pricing") or {}).get("marketplace_price", 0)), ((selected_product.get("pricing") or {}).get("admin_price", 0))))) or 0),
+                    key="edit_marketplace_commission_percent",
+                )
+                edit_manditrade_commission_percent = commission_cols[1].number_input(
+                    "Mandiplace Commission %",
+                    min_value=0.0,
+                    max_value=100.0,
+                    step=0.5,
+                    value=float(((selected_product.get("pricing") or {}).get("manditrade_commission_percent", _derive_commission_percent(((selected_product.get("pricing") or {}).get("manditrade_price", 0)), ((selected_product.get("pricing") or {}).get("admin_price", 0))))) or 0),
+                    key="edit_manditrade_commission_percent",
+                )
                 edit_manditrade_minimum_quantity = st.number_input(
                     translator.t("field.manditrade_minimum_quantity"),
                     min_value=1.0,
@@ -1016,8 +1082,10 @@ def render_products_page(data_service, notification_service, session_service, ca
                                 "admin_price": edit_admin_price,
                                 "marketplace_enabled": edit_marketplace_enabled,
                                 "marketplace_price": edit_marketplace_price,
+                                "marketplace_commission_percent": edit_marketplace_commission_percent,
                                 "manditrade_enabled": edit_manditrade_enabled,
                                 "manditrade_price": edit_manditrade_price,
+                                "manditrade_commission_percent": edit_manditrade_commission_percent,
                                 "manditrade_minimum_quantity": edit_manditrade_minimum_quantity,
                                 "manditrade_increment_quantity": edit_manditrade_increment_quantity,
                                 "service_config": {
@@ -1332,6 +1400,9 @@ def render_products_page(data_service, notification_service, session_service, ca
                 pricing_cols[0].number_input("Merchant Price", min_value=0.0, step=1.0, key="create_admin_price")
                 pricing_cols[1].number_input("Marketplace Price", min_value=0.0, step=1.0, key="create_marketplace_price")
                 st.number_input("Mandiplace Price", min_value=0.0, step=1.0, key="create_manditrade_price")
+                commission_cols = st.columns(2)
+                commission_cols[0].number_input("Marketplace Commission %", min_value=0.0, max_value=100.0, step=0.5, key="create_marketplace_commission_percent")
+                commission_cols[1].number_input("Mandiplace Commission %", min_value=0.0, max_value=100.0, step=0.5, key="create_manditrade_commission_percent")
                 channel_cols = st.columns(2)
                 channel_cols[0].checkbox("Show in Marketplace", key="create_marketplace_enabled")
                 channel_cols[1].checkbox("Show in Mandiplace", key="create_manditrade_enabled")
@@ -1430,6 +1501,8 @@ def render_products_page(data_service, notification_service, session_service, ca
         admin_price = float(st.session_state.get("create_admin_price", 0) or 0)
         marketplace_price = float(st.session_state.get("create_marketplace_price", 0) or 0)
         manditrade_price = float(st.session_state.get("create_manditrade_price", 0) or 0)
+        marketplace_commission_percent = float(st.session_state.get("create_marketplace_commission_percent", 0) or 0)
+        manditrade_commission_percent = float(st.session_state.get("create_manditrade_commission_percent", 0) or 0)
         marketplace_enabled = bool(st.session_state.get("create_marketplace_enabled", True))
         manditrade_enabled = bool(st.session_state.get("create_manditrade_enabled", True))
         manditrade_minimum_quantity = float(st.session_state.get("create_manditrade_minimum_quantity", 1) or 1)
@@ -1558,8 +1631,10 @@ def render_products_page(data_service, notification_service, session_service, ca
                         "admin_price": admin_price,
                         "marketplace_enabled": marketplace_enabled,
                         "marketplace_price": marketplace_price,
+                        "marketplace_commission_percent": marketplace_commission_percent,
                         "manditrade_enabled": manditrade_enabled,
                         "manditrade_price": manditrade_price,
+                        "manditrade_commission_percent": manditrade_commission_percent,
                         "manditrade_minimum_quantity": manditrade_minimum_quantity,
                         "manditrade_increment_quantity": manditrade_increment_quantity,
                         "service_config": {

@@ -698,7 +698,7 @@ def render_app() -> None:
         current_user = session_service.get_authenticated_user()
         resolved_user = auth_service.resolve_user(current_user.get("email", ""))
         resolved_role = str(resolved_user.get("role", auth_service.get_unknown_user_default_role()))
-        landing_page = navigation_service.get_default_route(resolved_role)
+        landing_page = navigation_service.get_default_route(resolved_role, user=resolved_user)
         if resolved_role != current_user.get("role") or current_user.get("landing_page") != landing_page:
             session_service.authenticate(
                 {
@@ -739,14 +739,14 @@ def render_app() -> None:
         if theme_warning and role == "platform_admin":
             st.warning(theme_warning)
     with performance_service.measure("navigation_render"):
-        navigation_items = navigation_service.get_navigation(role)
+        navigation_items = navigation_service.get_navigation(role, user=user)
     current_route = session_service.get_current_route_or_landing()
     valid_routes = [item.get("route", "") for item in navigation_items]
     if not navigation_items:
         st.error(translator.t("auth.access_denied"))
         return
     if current_route not in valid_routes or not rbac_service.can_access(role, current_route):
-        current_route = page_service.get_landing_page(role, navigation_service)
+        current_route = page_service.get_landing_page(role, navigation_service, user=user)
         session_service.set_route(current_route)
     if str(authenticated_user.get("role", "")).strip().lower() == "platform_admin" or is_superadmin:
         role_switcher_options = _build_superadmin_role_switcher_options(
@@ -808,7 +808,7 @@ def render_app() -> None:
 
     page_definition = page_service.get_page_definition(current_route, role)
     if not rbac_service.can_access(role, current_route):
-        current_route = page_service.get_landing_page(role, navigation_service)
+        current_route = page_service.get_landing_page(role, navigation_service, user=user)
         session_service.set_route(current_route)
         page_definition = page_service.get_page_definition(current_route, role)
         st.warning(translator.t("auth.access_denied"))
@@ -1211,7 +1211,7 @@ def render_app() -> None:
         render_shipments_page(data_service, order_service, notification_service, session_service, translator)
     elif page_definition.get("type") == "admin_configuration":
         notification_service = NotificationService(data_service)
-        render_admin_configuration(auth_service, data_service, notification_service, session_service, translator)
+        render_admin_configuration(auth_service, data_service, notification_service, session_service, cache_service, translator)
     elif page_definition.get("type") in {"crud_table", "table"}:
         notification_service = NotificationService(data_service)
         source_name = str(page_definition.get("data_source", ""))

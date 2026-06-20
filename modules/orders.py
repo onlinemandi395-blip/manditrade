@@ -14,13 +14,20 @@ def _render_order_financial_summary(selected_order: dict, translator=None) -> No
     t = translator.t if translator else (lambda key: key)
     financials = dict(selected_order.get("financials", {}) or {})
     service_config = dict(selected_order.get("service_config", {}) or {})
-    cols = st.columns(4)
+    commission_percent = float(
+        financials.get(
+            "platform_commission_percent_effective",
+            ((selected_order.get("internal") or {}).get("platform_commission_percent_effective", 0)) or 0,
+        )
+    )
+    cols = st.columns(5)
     cols[0].metric("Merchandise", f"Rs. {float(financials.get('merchandise_total', selected_order.get('merchandise_total', 0)) or 0):.2f}")
     cols[1].metric("Platform Margin", f"Rs. {float(financials.get('platform_margin', selected_order.get('admin_margin', 0)) or 0):.2f}")
-    cols[2].metric("Packaging", f"Rs. {float(financials.get('packaging_charge', 0) or 0):.2f}")
-    cols[3].metric("Shipping", f"Rs. {float(financials.get('shipping_charge', 0) or 0):.2f}")
+    cols[2].metric("Commission %", f"{commission_percent:.2f}%")
+    cols[3].metric("Packaging", f"Rs. {float(financials.get('packaging_charge', 0) or 0):.2f}")
+    cols[4].metric("Shipping", f"Rs. {float(financials.get('shipping_charge', 0) or 0):.2f}")
     secondary_cols = st.columns(4)
-    secondary_cols[0].metric("Owner Payable", f"Rs. {float(financials.get('owner_payable_amount', ((selected_order.get('internal') or {}).get('owner_payable_amount', 0))) or 0):.2f}")
+    secondary_cols[0].metric("Merchant Payable", f"Rs. {float(financials.get('owner_payable_amount', ((selected_order.get('internal') or {}).get('owner_payable_amount', 0))) or 0):.2f}")
     secondary_cols[1].metric(t("ui.amount"), f"Rs. {float(financials.get('grand_total', selected_order.get('total_amount', 0)) or 0):.2f}")
     secondary_cols[2].metric("Packaging Mode", str(service_config.get("packaging_mode", "owner") or "owner").title())
     secondary_cols[3].metric("Shipping Mode", str(service_config.get("shipping_mode", "owner") or "owner").title())

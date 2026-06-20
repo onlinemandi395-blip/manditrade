@@ -71,6 +71,7 @@ class AuthService:
         )
         if matched and str(matched.get("status", "ACTIVE")).upper() == "ACTIVE":
             return {
+                **matched,
                 "email": normalized_email,
                 "role": str(matched.get("role", self.get_unknown_user_default_role())),
                 "status": "ACTIVE",

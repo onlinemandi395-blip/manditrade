@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from services.auth_service import is_bootstrap_admin
+
 
 class NavigationService:
     ESSENTIAL_ITEMS = [
@@ -23,12 +25,29 @@ class NavigationService:
                 rows.append(dict(item))
         return rows
 
-    def get_navigation(self, role: str) -> list[dict]:
+    def _get_admin_allowed_routes(self, role: str, user: dict | None = None) -> list[str]:
+        if str(role or "").strip().lower() != "platform_admin" or not isinstance(user, dict):
+            return []
+        if is_bootstrap_admin(str(user.get("email", "") or "").strip().lower()):
+            return []
+        configured_routes = user.get("admin_navigation_routes", []) or []
+        if isinstance(configured_routes, str):
+            configured_routes = [configured_routes]
+        return [
+            str(route).strip()
+            for route in configured_routes
+            if str(route).strip()
+        ]
+
+    def get_navigation(self, role: str, user: dict | None = None) -> list[dict]:
         rows = self._get_navigation_rows()
+        restricted_routes = set(self._get_admin_allowed_routes(role, user))
         visible_items = []
         for item in rows:
             route = str(item.get("route", ""))
             if route and self.rbac_service.can_access(role, route):
+                if restricted_routes and route not in restricted_routes:
+                    continue
                 visible_items.append(
                     {
                         **item,
@@ -37,12 +56,13 @@ class NavigationService:
                 )
         return visible_items
 
-    def get_default_route(self, role: str) -> str:
+    def get_default_route(self, role: str, user: dict | None = None) -> str:
         role_views = self.cache_service.get_config("role_views").get("role_views", {})
         route = str(role_views.get(role, {}).get("landing_page", ""))
-        if route and self.rbac_service.can_access(role, route):
+        allowed_routes = set(self._get_admin_allowed_routes(role, user))
+        if route and self.rbac_service.can_access(role, route) and (not allowed_routes or route in allowed_routes):
             return route
-        navigation_items = self.get_navigation(role)
+        navigation_items = self.get_navigation(role, user=user)
         if navigation_items:
             return str(navigation_items[0].get("route", "dashboard"))
         return "dashboard"
