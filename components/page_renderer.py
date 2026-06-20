@@ -113,6 +113,39 @@ def _sanitize_cart_rows(items: list[dict]) -> list[dict]:
     ]
 
 
+def _normalize_india_geography(geography_payload: dict) -> list[dict]:
+    raw_states = geography_payload.get("states", geography_payload.get("india_states_districts", []))
+    if not isinstance(raw_states, list):
+        return []
+    normalized_states: list[dict] = []
+    for row in raw_states:
+        payload = dict(row or {})
+        state_name = str(payload.get("state", "") or payload.get("name", "")).strip()
+        if not state_name:
+            continue
+        districts = sorted(
+            {
+                str(district or "").strip()
+                for district in (payload.get("districts", []) or [])
+                if str(district or "").strip()
+            }
+        )
+        normalized_states.append({"state": state_name, "districts": districts})
+    return sorted(normalized_states, key=lambda item: item.get("state", "").lower())
+
+
+def _get_state_options(geography_payload: dict) -> list[str]:
+    return [row.get("state", "") for row in _normalize_india_geography(geography_payload) if row.get("state")]
+
+
+def _get_district_options(geography_payload: dict, state_name: str) -> list[str]:
+    normalized_state = str(state_name or "").strip().lower()
+    for row in _normalize_india_geography(geography_payload):
+        if str(row.get("state", "")).strip().lower() == normalized_state:
+            return list(row.get("districts", []) or [])
+    return []
+
+
 def _resolve_dataset_names(*, current_route: str, page_definition: dict, role: str, dashboard_cards: list[dict] | None = None) -> list[str]:
     page_type = str(page_definition.get("type", "") or "").strip().lower()
     data_source = str(page_definition.get("data_source", "") or "").strip()
@@ -244,6 +277,7 @@ def _format_saved_address(address: dict) -> str:
         for part in [
             str(address.get("address_line_1", "")).strip(),
             str(address.get("city", "")).strip(),
+            str(address.get("district", "")).strip(),
             str(address.get("state", "")).strip(),
             str(address.get("pin_code", "")).strip(),
         ]
@@ -258,6 +292,7 @@ def _sync_checkout_address_state(*, key_prefix: str, selected_address: dict) -> 
         f"{key_prefix}_address_1": str(selected_address.get("address_line_1", "") or ""),
         f"{key_prefix}_address_2": str(selected_address.get("address_line_2", "") or ""),
         f"{key_prefix}_city": str(selected_address.get("city", "") or ""),
+        f"{key_prefix}_district": str(selected_address.get("district", "") or ""),
         f"{key_prefix}_state": str(selected_address.get("state", "") or ""),
         f"{key_prefix}_pin": str(selected_address.get("pin_code", "") or ""),
         f"{key_prefix}_landmark": str(selected_address.get("landmark", "") or ""),
@@ -271,7 +306,16 @@ def _initialize_checkout_contact_state(*, key_prefix: str, display_name: str, mo
     st.session_state.setdefault(f"{key_prefix}_mobile", str(mobile or "").strip())
 
 
-def _render_checkout_details_form(*, key_prefix: str, email: str, user_record: dict, user_profile: dict, address_book_service: AddressBookService, translator) -> dict:
+def _render_checkout_details_form(
+    *,
+    key_prefix: str,
+    email: str,
+    user_record: dict,
+    user_profile: dict,
+    address_book_service: AddressBookService,
+    translator,
+    geography_payload: dict,
+) -> dict:
     t = translator.t if translator else (lambda key: key)
     st.markdown(f"### {t('ui.checkout_details')}")
     st.markdown(f"#### {t('ui.buyer_contact')}")
@@ -310,7 +354,26 @@ def _render_checkout_details_form(*, key_prefix: str, email: str, user_record: d
     address_line_1 = st.text_input(t("ui.address_line_1"), key=f"{key_prefix}_address_1")
     address_line_2 = st.text_input(t("ui.address_line_2"), key=f"{key_prefix}_address_2")
     city = st.text_input(t("ui.city"), key=f"{key_prefix}_city")
-    state = st.text_input(t("ui.state"), key=f"{key_prefix}_state")
+    state_key = f"{key_prefix}_state"
+    district_key = f"{key_prefix}_district"
+    previous_state_key = f"{key_prefix}_state_previous"
+    state_options = [""] + _get_state_options(geography_payload)
+    current_state = str(st.session_state.get(state_key, "") or "").strip()
+    if current_state and current_state not in state_options:
+        state_options.append(current_state)
+    state_index = state_options.index(current_state) if current_state in state_options else 0
+    state = st.selectbox(t("ui.state"), options=state_options, index=state_index, key=state_key)
+    if st.session_state.get(previous_state_key) != state:
+        if st.session_state.get(previous_state_key) is not None:
+            st.session_state[district_key] = ""
+        st.session_state[previous_state_key] = state
+    district_options = [""] + _get_district_options(geography_payload, state)
+    current_district = str(st.session_state.get(district_key, "") or "").strip()
+    if current_district and current_district not in district_options:
+        current_district = ""
+        st.session_state[district_key] = ""
+    district_index = district_options.index(current_district) if current_district in district_options else 0
+    district = st.selectbox(t("ui.district"), options=district_options, index=district_index, key=district_key)
     pin_code = st.text_input(t("ui.pin_code"), key=f"{key_prefix}_pin")
     landmark = st.text_input(t("ui.landmark"), key=f"{key_prefix}_landmark")
     save_address = st.checkbox(t("ui.save_address_for_future"), value=True, key=f"{key_prefix}_save_address")
@@ -326,6 +389,7 @@ def _render_checkout_details_form(*, key_prefix: str, email: str, user_record: d
             "address_line_1": address_line_1.strip(),
             "address_line_2": address_line_2.strip(),
             "city": city.strip(),
+            "district": district.strip(),
             "state": state.strip(),
             "pin_code": pin_code.strip(),
             "landmark": landmark.strip(),
@@ -929,9 +993,10 @@ def render_app() -> None:
                             user_profile=user_profile,
                             address_book_service=address_book_service,
                             translator=translator,
+                            geography_payload=cache_service.get_config("india_geography"),
                         )
                         if st.button(translator.t("ui.confirm_order"), use_container_width=True, key="marketplace_confirm_order"):
-                            if not checkout["name"] or not checkout["mobile"] or not checkout["delivery_address"]["address_line_1"] or not checkout["delivery_address"]["city"] or not checkout["delivery_address"]["state"] or not checkout["delivery_address"]["pin_code"]:
+                            if not checkout["name"] or not checkout["mobile"] or not checkout["delivery_address"]["address_line_1"] or not checkout["delivery_address"]["city"] or not checkout["delivery_address"]["district"] or not checkout["delivery_address"]["state"] or not checkout["delivery_address"]["pin_code"]:
                                 st.error(translator.t("ui.complete_contact_address"))
                             else:
                                 try:
@@ -1075,6 +1140,7 @@ def render_app() -> None:
                             user_profile=user_profile,
                             address_book_service=address_book_service,
                             translator=translator,
+                            geography_payload=cache_service.get_config("india_geography"),
                         )
                         profile_complete, missing_profile_fields = _profile_business_completion_status(user_profile)
                         requires_business_profile = role == "client_buyer"
@@ -1085,7 +1151,7 @@ def render_app() -> None:
                                 user_profile=user_profile,
                             )
                         if st.button(translator.t("ui.confirm_order"), use_container_width=True, key="manditrade_confirm_order"):
-                            if not checkout["name"] or not checkout["mobile"] or not checkout["delivery_address"]["address_line_1"] or not checkout["delivery_address"]["city"] or not checkout["delivery_address"]["state"] or not checkout["delivery_address"]["pin_code"]:
+                            if not checkout["name"] or not checkout["mobile"] or not checkout["delivery_address"]["address_line_1"] or not checkout["delivery_address"]["city"] or not checkout["delivery_address"]["district"] or not checkout["delivery_address"]["state"] or not checkout["delivery_address"]["pin_code"]:
                                 st.error(translator.t("ui.complete_contact_address"))
                             elif requires_business_profile and not profile_complete and business_profile["missing"]:
                                 st.error(f"Complete business profile fields: {', '.join(business_profile['missing'])}")

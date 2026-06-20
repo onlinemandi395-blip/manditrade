@@ -46,6 +46,11 @@ def build_required_drive_files(primary_admin_email: str, primary_admin_name: str
         {"logical_path": "00_config/forms.json", "type": "config", "default_payload": _load_local_seed("00_config/forms.json", {"forms": {}}, mode=mode)},
         {"logical_path": "00_config/categories.json", "type": "config", "default_payload": _load_local_seed("00_config/categories.json", {"schema_version": 1, "categories": []}, mode=mode)},
         {
+            "logical_path": "00_config/india_states_districts.json",
+            "type": "config",
+            "default_payload": _load_local_seed("00_config/india_states_districts.json", {"schema_version": 1, "states": []}, mode=mode),
+        },
+        {
             "logical_path": "00_config/payment_config.json",
             "type": "config",
             "default_payload": _load_local_seed(

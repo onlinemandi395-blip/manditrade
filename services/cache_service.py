@@ -50,6 +50,7 @@ class CacheService:
         for name in (
             "users",
             "categories",
+            "india_geography",
             "payment_config",
             "product_owner_consent",
             "products_data",

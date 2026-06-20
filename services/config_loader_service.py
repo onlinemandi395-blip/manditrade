@@ -24,6 +24,7 @@ class ConfigLoaderService:
         "dashboards": "00_config/dashboards.json",
         "forms": "00_config/forms.json",
         "categories": "00_config/categories.json",
+        "india_geography": "00_config/india_states_districts.json",
         "payment_config": "00_config/payment_config.json",
         "product_owner_consent": "00_config/product_owner_consent.json",
         "database": "00_config/database.json",
