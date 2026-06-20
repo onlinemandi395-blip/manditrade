@@ -731,10 +731,7 @@ def render_app() -> None:
     )
 
     if page_definition.get("type") == "dashboard":
-        selected_route = render_dashboard_cards(dashboard_cards, datasets, translator, current_user=user)
-        if selected_route:
-            session_service.set_route(selected_route)
-            st.rerun()
+        render_dashboard_cards(dashboard_cards, datasets, translator, current_user=user)
     elif page_definition.get("type") == "product_grid":
         media_service = MediaService(admin_drive_service)
         notification_service = NotificationService(data_service)

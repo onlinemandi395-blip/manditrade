@@ -10,7 +10,8 @@ try:
     import matplotlib.pyplot as plt
 except ModuleNotFoundError:  # pragma: no cover - runtime fallback for lean deploys
     plt = None
-from components.html_renderer import render_template
+from components.html_renderer import render_html, render_template
+from components.table_renderer import render_table
 
 RED = "#d90429"
 RED_SOFT = "#8f1123"
@@ -581,6 +582,10 @@ def _consume_query_value(name: str) -> str:
     return value
 
 
+def _peek_query_value(name: str) -> str:
+    return str(st.query_params.get(name, "") or "").strip()
+
+
 def _widget_preview_series(role: str, scoped: dict[str, list[dict]], index: int) -> list[int | float]:
     orders = scoped.get("orders", [])
     shipments = scoped.get("shipments", [])
@@ -615,6 +620,61 @@ def _widget_preview_series(role: str, scoped: dict[str, list[dict]], index: int)
     return series_map.get(index, _recent_activity_series(orders))
 
 
+def _summary_filtered_rows(metric: str, rows: list[dict], current_user: dict) -> list[dict]:
+    current_email = str(current_user.get("email", "")).strip().lower()
+    if metric == "merchants_count":
+        return [row for row in rows if str(row.get("role", "")).strip().lower() == "merchant"]
+    if metric == "client_buyers_count":
+        return [row for row in rows if str(row.get("role", "")).strip().lower() == "client_buyer"]
+    if metric == "public_buyers_count":
+        return [row for row in rows if str(row.get("role", "")).strip().lower() == "public_buyer"]
+    if metric == "workers_count":
+        return [row for row in rows if str(row.get("role", "")).strip().lower() in {"worker", "delivery_partner"}]
+    if metric == "owned_products":
+        return [row for row in rows if str(((row.get("owner") or {}).get("email", ""))).strip().lower() == current_email]
+    if metric == "orders_received":
+        return [row for row in rows if str(row.get("owner_email", "")).strip().lower() == current_email]
+    if metric == "marketplace_orders":
+        return [row for row in rows if str(row.get("source_channel", "")).strip().lower() == "marketplace"]
+    if metric == "manditrade_orders":
+        return [row for row in rows if str(row.get("source_channel", "")).strip().lower() == "manditrade"]
+    if metric == "marketplace_orders_received":
+        return [
+            row
+            for row in rows
+            if str(row.get("owner_email", "")).strip().lower() == current_email
+            and str(row.get("source_channel", "")).strip().lower() == "marketplace"
+        ]
+    if metric == "manditrade_orders_received":
+        return [
+            row
+            for row in rows
+            if str(row.get("owner_email", "")).strip().lower() == current_email
+            and str(row.get("source_channel", "")).strip().lower() == "manditrade"
+        ]
+    if metric == "low_stock_products":
+        return [row for row in rows if float(((row.get("inventory") or {}).get("available_quantity", 0) or 0)) <= 10]
+    return rows
+
+
+def _summary_series(metric: str, rows: list[dict], current_user: dict) -> list[int | float]:
+    return _build_card_series(metric, rows, current_user)
+
+
+def _series_detail_chart(title: str, series: list[int | float]):
+    fig, ax = _new_chart(figsize=(7.0, 3.2))
+    if fig is None or ax is None:
+        return None
+    values = [float(value or 0) for value in (series or [0, 0, 0, 0, 0, 0, 0])]
+    positions = list(range(len(values)))
+    ax.plot(positions, values, color=RED, linewidth=2.6, marker="o", markerfacecolor=WHITE, markeredgecolor=RED)
+    ax.fill_between(positions, values, color=RED, alpha=0.18)
+    ax.set_title(title)
+    ax.set_xlabel("Point")
+    ax.set_ylabel("Value")
+    return fig
+
+
 def _get_widget_specs(role: str, scoped: dict[str, list[dict]]) -> list[dict]:
     if role == "platform_admin":
         return [
@@ -641,12 +701,28 @@ def _get_widget_specs(role: str, scoped: dict[str, list[dict]]) -> list[dict]:
         ]
 
 
-def _render_summary_cards(cards: list[dict], dataset_lookup: dict[str, list[dict]], current_user: dict) -> None:
+def _render_summary_cards(cards: list[dict], dataset_lookup: dict[str, list[dict]], current_user: dict) -> list[dict]:
     cards_markup = []
+    summary_specs: list[dict] = []
     summary_cards = cards[:6]
     for index, card in enumerate(summary_cards):
+        focus_id = f"summary_{index}"
         dataset_name = str(card.get("data_source", "")).strip()
         rows = dataset_lookup.get(dataset_name, [])
+        metric = str(card.get("metric", "count"))
+        filtered_rows = _summary_filtered_rows(metric, rows, current_user)
+        series = _summary_series(metric, filtered_rows, current_user)
+        summary_specs.append(
+            {
+                "focus_id": focus_id,
+                "title": str(card.get("title", "")),
+                "subtitle": str(card.get("subtitle", "")).strip(),
+                "caption": str(card.get("eyebrow", "Summary")),
+                "value": _format_metric_value(_resolve_card_value(card, rows, current_user)),
+                "rows": filtered_rows,
+                "series": series,
+            }
+        )
         cards_markup.append(
             (
                 '<a class="mt-dashboard-preview__tile mt-dashboard-preview__tile--summary" href="{href}">'
@@ -660,54 +736,29 @@ def _render_summary_cards(cards: list[dict], dataset_lookup: dict[str, list[dict
                 "{sparkline}"
                 "</a>"
             ).format(
-                href=_build_query_href(mt_route=_resolve_card_route(card), mt_widget=""),
+                href=f"{_build_query_href(mt_focus=focus_id)}#mt-dashboard-detail",
                 eyebrow=escape(str(card.get("eyebrow", "Summary"))),
                 index_label=f"{index + 1:02d}",
                 title=escape(str(card.get("title", ""))),
                 value=escape(_format_metric_value(_resolve_card_value(card, rows, current_user))),
                 subtitle=escape(str(card.get("subtitle", "")).strip()),
-                sparkline=_build_sparkline_svg(_build_card_series(str(card.get("metric", "count")), rows, current_user)),
+                sparkline=_build_sparkline_svg(series),
             )
         )
-    render_template("dashboard_overview.html", section_title="Business Snapshot", section_subtitle="Open any summary to move into that working area.", section_class="mt-dashboard-preview__summary-grid", tiles_markup="".join(cards_markup))
+    render_template("dashboard_overview.html", section_title="Business Snapshot", section_subtitle="Use the graph views below to inspect the live data on this same page.", section_class="mt-dashboard-preview__summary-grid", tiles_markup="".join(cards_markup))
+    return summary_specs
 
 
-def _render_widget_board(role: str, scoped: dict[str, list[dict]]) -> None:
+def _render_widget_board(role: str, scoped: dict[str, list[dict]]) -> list[dict]:
     if plt is None:
-        return
+        return []
     widget_specs = _get_widget_specs(role, scoped)
-    selected_widget = str(st.query_params.get("mt_widget", "") or "").strip()
-    selected_spec = None
-    for index, spec in enumerate(widget_specs):
-        widget_id = f"{role}_{index}"
-        if selected_widget == widget_id:
-            selected_spec = (widget_id, *spec)
-            break
-    if selected_spec:
-        _, title, subtitle, chart_fn = selected_spec
-        st.markdown("### Active Widget")
-        with st.container(border=True):
-            top_cols = st.columns([6, 1], gap="small")
-            with top_cols[0]:
-                st.markdown(f"**{title}**")
-                st.caption(subtitle)
-            with top_cols[1]:
-                st.markdown(
-                    f'<a class="mt-dashboard-preview__back" href="{_build_query_href(mt_widget="")}">Back</a>',
-                    unsafe_allow_html=True,
-                )
-            figure = chart_fn()
-            if figure is not None:
-                st.pyplot(figure, use_container_width=True)
-                plt.close(figure)
-            else:
-                st.caption("No data available for this widget.")
-        return
-
     widgets_markup = []
+    widget_details: list[dict] = []
     for index, spec in enumerate(widget_specs):
-        title, subtitle, _chart_fn = spec
-        widget_id = f"{role}_{index}"
+        title, subtitle, chart_fn = spec
+        focus_id = f"widget_{index}"
+        widget_details.append({"focus_id": focus_id, "title": title, "subtitle": subtitle, "chart_fn": chart_fn})
         widgets_markup.append(
             (
                 '<a class="mt-dashboard-preview__tile mt-dashboard-preview__tile--widget" href="{href}">'
@@ -720,21 +771,70 @@ def _render_widget_board(role: str, scoped: dict[str, list[dict]]) -> None:
                 "{sparkline}"
                 "</a>"
             ).format(
-                href=_build_query_href(mt_widget=widget_id),
+                href=f"{_build_query_href(mt_focus=focus_id)}#mt-dashboard-detail",
                 index_label=f"{index + 1:02d}",
                 title=escape(title),
                 subtitle=escape(subtitle),
                 sparkline=_build_sparkline_svg(_widget_preview_series(role, scoped, index)),
             )
         )
-    render_template("dashboard_overview.html", section_title="Business Widgets", section_subtitle="Mini views stay on this screen. Open one to inspect it in detail.", section_class="mt-dashboard-preview__widget-grid", tiles_markup="".join(widgets_markup))
+    render_template("dashboard_overview.html", section_title="Business Widgets", section_subtitle="Open any graph view to load its detailed chart and related records below.", section_class="mt-dashboard-preview__widget-grid", tiles_markup="".join(widgets_markup))
+    return widget_details
+
+
+def _render_focus_detail(focus_id: str, summary_specs: list[dict], widget_specs: list[dict]) -> None:
+    if not focus_id:
+        return
+    render_html('<div id="mt-dashboard-detail"></div>')
+    summary_lookup = {item["focus_id"]: item for item in summary_specs}
+    widget_lookup = {item["focus_id"]: item for item in widget_specs}
+    if focus_id in summary_lookup:
+        item = summary_lookup[focus_id]
+        st.markdown("### Live Data View")
+        with st.container(border=True):
+            top_cols = st.columns([6, 1], gap="small")
+            with top_cols[0]:
+                st.markdown(f"**{item['title']}**")
+                st.caption(item["subtitle"] or item["caption"])
+                st.markdown(f"### {item['value']}")
+            with top_cols[1]:
+                st.markdown(
+                    f'<a class="mt-dashboard-preview__back" href="{_build_query_href(mt_focus="")}">Clear</a>',
+                    unsafe_allow_html=True,
+                )
+            figure = _series_detail_chart(item["title"], item["series"])
+            if figure is not None:
+                st.pyplot(figure, use_container_width=True)
+                plt.close(figure)
+        if item["rows"]:
+            render_table(item["rows"], caption=f"{item['title']} Records")
+        else:
+            st.caption("No related records available for this view.")
+        return
+    if focus_id in widget_lookup:
+        item = widget_lookup[focus_id]
+        st.markdown("### Live Data View")
+        with st.container(border=True):
+            top_cols = st.columns([6, 1], gap="small")
+            with top_cols[0]:
+                st.markdown(f"**{item['title']}**")
+                st.caption(item["subtitle"])
+            with top_cols[1]:
+                st.markdown(
+                    f'<a class="mt-dashboard-preview__back" href="{_build_query_href(mt_focus="")}">Clear</a>',
+                    unsafe_allow_html=True,
+                )
+            figure = item["chart_fn"]()
+            if figure is not None:
+                st.pyplot(figure, use_container_width=True)
+                plt.close(figure)
+            else:
+                st.caption("No data available for this graph.")
 
 
 def render_dashboard_cards(cards: list[dict], dataset_lookup: dict[str, list[dict]], translator, current_user: dict | None = None) -> str | None:
     current_user = current_user or {}
-    selected_route = _consume_query_value("mt_route")
-    if selected_route:
-        return selected_route
+    focus_id = _peek_query_value("mt_focus")
     translated_cards = []
     for index, card in enumerate(cards):
         dataset_name = str(card.get("data_source", "")).strip()
@@ -752,6 +852,7 @@ def render_dashboard_cards(cards: list[dict], dataset_lookup: dict[str, list[dic
 
     role = str(current_user.get("role", "")).strip().lower()
     scoped = _scoped_datasets(dataset_lookup, current_user)
-    _render_summary_cards(translated_cards, dataset_lookup, current_user)
-    _render_widget_board(role, scoped)
+    summary_specs = _render_summary_cards(translated_cards, dataset_lookup, current_user)
+    widget_specs = _render_widget_board(role, scoped)
+    _render_focus_detail(focus_id, summary_specs, widget_specs)
     return None
