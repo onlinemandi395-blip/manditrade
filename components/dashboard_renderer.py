@@ -11,7 +11,6 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - runtime fallback for lean deploys
     plt = None
 from components.html_renderer import render_html, render_template
-from components.table_renderer import render_table
 
 RED = "#d90429"
 RED_SOFT = "#8f1123"
@@ -675,6 +674,34 @@ def _series_detail_chart(title: str, series: list[int | float]):
     return fig
 
 
+def _compact_table_markup(rows: list[dict], *, empty_message: str = "No related rows found.") -> str:
+    if not rows:
+        return f'<div class="mt-dashboard-detail__empty">{escape(empty_message)}</div>'
+    frame = pd.DataFrame([dict(row or {}) for row in rows]).fillna("")
+    if frame.empty:
+        return f'<div class="mt-dashboard-detail__empty">{escape(empty_message)}</div>'
+    limited_columns = list(frame.columns[:5])
+    limited_rows = frame[limited_columns].head(6)
+    headers = "".join(f"<th>{escape(str(column).replace('_', ' ').title())}</th>" for column in limited_columns)
+    body_rows = []
+    for record in limited_rows.to_dict(orient="records"):
+        cells = []
+        for column in limited_columns:
+            value = record.get(column, "")
+            text = str(value)
+            if len(text) > 48:
+                text = f"{text[:45]}..."
+            cells.append(f"<td>{escape(text)}</td>")
+        body_rows.append(f"<tr>{''.join(cells)}</tr>")
+    return (
+        '<div class="mt-dashboard-detail__table-shell">'
+        '<table class="mt-dashboard-detail__table">'
+        f"<thead><tr>{headers}</tr></thead>"
+        f"<tbody>{''.join(body_rows)}</tbody>"
+        "</table></div>"
+    )
+
+
 def _get_widget_specs(role: str, scoped: dict[str, list[dict]]) -> list[dict]:
     if role == "platform_admin":
         return [
@@ -784,54 +811,93 @@ def _render_widget_board(role: str, scoped: dict[str, list[dict]]) -> list[dict]
     return widget_details
 
 
-def _render_focus_detail(focus_id: str, summary_specs: list[dict], widget_specs: list[dict]) -> None:
-    if not focus_id:
-        return
+def _detail_rows_for_widget(focus_id: str, role: str, scoped: dict[str, list[dict]]) -> list[dict]:
+    mapping = {
+        "widget_0": scoped.get("orders", []),
+        "widget_1": scoped.get("orders", []),
+        "widget_2": scoped.get("orders", []),
+        "widget_3": scoped.get("shipments", []),
+        "widget_4": scoped.get("payments", []),
+        "widget_5": scoped.get("products", []),
+        "widget_6": scoped.get("orders", []) if role == "platform_admin" else scoped.get("products", []),
+        "widget_7": scoped.get("users", []) if role == "platform_admin" else scoped.get("ledger", []),
+        "widget_8": scoped.get("ledger", []) if role == "platform_admin" else scoped.get("orders", []),
+    }
+    return [dict(row or {}) for row in mapping.get(focus_id, [])]
+
+
+def _render_focus_detail(focus_id: str, summary_specs: list[dict], widget_specs: list[dict], *, role: str, scoped: dict[str, list[dict]]) -> None:
     render_html('<div id="mt-dashboard-detail"></div>')
     summary_lookup = {item["focus_id"]: item for item in summary_specs}
     widget_lookup = {item["focus_id"]: item for item in widget_specs}
+    if not focus_id:
+        render_html(
+            (
+                '<section class="mt-dashboard-detail">'
+                '<div class="mt-dashboard-detail__eyebrow">Detail Panel</div>'
+                '<div class="mt-dashboard-detail__title">Select a graph</div>'
+                '<div class="mt-dashboard-detail__subtitle">Every preview graph opens its live chart and related records right here without leaving the dashboard.</div>'
+                '<div class="mt-dashboard-detail__empty mt-dashboard-detail__empty--hero">Choose any summary trend or widget graph from the left board.</div>'
+                "</section>"
+            )
+        )
+        return
     if focus_id in summary_lookup:
         item = summary_lookup[focus_id]
-        st.markdown("### Live Data View")
-        with st.container(border=True):
-            top_cols = st.columns([6, 1], gap="small")
-            with top_cols[0]:
-                st.markdown(f"**{item['title']}**")
-                st.caption(item["subtitle"] or item["caption"])
-                st.markdown(f"### {item['value']}")
-            with top_cols[1]:
-                st.markdown(
-                    f'<a class="mt-dashboard-preview__back" href="{_build_query_href(mt_focus="")}">Clear</a>',
-                    unsafe_allow_html=True,
-                )
-            figure = _series_detail_chart(item["title"], item["series"])
-            if figure is not None:
-                st.pyplot(figure, use_container_width=True)
-                plt.close(figure)
-        if item["rows"]:
-            render_table(item["rows"], caption=f"{item['title']} Records")
-        else:
-            st.caption("No related records available for this view.")
+        render_html(
+            (
+                '<section class="mt-dashboard-detail">'
+                '<div class="mt-dashboard-detail__header">'
+                '<div>'
+                '<div class="mt-dashboard-detail__eyebrow">{eyebrow}</div>'
+                '<div class="mt-dashboard-detail__title">{title}</div>'
+                '<div class="mt-dashboard-detail__subtitle">{subtitle}</div>'
+                '</div>'
+                '<a class="mt-dashboard-preview__back" href="{clear_href}">Clear</a>'
+                '</div>'
+                '<div class="mt-dashboard-detail__metric">{value}</div>'
+                '</section>'
+            ).format(
+                eyebrow=escape(item["caption"]),
+                title=escape(item["title"]),
+                subtitle=escape(item["subtitle"] or item["caption"]),
+                clear_href=_build_query_href(mt_focus=""),
+                value=escape(item["value"]),
+            )
+        )
+        figure = _series_detail_chart(item["title"], item["series"])
+        if figure is not None:
+            st.pyplot(figure, use_container_width=True)
+            plt.close(figure)
+        render_html(_compact_table_markup(item["rows"]))
         return
     if focus_id in widget_lookup:
         item = widget_lookup[focus_id]
-        st.markdown("### Live Data View")
-        with st.container(border=True):
-            top_cols = st.columns([6, 1], gap="small")
-            with top_cols[0]:
-                st.markdown(f"**{item['title']}**")
-                st.caption(item["subtitle"])
-            with top_cols[1]:
-                st.markdown(
-                    f'<a class="mt-dashboard-preview__back" href="{_build_query_href(mt_focus="")}">Clear</a>',
-                    unsafe_allow_html=True,
-                )
-            figure = item["chart_fn"]()
-            if figure is not None:
-                st.pyplot(figure, use_container_width=True)
-                plt.close(figure)
-            else:
-                st.caption("No data available for this graph.")
+        render_html(
+            (
+                '<section class="mt-dashboard-detail">'
+                '<div class="mt-dashboard-detail__header">'
+                '<div>'
+                '<div class="mt-dashboard-detail__eyebrow">Graph View</div>'
+                '<div class="mt-dashboard-detail__title">{title}</div>'
+                '<div class="mt-dashboard-detail__subtitle">{subtitle}</div>'
+                '</div>'
+                '<a class="mt-dashboard-preview__back" href="{clear_href}">Clear</a>'
+                '</div>'
+                '</section>'
+            ).format(
+                title=escape(item["title"]),
+                subtitle=escape(item["subtitle"]),
+                clear_href=_build_query_href(mt_focus=""),
+            )
+        )
+        figure = item["chart_fn"]()
+        if figure is not None:
+            st.pyplot(figure, use_container_width=True)
+            plt.close(figure)
+        else:
+            render_html('<div class="mt-dashboard-detail__empty">No data available for this graph.</div>')
+        render_html(_compact_table_markup(_detail_rows_for_widget(focus_id, role, scoped)))
 
 
 def render_dashboard_cards(cards: list[dict], dataset_lookup: dict[str, list[dict]], translator, current_user: dict | None = None) -> str | None:
@@ -854,7 +920,10 @@ def render_dashboard_cards(cards: list[dict], dataset_lookup: dict[str, list[dic
 
     role = str(current_user.get("role", "")).strip().lower()
     scoped = _scoped_datasets(dataset_lookup, current_user)
-    summary_specs = _render_summary_cards(translated_cards, dataset_lookup, current_user)
-    widget_specs = _render_widget_board(role, scoped)
-    _render_focus_detail(focus_id, summary_specs, widget_specs)
+    board_col, detail_col = st.columns([2.25, 1.05], gap="small")
+    with board_col:
+        summary_specs = _render_summary_cards(translated_cards, dataset_lookup, current_user)
+        widget_specs = _render_widget_board(role, scoped)
+    with detail_col:
+        _render_focus_detail(focus_id, summary_specs, widget_specs, role=role, scoped=scoped)
     return None
