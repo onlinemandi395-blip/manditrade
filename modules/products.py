@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from contextlib import contextmanager
 from datetime import UTC, datetime
 
 import streamlit as st
 
+from components.html_renderer import render_template
 from components.product_grid import render_product_grid
 from components.table_renderer import render_table
 from services.auth_service import is_bootstrap_admin
@@ -227,13 +229,19 @@ def _normalize_service_config(details: dict) -> dict:
     }
 
 
-def _render_onboarding_section(title: str, caption: str = ""):
-    container = st.container(border=True)
-    with container:
-        st.markdown(f"#### {title}")
-        if caption:
-            st.caption(caption)
-    return container
+@contextmanager
+def _render_onboarding_section(title: str, caption: str = "", *, eyebrow: str = "Onboarding"):
+    render_template(
+        "onboarding_section_open.html",
+        eyebrow=eyebrow,
+        title=title,
+        subtitle=caption,
+    )
+    try:
+        with st.container():
+            yield
+    finally:
+        render_template("onboarding_section_close.html")
 
 
 def _render_consent_panel(
@@ -271,7 +279,7 @@ def _render_consent_panel(
             st.rerun()
         except Exception as exc:
             st.session_state[consent_error_key] = f"Consent OTP trigger failed: {exc}"
-    with st.container(border=True):
+    with st.container():
         st.markdown(f"#### {title}")
         st.caption(
             "OTP is triggered automatically after the email is entered. "
@@ -860,9 +868,14 @@ def render_products_page(data_service, notification_service, session_service, ca
         )
 
     with tabs[6]:
-        st.markdown("### Product Onboarding")
-        st.caption("Set up the owner, billing details, shipment handling, catalog details, and channel pricing in one flow.")
+        render_template(
+            "onboarding_section_open.html",
+            eyebrow="Catalog",
+            title="Product Onboarding",
+            subtitle="Set up the owner, billing details, shipment handling, catalog details, and channel pricing in one guided flow.",
+        )
         st.caption(f"Product Code: {next_product_code}")
+        render_template("onboarding_section_close.html")
         with _render_onboarding_section(
             "Product Identity",
             "Start with the product name, then link the right owner and their reusable business details.",

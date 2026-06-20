@@ -117,6 +117,25 @@ input[type="radio"] {
   border-color: rgba(217, 4, 41, 0.36) !important;
 }
 
+[data-testid="stCheckbox"] label,
+[data-testid="stRadio"] label,
+div[role="radiogroup"] label {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(217, 4, 41, 0.06)) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 16px !important;
+  padding: 0.55rem 0.75rem !important;
+}
+
+div[role="radiogroup"] {
+  gap: 0.55rem !important;
+}
+
+[data-testid="stRadio"] [aria-checked="true"],
+[data-testid="stCheckbox"] input:checked,
+div[role="radiogroup"] [aria-checked="true"] {
+  accent-color: #d90429 !important;
+}
+
 [data-baseweb="popover"],
 [role="listbox"] {
   background: linear-gradient(180deg, rgba(22, 22, 22, 0.98), rgba(8, 8, 8, 0.98)) !important;
@@ -165,6 +184,29 @@ input[type="radio"] {
 
 [data-testid="stFileUploaderDropzone"] * {
   color: #ffffff !important;
+}
+
+[data-testid="stFileUploaderDropzone"] button,
+[data-testid="stFileUploader"] button {
+  background: linear-gradient(135deg, #f20530, #d90429 60%, #7a0016) !important;
+  color: #ffffff !important;
+  border: 1px solid transparent !important;
+  border-radius: 14px !important;
+  box-shadow: none !important;
+}
+
+[data-testid="stTextArea"] textarea,
+[data-testid="stTextInput"] input,
+[data-testid="stNumberInput"] input,
+[data-testid="stSelectbox"] input,
+[data-testid="stMultiSelect"] input {
+  color: #ffffff !important;
+  caret-color: #f20530 !important;
+}
+
+[data-testid="stForm"] {
+  background: transparent !important;
+  border: none !important;
 }
 
 .mt-shell {
@@ -518,6 +560,36 @@ input[type="radio"] {
 
 .mt-login-console__status {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.mt-onboarding-section {
+  padding: 1.05rem 1.1rem;
+  margin-bottom: 0.9rem;
+}
+
+.mt-onboarding-section__header {
+  margin-bottom: 0.8rem;
+}
+
+.mt-onboarding-section__eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--mt-accent-3);
+}
+
+.mt-onboarding-section__title {
+  margin: 0.25rem 0 0;
+  color: #ffffff;
+  font-size: 1.12rem;
+  line-height: 1.25;
+}
+
+.mt-onboarding-section__subtitle {
+  margin: 0.45rem 0 0;
+  color: rgba(255, 255, 255, 0.72);
+  line-height: 1.55;
 }
 
 .mt-page-hero {
