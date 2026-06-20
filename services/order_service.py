@@ -299,6 +299,7 @@ class OrderService:
             normalized_items = []
             total_amount = 0.0
             owner = {}
+            owner_business_details = {}
             delivery_partner = {}
             admin_price = 0.0
             owner_payable_amount = 0.0
@@ -340,6 +341,7 @@ class OrderService:
                 shipping_total += float(breakdown.get("shipping_charge", 0) or 0)
                 if not owner:
                     owner = dict(product.get("owner", {}) or {})
+                    owner_business_details = dict(product.get("owner_business_details", {}) or {})
                     delivery_partner = dict(product.get("delivery_partner", {}) or {})
                     admin_price = float(pricing.get("admin_price", 0) or 0)
                     service_config = self._resolve_service_config(product)
@@ -409,6 +411,7 @@ class OrderService:
             receiver_config = self.payment_service.get_receiver_config_for_owner(
                 owner_email=owner.get("email", ""),
                 owner_role=owner.get("role", ""),
+                owner_business_details=owner_business_details,
             )
             record["owner_profile_completed"] = bool(receiver_config.get("profile_completed", False))
             record["posting_status"] = "READY_TO_POST" if record["owner_profile_completed"] else "DUE_FOR_POSTING"
@@ -421,6 +424,7 @@ class OrderService:
                 created_by=buyer_email,
                 owner_email=owner.get("email", ""),
                 owner_role=owner.get("role", ""),
+                owner_business_details=owner_business_details,
             )
             record["payment_id"] = payment_record["payment_id"]
             record["payment_reference"] = payment_record["payment_reference"]
@@ -551,6 +555,7 @@ class OrderService:
             receiver_config = self.payment_service.get_receiver_config_for_owner(
                 owner_email=owner.get("email", ""),
                 owner_role=owner.get("role", ""),
+                owner_business_details=dict(product.get("owner_business_details", {}) or {}),
             )
             record["owner_profile_completed"] = bool(receiver_config.get("profile_completed", False))
             record["posting_status"] = "READY_TO_POST" if record["owner_profile_completed"] else "DUE_FOR_POSTING"
@@ -563,6 +568,7 @@ class OrderService:
                 created_by=requesting_user_email,
                 owner_email=owner.get("email", ""),
                 owner_role=owner.get("role", ""),
+                owner_business_details=dict(product.get("owner_business_details", {}) or {}),
             )
             record["payment_id"] = payment_record["payment_id"]
             record["payment_reference"] = payment_record["payment_reference"]

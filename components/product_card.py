@@ -7,6 +7,7 @@ import streamlit as st
 
 from components.html_renderer import render_template
 from components.image_slideshow import open_slideshow
+from services.payment_service import PaymentService
 from services.pricing_service import PricingService
 
 
@@ -48,8 +49,22 @@ def render_product_card(
     manditrade = (product.get("sales_channels") or {}).get("manditrade", {})
     pricing = dict(product.get("pricing", {}) or {})
     owner = dict(product.get("owner", {}) or {})
+    owner_business_details = dict(product.get("owner_business_details", {}) or {})
     inventory = dict(product.get("inventory", {}) or {})
     manditrade_rules = dict(((product.get("sales_channels") or {}).get("manditrade") or {}))
+    merchant_upi_id = str(owner_business_details.get("upi_id", "")).strip()
+    merchant_payee_name = str(
+        owner_business_details.get("business_name", "") or owner.get("display_name", "") or owner.get("email", "")
+    ).strip()
+    merchant_upi_link = ""
+    if merchant_upi_id:
+        merchant_upi_link = PaymentService.build_upi_link_from_values(
+            upi_id=merchant_upi_id,
+            payee_name=merchant_payee_name or "Merchant",
+            amount=float(pricing_service.resolve_sell_price(product, view) or 0) if view in {"marketplace", "manditrade"} else 0,
+            currency=str(pricing.get("currency", "INR")).strip() or "INR",
+            reference=str(product.get("product_id", "")).strip() or "PRODUCT",
+        )
 
     title = html.escape(str(product.get("product_name", product.get("product_id", t("ui.product")))))
     meta = html.escape(f"{product.get('category', 'General')} | {product.get('subcategory', 'General')}")
@@ -76,6 +91,8 @@ def render_product_card(
                 f"<span class='mt-catalog-card__detail'>{html.escape(t('ui.inventory'))}: {inventory.get('available_quantity', 0)} {html.escape(str(product.get('unit', 'piece')))}</span>",
                 f"<span class='mt-catalog-card__detail'>{image_badge}</span>",
             ]
+            if merchant_upi_id:
+                details.append(f"<span class='mt-catalog-card__detail'>Merchant UPI: {html.escape(merchant_upi_id)}</span>")
         else:
             st.error(price_error)
     elif view == "manditrade":
@@ -89,6 +106,8 @@ def render_product_card(
                 f"<span class='mt-catalog-card__detail'>{html.escape(t('ui.increment_quantity'))}: {float(manditrade_rules.get('increment_quantity', 1) or 1):g}</span>",
                 f"<span class='mt-catalog-card__detail'>{html.escape(t('ui.inventory'))}: {inventory.get('available_quantity', 0)} {html.escape(str(product.get('unit', 'piece')))}</span>",
             ]
+            if merchant_upi_id:
+                details.append(f"<span class='mt-catalog-card__detail'>Merchant UPI: {html.escape(merchant_upi_id)}</span>")
         else:
             st.error(price_error)
     else:
@@ -164,4 +183,9 @@ def render_product_card(
                 slideshow_context=f"{view}_{return_route}_{card_context}",
             )
             st.rerun()
+    if merchant_upi_link and view in {"marketplace", "manditrade"}:
+        st.markdown(
+            f"<div class='mt-catalog-card__upi-link'><a href='{html.escape(merchant_upi_link, quote=True)}'>Merchant payment link</a></div>",
+            unsafe_allow_html=True,
+        )
     st.markdown("</div>", unsafe_allow_html=True)

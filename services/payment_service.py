@@ -25,9 +25,34 @@ class PaymentService:
             "enabled": bool(source.get("enabled", True)),
         }
 
-    def get_receiver_config_for_owner(self, *, owner_email: str, owner_role: str = "") -> dict:
+    def get_receiver_config_for_owner(
+        self,
+        *,
+        owner_email: str,
+        owner_role: str = "",
+        owner_business_details: dict | None = None,
+    ) -> dict:
         fallback = self.get_payment_config()
         normalized_email = str(owner_email or "").strip().lower()
+        business_details = dict(owner_business_details or {})
+        product_upi_id = str(business_details.get("upi_id", "")).strip()
+        product_payee_name = str(
+            business_details.get("business_name", "") or business_details.get("invoice_name", "") or normalized_email.split("@")[0]
+        ).strip()
+        product_gst_number = str(business_details.get("gst_number", "")).strip()
+        product_profile_completed = bool(business_details.get("profile_completed", False))
+        if product_upi_id:
+            return {
+                "upi_id": product_upi_id,
+                "payee_name": product_payee_name or fallback.get("payee_name", "MandiTrade"),
+                "currency": str(fallback.get("currency", "INR")).strip() or "INR",
+                "enabled": True,
+                "owner_email": normalized_email,
+                "owner_role": str(owner_role or "").strip().lower(),
+                "gst_number": product_gst_number,
+                "profile_completed": product_profile_completed,
+                "source": "product_owner_business_details",
+            }
         if not normalized_email:
             return fallback
         try:
@@ -130,9 +155,14 @@ class PaymentService:
         created_by: str,
         owner_email: str = "",
         owner_role: str = "",
+        owner_business_details: dict | None = None,
     ) -> dict:
         reference = self.generate_payment_reference()
-        receiver_config = self.get_receiver_config_for_owner(owner_email=owner_email, owner_role=owner_role)
+        receiver_config = self.get_receiver_config_for_owner(
+            owner_email=owner_email,
+            owner_role=owner_role,
+            owner_business_details=owner_business_details,
+        )
         if not receiver_config.get("enabled", False):
             raise ValueError("UPI payment is disabled.")
         upi_link = self.build_upi_link_from_values(
@@ -179,10 +209,40 @@ class PaymentService:
         if not reference:
             return False
         amount = float(record.get("amount_payable", record.get("amount_due", 0)) or 0)
+        receiver_owner_email = str(record.get("receiver_owner_email", "")).strip().lower()
+        receiver_owner_role = str(record.get("receiver_owner_role", "")).strip().lower()
+        existing_upi_id = str(record.get("receiver_upi_id", "")).strip()
+        existing_payee_name = str(record.get("receiver_payee_name", "")).strip()
+        existing_gst_number = str(record.get("receiver_gst_number", "")).strip()
+        receiver_source = str(record.get("receiver_source", "")).strip()
         receiver_config = self.get_receiver_config_for_owner(
-            owner_email=str(record.get("receiver_owner_email", "")).strip().lower(),
-            owner_role=str(record.get("receiver_owner_role", "")).strip().lower(),
+            owner_email=receiver_owner_email,
+            owner_role=receiver_owner_role,
         )
+        if receiver_source == "product_owner_business_details" and existing_upi_id:
+            receiver_config = {
+                "upi_id": existing_upi_id,
+                "payee_name": existing_payee_name or receiver_config.get("payee_name", "MandiTrade"),
+                "currency": str(record.get("receiver_currency", receiver_config.get("currency", "INR"))).strip() or "INR",
+                "enabled": True,
+                "owner_email": receiver_owner_email,
+                "owner_role": receiver_owner_role,
+                "gst_number": existing_gst_number,
+                "profile_completed": bool(record.get("receiver_profile_completed", False)),
+                "source": "product_owner_business_details",
+            }
+        elif not str(receiver_config.get("upi_id", "")).strip() and existing_upi_id:
+            receiver_config = {
+                "upi_id": existing_upi_id,
+                "payee_name": existing_payee_name or "MandiTrade",
+                "currency": str(record.get("receiver_currency", "INR")).strip() or "INR",
+                "enabled": True,
+                "owner_email": receiver_owner_email,
+                "owner_role": receiver_owner_role,
+                "gst_number": existing_gst_number,
+                "profile_completed": bool(record.get("receiver_profile_completed", False)),
+                "source": receiver_source or "payment_record",
+            }
         upi_link = self.build_upi_link_from_values(
             upi_id=str(receiver_config.get("upi_id", "")).strip(),
             payee_name=str(receiver_config.get("payee_name", "MandiTrade")).strip(),

@@ -184,6 +184,28 @@
   margin: 0.55rem 0 1.1rem;
 }
 
+.mt-catalog-card__upi-link {
+  margin-top: 0.45rem;
+}
+
+.mt-catalog-card__upi-link a {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.3rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid rgba(217, 4, 41, 0.32);
+  background: linear-gradient(180deg, rgba(217, 4, 41, 0.18), rgba(20, 20, 20, 0.88));
+  color: #ffffff;
+  text-decoration: none;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.mt-catalog-card__upi-link a:hover {
+  border-color: rgba(242, 5, 48, 0.6);
+  background: linear-gradient(180deg, rgba(242, 5, 48, 0.24), rgba(20, 20, 20, 0.92));
+}
+
 .mt-catalog-loadmore {
   margin-top: 0.8rem;
 }
