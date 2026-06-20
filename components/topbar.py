@@ -81,39 +81,36 @@ def render_topbar(
             if st.button("Open Control Surface", key="topbar_open_control_surface", use_container_width=True, type="primary"):
                 _open_control_dialog()
         with action_cols[1]:
-            st.caption("Language, role view, release, account, and theme.")
+            st.caption("Language, role view, release, and account.")
 
     @st.dialog("MandiTrade Control Surface")
     def _render_control_dialog() -> None:
         dialog_summary_html = "".join(
             [
-                _build_dialog_chip("👤", "User", user_name),
-                _build_dialog_chip("🪪", "Role", role_label or "-"),
-                _build_dialog_chip("🌐", "Lang", str(language or "en").upper()),
-                _build_dialog_chip("🚀", "Release", f"v{version}"),
-                _build_dialog_chip("💽", "Runtime", runtime_mode),
-                _build_dialog_chip("📁", "Root", root_folder_name),
+                _build_dialog_chip("U", "User", user_name),
+                _build_dialog_chip("R", "Role", role_label or "-"),
+                _build_dialog_chip("L", "Lang", str(language or "en").upper()),
+                _build_dialog_chip("V", "Ver", f"v{version}"),
             ]
         )
         render_template(
             "control_surface_dialog.html",
             title="Workspace",
-            subtitle="Fast controls, less words.",
+            subtitle="Quick controls.",
             summary_html=dialog_summary_html,
         )
 
-        section_choice = st.radio(
-            "Control Section",
-            options=["🌐 Lang", "👥 View", "🧩 Work", "💽 Run", "👤 Me"],
-            horizontal=True,
+        section_choice = st.selectbox(
+            "Section",
+            options=["Lang", "View", "Theme", "Run", "Me"],
             label_visibility="collapsed",
             key="mt_control_dialog_section",
         )
 
-        if section_choice == "🌐 Lang":
+        if section_choice == "Lang":
             normalized_options = [str(option or "").strip().lower() for option in (language_options or []) if str(option or "").strip()]
             normalized_current = str(language or "en").strip().lower() or "en"
-            st.caption("🌐 Language")
+            st.caption("Language")
             if normalized_options and set_language is not None:
                 choice = st.selectbox(
                     language_label or "Language",
@@ -130,8 +127,8 @@ def render_topbar(
             else:
                 st.info("Language options are not available.")
 
-        elif section_choice == "👥 View":
-            st.caption("👥 Role View")
+        elif section_choice == "View":
+            st.caption("Role View")
             if role_switcher_options:
                 options = [str(option.get("value", "__self__")) for option in role_switcher_options]
                 choice = st.selectbox(
@@ -156,11 +153,8 @@ def render_topbar(
             else:
                 st.info("Role view switching is available only to superadmin.")
 
-        elif section_choice == "🧩 Work":
-            st.caption("🧩 Workspace")
-            info_cols = st.columns(2, gap="small")
-            info_cols[0].metric("Data", "JSON")
-            info_cols[1].metric("Source", runtime_source)
+        elif section_choice == "Theme":
+            st.caption("Theme")
             if theme_service is not None:
                 backgrounds = theme_service.list_available_backgrounds()
                 if backgrounds:
@@ -190,8 +184,8 @@ def render_topbar(
                 else:
                     st.caption("No workspace themes available.")
 
-        elif section_choice == "💽 Run":
-            st.caption("💽 Runtime")
+        elif section_choice == "Run":
+            st.caption("Runtime")
             runtime_cols = st.columns(2, gap="small")
             runtime_cols[0].metric("Online", "Yes" if drive_manifest.get("connected", False) else "No")
             runtime_cols[1].metric("Mode", runtime_mode)
@@ -204,11 +198,10 @@ def render_topbar(
                 st.success("Ready")
 
         else:
-            st.caption("👤 Account")
-            account_cols = st.columns(3, gap="small")
-            account_cols[0].metric("Name", user_name)
-            account_cols[1].metric("Role", role_label or "-")
-            account_cols[2].metric("Email", user_email or "-")
+            st.caption("Account")
+            st.write(f"**Name:** {user_name}")
+            st.write(f"**Role:** {role_label or '-'}")
+            st.write(f"**Email:** {user_email or '-'}")
 
         if st.button("Close", use_container_width=True, key="topbar_close_dialog"):
             st.session_state[_CONTROL_DIALOG_KEY] = ""
