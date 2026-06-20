@@ -217,9 +217,19 @@ def _normalize_owner_business_details(details: dict) -> dict:
 
 def _normalize_service_config(details: dict) -> dict:
     payload = dict(details or {})
+    packaging_mode = str(payload.get("packaging_mode", "owner") or "owner").strip().lower()
+    shipping_mode = str(payload.get("shipping_mode", "owner") or "owner").strip().lower()
+    if packaging_mode == "platform":
+        packaging_mode = "manditrade"
+    if shipping_mode == "platform":
+        shipping_mode = "manditrade"
+    if packaging_mode not in {"owner", "manditrade"}:
+        packaging_mode = "owner"
+    if shipping_mode not in {"owner", "manditrade"}:
+        shipping_mode = "owner"
     return {
-        "packaging_mode": str(payload.get("packaging_mode", "owner") or "owner").strip().lower(),
-        "shipping_mode": str(payload.get("shipping_mode", "owner") or "owner").strip().lower(),
+        "packaging_mode": packaging_mode,
+        "shipping_mode": shipping_mode,
         "delivery_scope": str(payload.get("delivery_scope", "custom") or "custom").strip().lower(),
         "packaging_cost_b2c": round(float(payload.get("packaging_cost_b2c", 0) or 0), 2),
         "packaging_cost_b2b": round(float(payload.get("packaging_cost_b2b", 0) or 0), 2),

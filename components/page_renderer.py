@@ -185,25 +185,39 @@ def _load_route_datasets(
 def _render_marketplace_cart_editor(cart_service: CartService, translator, *, key_prefix: str = "marketplace_editor") -> None:
     t = translator.t if translator else (lambda key: key)
     cart = cart_service.get_cart()
+    product_lookup = {
+        str(product.get("product_id", "")).strip(): dict(product)
+        for product in (st.session_state.get("mt_checkout_product_lookup", {}) or {}).values()
+        if isinstance(product, dict)
+    }
     for index, item in enumerate(list(cart.get("items", []))):
         product_id = str(item.get("product_id", "")).strip()
+        product = product_lookup.get(product_id, {})
+        channel = str(item.get("channel", "marketplace") or "marketplace").strip().lower() or "marketplace"
+        if channel == "manditrade":
+            mandi_rules = dict(((product.get("sales_channels") or {}).get("manditrade") or {}))
+            minimum_quantity = float(mandi_rules.get("minimum_quantity", 1) or 1)
+            increment_quantity = float(mandi_rules.get("increment_quantity", 1) or 1)
+        else:
+            minimum_quantity = 1.0
+            increment_quantity = 1.0
         widget_suffix = str(item.get("cart_item_key", "")).strip() or product_id or f"row_{index}"
         item_cols = st.columns([3, 1.2, 1.2, 1.2, 0.8])
         item_cols[0].markdown(f"**{item.get('product_name', '')}**")
         updated_quantity = item_cols[1].number_input(
             t("field.quantity"),
-            min_value=1.0,
-            step=1.0,
-            value=float(item.get("quantity", 1) or 1),
+            min_value=float(minimum_quantity),
+            step=float(increment_quantity),
+            value=max(float(item.get("quantity", 1) or 1), float(minimum_quantity)),
             key=f"{key_prefix}_cart_quantity_{widget_suffix}_{index}",
         )
         if float(updated_quantity or 1) != float(item.get("quantity", 1) or 1):
-            cart_service.set_quantity(product_id, updated_quantity)
+            cart_service.set_quantity(product_id, updated_quantity, channel=channel)
             st.rerun()
         item_cols[2].write(f"{float(item.get('unit_price', 0) or 0):g}")
         item_cols[3].write(f"{float(item.get('line_total', 0) or 0):g}")
         if item_cols[4].button("X", key=f"{key_prefix}_cart_remove_{widget_suffix}_{index}", use_container_width=True):
-            cart_service.remove_item(product_id)
+            cart_service.remove_item(product_id, channel=channel)
             st.rerun()
 
 
@@ -838,6 +852,11 @@ def render_app() -> None:
         cart_service = CartService()
         user_profile = user_profile_service.get_profile(user.get("email", ""))
         products = page_service.filter_rows(datasets.get(page_definition.get("data_source", ""), []), page_definition.get("filters", {}))
+        st.session_state["mt_checkout_product_lookup"] = {
+            str(product.get("product_id", "")).strip(): dict(product)
+            for product in products
+            if str(product.get("product_id", "")).strip()
+        }
         payment_config = order_service.payment_service.get_payment_config()
         st.session_state.setdefault("mt_marketplace_stage", "browse")
 
@@ -993,12 +1012,18 @@ def render_app() -> None:
         cart_service = CartService("mt_next_manditrade_cart")
         user_profile = user_profile_service.get_profile(user.get("email", ""))
         products = page_service.filter_rows(datasets.get(page_definition.get("data_source", ""), []), page_definition.get("filters", {}))
+        st.session_state["mt_checkout_product_lookup"] = {
+            str(product.get("product_id", "")).strip(): dict(product)
+            for product in products
+            if str(product.get("product_id", "")).strip()
+        }
         payment_config = order_service.payment_service.get_payment_config()
 
         def on_request(product: dict) -> None:
             try:
-                rules = order_service.get_channel_quantity_rules(product, "manditrade")
-                cart_service.add_to_cart(product, channel="manditrade", quantity=float(rules.get("minimum_quantity", 1) or 1))
+                effective_bulk_channel = "manditrade" if role == "client_buyer" else "marketplace"
+                rules = order_service.get_channel_quantity_rules(product, effective_bulk_channel)
+                cart_service.add_to_cart(product, channel=effective_bulk_channel, quantity=float(rules.get("minimum_quantity", 1) or 1))
                 st.session_state["mt_manditrade_stage"] = "browse"
                 st.session_state["mt_manditrade_notice"] = (
                     f"Added {product.get('product_name', product.get('product_id', 'product'))} to bulk cart."
@@ -1052,8 +1077,9 @@ def render_app() -> None:
                             translator=translator,
                         )
                         profile_complete, missing_profile_fields = _profile_business_completion_status(user_profile)
+                        requires_business_profile = role == "client_buyer"
                         business_profile = {"details": {}, "missing": []}
-                        if not profile_complete:
+                        if requires_business_profile and not profile_complete:
                             business_profile = _render_checkout_business_profile_form(
                                 key_prefix="manditrade_business_profile",
                                 user_profile=user_profile,
@@ -1061,7 +1087,7 @@ def render_app() -> None:
                         if st.button(translator.t("ui.confirm_order"), use_container_width=True, key="manditrade_confirm_order"):
                             if not checkout["name"] or not checkout["mobile"] or not checkout["delivery_address"]["address_line_1"] or not checkout["delivery_address"]["city"] or not checkout["delivery_address"]["state"] or not checkout["delivery_address"]["pin_code"]:
                                 st.error(translator.t("ui.complete_contact_address"))
-                            elif not profile_complete and business_profile["missing"]:
+                            elif requires_business_profile and not profile_complete and business_profile["missing"]:
                                 st.error(f"Complete business profile fields: {', '.join(business_profile['missing'])}")
                             else:
                                 try:
@@ -1071,7 +1097,7 @@ def render_app() -> None:
                                         display_name=checkout["name"],
                                         mobile=checkout["mobile"],
                                     )
-                                    if not profile_complete:
+                                    if requires_business_profile and not profile_complete:
                                         updated_profile = dict(latest_profile)
                                         updated_profile["display_name"] = checkout["name"]
                                         updated_profile["mobile"] = checkout["mobile"]
@@ -1106,17 +1132,30 @@ def render_app() -> None:
                                         )
                                     product_lookup = {str(product.get("product_id", "")).strip(): product for product in products}
                                     created_orders = []
-                                    for item in cart.get("items", []):
-                                        product = product_lookup.get(str(item.get("product_id", "")).strip())
-                                        if not product:
-                                            raise ValueError(f"Product not found for bulk cart item: {item.get('product_id', '')}")
-                                        order = order_service.create_manditrade_order_with_checkout(
-                                            product=product,
-                                            requesting_user_email=session_service.get_user().get("email", ""),
-                                            requester_name=checkout["name"],
-                                            requester_mobile=checkout["mobile"],
+                                    if role == "client_buyer":
+                                        for item in cart.get("items", []):
+                                            product = product_lookup.get(str(item.get("product_id", "")).strip())
+                                            if not product:
+                                                raise ValueError(f"Product not found for bulk cart item: {item.get('product_id', '')}")
+                                            order = order_service.create_manditrade_order_with_checkout(
+                                                product=product,
+                                                requesting_user_email=session_service.get_user().get("email", ""),
+                                                requester_name=checkout["name"],
+                                                requester_mobile=checkout["mobile"],
+                                                delivery_address=checkout["delivery_address"],
+                                                requested_quantity=float(item.get("quantity", 1) or 1),
+                                            )
+                                            order_service.persist_order_storage(order)
+                                            user_profile_service.sync_order_record(order=order)
+                                            created_orders.append(order)
+                                    else:
+                                        order = order_service.create_marketplace_order_with_checkout(
+                                            items=cart["items"],
+                                            buyer_email=session_service.get_user().get("email", ""),
+                                            buyer_name=checkout["name"],
+                                            buyer_mobile=checkout["mobile"],
                                             delivery_address=checkout["delivery_address"],
-                                            requested_quantity=float(item.get("quantity", 1) or 1),
+                                            product_lookup=product_lookup,
                                         )
                                         order_service.persist_order_storage(order)
                                         user_profile_service.sync_order_record(order=order)
