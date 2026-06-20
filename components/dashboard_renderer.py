@@ -1,19 +1,13 @@
 from __future__ import annotations
 
-import json
-import math
 from collections import Counter
 
 import pandas as pd
 import streamlit as st
-import streamlit.components.v1 as components
 try:
     import matplotlib.pyplot as plt
 except ModuleNotFoundError:  # pragma: no cover - runtime fallback for lean deploys
     plt = None
-
-from components.html_renderer import load_template
-
 
 RED = "#d90429"
 RED_SOFT = "#8f1123"
@@ -231,6 +225,10 @@ def _format_metric_value(value: int | float) -> str:
             return str(int(value))
         return f"{value:,.2f}"
     return f"{value:,}"
+
+
+def _resolve_card_route(card: dict) -> str:
+    return str(card.get("route", "") or "").strip()
 
 
 def _rows_frame(rows: list[dict]) -> pd.DataFrame:
@@ -516,17 +514,12 @@ def _low_stock_chart(rows: list[dict]):
 
 
 def _render_analytics(current_user: dict, dataset_lookup: dict[str, list[dict]]) -> None:
-    role = str(current_user.get("role", "")).strip().lower()
-    if role not in {"platform_admin", "merchant"}:
-        return
-    if plt is None:
-        return
+    return
 
-    scoped = _scoped_datasets(dataset_lookup, current_user)
-    st.markdown("### Business Snapshot")
+
+def _get_widget_specs(role: str, scoped: dict[str, list[dict]]) -> list[dict]:
     if role == "platform_admin":
-        st.caption("A live management view across merchants, buyers, payments, shipping, and platform earnings.")
-        chart_specs = [
+        return [
             ("Order Stage Flow", "See which stage is filling up and where follow-up is needed.", lambda: _order_status_chart(scoped.get("orders", []))),
             ("Sales Trend", "Track order value movement over the latest activity window.", lambda: _order_value_trend_chart(scoped.get("orders", []))),
             ("B2C vs B2B Mix", "Understand channel split across marketplace and manditrade.", lambda: _channel_mix_chart(scoped.get("orders", []))),
@@ -537,9 +530,7 @@ def _render_analytics(current_user: dict, dataset_lookup: dict[str, list[dict]])
             ("User Mix", "Review platform coverage across merchant, client, public, and worker roles.", lambda: _role_mix_chart(scoped.get("users", []))),
             ("Ledger Revenue Mix", "Track owner payable, platform margin, packaging, and shipping entries.", lambda: _ledger_mix_chart(scoped.get("ledger", []))),
         ]
-    else:
-        st.caption("A merchant view focused on product movement, revenue flow, delivery progress, and stock pressure.")
-        chart_specs = [
+    return [
             ("My Order Stage Flow", "See where your current orders are sitting right now.", lambda: _order_status_chart(scoped.get("orders", []))),
             ("My Sales Trend", "Track your order value across the latest active days.", lambda: _order_value_trend_chart(scoped.get("orders", []))),
             ("My Channel Mix", "Compare your marketplace and manditrade business share.", lambda: _channel_mix_chart(scoped.get("orders", []))),
@@ -548,39 +539,101 @@ def _render_analytics(current_user: dict, dataset_lookup: dict[str, list[dict]])
             ("My Product Categories", "See which categories make up your current catalog.", lambda: _category_chart(scoped.get("products", []), scoped.get("orders", []))),
             ("Low Stock Watch", "Catch products that may need replenishment soon.", lambda: _low_stock_chart(scoped.get("products", []))),
             ("My Ledger Mix", "Review payable value, margin share, packaging, and shipping lines.", lambda: _ledger_mix_chart(scoped.get("ledger", []))),
+            ("Order Health", "Track how many orders are active versus completed.", lambda: _order_status_chart(scoped.get("orders", []))),
         ]
 
-    for start in range(0, len(chart_specs), 2):
-        columns = st.columns(2, gap="large")
-        for column, spec in zip(columns, chart_specs[start:start + 2]):
-            title, subtitle, chart_fn = spec
-            with column:
-                _render_chart(title, subtitle, chart_fn)
 
-
-def render_dashboard_cards(cards: list[dict], dataset_lookup: dict[str, list[dict]], translator, current_user: dict | None = None) -> None:
-    current_user = current_user or {}
-    rendered_cards = []
-    for card in cards:
+def _render_summary_cards(cards: list[dict], dataset_lookup: dict[str, list[dict]], current_user: dict) -> str | None:
+    selected_route = None
+    summary_cards = cards[:6]
+    columns = st.columns(len(summary_cards) if summary_cards else 1, gap="small")
+    for column, card in zip(columns, summary_cards):
         dataset_name = str(card.get("data_source", "")).strip()
         rows = dataset_lookup.get(dataset_name, [])
-        rendered_cards.append(
+        with column:
+            with st.container(border=True):
+                st.caption(str(card.get("eyebrow", "Summary")))
+                st.markdown(f"**{card.get('title', '')}**")
+                st.markdown(f"### {_format_metric_value(_resolve_card_value(card, rows, current_user))}")
+                subtitle = str(card.get("subtitle", "")).strip()
+                if subtitle:
+                    st.caption(subtitle)
+                route = _resolve_card_route(card)
+                if route:
+                    if st.button("Open", key=f"dashboard_card_{card.get('id', route)}", use_container_width=True):
+                        selected_route = route
+    return selected_route
+
+
+def _render_widget_board(role: str, scoped: dict[str, list[dict]]) -> None:
+    if plt is None:
+        return
+    widget_specs = _get_widget_specs(role, scoped)
+    selected_key = f"mt_dashboard_widget::{role}"
+    selected_widget = str(st.session_state.get(selected_key, "") or "").strip()
+    selected_spec = None
+    if selected_widget:
+        for index, spec in enumerate(widget_specs):
+            widget_id = f"{role}_{index}"
+            if selected_widget == widget_id:
+                selected_spec = (widget_id, *spec)
+                break
+    if selected_spec:
+        _, title, subtitle, chart_fn = selected_spec
+        st.markdown("### Active Widget")
+        with st.container(border=True):
+            top_cols = st.columns([6, 1], gap="small")
+            with top_cols[0]:
+                st.markdown(f"**{title}**")
+                st.caption(subtitle)
+            with top_cols[1]:
+                if st.button("Back", key=f"close_widget_panel_{role}", use_container_width=True):
+                    st.session_state[selected_key] = ""
+                    st.rerun()
+            figure = chart_fn()
+            if figure is not None:
+                st.pyplot(figure, use_container_width=True)
+                plt.close(figure)
+            else:
+                st.caption("No data available for this widget.")
+        return
+
+    st.markdown("### Business Widgets")
+    st.caption("Click one tile to open that business view.")
+    for index, spec in enumerate(widget_specs):
+        title, subtitle, chart_fn = spec
+        if index % 3 == 0:
+            columns = st.columns(3, gap="small")
+        column = columns[index % 3]
+        widget_id = f"{role}_{index}"
+        with column:
+            with st.container(border=True):
+                st.markdown(f"**{title}**")
+                st.caption(subtitle)
+                if st.button("Open Widget", key=f"open_widget_{widget_id}", use_container_width=True):
+                    st.session_state[selected_key] = widget_id
+                    st.rerun()
+
+
+def render_dashboard_cards(cards: list[dict], dataset_lookup: dict[str, list[dict]], translator, current_user: dict | None = None) -> str | None:
+    current_user = current_user or {}
+    translated_cards = []
+    for index, card in enumerate(cards):
+        dataset_name = str(card.get("data_source", "")).strip()
+        translated_cards.append(
             {
-                "title": translator.t(card.get("title_key", card.get("id", ""))),
-                "value": _format_metric_value(_resolve_card_value(card, rows, current_user)),
+                **card,
+                "title": translator.t(card.get("title_key", card.get("id", f"card_{index}"))),
                 "subtitle": translator.t(card.get("subtitle_key", "")) if str(card.get("subtitle_key", "")).strip() else (dataset_name.replace("_", " ").title() if dataset_name else "Workspace Metric"),
-                "eyebrow": str(card.get("eyebrow", f"Metric {len(rendered_cards) + 1}")),
-                "series": _build_card_series(str(card.get("metric", "count")), rows, current_user),
+                "eyebrow": str(card.get("eyebrow", f"Metric {index + 1}")),
             }
         )
 
-    if not rendered_cards:
-        return
+    if not translated_cards:
+        return None
 
-    payload_json = json.dumps(rendered_cards, ensure_ascii=True)
-    markup = load_template("dashboard_cards.html", payload_json=payload_json)
-    desktop_columns = 3
-    row_count = max(1, math.ceil(len(rendered_cards) / desktop_columns))
-    card_frame_height = min(max(240, 40 + (row_count * 178)), 620)
-    components.html(markup, height=card_frame_height, scrolling=False)
-    _render_analytics(current_user, dataset_lookup)
+    role = str(current_user.get("role", "")).strip().lower()
+    scoped = _scoped_datasets(dataset_lookup, current_user)
+    selected_route = _render_summary_cards(translated_cards, dataset_lookup, current_user)
+    _render_widget_board(role, scoped)
+    return selected_route

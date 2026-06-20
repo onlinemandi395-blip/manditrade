@@ -69,6 +69,35 @@ BOOTSTRAP_APP_CONFIG = {
     },
 }
 
+_DASHBOARD_VIEWPORT_CSS = """
+<style>
+.stApp [data-testid="stAppViewContainer"] > .main .block-container {
+  max-width: 100% !important;
+  padding-top: 0.35rem !important;
+  padding-bottom: 0.75rem !important;
+}
+.stApp [data-testid="stVerticalBlock"] [data-testid="stVerticalBlockBorderWrapper"] {
+  padding-top: 0.55rem !important;
+  padding-bottom: 0.55rem !important;
+}
+.stApp [data-testid="stHorizontalBlock"] {
+  gap: 0.5rem !important;
+}
+.stApp [data-testid="stVerticalBlock"] h3 {
+  margin-top: 0 !important;
+  margin-bottom: 0.15rem !important;
+}
+.stApp [data-testid="stVerticalBlock"] .stCaption {
+  margin-bottom: 0.15rem !important;
+}
+.stApp [data-testid="stButton"] button {
+  min-height: 2.2rem !important;
+  padding-top: 0.3rem !important;
+  padding-bottom: 0.3rem !important;
+}
+</style>
+"""
+
 
 def _sanitize_cart_rows(items: list[dict]) -> list[dict]:
     return [
@@ -674,6 +703,7 @@ def render_app() -> None:
         st.warning(translator.t("auth.access_denied"))
     dashboard_cards = []
     if page_definition.get("type") == "dashboard":
+        inject_inline_css(_DASHBOARD_VIEWPORT_CSS)
         dashboard_cards = cache_service.get_config("dashboards").get("dashboards", {}).get(role, {}).get("cards", [])
         render_template(
             "page_hero.html",
@@ -701,7 +731,10 @@ def render_app() -> None:
     )
 
     if page_definition.get("type") == "dashboard":
-        render_dashboard_cards(dashboard_cards, datasets, translator, current_user=user)
+        selected_route = render_dashboard_cards(dashboard_cards, datasets, translator, current_user=user)
+        if selected_route:
+            session_service.set_route(selected_route)
+            st.rerun()
     elif page_definition.get("type") == "product_grid":
         media_service = MediaService(admin_drive_service)
         notification_service = NotificationService(data_service)
