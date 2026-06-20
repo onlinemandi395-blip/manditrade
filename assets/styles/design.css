@@ -50,6 +50,8 @@
 }
 
 [data-baseweb="input"] > div,
+[data-baseweb="base-input"],
+[data-baseweb="base-input"] > div,
 [data-baseweb="select"] > div,
 [data-baseweb="textarea"] > div,
 [data-testid="stTextInputRootElement"],
@@ -75,6 +77,8 @@ input {
 }
 
 [data-baseweb="input"] > div:focus-within,
+[data-baseweb="base-input"]:focus-within,
+[data-baseweb="base-input"] > div:focus-within,
 [data-baseweb="select"] > div:focus-within,
 [data-baseweb="textarea"] > div:focus-within,
 [data-testid="stTextInputRootElement"]:focus-within,
@@ -235,10 +239,17 @@ div[role="radiogroup"] [aria-checked="true"] {
 [data-testid="stTextArea"] textarea,
 [data-testid="stTextInput"] input,
 [data-testid="stNumberInput"] input,
+[data-testid="stTextInput"] [data-baseweb="base-input"],
+[data-testid="stTextInput"] [data-baseweb="input"],
+[data-testid="stNumberInput"] [data-baseweb="base-input"],
+[data-testid="stNumberInput"] [data-baseweb="input"],
+[data-testid="stSelectbox"] [data-baseweb="select"],
+[data-testid="stMultiSelect"] [data-baseweb="select"],
 [data-testid="stSelectbox"] input,
 [data-testid="stMultiSelect"] input {
   color: #ffffff !important;
   caret-color: #f20530 !important;
+  background: transparent !important;
 }
 
 [data-testid="stNumberInput"] [data-baseweb="input"],
@@ -247,6 +258,16 @@ div[role="radiogroup"] [aria-checked="true"] {
   border: 1px solid rgba(255, 255, 255, 0.14) !important;
   border-radius: 16px !important;
   overflow: hidden !important;
+}
+
+[data-testid="stTextInput"] [data-baseweb="input"] > div,
+[data-testid="stTextInput"] [data-baseweb="base-input"] > div,
+[data-testid="stSelectbox"] [data-baseweb="select"] > div,
+[data-testid="stMultiSelect"] [data-baseweb="select"] > div,
+[data-testid="stTextArea"] [data-baseweb="textarea"] > div {
+  background: linear-gradient(180deg, rgba(18, 18, 18, 0.98), rgba(28, 8, 12, 0.98)) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: 16px !important;
 }
 
 [data-testid="stNumberInput"] button {

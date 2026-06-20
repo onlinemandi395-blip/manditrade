@@ -1187,39 +1187,13 @@ def render_app() -> None:
                             geography_payload=cache_service.get_config("india_geography"),
                         )
                         profile_complete, missing_profile_fields = _profile_business_completion_status(user_profile)
-                        requires_business_profile = _normalize_role(role) == "merchant_buyer"
+                        requires_business_profile = False
                         business_profile = {"details": {}, "missing": []}
-                        if requires_business_profile and not profile_complete:
-                            business_profile = _render_checkout_business_profile_form(
-                                key_prefix="manditrade_business_profile",
-                                user_profile=user_profile,
-                            )
                         if st.button(translator.t("ui.confirm_order"), use_container_width=True, key="manditrade_confirm_order"):
                             if not checkout["name"] or not checkout["mobile"] or not checkout["delivery_address"]["address_line_1"] or not checkout["delivery_address"]["city"] or not checkout["delivery_address"]["district"] or not checkout["delivery_address"]["state"] or not checkout["delivery_address"]["pin_code"]:
                                 st.error(translator.t("ui.complete_contact_address"))
-                            elif requires_business_profile and not profile_complete and business_profile["missing"]:
-                                st.error(f"Complete business profile fields: {', '.join(business_profile['missing'])}")
                             else:
                                 try:
-                                    if requires_business_profile and not profile_complete:
-                                        latest_profile = user_profile_service.get_or_create_profile(
-                                            email=session_service.get_user().get("email", ""),
-                                            role=user.get("role", "public_buyer"),
-                                            display_name=checkout["name"],
-                                            mobile=checkout["mobile"],
-                                        )
-                                        updated_profile = dict(latest_profile)
-                                        updated_profile["display_name"] = checkout["name"]
-                                        updated_profile["mobile"] = checkout["mobile"]
-                                        merged_details = dict((latest_profile.get("details", {}) or {}))
-                                        merged_details.update(business_profile["details"])
-                                        updated_profile["details"] = merged_details
-                                        user_profile_service.save_profile(
-                                            actor_email=session_service.get_user().get("email", ""),
-                                            actor_role=user.get("role", "public_buyer"),
-                                            target_email=session_service.get_user().get("email", ""),
-                                            updates=updated_profile,
-                                        )
                                     if checkout.get("save_address", False):
                                         address_book_service.save_address(
                                             email=session_service.get_user().get("email", ""),
