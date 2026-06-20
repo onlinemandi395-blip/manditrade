@@ -876,13 +876,42 @@ def render_app() -> None:
             session_service.logout()
             st.rerun()
 
-    render_topbar(
+    topbar_selected_role_view = render_topbar(
         app_name=app_config.get("app_name", "MandiTrade Next"),
         version=app_config.get("version", "0.1.0"),
         role_label=translator.t(f"role.{role}"),
+        role_key=role,
         language=language,
+        language_label=translator.t("auth.language"),
         translator=translator,
+        user=user,
+        drive_manifest=drive_manifest,
+        role_switcher_options=role_switcher_options,
+        current_role_view=current_role_view,
+        language_options=language_service.get_available_languages(),
+        language_option_labels=language_service.get_language_option_labels(),
+        set_language=session_service.set_language,
+        theme_service=theme_service,
     )
+    if topbar_selected_role_view and str(topbar_selected_role_view) != str(current_role_view or "__self__"):
+        if topbar_selected_role_view == "__self__":
+            session_service.clear_effective_user()
+        else:
+            selected_option = next(
+                (option for option in role_switcher_options if str(option.get("value", "__self__")) == str(topbar_selected_role_view)),
+                None,
+            )
+            if selected_option:
+                session_service.set_effective_user(
+                    {
+                        "email": selected_option.get("email", ""),
+                        "role": _normalize_role(selected_option.get("role", "public_buyer")),
+                        "status": "ACTIVE",
+                        "display_name": selected_option.get("display_name", ""),
+                        "landing_page": selected_option.get("landing_page", "marketplace"),
+                    }
+                )
+        st.rerun()
 
     page_definition = page_service.get_page_definition(current_route, role)
     if not rbac_service.can_access(role, current_route):
