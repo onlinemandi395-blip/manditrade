@@ -58,22 +58,23 @@ def render_topbar(
         for item in summary_items
     )
 
-    render_template(
-        "topbar.html",
-        app_name=app_name,
-        summary_html=summary_html,
-        user_name=user_name,
-        user_email=user_email,
-    )
+    with st.container(border=True):
+        render_template(
+            "topbar.html",
+            app_name=app_name,
+            summary_html=summary_html,
+            user_name=user_name,
+            user_email=user_email,
+        )
 
-    action_cols = st.columns([0.9, 0.9, 2.2], gap="small")
-    with action_cols[0]:
-        if st.button("Open Control Surface", key="topbar_open_control_surface", use_container_width=True, type="primary"):
-            _open_control_dialog()
-    with action_cols[1]:
-        st.caption(root_folder_name)
-    with action_cols[2]:
-        st.caption("Language, role view, runtime, release, account, and workspace settings.")
+        action_cols = st.columns([1.1, 0.9, 2.0], gap="small")
+        with action_cols[0]:
+            if st.button("Open Control Surface", key="topbar_open_control_surface", use_container_width=True, type="primary"):
+                _open_control_dialog()
+        with action_cols[1]:
+            st.caption(root_folder_name)
+        with action_cols[2]:
+            st.caption("Language, role view, runtime, release, account, and workspace settings.")
 
     @st.dialog("MandiTrade Control Surface")
     def _render_control_dialog() -> None:
