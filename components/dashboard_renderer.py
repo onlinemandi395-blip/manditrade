@@ -750,8 +750,7 @@ def _get_widget_specs(role: str, scoped: dict[str, list[dict]]) -> list[dict]:
 
 def _render_summary_cards(cards: list[dict], dataset_lookup: dict[str, list[dict]], current_user: dict) -> list[dict]:
     summary_specs: list[dict] = []
-    summary_cards = cards[:6]
-    st.markdown("#### Business Snapshot")
+    summary_cards = cards[:3]
     for index, card in enumerate(summary_cards):
         focus_id = f"summary_{index}"
         dataset_name = str(card.get("data_source", "")).strip()
@@ -789,15 +788,14 @@ def _render_summary_cards(cards: list[dict], dataset_lookup: dict[str, list[dict
 def _render_widget_board(role: str, scoped: dict[str, list[dict]]) -> list[dict]:
     if plt is None:
         return []
-    widget_specs = _get_widget_specs(role, scoped)
+    widget_specs = _get_widget_specs(role, scoped)[:4]
     widget_details: list[dict] = []
-    st.markdown("#### Business Widgets")
     for index, spec in enumerate(widget_specs):
         title, subtitle, chart_fn = spec
         focus_id = f"widget_{index}"
         widget_details.append({"focus_id": focus_id, "title": title, "subtitle": subtitle, "chart_fn": chart_fn})
-    for start in range(0, len(widget_details), 3):
-        columns = st.columns(3, gap="small")
+    for start in range(0, len(widget_details), 2):
+        columns = st.columns(2, gap="small")
         for offset, column in enumerate(columns):
             index = start + offset
             if index >= len(widget_details):
@@ -929,10 +927,12 @@ def render_dashboard_cards(cards: list[dict], dataset_lookup: dict[str, list[dic
     scoped = _scoped_datasets(dataset_lookup, current_user)
     focus_key = _dashboard_focus_key(role)
     focus_id = str(st.session_state.get(focus_key, "") or "").strip()
-    board_col, detail_col = st.columns([2.25, 1.05], gap="small")
-    with board_col:
-        summary_specs = _render_summary_cards(translated_cards, dataset_lookup, current_user)
-        widget_specs = _render_widget_board(role, scoped)
-    with detail_col:
+    with st.container(border=True):
+        st.markdown("#### Snapshot")
+        summary_specs = _render_summary_cards(translated_cards[:3], dataset_lookup, current_user)
+    with st.container(border=True):
+        st.markdown("#### Trends")
+        widget_specs = _render_widget_board(role, scoped)[:4]
+    with st.container(border=True):
         _render_focus_detail(focus_id, summary_specs, widget_specs, role=role, scoped=scoped)
     return None

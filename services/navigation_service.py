@@ -4,11 +4,7 @@ from services.auth_service import is_bootstrap_admin, normalize_role
 
 
 class NavigationService:
-    ESSENTIAL_ITEMS = [
-        {"route": "payments", "icon": "[PY]", "label_key": "sidebar.payments"},
-        {"route": "ledger", "icon": "[LG]", "label_key": "sidebar.ledger"},
-        {"route": "completed_deliveries", "icon": "[CD]", "label_key": "sidebar.completed_deliveries"},
-    ]
+    ESSENTIAL_ITEMS: list[dict] = []
 
     def __init__(self, cache_service, translator, rbac_service) -> None:
         self.cache_service = cache_service

@@ -47,7 +47,7 @@ def render_commerce_catalog_page(
 ) -> None:
     query = render_commerce_search(route=route, placeholder=placeholder)
     categories = sorted({str(product.get("category", "")).strip() for product in products if str(product.get("category", "")).strip()})
-    selected_category = render_category_strip(route=route, categories=categories, selected_category="All")
+    selected_category = render_category_strip(route=route, categories=categories, selected_category="All Categories")
     render_template("commerce_toolbar_open.html")
     filters = render_filter_bar(route=route)
     render_template("html_close_div.html")
@@ -59,12 +59,20 @@ def render_commerce_catalog_page(
         and str(product.get("status", "PENDING_APPROVAL")).upper() == "APPROVED"
         and str(product.get("posting_status", "READY_TO_POST")).upper() == "READY_TO_POST"
         and (not query or _matches_search(product, query))
-        and (selected_category == "All" or str(product.get("category", "")).strip() == selected_category)
-        and (filters["availability"] == "All" or float(((product.get("inventory") or {}).get("available_quantity", 0) or 0)) > 0)
+        and (selected_category == "All Categories" or str(product.get("category", "")).strip() == selected_category)
+        and (filters["availability"] == "All Items" or float(((product.get("inventory") or {}).get("available_quantity", 0) or 0)) > 0)
         and float(((product.get("pricing") or {}).get(price_key, 0)) or 0) >= filters["min_price"]
         and (filters["max_price"] <= 0 or float(((product.get("pricing") or {}).get(price_key, 0)) or 0) <= filters["max_price"])
     ]
     visible_products = _sort_products(visible_products, filters["sort_by"], price_key=price_key)
+    result_label = f"{len(visible_products)} products"
+    if query:
+        result_label = f"{len(visible_products)} results for '{query}'"
+    render_template(
+        "table_shell_meta.html",
+        label=result_label,
+        value=selected_category if selected_category != "All Categories" else filters["sort_by"],
+    )
     render_product_grid(
         visible_products,
         view=channel,

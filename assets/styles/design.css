@@ -462,9 +462,9 @@ div[role="radiogroup"] [aria-checked="true"] {
 .mt-topbar {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 0.35rem;
-  margin-bottom: 0.2rem;
-  padding: 0.28rem 0.15rem 0.1rem;
+  gap: 0.28rem;
+  margin-bottom: 0.15rem;
+  padding: 0.18rem 0.1rem 0.05rem;
   position: relative;
   overflow: hidden;
 }
@@ -506,7 +506,7 @@ div[role="radiogroup"] [aria-checked="true"] {
 }
 
 .mt-topbar__meta h1 {
-  font-size: 1.32rem;
+  font-size: 1.18rem;
 }
 
 .mt-page-title {
@@ -559,10 +559,10 @@ div[data-testid="stHorizontalBlock"] {
 .mt-topbar__meta p,
 .mt-page-subtitle,
 .mt-muted {
-  margin: 0.18rem 0 0;
+  margin: 0.12rem 0 0;
   color: var(--mt-text-soft);
-  line-height: 1.3;
-  font-size: 0.88rem;
+  line-height: 1.25;
+  font-size: 0.8rem;
 }
 
 .mt-control-surface__identity {
@@ -570,8 +570,8 @@ div[data-testid="stHorizontalBlock"] {
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
-  padding: 0.35rem 0.5rem;
-  border-radius: 12px;
+  padding: 0.28rem 0.45rem;
+  border-radius: 10px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(217, 4, 41, 0.05));
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
@@ -588,7 +588,7 @@ div[data-testid="stHorizontalBlock"] {
 
 .mt-control-surface__summary {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.28rem;
 }
 
@@ -596,8 +596,8 @@ div[data-testid="stHorizontalBlock"] {
   display: flex;
   flex-direction: column;
   gap: 0.14rem;
-  padding: 0.34rem 0.44rem;
-  min-height: 42px;
+  padding: 0.28rem 0.4rem;
+  min-height: 38px;
   border-radius: 10px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(217, 4, 41, 0.05));
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -1210,8 +1210,8 @@ div[data-testid="stHorizontalBlock"] {
 .mt-page-hero {
   position: relative;
   overflow: hidden;
-  padding: 1.25rem 1.3rem;
-  margin-bottom: 1rem;
+  padding: 0.9rem 1rem;
+  margin-bottom: 0.7rem;
 }
 
 .mt-frontend-shell,
@@ -1531,7 +1531,7 @@ div[data-testid="stDataFrame"] {
   display: flex;
   align-items: center;
   gap: 0.85rem;
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
 }
 
 .mt-sidebar-brand__mark {
@@ -1557,8 +1557,8 @@ div[data-testid="stDataFrame"] {
 }
 
 .mt-sidebar-card {
-  margin-bottom: 1rem;
-  padding: 0.9rem;
+  margin-bottom: 0.75rem;
+  padding: 0.75rem;
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -1577,14 +1577,15 @@ div[data-testid="stDataFrame"] {
 }
 
 .mt-sidebar-section-label {
-  margin: 0.9rem 0 0.4rem;
+  margin: 0.65rem 0 0.28rem;
   color: rgba(255, 255, 255, 0.76);
 }
 
 [data-testid="stSidebar"] div[data-testid="stButton"] button {
-  border-radius: 14px;
+  border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  min-height: 2.8rem;
+  min-height: 2.45rem;
+  font-weight: 600;
 }
 
 [data-testid="stSidebar"] div[data-testid="stButton"] button[kind="primary"] {

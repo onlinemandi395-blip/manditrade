@@ -44,7 +44,7 @@ def render_product_grid(
         return
     visible_products = products
     if view in {"marketplace", "manditrade"}:
-        page_size = 10
+        page_size = 8
         state_key = f"mt_grid_visible_count::{slideshow_context}"
         st.session_state.setdefault(state_key, page_size)
         st.session_state[state_key] = max(page_size, int(st.session_state.get(state_key, page_size) or page_size))
@@ -72,9 +72,9 @@ def render_product_grid(
                 )
     if view in {"marketplace", "manditrade"} and len(visible_products) < len(products):
         if st.button(
-            f"Load next 10 products ({len(visible_products)}/{len(products)})",
+            f"Show 8 more products ({len(visible_products)}/{len(products)})",
             key=f"{slideshow_context}_load_more",
             use_container_width=True,
         ):
-            st.session_state[f"mt_grid_visible_count::{slideshow_context}"] = len(visible_products) + 10
+            st.session_state[f"mt_grid_visible_count::{slideshow_context}"] = len(visible_products) + 8
             st.rerun()

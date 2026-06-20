@@ -197,43 +197,37 @@ def _render_order_cards(
         render_empty_state(no_orders_text)
         return ""
     selected_order_id = str(st.session_state.get(f"order_card_selected_{key_prefix}", "") or "").strip()
-    for row_start in range(0, len(filtered_rows), 4):
-        row_orders = filtered_rows[row_start:row_start + 4]
-        columns = st.columns(4, gap="small")
-        for column_index, column in enumerate(columns):
-            if column_index >= len(row_orders):
-                continue
-            order = row_orders[column_index]
-            product = dict(products_by_id.get(str(order.get("product_id", "")).strip(), {}) or {})
-            images = [dict(image or {}) for image in (product.get("images", []) or [])]
-            primary_image = next((image for image in images if image.get("is_primary")), images[0] if images else {})
-            with column:
-                with st.container(border=True):
-                    renderable = media_service.get_renderable_image(primary_image) if media_service and primary_image else {"render_mode": "placeholder"}
-                    if renderable.get("render_mode") == "bytes" and renderable.get("bytes"):
-                        st.image(renderable["bytes"], use_container_width=True)
-                    elif renderable.get("render_mode") == "url" and renderable.get("url"):
-                        st.image(renderable["url"], use_container_width=True)
-                    else:
-                        render_template("product_card_media_placeholder.html", label="No Image")
-                    st.markdown(f"**{order.get('product_name', order.get('order_id', 'Order'))}**")
-                    st.caption(f"{order.get('order_id', '')} | {order.get('source_channel', '').upper()}")
-                    st.caption(
-                        f"{t('field.quantity')}: {float(order.get('quantity', 0) or 0):g} | "
-                        f"{t('ui.amount')}: Rs. {float(order.get('total_amount', 0) or 0):g}"
-                    )
-                    st.caption(f"{t('field.status')}: {order.get('status', '')}")
-                    if _invoice_ready(order):
-                        st.caption(invoice_ready_text)
-                    else:
-                        st.caption(invoice_after_payment_text)
-                    if st.button(
-                        t("ui.order_detail"),
-                        key=f"order_card_open_{key_prefix}_{order.get('order_id', '')}",
-                        use_container_width=True,
-                    ):
-                        st.session_state[f"order_card_selected_{key_prefix}"] = str(order.get("order_id", "")).strip()
-                        st.rerun()
+    for order in filtered_rows:
+        product = dict(products_by_id.get(str(order.get("product_id", "")).strip(), {}) or {})
+        images = [dict(image or {}) for image in (product.get("images", []) or [])]
+        primary_image = next((image for image in images if image.get("is_primary")), images[0] if images else {})
+        with st.container(border=True):
+            preview_cols = st.columns([0.9, 2.4, 1.2], gap="small")
+            renderable = media_service.get_renderable_image(primary_image) if media_service and primary_image else {"render_mode": "placeholder"}
+            with preview_cols[0]:
+                if renderable.get("render_mode") == "bytes" and renderable.get("bytes"):
+                    st.image(renderable["bytes"], use_container_width=True)
+                elif renderable.get("render_mode") == "url" and renderable.get("url"):
+                    st.image(renderable["url"], use_container_width=True)
+                else:
+                    render_template("product_card_media_placeholder.html", label="No Image")
+            with preview_cols[1]:
+                st.markdown(f"**{order.get('product_name', order.get('order_id', 'Order'))}**")
+                st.caption(f"{order.get('order_id', '')} | {order.get('source_channel', '').upper()}")
+                st.caption(
+                    f"{t('field.quantity')}: {float(order.get('quantity', 0) or 0):g} | "
+                    f"{t('ui.amount')}: Rs. {float(order.get('total_amount', 0) or 0):g}"
+                )
+                st.caption(f"{t('field.status')}: {order.get('status', '')}")
+                st.caption(invoice_ready_text if _invoice_ready(order) else invoice_after_payment_text)
+            with preview_cols[2]:
+                if st.button(
+                    t("ui.order_detail"),
+                    key=f"order_card_open_{key_prefix}_{order.get('order_id', '')}",
+                    use_container_width=True,
+                ):
+                    st.session_state[f"order_card_selected_{key_prefix}"] = str(order.get("order_id", "")).strip()
+                    st.rerun()
     return selected_order_id
 
 
@@ -242,162 +236,167 @@ def render_orders_page(rows: list[dict], role: str, *, data_service=None, order_
     document_service = DocumentService()
     current_user_email = str(((session_service.get_user() if session_service else {}) or {}).get("email", "")).strip().lower()
     tab_map = _tabs_for_role(role, current_user_email, translator)
-    tabs = st.tabs(list(tab_map.keys()))
-    for tab, (label, filter_fn) in zip(tabs, tab_map.items()):
-        with tab:
-            key_prefix = f"{role}_{label}_{str(label).strip().lower().replace(' ', '_')}"
-            filtered_rows = filter_fn(rows)
-            if not filtered_rows:
-                if _normalize_role(role) in {"public_buyer", "merchant_buyer"}:
-                    render_empty_state("No orders found.")
-                else:
-                    render_table(filtered_rows, caption=label)
-                continue
-            products_by_id = {}
-            if data_service is not None:
-                products_by_id = {
-                    str(row.get("product_id", "")).strip(): row
-                    for row in data_service.get_collection_ref("products")
-                    if str(row.get("product_id", "")).strip()
-                }
-            if _normalize_role(role) in {"public_buyer", "merchant_buyer"}:
-                selected_order_id = _render_order_cards(
-                    filtered_rows,
-                    products_by_id=products_by_id,
-                    media_service=media_service,
-                    key_prefix=key_prefix,
-                    translator=translator,
-                )
-            else:
-                render_table(filtered_rows, caption=label)
-                selected_order_id = ""
-            order_map = {str(row.get("order_id", "")).strip(): row for row in filtered_rows if str(row.get("order_id", "")).strip()}
-            if _normalize_role(role) not in {"public_buyer", "merchant_buyer"}:
-                selected_order_id = st.selectbox(
-                    f"{label} {t('ui.order_detail')}",
-                    options=[""] + list(order_map.keys()),
-                    key=f"order_detail_{key_prefix}",
-                )
-            selected_order = order_map.get(selected_order_id)
-            if not selected_order:
-                continue
-            st.markdown(f"#### {t('ui.order_detail')}")
-            meta_cols = st.columns(4)
-            meta_cols[0].metric(t("field.status"), selected_order.get("status", ""))
-            meta_cols[1].metric(t("module.payments.title"), selected_order.get("payment_reference", ""))
-            meta_cols[2].metric(t("ui.owner_status"), selected_order.get("owner_status", ""))
-            meta_cols[3].metric(t("ui.delivery_status"), selected_order.get("delivery_status", ""))
-            st.caption(
-                f"{t('ui.product')}: {selected_order.get('product_name', '')} | "
-                f"{t('field.quantity')}: {selected_order.get('quantity', 0)} | "
-                f"{t('ui.amount')}: {selected_order.get('total_amount', 0)}"
+    view_labels = list(tab_map.keys())
+    selected_label = st.selectbox("Order View", options=view_labels, key=f"orders_view_{role}", label_visibility="collapsed")
+    filter_fn = tab_map[selected_label]
+    key_prefix = f"{role}_{selected_label}_{str(selected_label).strip().lower().replace(' ', '_')}"
+    filtered_rows = filter_fn(rows)
+    summary_cols = st.columns(3, gap="small")
+    summary_cols[0].metric("Orders", len(filtered_rows))
+    summary_cols[1].metric("Pending", len([row for row in filtered_rows if str(row.get("status", "")).upper() in {"PAYMENT_PENDING", "PAYMENT_VERIFIED", "OWNER_ACCEPTED", "READY_FOR_PICKUP", "PICKUP_ASSIGNED", "PICKED_UP", "IN_TRANSIT"}]))
+    summary_cols[2].metric("Completed", len([row for row in filtered_rows if str(row.get("status", "")).upper() in {"COMPLETED", "DELIVERED", "CLOSED"}]))
+    if not filtered_rows:
+        if _normalize_role(role) in {"public_buyer", "merchant_buyer"}:
+            render_empty_state("No orders found.")
+        else:
+            render_table(filtered_rows, caption=selected_label)
+        return
+    products_by_id = {}
+    if data_service is not None:
+        products_by_id = {
+            str(row.get("product_id", "")).strip(): row
+            for row in data_service.get_collection_ref("products")
+            if str(row.get("product_id", "")).strip()
+        }
+    if _normalize_role(role) in {"public_buyer", "merchant_buyer"}:
+        selected_order_id = _render_order_cards(
+            filtered_rows,
+            products_by_id=products_by_id,
+            media_service=media_service,
+            key_prefix=key_prefix,
+            translator=translator,
+        )
+    else:
+        with st.container(border=True):
+            render_table(filtered_rows, caption=selected_label)
+        selected_order_id = ""
+    order_map = {str(row.get("order_id", "")).strip(): row for row in filtered_rows if str(row.get("order_id", "")).strip()}
+    if _normalize_role(role) not in {"public_buyer", "merchant_buyer"}:
+        selected_order_id = st.selectbox(
+            f"{selected_label} {t('ui.order_detail')}",
+            options=[""] + list(order_map.keys()),
+            key=f"order_detail_{key_prefix}",
+        )
+    selected_order = order_map.get(selected_order_id)
+    if not selected_order:
+        return
+    with st.container(border=True):
+        st.markdown(f"#### {t('ui.order_detail')}")
+        meta_cols = st.columns(4)
+        meta_cols[0].metric(t("field.status"), selected_order.get("status", ""))
+        meta_cols[1].metric(t("module.payments.title"), selected_order.get("payment_reference", ""))
+        meta_cols[2].metric(t("ui.owner_status"), selected_order.get("owner_status", ""))
+        meta_cols[3].metric(t("ui.delivery_status"), selected_order.get("delivery_status", ""))
+        st.caption(
+            f"{t('ui.product')}: {selected_order.get('product_name', '')} | "
+            f"{t('field.quantity')}: {selected_order.get('quantity', 0)} | "
+            f"{t('ui.amount')}: {selected_order.get('total_amount', 0)}"
+        )
+        _render_order_financial_summary(selected_order, translator)
+        _render_order_address(selected_order)
+        _render_order_items(selected_order)
+    if _invoice_ready(selected_order):
+        invoice_html = document_service.build_invoice_html(selected_order)
+        st.download_button(
+            t("ui.download_invoice"),
+            data=invoice_html.encode("utf-8"),
+            file_name=f"{selected_order_id}_invoice.html",
+            mime="text/html",
+            key=f"download_invoice_{key_prefix}_{selected_order_id}",
+        )
+    else:
+        st.info("Invoice will be available after the owner confirms the payment.")
+    if data_service is not None:
+        shipment_rows = data_service.get_collection_ref("shipments")
+        related_shipment = next((row for row in shipment_rows if str(row.get("order_id", "")).strip() == selected_order_id), {})
+        if related_shipment:
+            delivery_slip_html = document_service.build_delivery_slip_html(selected_order, related_shipment)
+            st.download_button(
+                t("ui.download_delivery_slip"),
+                data=delivery_slip_html.encode("utf-8"),
+                file_name=f"{selected_order_id}_delivery_slip.html",
+                mime="text/html",
+                key=f"download_delivery_slip_{key_prefix}_{selected_order_id}",
             )
-            _render_order_financial_summary(selected_order, translator)
-            _render_order_address(selected_order)
-            _render_order_items(selected_order)
-            if _invoice_ready(selected_order):
-                invoice_html = document_service.build_invoice_html(selected_order)
-                st.download_button(
-                    t("ui.download_invoice"),
-                    data=invoice_html.encode("utf-8"),
-                    file_name=f"{selected_order_id}_invoice.html",
-                    mime="text/html",
-                    key=f"download_invoice_{key_prefix}_{selected_order_id}",
-                )
-            else:
-                st.info("Invoice will be available after the owner confirms the payment.")
-            if data_service is not None:
-                shipment_rows = data_service.get_collection_ref("shipments")
-                related_shipment = next((row for row in shipment_rows if str(row.get("order_id", "")).strip() == selected_order_id), {})
-                if related_shipment:
-                    delivery_slip_html = document_service.build_delivery_slip_html(selected_order, related_shipment)
-                    st.download_button(
-                        t("ui.download_delivery_slip"),
-                        data=delivery_slip_html.encode("utf-8"),
-                        file_name=f"{selected_order_id}_delivery_slip.html",
-                        mime="text/html",
-                        key=f"download_delivery_slip_{key_prefix}_{selected_order_id}",
-                    )
-            if role == "platform_admin":
-                st.info(
-                    f"Next action: admin_status={selected_order.get('admin_status', '')}, "
-                    f"payment_id={selected_order.get('payment_id', '')}"
-                )
-                st.caption("Shipment execution and pickup assignment are handled directly by the merchant.")
-                if data_service is not None and order_service is not None and session_service is not None:
-                    st.markdown(f"##### {t('ui.admin_cleanup')}")
-                    if st.button(t("ui.delete_order"), use_container_width=True, type="primary", key=f"delete_order_{key_prefix}_{selected_order_id}"):
-                        try:
-                            result = order_service.delete_order_for_admin(
-                                order_id=selected_order_id,
-                                deleted_by=session_service.get_user().get("email", ""),
-                            )
-                            data_service.persist_collection(result.get("collection_name", ""))
-                            data_service.persist_collection("payments")
-                            data_service.persist_collection("shipments")
-                            data_service.persist_collection("ledger")
-                            data_service.persist_collection("notifications")
-                            data_service.persist_collection("gmail_queue")
-                            st.success(
-                                f"Order {result.get('order_id', '')} deleted. "
-                                f"Related shipments removed: {len(result.get('shipment_ids', []))}."
-                            )
-                            st.rerun()
-                        except Exception as exc:
-                            st.error(f"Delete Order failed: {exc}")
-            if _normalize_role(role) in {"public_buyer", "merchant_buyer"}:
-                st.markdown(f"#### {t('ui.order_status_tracker')}")
-                _render_buyer_status_tracker(selected_order, translator)
-                otp_status = str(selected_order.get("otp_status", "")).upper()
-                if otp_status in {"GENERATED", "VERIFIED"} and str(selected_order.get("delivery_otp", "")).strip():
-                    st.success(f"{t('ui.delivery_otp')}: {selected_order.get('delivery_otp', '')}")
-                else:
-                    st.caption(t("ui.delivery_otp_will_appear"))
-            if _can_pay_order(selected_order, role, current_user_email) and data_service is not None:
-                payment_rows = data_service.get_collection_ref("payments")
-                payment_record = next(
-                    (row for row in payment_rows if str(row.get("payment_id", "")).strip() == str(selected_order.get("payment_id", "")).strip()),
-                    {},
-                )
-                if payment_record:
-                    payment_service = PaymentService(data_service, data_service.cache_service)
-                    payment_link_changed = payment_service.ensure_payment_link_fields(payment_record)
-                    if payment_link_changed:
-                        data_service.persist_collection("payments")
-                    _render_payment_panel(payment_record, payment_service=payment_service, translator=translator)
-            if (
-                role == "merchant"
-                and data_service is not None
-                and order_service is not None
-                and str(selected_order.get("owner_email", "")).strip().lower() == current_user_email
-                and str(selected_order.get("status", "")).upper() == "PAYMENT_PENDING"
-            ):
-                st.markdown("##### Confirm Payment and Order")
-                owner_cols = st.columns(3)
-                amount_received = owner_cols[0].number_input(
-                    "Amount Received",
-                    min_value=0.0,
-                    step=1.0,
-                    value=float(selected_order.get("total_amount", 0) or 0),
-                    key=f"owner_verify_amount_{key_prefix}_{selected_order_id}",
-                )
-                transaction_reference = owner_cols[1].text_input(
-                    "Transaction Reference",
-                    key=f"owner_verify_ref_{key_prefix}_{selected_order_id}",
-                )
-                notes = owner_cols[2].text_input("Notes", key=f"owner_verify_notes_{key_prefix}_{selected_order_id}")
-                if st.button("Confirm Payment", use_container_width=True, key=f"owner_verify_payment_{key_prefix}_{selected_order_id}"):
-                    order_service.owner_verify_payment(
+    if role == "platform_admin":
+        st.info(
+            f"Next action: admin_status={selected_order.get('admin_status', '')}, "
+            f"payment_id={selected_order.get('payment_id', '')}"
+        )
+        st.caption("Shipment execution and pickup assignment are handled directly by the merchant.")
+        if data_service is not None and order_service is not None and session_service is not None:
+            if st.button(t("ui.delete_order"), use_container_width=True, type="primary", key=f"delete_order_{key_prefix}_{selected_order_id}"):
+                try:
+                    result = order_service.delete_order_for_admin(
                         order_id=selected_order_id,
-                        amount_received=amount_received,
-                        transaction_reference=transaction_reference,
-                        notes=notes,
-                        owner_email=current_user_email,
+                        deleted_by=session_service.get_user().get("email", ""),
                     )
+                    data_service.persist_collection(result.get("collection_name", ""))
                     data_service.persist_collection("payments")
-                    order_service.persist_order_storage(selected_order_id)
+                    data_service.persist_collection("shipments")
                     data_service.persist_collection("ledger")
                     data_service.persist_collection("notifications")
                     data_service.persist_collection("gmail_queue")
-                    st.success("Payment confirmed and order accepted.")
+                    st.success(
+                        f"Order {result.get('order_id', '')} deleted. "
+                        f"Related shipments removed: {len(result.get('shipment_ids', []))}."
+                    )
                     st.rerun()
+                except Exception as exc:
+                    st.error(f"Delete Order failed: {exc}")
+    if _normalize_role(role) in {"public_buyer", "merchant_buyer"}:
+        st.markdown(f"#### {t('ui.order_status_tracker')}")
+        _render_buyer_status_tracker(selected_order, translator)
+        otp_status = str(selected_order.get("otp_status", "")).upper()
+        if otp_status in {"GENERATED", "VERIFIED"} and str(selected_order.get("delivery_otp", "")).strip():
+            st.success(f"{t('ui.delivery_otp')}: {selected_order.get('delivery_otp', '')}")
+        else:
+            st.caption(t("ui.delivery_otp_will_appear"))
+    if _can_pay_order(selected_order, role, current_user_email) and data_service is not None:
+        payment_rows = data_service.get_collection_ref("payments")
+        payment_record = next(
+            (row for row in payment_rows if str(row.get("payment_id", "")).strip() == str(selected_order.get("payment_id", "")).strip()),
+            {},
+        )
+        if payment_record:
+            payment_service = PaymentService(data_service, data_service.cache_service)
+            payment_link_changed = payment_service.ensure_payment_link_fields(payment_record)
+            if payment_link_changed:
+                data_service.persist_collection("payments")
+            _render_payment_panel(payment_record, payment_service=payment_service, translator=translator)
+    if (
+        role == "merchant"
+        and data_service is not None
+        and order_service is not None
+        and str(selected_order.get("owner_email", "")).strip().lower() == current_user_email
+        and str(selected_order.get("status", "")).upper() == "PAYMENT_PENDING"
+    ):
+        st.markdown("##### Confirm Payment and Order")
+        owner_cols = st.columns(3)
+        amount_received = owner_cols[0].number_input(
+            "Amount Received",
+            min_value=0.0,
+            step=1.0,
+            value=float(selected_order.get("total_amount", 0) or 0),
+            key=f"owner_verify_amount_{key_prefix}_{selected_order_id}",
+        )
+        transaction_reference = owner_cols[1].text_input(
+            "Transaction Reference",
+            key=f"owner_verify_ref_{key_prefix}_{selected_order_id}",
+        )
+        notes = owner_cols[2].text_input("Notes", key=f"owner_verify_notes_{key_prefix}_{selected_order_id}")
+        if st.button("Confirm Payment", use_container_width=True, key=f"owner_verify_payment_{key_prefix}_{selected_order_id}"):
+            order_service.owner_verify_payment(
+                order_id=selected_order_id,
+                amount_received=amount_received,
+                transaction_reference=transaction_reference,
+                notes=notes,
+                owner_email=current_user_email,
+            )
+            data_service.persist_collection("payments")
+            order_service.persist_order_storage(selected_order_id)
+            data_service.persist_collection("ledger")
+            data_service.persist_collection("notifications")
+            data_service.persist_collection("gmail_queue")
+            st.success("Payment confirmed and order accepted.")
+            st.rerun()

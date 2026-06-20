@@ -74,13 +74,13 @@ def render_topbar(
         action_cols = st.columns([1.2, 2.8], gap="small")
         with action_cols[0]:
             open_control_dialog = st.button(
-                "Open Control Surface",
+                "Controls",
                 key="topbar_open_control_surface",
                 use_container_width=True,
                 type="primary",
             )
         with action_cols[1]:
-            st.caption("Language, role view, release, and account.")
+            st.caption("Language, role view, release, account.")
 
     @st.dialog("MandiTrade Control Surface")
     def _render_control_dialog() -> None:

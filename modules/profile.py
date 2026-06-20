@@ -67,21 +67,25 @@ def render_profile_page(data_service, session_service) -> None:
     )
     details = dict(profile.get("details", {}) or {})
 
-    st.markdown("### Profile")
-    contact_cols = st.columns(2)
-    contact_name = contact_cols[0].text_input("Full Name", value=str(profile.get("display_name", "") or ""), key="profile_full_name")
-    mobile = contact_cols[1].text_input("Mobile Number", value=str(profile.get("mobile", "") or ""), key="profile_mobile")
-    st.text_input("Email", value=email, disabled=True, key="profile_email")
-
+    st.markdown("### My Profile")
+    with st.container(border=True):
+        st.caption("Contact")
+        contact_cols = st.columns(2, gap="small")
+        contact_name = contact_cols[0].text_input("Full Name", value=str(profile.get("display_name", "") or ""), key="profile_full_name")
+        mobile = contact_cols[1].text_input("Mobile Number", value=str(profile.get("mobile", "") or ""), key="profile_mobile")
+        st.text_input("Email", value=email, disabled=True, key="profile_email")
     if role in {"public_buyer", "merchant_buyer"}:
-        st.caption("Keep your basic contact details updated. Address can be managed during checkout.")
+        with st.container(border=True):
+            st.caption("Buying Details")
+            st.write("Keep this simple. Address can be managed during checkout.")
         optional_gst = ""
         if role == "public_buyer":
-            optional_gst = st.text_input(
-                "GST Number (Optional)",
-                value=str(details.get("gst_number", "") or ""),
-                key="profile_public_optional_gst",
-            )
+            with st.container(border=True):
+                optional_gst = st.text_input(
+                    "GST Number (Optional)",
+                    value=str(details.get("gst_number", "") or ""),
+                    key="profile_public_optional_gst",
+                )
         if st.button("Save Profile", use_container_width=True, key="save_profile_contact_only"):
             _save_contact_profile(
                 profile_service=profile_service,
@@ -96,17 +100,24 @@ def render_profile_page(data_service, session_service) -> None:
             st.rerun()
         return
 
-    st.markdown("#### Business Details")
-    business_name = st.text_input("Business Name", value=str(details.get("business_name", "") or ""), key="profile_business_name")
-    upi_id = st.text_input("UPI ID", value=str(details.get("upi_id", "") or ""), key="profile_upi_id")
-    gst_number = st.text_input("GST Number", value=str(details.get("gst_number", "") or ""), key="profile_gst_number")
-    invoice_name = st.text_input("Invoice Name", value=str(details.get("invoice_name", "") or ""), key="profile_invoice_name")
-    invoice_address = st.text_area("Invoice Address", value=str(details.get("invoice_address", "") or ""), height=90, key="profile_invoice_address")
-    invoice_phone = st.text_input("Invoice Contact Phone", value=str(details.get("invoice_phone", "") or ""), key="profile_invoice_phone")
-    bank_account_name = st.text_input("Bank Account Name", value=str(details.get("bank_account_name", "") or ""), key="profile_bank_account_name")
-    bank_account_number = st.text_input("Bank Account Number", value=str(details.get("bank_account_number", "") or ""), key="profile_bank_account_number")
-    bank_ifsc = st.text_input("Bank IFSC", value=str(details.get("bank_ifsc", "") or ""), key="profile_bank_ifsc")
-    other_details = st.text_area("Other Details", value=str(details.get("other_details", "") or ""), key="profile_other_details")
+    with st.container(border=True):
+        st.caption("Business")
+        row_one = st.columns(2, gap="small")
+        business_name = row_one[0].text_input("Business Name", value=str(details.get("business_name", "") or ""), key="profile_business_name")
+        upi_id = row_one[1].text_input("UPI ID", value=str(details.get("upi_id", "") or ""), key="profile_upi_id")
+        row_two = st.columns(2, gap="small")
+        gst_number = row_two[0].text_input("GST Number", value=str(details.get("gst_number", "") or ""), key="profile_gst_number")
+        invoice_name = row_two[1].text_input("Invoice Name", value=str(details.get("invoice_name", "") or ""), key="profile_invoice_name")
+
+    with st.container(border=True):
+        st.caption("Billing")
+        invoice_address = st.text_area("Invoice Address", value=str(details.get("invoice_address", "") or ""), height=90, key="profile_invoice_address")
+        billing_cols = st.columns(3, gap="small")
+        invoice_phone = billing_cols[0].text_input("Invoice Contact Phone", value=str(details.get("invoice_phone", "") or ""), key="profile_invoice_phone")
+        bank_account_name = billing_cols[1].text_input("Bank Account Name", value=str(details.get("bank_account_name", "") or ""), key="profile_bank_account_name")
+        bank_account_number = billing_cols[2].text_input("Bank Account Number", value=str(details.get("bank_account_number", "") or ""), key="profile_bank_account_number")
+        bank_ifsc = st.text_input("Bank IFSC", value=str(details.get("bank_ifsc", "") or ""), key="profile_bank_ifsc")
+        other_details = st.text_area("Other Notes", value=str(details.get("other_details", "") or ""), key="profile_other_details")
 
     preview_profile = {
         "details": {
@@ -117,10 +128,12 @@ def render_profile_page(data_service, session_service) -> None:
         }
     }
     is_complete, missing = merchant_profile_completion_status(preview_profile)
-    if is_complete:
-        st.success("Business profile is complete.")
-    else:
-        st.warning(f"Business profile incomplete. Missing: {', '.join(missing)}")
+    with st.container(border=True):
+        st.caption("Status")
+        if is_complete:
+            st.success("Business profile is complete.")
+        else:
+            st.warning(f"Missing: {', '.join(missing)}")
 
     if st.button("Save Profile", use_container_width=True, key="save_profile_business"):
         next_details = {

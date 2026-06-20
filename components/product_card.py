@@ -52,10 +52,6 @@ def render_product_card(
     owner_business_details = dict(product.get("owner_business_details", {}) or {})
     inventory = dict(product.get("inventory", {}) or {})
     manditrade_rules = dict(((product.get("sales_channels") or {}).get("manditrade") or {}))
-    merchant_upi_id = str(owner_business_details.get("upi_id", "")).strip()
-    merchant_payee_name = str(
-        owner_business_details.get("business_name", "") or owner.get("display_name", "") or owner.get("email", "")
-    ).strip()
     title = html.escape(str(product.get("product_name", product.get("product_id", t("ui.product")))))
     meta = html.escape(f"{product.get('category', 'General')} | {product.get('subcategory', 'General')}")
     thumbnail_markup = _build_thumbnail_markup(primary_image, media_service)
@@ -79,10 +75,8 @@ def render_product_card(
             promise_label = "Ready for direct purchase"
             details = [
                 f"<span class='mt-catalog-card__detail'>{html.escape(t('ui.inventory'))}: {inventory.get('available_quantity', 0)} {html.escape(str(product.get('unit', 'piece')))}</span>",
-                f"<span class='mt-catalog-card__detail'>{image_badge}</span>",
+                f"<span class='mt-catalog-card__detail'>{html.escape(str(owner_business_details.get('business_name', '') or owner.get('display_name', '') or owner.get('email', 'Merchant')))}</span>",
             ]
-            if merchant_upi_id and view == "marketplace":
-                details.append(f"<span class='mt-catalog-card__detail'>Merchant UPI: {html.escape(merchant_upi_id)}</span>")
         else:
             st.error(price_error)
     elif view == "manditrade":
@@ -105,7 +99,7 @@ def render_product_card(
         details = [
             f"<span class='mt-catalog-card__detail'>{html.escape(t('module.marketplace.title'))}: {html.escape(t('ui.on') if marketplace.get('enabled') else t('ui.off'))}</span>",
             f"<span class='mt-catalog-card__detail'>{html.escape(t('module.manditrade.title'))}: {html.escape(t('ui.on') if manditrade.get('enabled') else t('ui.off'))}</span>",
-            f"<span class='mt-catalog-card__detail'>{html.escape(t('ui.owner'))}: {html.escape(str(owner.get('email', '-')))}</span>",
+            f"<span class='mt-catalog-card__detail'>Merchant: {html.escape(str(owner.get('email', '-')))}</span>",
         ]
 
     render_template(
@@ -121,13 +115,12 @@ def render_product_card(
         details_markup="".join(details),
     )
 
-    button_label = str(gallery_card_config.get("open_button_label_key", "ui.open_images") or "ui.open_images")
     slideshow_key = f"open_slideshow_{view}_{return_route}_{card_context}_{product.get('product_id', '')}"
     st.markdown("<div class='mt-catalog-actions'>", unsafe_allow_html=True)
     if view == "marketplace":
-        action_cols = st.columns([1.2, 1, 1], gap="small")
+        action_cols = st.columns([1, 1, 1], gap="small")
         if action_cols[0].button(
-            f"{t(button_label)} ({image_badge})",
+            "Photos",
             key=slideshow_key,
             use_container_width=True,
             disabled=not bool(images),
@@ -138,7 +131,7 @@ def render_product_card(
                 slideshow_context=f"{view}_{return_route}_{card_context}",
             )
             st.rerun()
-        if action_cols[1].button(t("action.add_to_cart"), key=f"marketplace_{product.get('product_id', '')}_cart", use_container_width=True) and on_add_to_cart:
+        if action_cols[1].button("Add to Cart", key=f"marketplace_{product.get('product_id', '')}_cart", use_container_width=True) and on_add_to_cart:
             on_add_to_cart(product)
         if action_cols[2].button("Buy Now", key=f"marketplace_{product.get('product_id', '')}_buy", use_container_width=True):
             if on_buy_now:
@@ -148,7 +141,7 @@ def render_product_card(
     elif view == "manditrade":
         action_cols = st.columns([1.25, 1], gap="small")
         if action_cols[0].button(
-            f"{t(button_label)} ({image_badge})",
+            "Photos",
             key=slideshow_key,
             use_container_width=True,
             disabled=not bool(images),
@@ -159,11 +152,11 @@ def render_product_card(
                 slideshow_context=f"{view}_{return_route}_{card_context}",
             )
             st.rerun()
-        if action_cols[1].button(t("ui.request_order"), key=f"manditrade_{product.get('product_id', '')}_request", use_container_width=True) and on_add_to_cart:
+        if action_cols[1].button("Add to Bulk Cart", key=f"manditrade_{product.get('product_id', '')}_request", use_container_width=True) and on_add_to_cart:
             on_add_to_cart(product)
     else:
         if st.button(
-            f"{t(button_label)} ({image_badge})",
+            "Photos",
             key=slideshow_key,
             use_container_width=True,
             disabled=not bool(images),
