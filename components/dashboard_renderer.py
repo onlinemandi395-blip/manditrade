@@ -3,10 +3,13 @@ from __future__ import annotations
 import json
 from collections import Counter
 
-import matplotlib.pyplot as plt
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
+try:
+    import matplotlib.pyplot as plt
+except ModuleNotFoundError:  # pragma: no cover - runtime fallback for lean deploys
+    plt = None
 
 from components.html_renderer import load_template
 
@@ -296,6 +299,8 @@ def _apply_chart_style(ax) -> None:
 
 
 def _new_chart(figsize: tuple[float, float] = (6.2, 3.4)):
+    if plt is None:
+        return None, None
     fig, ax = plt.subplots(figsize=figsize)
     fig.patch.set_facecolor(BLACK)
     _apply_chart_style(ax)
@@ -320,6 +325,8 @@ def _order_status_chart(rows: list[dict]):
         return None
     counts = frame["status"].fillna("Unknown").astype(str).value_counts().head(7)
     fig, ax = _new_chart()
+    if fig is None or ax is None:
+        return None
     ax.bar(counts.index.tolist(), counts.values.tolist(), color=[RED, WHITE, RED_SOFT, WHITE_SOFT, RED, WHITE, RED_SOFT][: len(counts)])
     ax.set_ylabel("Orders")
     ax.set_xlabel("Stage")
@@ -337,6 +344,8 @@ def _order_value_trend_chart(rows: list[dict]):
     if trend.empty:
         return None
     fig, ax = _new_chart()
+    if fig is None or ax is None:
+        return None
     positions = list(range(len(trend)))
     values = trend.values.tolist()
     ax.plot(positions, values, color=RED, linewidth=2.6, marker="o", markerfacecolor=WHITE, markeredgecolor=RED)
@@ -356,6 +365,8 @@ def _channel_mix_chart(rows: list[dict]):
     if counts.empty:
         return None
     fig, ax = _new_chart(figsize=(5.8, 3.4))
+    if fig is None or ax is None:
+        return None
     wedges, texts, autotexts = ax.pie(
         counts.values.tolist(),
         labels=counts.index.tolist(),
@@ -378,6 +389,8 @@ def _shipment_status_chart(rows: list[dict]):
         return None
     counts = frame["status"].fillna("Unknown").astype(str).value_counts()
     fig, ax = _new_chart()
+    if fig is None or ax is None:
+        return None
     ax.barh(counts.index.tolist(), counts.values.tolist(), color=[WHITE, RED, WHITE_SOFT, RED_SOFT][: len(counts)])
     ax.set_xlabel("Shipments")
     ax.set_ylabel("Stage")
@@ -395,6 +408,8 @@ def _payments_chart(rows: list[dict]):
     if grouped.empty:
         return None
     fig, ax = _new_chart()
+    if fig is None or ax is None:
+        return None
     ax.bar(grouped.index.tolist(), grouped.values.tolist(), color=[RED, WHITE, RED_SOFT, WHITE_SOFT][: len(grouped)])
     ax.set_ylabel("Rs.")
     ax.set_xlabel("Payment State")
@@ -418,6 +433,8 @@ def _category_chart(products: list[dict], orders: list[dict]):
     if grouped.empty:
         return None
     fig, ax = _new_chart()
+    if fig is None or ax is None:
+        return None
     ax.bar(grouped.index.tolist(), grouped.values.tolist(), color=[RED, WHITE, RED_SOFT, WHITE_SOFT, RED, WHITE][: len(grouped)])
     ax.set_ylabel("Value")
     ax.set_xlabel("Category")
@@ -435,6 +452,8 @@ def _merchant_ranking_chart(rows: list[dict]):
         return None
     labels = [value.split("@")[0].replace(".", " ").title() for value in grouped.index.tolist()]
     fig, ax = _new_chart()
+    if fig is None or ax is None:
+        return None
     ax.barh(labels, grouped.values.tolist(), color=[RED, WHITE, RED_SOFT, WHITE_SOFT, RED, WHITE][: len(grouped)])
     ax.set_xlabel("Rs.")
     ax.set_ylabel("Merchant")
@@ -449,6 +468,8 @@ def _role_mix_chart(rows: list[dict]):
     if grouped.empty:
         return None
     fig, ax = _new_chart()
+    if fig is None or ax is None:
+        return None
     ax.bar(grouped.index.tolist(), grouped.values.tolist(), color=[WHITE, RED, WHITE_SOFT, RED_SOFT, RED][: len(grouped)])
     ax.set_ylabel("Users")
     ax.set_xlabel("Role")
@@ -465,6 +486,8 @@ def _ledger_mix_chart(rows: list[dict]):
     if grouped.empty:
         return None
     fig, ax = _new_chart()
+    if fig is None or ax is None:
+        return None
     ax.bar(grouped.index.tolist(), grouped.values.tolist(), color=[RED, WHITE, RED_SOFT, WHITE_SOFT, RED][: len(grouped)])
     ax.set_ylabel("Rs.")
     ax.set_xlabel("Ledger Type")
@@ -483,6 +506,8 @@ def _low_stock_chart(rows: list[dict]):
     if low_stock.empty:
         return None
     fig, ax = _new_chart()
+    if fig is None or ax is None:
+        return None
     ax.barh(low_stock["product_name"].tolist(), low_stock["available_quantity"].tolist(), color=[WHITE, RED, WHITE_SOFT, RED_SOFT, RED, WHITE][: len(low_stock)])
     ax.set_xlabel("Units")
     ax.set_ylabel("Product")
@@ -492,6 +517,8 @@ def _low_stock_chart(rows: list[dict]):
 def _render_analytics(current_user: dict, dataset_lookup: dict[str, list[dict]]) -> None:
     role = str(current_user.get("role", "")).strip().lower()
     if role not in {"platform_admin", "merchant"}:
+        return
+    if plt is None:
         return
 
     scoped = _scoped_datasets(dataset_lookup, current_user)
