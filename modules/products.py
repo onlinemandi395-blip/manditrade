@@ -86,6 +86,25 @@ div[data-testid="stMultiSelect"] > div {
   box-shadow: none !important;
 }
 
+div[data-testid="stNumberInput"] [data-baseweb="input"],
+div[data-testid="stNumberInput"] [data-baseweb="base-input"] {
+  background: linear-gradient(180deg, rgba(18, 18, 18, 0.98), rgba(28, 8, 12, 0.98)) !important;
+  border-radius: 16px !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  overflow: hidden !important;
+}
+
+div[data-testid="stNumberInput"] button {
+  background: #181818 !important;
+  color: #ffffff !important;
+  border-left: 1px solid rgba(217, 4, 41, 0.24) !important;
+}
+
+div[data-testid="stNumberInput"] button:hover {
+  background: #2a0b12 !important;
+  color: #ffffff !important;
+}
+
 div[data-testid="stSelectbox"] [data-baseweb="select"],
 div[data-testid="stMultiSelect"] [data-baseweb="select"],
 div[data-testid="stTextInput"] input,
