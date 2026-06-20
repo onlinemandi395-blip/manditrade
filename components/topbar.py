@@ -5,12 +5,7 @@ import streamlit as st
 from components.html_renderer import render_template
 
 
-_CONTROL_DIALOG_KEY = "mt_control_surface_dialog"
 _PENDING_ROLE_VIEW_KEY = "mt_pending_role_view_selection"
-
-
-def _open_control_dialog() -> None:
-    st.session_state[_CONTROL_DIALOG_KEY] = "open"
 
 
 def _build_dialog_chip(icon: str, label: str, value: str) -> str:
@@ -78,8 +73,12 @@ def render_topbar(
 
         action_cols = st.columns([1.2, 2.8], gap="small")
         with action_cols[0]:
-            if st.button("Open Control Surface", key="topbar_open_control_surface", use_container_width=True, type="primary"):
-                _open_control_dialog()
+            open_control_dialog = st.button(
+                "Open Control Surface",
+                key="topbar_open_control_surface",
+                use_container_width=True,
+                type="primary",
+            )
         with action_cols[1]:
             st.caption("Language, role view, release, and account.")
 
@@ -121,7 +120,6 @@ def render_topbar(
                     label_visibility="collapsed",
                 )
                 if st.button("Apply", use_container_width=True, key="topbar_apply_language"):
-                    st.session_state[_CONTROL_DIALOG_KEY] = ""
                     set_language(choice)
                     st.rerun()
             else:
@@ -148,7 +146,6 @@ def render_topbar(
                 )
                 if st.button("Apply", use_container_width=True, key="topbar_apply_role_view"):
                     st.session_state[_PENDING_ROLE_VIEW_KEY] = choice
-                    st.session_state[_CONTROL_DIALOG_KEY] = ""
                     st.rerun()
             else:
                 st.info("Role view switching is available only to superadmin.")
@@ -179,7 +176,6 @@ def render_topbar(
                         else:
                             theme_service.clear_selected_background()
                         theme_service.clear_theme_cache()
-                        st.session_state[_CONTROL_DIALOG_KEY] = ""
                         st.rerun()
                 else:
                     st.caption("No workspace themes available.")
@@ -204,10 +200,9 @@ def render_topbar(
             st.write(f"**Email:** {user_email or '-'}")
 
         if st.button("Close", use_container_width=True, key="topbar_close_dialog"):
-            st.session_state[_CONTROL_DIALOG_KEY] = ""
             st.rerun()
 
-    if str(st.session_state.get(_CONTROL_DIALOG_KEY, "") or "").strip():
+    if open_control_dialog:
         _render_control_dialog()
 
     return pending_role_view
