@@ -172,9 +172,12 @@ def render_system_health_page(
     if status.get("google_drive_status") != "connected" or status.get("required_files_status") != "ok":
         st.error("Drive-only runtime is blocked. Upload the bootstrap zip or repair Drive access before regular operations continue.")
 
-    overview_tab, bootstrap_tab, operations_tab, debug_tab = st.tabs(
-        ["Overview", "Bootstrap", "Operations", "Superadmin Debug"]
-    )
+    tab_labels = ["Overview", "Bootstrap", "Operations"]
+    if is_superadmin:
+        tab_labels.append("Superadmin Debug")
+    tabs = st.tabs(tab_labels)
+    overview_tab, bootstrap_tab, operations_tab = tabs[:3]
+    debug_tab = tabs[3] if is_superadmin and len(tabs) > 3 else None
 
     with overview_tab:
         _render_status_cards(status)
@@ -236,20 +239,18 @@ def render_system_health_page(
             key_prefix="system_health_theme",
         )
 
-    with debug_tab:
-        if not is_superadmin:
-            st.info("This section is available only to the configured superadmin.")
-            return
-        render_detail_panel("Runtime", status.get("cache_status", {}))
-        with st.expander("Auth Runtime Debug", expanded=False):
-            st.write(
-                {
-                    "user": session_service.get_user(),
-                    "permissions": rbac_service.get_permissions(role),
-                    "landing_page": page_service.get_landing_page(role, navigation_service),
-                    "filtered_nav_count": len(navigation_items),
-                    "current_route": current_route,
-                }
-            )
-        with st.expander("Performance Debug", expanded=False):
-            st.write(performance_service.get_metrics())
+    if debug_tab is not None:
+        with debug_tab:
+            render_detail_panel("Runtime", status.get("cache_status", {}))
+            with st.expander("Auth Runtime Debug", expanded=False):
+                st.write(
+                    {
+                        "user": session_service.get_user(),
+                        "permissions": rbac_service.get_permissions(role),
+                        "landing_page": page_service.get_landing_page(role, navigation_service),
+                        "filtered_nav_count": len(navigation_items),
+                        "current_route": current_route,
+                    }
+                )
+            with st.expander("Performance Debug", expanded=False):
+                st.write(performance_service.get_metrics())

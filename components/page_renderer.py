@@ -338,16 +338,21 @@ def _resolve_authenticated_user(email: str) -> dict:
 
 
 def _render_bootstrap_login(oauth_service: GoogleOAuthService, session_service: SessionService) -> None:
-    st.markdown("## Welcome to MandiTrade")
-    st.caption("Google Drive powered commerce platform")
-    if not oauth_service.is_configured():
-        st.error("Google Single Sign-On is not configured in Streamlit secrets.")
-        return
-    st.link_button("Continue with Google", oauth_service.get_authorize_url(), use_container_width=True)
-    if oauth_service.is_debug_enabled():
-        with st.expander("OAuth Debug", expanded=False):
-            st.write({**oauth_service.get_debug_snapshot(), "current_session_user": session_service.get_user()})
-
+    render_login_page(
+        auth_service=None,
+        oauth_service=oauth_service,
+        translator=type("BootstrapTranslator", (), {"t": staticmethod(lambda key: key)})(),
+        language_options=["en"],
+        current_language=session_service.get_language(),
+        set_language=session_service.set_language,
+        language_option_labels={"en": "English"},
+        status_eyebrow="Bootstrap",
+        status_title="Platform setup is waiting for the primary admin",
+        status_body="The fixed Google Drive root and seed package must be available before the workspace opens for everyone else.",
+        access_title="Admin-first access",
+        access_body="The configured superadmin signs in through this same page, uploads the seed, and activates the runtime for all users.",
+        show_unknown_user_note=False,
+    )
 
 def _render_missing_files_screen(drive_manifest: dict, session_service: SessionService, admin_drive_service: AdminDriveService) -> None:
     user = session_service.get_user()
@@ -365,18 +370,6 @@ def _render_missing_files_screen(drive_manifest: dict, session_service: SessionS
                 "Use the setup console below to create the root and load the bootstrap seed in live or dummy mode."
             )
         render_setup_console(admin_drive_service, drive_manifest, translator=None)
-        with st.expander("Bootstrap Admin Debug", expanded=False):
-            st.write(
-                {
-                    "current_google_email": current_email,
-                    "primary_admin_email_from_toml": get_bootstrap_primary_admin().get("email", ""),
-                    "is_bootstrap_admin": bootstrap_admin,
-                    "current_session_role": user.get("role", ""),
-                    "drive_setup_complete": not bool(drive_manifest.get("missing_files")) and not root_missing,
-                    "root_missing": root_missing,
-                    "missing_file_count": len(drive_manifest.get("missing_files", [])),
-                }
-            )
     elif user.get("is_authenticated"):
         st.error(
             "Platform is initializing and is currently available only to the superadmin. "
@@ -480,14 +473,7 @@ def _filter_role_rows(route: str, rows: list[dict], role: str, user_email: str) 
 
 
 def _build_superadmin_role_switcher_options(*, cache_service: CacheService, translator, navigation_service: NavigationService) -> list[dict]:
-    return [
-        {
-            "value": "__self__",
-            "label": "My Superadmin View",
-            "caption": "Use the original superadmin account and permissions.",
-            "mode": "self",
-        }
-    ]
+    return []
 
 
 def _render_root_setup_console(session_service: SessionService, admin_drive_service: AdminDriveService, errors: list[str]) -> None:
@@ -514,17 +500,6 @@ def _render_root_setup_console(session_service: SessionService, admin_drive_serv
             },
             translator=None,
         )
-        with st.expander("Bootstrap Admin Debug", expanded=False):
-            st.write(
-                {
-                    "current_google_email": current_email,
-                    "primary_admin_email_from_toml": get_bootstrap_primary_admin().get("email", ""),
-                    "is_bootstrap_admin": bootstrap_admin,
-                    "current_session_role": user.get("role", ""),
-                    "drive_setup_complete": False,
-                    "missing_file_count": 0,
-                }
-            )
     elif user.get("is_authenticated"):
         st.error("Platform setup is incomplete. Please contact admin.")
     else:
@@ -634,9 +609,6 @@ def render_app() -> None:
             set_language=session_service.set_language,
             language_option_labels=language_service.get_language_option_labels(),
         )
-        if oauth_service.is_debug_enabled() or bool(app_config.get("debug_auth", False)):
-            with st.expander("OAuth Debug", expanded=False):
-                st.write({**oauth_service.get_debug_snapshot(), "current_session_user": session_service.get_user()})
         return
 
     authenticated_user = session_service.get_authenticated_user()
@@ -663,26 +635,9 @@ def render_app() -> None:
     if current_route not in valid_routes or not rbac_service.can_access(role, current_route):
         current_route = page_service.get_landing_page(role, navigation_service)
         session_service.set_route(current_route)
-    role_switcher_options = []
-    active_user_option_value = "__self__"
-    if is_superadmin:
-        role_switcher_options = _build_superadmin_role_switcher_options(
-            cache_service=cache_service,
-            translator=translator,
-            navigation_service=navigation_service,
-        )
-        if session_service.is_acting_as_user():
-            session_service.clear_effective_user()
-            st.rerun()
-        if session_service.is_acting_as_user():
-            acting_user = session_service.get_user()
-            acting_email = str(acting_user.get("email", "") or "").strip().lower()
-            active_user_option_value = f"user::{acting_email}"
-            matching_option = next((option for option in role_switcher_options if option.get("value") == active_user_option_value), None)
-            if not matching_option:
-                active_user_option_value = f"role::{acting_user.get('role', '')}"
-                if not any(option.get("value") == active_user_option_value for option in role_switcher_options):
-                    active_user_option_value = "__self__"
+    if session_service.is_acting_as_user():
+        session_service.clear_effective_user()
+        st.rerun()
     chosen = render_sidebar(
         navigation_items,
         current_route,
@@ -694,11 +649,6 @@ def render_app() -> None:
         current_language=session_service.get_language(),
         language_label=translator.t("auth.language"),
         set_language=session_service.set_language,
-        show_role_switcher=is_superadmin,
-        role_switcher_options=role_switcher_options,
-        active_user_option_value=active_user_option_value,
-        set_effective_user=session_service.set_effective_user,
-        clear_effective_user=session_service.clear_effective_user,
     )
     if chosen != current_route:
         session_service.set_route(chosen)

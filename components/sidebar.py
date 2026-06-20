@@ -40,11 +40,6 @@ def render_sidebar(
     current_language: str = "en",
     language_label: str = "Language",
     set_language=None,
-    show_role_switcher: bool = False,
-    role_switcher_options: list[dict] | None = None,
-    active_user_option_value: str = "",
-    set_effective_user=None,
-    clear_effective_user=None,
 ) -> str:
     chosen = selected_route
     with st.sidebar:
@@ -105,34 +100,6 @@ def render_sidebar(
                     else:
                         theme_service.clear_selected_background()
                     theme_service.clear_theme_cache()
-                    st.rerun()
-        if show_role_switcher:
-            render_template("sidebar_section_label.html", label="Role View")
-            role_switcher_options = list(role_switcher_options or [])
-            if role_switcher_options:
-                option_values = [str(option.get("value", "")) for option in role_switcher_options]
-                selected_value = (
-                    active_user_option_value
-                    if active_user_option_value in option_values
-                    else (option_values[0] if option_values else "")
-                )
-                picked_value = st.selectbox(
-                    "Role View",
-                    options=option_values,
-                    index=option_values.index(selected_value) if selected_value in option_values else 0,
-                    format_func=lambda value: next(
-                        (str(option.get("label", value)) for option in role_switcher_options if str(option.get("value", "")) == value),
-                        value,
-                    ),
-                    key="sidebar_role_switcher",
-                )
-                picked_option = next((option for option in role_switcher_options if str(option.get("value", "")) == picked_value), {})
-                st.caption(str(picked_option.get("caption", "") or ""))
-                if picked_value != active_user_option_value:
-                    if str(picked_option.get("mode", "")) in {"real_user", "role_view"} and set_effective_user is not None:
-                        set_effective_user(dict(picked_option.get("user", {}) or {}))
-                    elif clear_effective_user is not None:
-                        clear_effective_user()
                     st.rerun()
         render_template("sidebar_section_label.html", label="Navigation")
         for item in navigation_items:

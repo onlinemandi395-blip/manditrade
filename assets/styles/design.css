@@ -406,6 +406,120 @@ input[type="radio"] {
   line-height: 1.45;
 }
 
+.mt-login-console {
+  display: grid;
+  gap: 1rem;
+  padding: 1.25rem;
+  margin-bottom: 0.95rem;
+}
+
+.mt-login-console__hero,
+.mt-login-console__brand,
+.mt-login-console__rail,
+.mt-login-console__status {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.mt-login-console__brand {
+  grid-template-columns: 110px minmax(0, 1fr);
+  align-items: center;
+}
+
+.mt-login-console__logo {
+  width: 110px;
+  height: 110px;
+  border-radius: 28px;
+  background: linear-gradient(135deg, #000000, #d90429 58%, #ffffff 170%);
+  display: grid;
+  place-items: center;
+  box-shadow: 0 26px 60px rgba(0, 0, 0, 0.42);
+  position: relative;
+}
+
+.mt-login-console__logo span {
+  position: absolute;
+  font-weight: 900;
+  font-size: 2.4rem;
+  color: #ffffff;
+  letter-spacing: 0.06em;
+}
+
+.mt-login-console__logo span:first-child {
+  transform: translateX(-14px);
+}
+
+.mt-login-console__logo span:last-child {
+  transform: translateX(14px);
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.mt-login-console__copy {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.mt-login-console__eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--mt-accent-3);
+}
+
+.mt-login-console__title {
+  margin: 0.3rem 0 0;
+  color: #ffffff;
+  font-size: 2rem;
+  line-height: 1.05;
+}
+
+.mt-login-console__subtitle {
+  margin: 0.55rem 0 0;
+  color: rgba(255, 255, 255, 0.76);
+  line-height: 1.6;
+  max-width: 680px;
+}
+
+.mt-login-console__rail {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.mt-login-console__rail-card,
+.mt-login-console__status-card {
+  padding: 0.95rem;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(217, 4, 41, 0.08));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.mt-login-console__rail-card span,
+.mt-login-console__status-card span {
+  display: block;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.mt-login-console__rail-card strong,
+.mt-login-console__status-card strong {
+  display: block;
+  margin-top: 0.32rem;
+  color: #ffffff;
+  line-height: 1.45;
+}
+
+.mt-login-console__status-card p {
+  margin: 0.45rem 0 0;
+  color: rgba(255, 255, 255, 0.76);
+  line-height: 1.6;
+}
+
+.mt-login-console__status {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .mt-page-hero {
   position: relative;
   overflow: hidden;
@@ -860,6 +974,24 @@ button[data-baseweb="tab"]:hover,
   }
 
   .mt-login-hero__rail {
+    grid-template-columns: 1fr;
+  }
+
+  .mt-login-console__brand {
+    grid-template-columns: 1fr;
+  }
+
+  .mt-login-console__logo {
+    width: 88px;
+    height: 88px;
+  }
+
+  .mt-login-console__title {
+    font-size: 1.6rem;
+  }
+
+  .mt-login-console__rail,
+  .mt-login-console__status {
     grid-template-columns: 1fr;
   }
 
