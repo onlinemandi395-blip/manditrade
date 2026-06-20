@@ -54,6 +54,96 @@
   border-radius: 24px !important;
 }
 
+[data-testid="stDialog"] [data-testid="stVerticalBlockBorderWrapper"],
+[role="dialog"] [data-testid="stVerticalBlockBorderWrapper"] {
+  background: linear-gradient(180deg, rgba(12, 16, 28, 0.98), rgba(8, 10, 18, 0.98)) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+[data-testid="stDialog"] [role="radiogroup"] {
+  gap: 0.35rem !important;
+  margin: 0.35rem 0 0.15rem !important;
+}
+
+[data-testid="stDialog"] [role="radiogroup"] label {
+  min-height: 0 !important;
+  padding: 0.28rem 0.55rem !important;
+  border-radius: 999px !important;
+}
+
+.mt-dialog-shell {
+  display: grid;
+  gap: 0.5rem;
+  margin-bottom: 0.2rem;
+}
+
+.mt-dialog-header h3 {
+  margin: 0 !important;
+  font-size: 1.08rem !important;
+  line-height: 1.15 !important;
+}
+
+.mt-dialog-header p {
+  margin: 0.12rem 0 0 !important;
+  color: rgba(255, 255, 255, 0.65) !important;
+  font-size: 0.78rem !important;
+}
+
+.mt-dialog-eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.64rem;
+  font-weight: 700;
+  color: #f20530;
+  margin-bottom: 0.22rem;
+}
+
+.mt-dialog-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+.mt-dialog-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.42rem 0.5rem;
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(217, 4, 41, 0.05));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.mt-dialog-chip__icon {
+  display: inline-flex;
+  width: 1.35rem;
+  height: 1.35rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(217, 4, 41, 0.16);
+  font-size: 0.72rem;
+}
+
+.mt-dialog-chip__body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.mt-dialog-chip__body span {
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.mt-dialog-chip__body strong {
+  color: #ffffff;
+  font-size: 0.74rem;
+  line-height: 1.15;
+}
+
 [data-testid="stSidebar"] {
   background:
     radial-gradient(circle at top, rgba(217, 4, 41, 0.2), transparent 24%),

@@ -13,6 +13,18 @@ def _open_control_dialog() -> None:
     st.session_state[_CONTROL_DIALOG_KEY] = "open"
 
 
+def _build_dialog_chip(icon: str, label: str, value: str) -> str:
+    return (
+        "<div class='mt-dialog-chip'>"
+        f"<span class='mt-dialog-chip__icon'>{icon}</span>"
+        "<div class='mt-dialog-chip__body'>"
+        f"<span>{label}</span>"
+        f"<strong>{value}</strong>"
+        "</div>"
+        "</div>"
+    )
+
+
 def render_topbar(
     *,
     app_name: str,
@@ -78,22 +90,35 @@ def render_topbar(
 
     @st.dialog("MandiTrade Control Surface")
     def _render_control_dialog() -> None:
-        st.markdown("### Workspace Summary")
-        summary_cols = st.columns(2, gap="small")
-        with summary_cols[0]:
-            st.write(f"User: {user_name}")
-            st.write(f"Email: {user_email or '-'}")
-            st.write(f"Current Role: {role_label or '-'}")
-        with summary_cols[1]:
-            st.write(f"Release: v{version}")
-            st.write(f"Runtime: {runtime_mode}")
-            st.write(f"Root Folder: {root_folder_name}")
+        dialog_summary_html = "".join(
+            [
+                _build_dialog_chip("👤", "User", user_name),
+                _build_dialog_chip("🪪", "Role", role_label or "-"),
+                _build_dialog_chip("🌐", "Lang", str(language or "en").upper()),
+                _build_dialog_chip("🚀", "Release", f"v{version}"),
+                _build_dialog_chip("💽", "Runtime", runtime_mode),
+                _build_dialog_chip("📁", "Root", root_folder_name),
+            ]
+        )
+        render_template(
+            "control_surface_dialog.html",
+            title="Workspace",
+            subtitle="Fast controls, less words.",
+            summary_html=dialog_summary_html,
+        )
 
-        section_tabs = st.tabs(["Language", "Role View", "Workspace", "Runtime", "Account"])
+        section_choice = st.radio(
+            "Control Section",
+            options=["🌐 Lang", "👥 View", "🧩 Work", "💽 Run", "👤 Me"],
+            horizontal=True,
+            label_visibility="collapsed",
+            key="mt_control_dialog_section",
+        )
 
-        with section_tabs[0]:
+        if section_choice == "🌐 Lang":
             normalized_options = [str(option or "").strip().lower() for option in (language_options or []) if str(option or "").strip()]
             normalized_current = str(language or "en").strip().lower() or "en"
+            st.caption("🌐 Language")
             if normalized_options and set_language is not None:
                 choice = st.selectbox(
                     language_label or "Language",
@@ -101,15 +126,17 @@ def render_topbar(
                     index=normalized_options.index(normalized_current) if normalized_current in normalized_options else 0,
                     format_func=lambda code: dict(language_option_labels or {}).get(code, str(code or "").upper()),
                     key="topbar_language_choice",
+                    label_visibility="collapsed",
                 )
-                if st.button("Apply Language", use_container_width=True, key="topbar_apply_language"):
+                if st.button("Apply", use_container_width=True, key="topbar_apply_language"):
                     st.session_state[_CONTROL_DIALOG_KEY] = ""
                     set_language(choice)
                     st.rerun()
             else:
                 st.info("Language options are not available.")
 
-        with section_tabs[1]:
+        elif section_choice == "👥 View":
+            st.caption("👥 Role View")
             if role_switcher_options:
                 options = [str(option.get("value", "__self__")) for option in role_switcher_options]
                 choice = st.selectbox(
@@ -125,17 +152,20 @@ def render_topbar(
                         "Role View",
                     ),
                     key="topbar_role_view_choice",
+                    label_visibility="collapsed",
                 )
-                if st.button("Apply Role View", use_container_width=True, key="topbar_apply_role_view"):
+                if st.button("Apply", use_container_width=True, key="topbar_apply_role_view"):
                     st.session_state[_PENDING_ROLE_VIEW_KEY] = choice
                     st.session_state[_CONTROL_DIALOG_KEY] = ""
                     st.rerun()
             else:
                 st.info("Role view switching is available only to superadmin.")
 
-        with section_tabs[2]:
-            st.write("Data Layer: JSON-native data")
-            st.write(f"Workspace Source: {runtime_source}")
+        elif section_choice == "🧩 Work":
+            st.caption("🧩 Workspace")
+            info_cols = st.columns(2, gap="small")
+            info_cols[0].metric("Data", "JSON")
+            info_cols[1].metric("Source", runtime_source)
             if theme_service is not None:
                 backgrounds = theme_service.list_available_backgrounds()
                 if backgrounds:
@@ -151,8 +181,9 @@ def render_topbar(
                         format_func=lambda value: next((row["label"] for row in options if row["value"] == value), "Default Theme"),
                         index=next((idx for idx, row in enumerate(options) if row["value"] == selected_value), 0),
                         key="topbar_theme_choice",
+                        label_visibility="collapsed",
                     )
-                    if st.button("Apply Theme", use_container_width=True, key="topbar_apply_theme"):
+                    if st.button("Apply", use_container_width=True, key="topbar_apply_theme"):
                         chosen_theme = next((row for row in backgrounds if row.get("file_id", "") == theme_choice), None)
                         if theme_choice:
                             theme_service.set_selected_background(chosen_theme)
@@ -164,21 +195,25 @@ def render_topbar(
                 else:
                     st.caption("No workspace themes available.")
 
-        with section_tabs[3]:
-            st.write(f"Connected: {'Yes' if drive_manifest.get('connected', False) else 'No'}")
-            st.write(f"Mode: {runtime_mode}")
-            st.write(f"Source: {runtime_source}")
-            st.write(f"Root Folder: {root_folder_name}")
+        elif section_choice == "💽 Run":
+            st.caption("💽 Runtime")
+            runtime_cols = st.columns(2, gap="small")
+            runtime_cols[0].metric("Online", "Yes" if drive_manifest.get("connected", False) else "No")
+            runtime_cols[1].metric("Mode", runtime_mode)
+            st.caption(f"Source: {runtime_source}")
+            st.caption(f"Root: {root_folder_name}")
             missing_files = list(drive_manifest.get("missing_files", []) or [])
             if missing_files:
                 st.warning(f"Missing files: {len(missing_files)}")
             else:
-                st.success("Required files are available.")
+                st.success("Ready")
 
-        with section_tabs[4]:
-            st.write(f"Name: {user_name}")
-            st.write(f"Email: {user_email or '-'}")
-            st.write(f"Role: {role_label or '-'}")
+        else:
+            st.caption("👤 Account")
+            account_cols = st.columns(3, gap="small")
+            account_cols[0].metric("Name", user_name)
+            account_cols[1].metric("Role", role_label or "-")
+            account_cols[2].metric("Email", user_email or "-")
 
         if st.button("Close", use_container_width=True, key="topbar_close_dialog"):
             st.session_state[_CONTROL_DIALOG_KEY] = ""
