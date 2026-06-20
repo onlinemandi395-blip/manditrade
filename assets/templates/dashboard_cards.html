@@ -14,56 +14,78 @@
     .mt-dashboard-grid {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 1rem;
-      padding: 0.05rem 0.05rem 0.35rem;
+      gap: 0.95rem;
+      padding: 0.05rem 0.05rem 0.5rem;
     }
     .mt-dashboard-card {
       position: relative;
       overflow: hidden;
-      min-height: 210px;
-      padding: 1.05rem;
-      border-radius: 22px;
+      min-height: 188px;
+      padding: 1rem 1rem 0.9rem;
+      border-radius: 20px;
       background:
-        radial-gradient(circle at top right, rgba(217, 4, 41, 0.28), transparent 30%),
-        linear-gradient(180deg, rgba(22, 22, 22, 0.98), rgba(8, 8, 8, 0.94));
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.38);
+        radial-gradient(circle at top right, rgba(217, 4, 41, 0.24), transparent 34%),
+        linear-gradient(180deg, rgba(20, 20, 20, 0.98), rgba(7, 7, 7, 0.94));
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      box-shadow: 0 16px 34px rgba(0, 0, 0, 0.34);
+    }
+    .mt-dashboard-card::before {
+      content: "";
+      position: absolute;
+      inset: 0 0 auto 0;
+      height: 4px;
+      background: linear-gradient(90deg, #f20530 0%, #d90429 52%, rgba(255,255,255,0.88) 100%);
+      opacity: 0.92;
+    }
+    .mt-dashboard-card__top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.8rem;
     }
     .mt-dashboard-card__eyebrow {
       display: inline-flex;
       padding: 0.32rem 0.62rem;
       border-radius: 999px;
-      font-size: 11px;
+      font-size: 10px;
       font-weight: 700;
-      letter-spacing: 0.08em;
+      letter-spacing: 0.11em;
       text-transform: uppercase;
       color: #ffffff;
       background: rgba(217, 4, 41, 0.14);
       border: 1px solid rgba(217, 4, 41, 0.32);
     }
-    .mt-dashboard-card__title {
-      margin-top: 0.9rem;
-      font-size: 15px;
+    .mt-dashboard-card__index {
+      color: rgba(255, 255, 255, 0.46);
+      font-size: 11px;
       font-weight: 700;
-      line-height: 1.35;
+      letter-spacing: 0.08em;
+    }
+    .mt-dashboard-card__title {
+      margin-top: 0.8rem;
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.4;
       color: #ffffff;
+      min-height: 2.45rem;
     }
     .mt-dashboard-card__value {
-      margin-top: 1.2rem;
-      font-size: 34px;
+      margin-top: 0.95rem;
+      font-size: 31px;
       font-weight: 800;
       line-height: 1;
       color: #ffffff;
     }
     .mt-dashboard-card__subtitle {
-      margin-top: 0.7rem;
+      margin-top: 0.55rem;
       color: rgba(255, 255, 255, 0.72);
-      font-size: 13px;
+      font-size: 12px;
+      min-height: 2rem;
     }
     .mt-dashboard-card__chart {
-      margin-top: 0.9rem;
+      margin-top: 0.8rem;
       width: 100%;
-      height: 52px;
+      height: 46px;
       display: block;
     }
     .mt-dashboard-card__chart-grid {
@@ -84,6 +106,20 @@
       fill: #ffffff;
       stroke: #d90429;
       stroke-width: 2;
+    }
+    .mt-dashboard-card__footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.7rem;
+      margin-top: 0.7rem;
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.58);
+      letter-spacing: 0.03em;
+    }
+    .mt-dashboard-card__footer strong {
+      color: #ffffff;
+      font-weight: 700;
     }
     @media (max-width: 900px) {
       .mt-dashboard-grid {
@@ -129,11 +165,18 @@
     };
     root.innerHTML = cards.map((card, index) => `
       <article class="mt-dashboard-card">
-        <div class="mt-dashboard-card__eyebrow">${escapeHtml(card.eyebrow || `Metric ${index + 1}`)}</div>
+        <div class="mt-dashboard-card__top">
+          <div class="mt-dashboard-card__eyebrow">${escapeHtml(card.eyebrow || `Metric ${index + 1}`)}</div>
+          <div class="mt-dashboard-card__index">0${index + 1}</div>
+        </div>
         <div class="mt-dashboard-card__title">${escapeHtml(card.title)}</div>
         <div class="mt-dashboard-card__value">${escapeHtml(card.value)}</div>
         <div class="mt-dashboard-card__subtitle">${escapeHtml(card.subtitle)}</div>
         ${buildSparkline(card.series)}
+        <div class="mt-dashboard-card__footer">
+          <span>Live business view</span>
+          <strong>Updated</strong>
+        </div>
       </article>
     `).join("");
     const height = Math.min(Math.max(document.body.scrollHeight + 12, 360), 980);

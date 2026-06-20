@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from collections import Counter
 
 import pandas as pd
@@ -578,5 +579,8 @@ def render_dashboard_cards(cards: list[dict], dataset_lookup: dict[str, list[dic
 
     payload_json = json.dumps(rendered_cards, ensure_ascii=True)
     markup = load_template("dashboard_cards.html", payload_json=payload_json)
-    components.html(markup, height=min(max(360, 180 + (len(rendered_cards) * 40)), 980), scrolling=False)
+    desktop_columns = 3
+    row_count = max(1, math.ceil(len(rendered_cards) / desktop_columns))
+    card_frame_height = min(max(340, 88 + (row_count * 220)), 980)
+    components.html(markup, height=card_frame_height, scrolling=False)
     _render_analytics(current_user, dataset_lookup)
