@@ -876,11 +876,16 @@ def render_products_page(data_service, notification_service, session_service, ca
         )
         st.caption(f"Product Code: {next_product_code}")
         render_template("onboarding_section_close.html")
-        with _render_onboarding_section(
-            "Product Identity",
-            "Start with the product name, then link the right owner and their reusable business details.",
-        ):
-            product_name = st.text_input(translator.t("field.product_name"), key="create_product_name")
+        create_tabs = st.tabs(
+            [
+                "1. Basics",
+                "2. Owner",
+                "3. Delivery",
+                "4. Pricing",
+                "5. Media",
+            ]
+        )
+        product_name = ""
         if is_admin:
             owner_type = ""
             owner_role_key = ""
@@ -892,35 +897,6 @@ def render_products_page(data_service, notification_service, session_service, ca
             delivery_partner_email = ""
             delivery_partner_display_name = ""
             delivery_partner_phone = ""
-            with _render_onboarding_section(
-                "Owner Setup",
-                "Choose an existing merchant, or onboard a new one directly from this form.",
-            ):
-                owner_cols = st.columns([1.1, 1.3])
-                owner_type = owner_cols[0].selectbox(translator.t("field.owner_type"), options=list(OWNER_TYPES.keys()), key="create_owner_type")
-                owner_role_key = OWNER_TYPES[owner_type]
-                owner_mode = owner_cols[1].radio("Owner Selection Mode", options=["Select Existing", "Add New"], horizontal=True, key="create_owner_mode")
-                owner_candidates = _owner_candidates_for_role(users, products, owner_role_key)
-                if owner_mode == "Select Existing" and owner_candidates:
-                    owner_option_map = {row.get("email", ""): row for row in owner_candidates}
-                    owner_choice = st.selectbox(
-                        translator.t("field.owner_email"),
-                        options=list(owner_option_map.keys()),
-                        format_func=lambda value: _owner_option_label(owner_option_map.get(value, {})),
-                        key="create_existing_owner",
-                    )
-                    selected_owner_row = owner_option_map.get(owner_choice, {})
-                    owner_email = str(selected_owner_row.get("email", "")).strip().lower()
-                    owner_display_name = str(selected_owner_row.get("display_name", "")).strip()
-                    owner_phone = str(selected_owner_row.get("phone", "")).strip()
-                    st.caption(f"Selected Owner: {_owner_option_label(selected_owner_row)}")
-                else:
-                    if owner_mode == "Select Existing" and not owner_candidates:
-                        st.info("No existing active owners found for this role. Add a new owner.")
-                    owner_identity_cols = st.columns(3)
-                    owner_email = owner_identity_cols[0].text_input(translator.t("field.owner_email"), key="create_owner_email").strip().lower()
-                    owner_display_name = owner_identity_cols[1].text_input(translator.t("field.owner_display_name"), key="create_owner_display_name")
-                    owner_phone = owner_identity_cols[2].text_input(translator.t("field.owner_phone"), key="create_owner_phone")
         else:
             owner_role_key = current_user_role
             owner_email = str(current_user_email).strip().lower()
@@ -930,10 +906,59 @@ def render_products_page(data_service, notification_service, session_service, ca
             delivery_partner_display_name = ""
             delivery_partner_phone = ""
             shipment_management_mode = "Owner Managed"
-            with _render_onboarding_section("Owner Setup", "This product will use your owner account automatically."):
-                owner_preview_cols = st.columns(2)
-                owner_preview_cols[0].caption(f"Owner: {owner_email}")
-                owner_preview_cols[1].caption(f"Owner Role: {owner_role_key}")
+        with create_tabs[0]:
+            with _render_onboarding_section(
+                "Product Basics",
+                "Start with the product name, category, stock, and description. Keep this part short and clear.",
+                eyebrow="Step 1",
+            ):
+                product_name = st.text_input("Product Name", key="create_product_name", placeholder="Example: Premium Towel Supply")
+                basics_cols = st.columns(2)
+                category = basics_cols[0].selectbox("Category", options=category_names if category_names else [""], key="create_category")
+                subcategories = category_index.get(category, [])
+                subcategory = basics_cols[1].selectbox("Subcategory", options=subcategories if subcategories else [""], key="create_subcategory")
+                stock_cols = st.columns(2)
+                unit = stock_cols[0].text_input("Unit", value="piece", key="create_unit", help="Example: piece, kg, box, bundle")
+                available_quantity = stock_cols[1].number_input("Available Quantity", min_value=0.0, step=1.0, key="create_available_quantity")
+                description = st.text_area("Description", key="create_description", height=120, placeholder="Write a simple product description for buyers.")
+
+        with create_tabs[1]:
+            if is_admin:
+                with _render_onboarding_section(
+                    "Owner Setup",
+                    "Choose an existing merchant, or add a new merchant directly from this form.",
+                    eyebrow="Step 2",
+                ):
+                    owner_cols = st.columns(2)
+                    owner_type = owner_cols[0].selectbox("Owner Type", options=list(OWNER_TYPES.keys()), key="create_owner_type")
+                    owner_role_key = OWNER_TYPES[owner_type]
+                    owner_mode = owner_cols[1].radio("Owner Selection", options=["Select Existing", "Add New"], horizontal=True, key="create_owner_mode")
+                    owner_candidates = _owner_candidates_for_role(users, products, owner_role_key)
+                    if owner_mode == "Select Existing" and owner_candidates:
+                        owner_option_map = {row.get("email", ""): row for row in owner_candidates}
+                        owner_choice = st.selectbox(
+                            "Owner",
+                            options=list(owner_option_map.keys()),
+                            format_func=lambda value: _owner_option_label(owner_option_map.get(value, {})),
+                            key="create_existing_owner",
+                        )
+                        selected_owner_row = owner_option_map.get(owner_choice, {})
+                        owner_email = str(selected_owner_row.get("email", "")).strip().lower()
+                        owner_display_name = str(selected_owner_row.get("display_name", "")).strip()
+                        owner_phone = str(selected_owner_row.get("phone", "")).strip()
+                        st.caption(f"Selected Owner: {_owner_option_label(selected_owner_row)}")
+                    else:
+                        if owner_mode == "Select Existing" and not owner_candidates:
+                            st.info("No active merchant is available yet. Add a new merchant below.")
+                        owner_identity_cols = st.columns(2)
+                        owner_email = owner_identity_cols[0].text_input("Owner Email", key="create_owner_email").strip().lower()
+                        owner_display_name = owner_identity_cols[1].text_input("Owner Name", key="create_owner_display_name")
+                        owner_phone = st.text_input("Owner Phone", key="create_owner_phone")
+            else:
+                with _render_onboarding_section("Owner Setup", "This product will use your owner account automatically.", eyebrow="Step 2"):
+                    owner_preview_cols = st.columns(2)
+                    owner_preview_cols[0].caption(f"Owner: {owner_email}")
+                    owner_preview_cols[1].caption(f"Owner Role: {owner_role_key}")
         owner_profile_service = UserProfileService(data_service)
         owner_profile_preview = {}
         if owner_email.strip():
@@ -963,136 +988,144 @@ def render_products_page(data_service, notification_service, session_service, ca
             st.session_state["create_owner_bank_account_number"] = owner_details_preview.get("bank_account_number", "")
             st.session_state["create_owner_bank_ifsc"] = owner_details_preview.get("bank_ifsc", "")
             st.session_state["create_owner_other_details"] = owner_details_preview.get("other_details", "")
-        with _render_onboarding_section(
-            "Owner Billing and Invoice Details",
-            "These details are saved against the owner automatically and reused on the next product onboarding.",
-        ):
-            owner_business_cols = st.columns(3)
-            owner_business_name = owner_business_cols[0].text_input("Owner Business Name", key="create_owner_business_name")
-            owner_upi_id = owner_business_cols[1].text_input("Owner UPI ID", key="create_owner_upi_id")
-            owner_gst_number = owner_business_cols[2].text_input("Owner GST Number", key="create_owner_gst_number")
-            invoice_cols = st.columns(2)
-            owner_invoice_name = invoice_cols[0].text_input("Invoice Name", key="create_owner_invoice_name")
-            owner_invoice_phone = invoice_cols[1].text_input("Invoice Contact Phone", key="create_owner_invoice_phone")
-            owner_invoice_address = st.text_area("Invoice Address", key="create_owner_invoice_address", height=90)
-            bank_cols = st.columns(3)
-            owner_bank_account_name = bank_cols[0].text_input("Bank Account Name", key="create_owner_bank_account_name")
-            owner_bank_account_number = bank_cols[1].text_input("Bank Account Number", key="create_owner_bank_account_number")
-            owner_bank_ifsc = bank_cols[2].text_input("Bank IFSC", key="create_owner_bank_ifsc")
-            owner_other_details = st.text_area("Other Owner Details", key="create_owner_other_details", height=90)
-        with _render_onboarding_section(
-            "Shipment Ownership",
-            "Choose whether the owner handles shipment directly or wants a reusable preferred delivery partner for this product.",
-        ):
-            if is_admin:
-                shipment_management_mode = st.radio(
-                    "Shipment Management",
-                    options=["Owner Managed", "Owner Preferred Worker"],
-                    horizontal=True,
-                    key="create_shipment_management_mode",
-                )
-                if shipment_management_mode == "Owner Preferred Worker":
-                    delivery_partner_mode = st.radio("Worker Selection", options=["Select Existing", "Add New"], horizontal=True, key="create_delivery_partner_mode")
-                    delivery_partner_candidates = _delivery_partner_candidates_for_owner(users, products, owner_email)
-                    if delivery_partner_mode == "Select Existing" and delivery_partner_candidates:
-                        partner_option_map = {row.get("email", ""): row for row in delivery_partner_candidates}
-                        partner_choice = st.selectbox(
-                            "Worker Email",
-                            options=list(partner_option_map.keys()),
-                            format_func=lambda value: _owner_option_label(partner_option_map.get(value, {})),
-                            key="create_existing_delivery_partner",
-                        )
-                        selected_partner_row = partner_option_map.get(partner_choice, {})
-                        delivery_partner_email = str(selected_partner_row.get("email", "")).strip().lower()
-                        delivery_partner_display_name = str(selected_partner_row.get("display_name", "")).strip()
-                        delivery_partner_phone = str(selected_partner_row.get("phone", "")).strip()
-                        st.caption(f"Selected Worker: {_owner_option_label(selected_partner_row)}")
+        with create_tabs[1]:
+            with _render_onboarding_section(
+                "Billing and Invoice Details",
+                "These details are saved against the owner and reused the next time this owner adds a product.",
+                eyebrow="Step 2",
+            ):
+                owner_business_cols = st.columns(2)
+                owner_business_name = owner_business_cols[0].text_input("Business Name", key="create_owner_business_name")
+                owner_upi_id = owner_business_cols[1].text_input("UPI ID", key="create_owner_upi_id")
+                owner_tax_cols = st.columns(2)
+                owner_gst_number = owner_tax_cols[0].text_input("GST Number", key="create_owner_gst_number")
+                owner_invoice_phone = owner_tax_cols[1].text_input("Invoice Contact Phone", key="create_owner_invoice_phone")
+                owner_invoice_name = st.text_input("Invoice Name", key="create_owner_invoice_name")
+                owner_invoice_address = st.text_area("Invoice Address", key="create_owner_invoice_address", height=90)
+                bank_cols = st.columns(2)
+                owner_bank_account_name = bank_cols[0].text_input("Bank Account Name", key="create_owner_bank_account_name")
+                owner_bank_account_number = bank_cols[1].text_input("Bank Account Number", key="create_owner_bank_account_number")
+                owner_bank_ifsc = st.text_input("Bank IFSC", key="create_owner_bank_ifsc")
+                owner_other_details = st.text_area("Extra Notes", key="create_owner_other_details", height=90, placeholder="Optional business notes")
+
+        with create_tabs[2]:
+            with _render_onboarding_section(
+                "Shipment Ownership",
+                "Choose whether the owner handles shipment directly or wants a preferred worker saved with this product.",
+                eyebrow="Step 3",
+            ):
+                if is_admin:
+                    shipment_management_mode = st.radio(
+                        "Shipment Management",
+                        options=["Owner Managed", "Owner Preferred Worker"],
+                        horizontal=True,
+                        key="create_shipment_management_mode",
+                    )
+                    if shipment_management_mode == "Owner Preferred Worker":
+                        delivery_partner_mode = st.radio("Worker Selection", options=["Select Existing", "Add New"], horizontal=True, key="create_delivery_partner_mode")
+                        delivery_partner_candidates = _delivery_partner_candidates_for_owner(users, products, owner_email)
+                        if delivery_partner_mode == "Select Existing" and delivery_partner_candidates:
+                            partner_option_map = {row.get("email", ""): row for row in delivery_partner_candidates}
+                            partner_choice = st.selectbox(
+                                "Worker",
+                                options=list(partner_option_map.keys()),
+                                format_func=lambda value: _owner_option_label(partner_option_map.get(value, {})),
+                                key="create_existing_delivery_partner",
+                            )
+                            selected_partner_row = partner_option_map.get(partner_choice, {})
+                            delivery_partner_email = str(selected_partner_row.get("email", "")).strip().lower()
+                            delivery_partner_display_name = str(selected_partner_row.get("display_name", "")).strip()
+                            delivery_partner_phone = str(selected_partner_row.get("phone", "")).strip()
+                            st.caption(f"Selected Worker: {_owner_option_label(selected_partner_row)}")
+                        else:
+                            if delivery_partner_mode == "Select Existing" and not delivery_partner_candidates:
+                                st.info("No active worker is linked yet. Add a new preferred worker below.")
+                            shipment_partner_cols = st.columns(2)
+                            delivery_partner_email = shipment_partner_cols[0].text_input("Worker Email", key="create_delivery_partner_email").strip().lower()
+                            delivery_partner_display_name = shipment_partner_cols[1].text_input("Worker Name", key="create_delivery_partner_display_name")
+                            delivery_partner_phone = st.text_input("Worker Phone", key="create_delivery_partner_phone")
                     else:
-                        if delivery_partner_mode == "Select Existing" and not delivery_partner_candidates:
-                            st.info("No owner-based active workers found yet. Add a new preferred worker.")
-                        shipment_partner_cols = st.columns(3)
-                        delivery_partner_email = shipment_partner_cols[0].text_input("Worker Email", key="create_delivery_partner_email").strip().lower()
-                        delivery_partner_display_name = shipment_partner_cols[1].text_input("Worker Name", key="create_delivery_partner_display_name")
-                        delivery_partner_phone = shipment_partner_cols[2].text_input("Worker Phone", key="create_delivery_partner_phone")
+                        st.caption("Owner will manage shipment handling for this product and can assign a worker later per order.")
                 else:
-                    st.caption("Owner will manage shipment handling for this product and can assign a worker later per order.")
-            else:
-                st.caption("You will manage shipment handling for this product and can assign a worker later per order.")
-        with _render_onboarding_section(
-            "Catalog Details",
-            "Define the product information, inventory, and descriptions used across the catalog.",
-        ):
-            product_detail_cols = st.columns(3)
-            category = product_detail_cols[0].selectbox(translator.t("field.category"), options=category_names if category_names else [""], key="create_category")
-            subcategories = category_index.get(category, [])
-            subcategory = product_detail_cols[1].selectbox(translator.t("field.subcategory"), options=subcategories if subcategories else [""], key="create_subcategory")
-            unit = product_detail_cols[2].text_input(translator.t("field.unit"), value="piece", key="create_unit")
-            description = st.text_area(translator.t("field.description"), key="create_description")
-            available_quantity = st.number_input(translator.t("field.quantity"), min_value=0.0, step=1.0, key="create_available_quantity")
-        with _render_onboarding_section(
-            "Pricing and Channels",
-            "Set owner/admin price and configure where the product is available with the correct channel pricing.",
-        ):
-            pricing_cols = st.columns(3)
-            admin_price = pricing_cols[0].number_input(translator.t("field.admin_price"), min_value=0.0, step=1.0, key="create_admin_price")
-            marketplace_price = pricing_cols[1].number_input(translator.t("field.marketplace_price"), min_value=0.0, step=1.0, key="create_marketplace_price")
-            manditrade_price = pricing_cols[2].number_input(translator.t("field.manditrade_price"), min_value=0.0, step=1.0, key="create_manditrade_price")
-            channel_cols = st.columns(2)
-            marketplace_enabled = channel_cols[0].checkbox(translator.t("field.available_marketplace"), value=True, key="create_marketplace_enabled")
-            manditrade_enabled = channel_cols[1].checkbox(translator.t("field.available_manditrade"), value=True, key="create_manditrade_enabled")
-            mandi_qty_cols = st.columns(2)
-            manditrade_minimum_quantity = mandi_qty_cols[0].number_input(translator.t("field.manditrade_minimum_quantity"), min_value=1.0, step=1.0, value=1.0, key="create_manditrade_minimum_quantity")
-            manditrade_increment_quantity = mandi_qty_cols[1].number_input(translator.t("field.manditrade_increment_quantity"), min_value=1.0, step=1.0, value=1.0, key="create_manditrade_increment_quantity")
-        with _render_onboarding_section(
-            "Fulfillment Services",
-            "Configure optional packaging and shipping services provided by either the owner or MandiTrade.",
-        ):
-            service_mode_cols = st.columns(3)
-            packaging_mode = service_mode_cols[0].selectbox("Packaging Mode", options=["owner", "manditrade"], key="create_packaging_mode")
-            shipping_mode = service_mode_cols[1].selectbox("Shipping Mode", options=["owner", "manditrade"], key="create_shipping_mode")
-            delivery_scope = service_mode_cols[2].selectbox("Delivery Scope", options=["custom", "local", "zonal", "national"], key="create_delivery_scope")
-            service_cost_cols = st.columns(4)
-            packaging_cost_b2c = service_cost_cols[0].number_input("Packaging Cost B2C", min_value=0.0, step=1.0, key="create_packaging_cost_b2c")
-            shipping_cost_b2c = service_cost_cols[1].number_input("Shipping Cost B2C", min_value=0.0, step=1.0, key="create_shipping_cost_b2c")
-            packaging_cost_b2b = service_cost_cols[2].number_input("Packaging Cost B2B", min_value=0.0, step=1.0, key="create_packaging_cost_b2b")
-            shipping_cost_b2b = service_cost_cols[3].number_input("Shipping Cost B2B", min_value=0.0, step=1.0, key="create_shipping_cost_b2b")
-            delivery_notes = st.text_area("Fulfillment Notes", key="create_delivery_notes", height=80)
-        with _render_onboarding_section(
-            "Media and Approval",
-            "Upload product images, complete consent checks, and choose the initial product status.",
-        ):
-            uploaded_files = st.file_uploader(
-                translator.t("field.product_images"),
-                accept_multiple_files=True,
-                type=["png", "jpg", "jpeg", "webp"],
-                key="create_product_images",
-            )
+                    st.caption("You will manage shipment handling for this product and can assign a worker later per order.")
+
+            with _render_onboarding_section(
+                "Fulfillment Services",
+                "Set packaging and shipping support clearly for B2C and B2B orders.",
+                eyebrow="Step 3",
+            ):
+                service_mode_cols = st.columns(2)
+                packaging_mode = service_mode_cols[0].selectbox("Packaging Mode", options=["owner", "manditrade"], key="create_packaging_mode")
+                shipping_mode = service_mode_cols[1].selectbox("Shipping Mode", options=["owner", "manditrade"], key="create_shipping_mode")
+                delivery_scope = st.selectbox("Delivery Scope", options=["custom", "local", "zonal", "national"], key="create_delivery_scope")
+                b2c_cols = st.columns(2)
+                packaging_cost_b2c = b2c_cols[0].number_input("Packaging Cost B2C", min_value=0.0, step=1.0, key="create_packaging_cost_b2c")
+                shipping_cost_b2c = b2c_cols[1].number_input("Shipping Cost B2C", min_value=0.0, step=1.0, key="create_shipping_cost_b2c")
+                b2b_cols = st.columns(2)
+                packaging_cost_b2b = b2b_cols[0].number_input("Packaging Cost B2B", min_value=0.0, step=1.0, key="create_packaging_cost_b2b")
+                shipping_cost_b2b = b2b_cols[1].number_input("Shipping Cost B2B", min_value=0.0, step=1.0, key="create_shipping_cost_b2b")
+                delivery_notes = st.text_area("Fulfillment Notes", key="create_delivery_notes", height=80)
+
+        with create_tabs[3]:
+            with _render_onboarding_section(
+                "Pricing and Channels",
+                "Choose prices carefully and decide whether this product should be visible in marketplace, mandiplace, or both.",
+                eyebrow="Step 4",
+            ):
+                pricing_cols = st.columns(2)
+                admin_price = pricing_cols[0].number_input("Owner Price", min_value=0.0, step=1.0, key="create_admin_price")
+                marketplace_price = pricing_cols[1].number_input("Marketplace Price", min_value=0.0, step=1.0, key="create_marketplace_price")
+                manditrade_price = st.number_input("Mandiplace Price", min_value=0.0, step=1.0, key="create_manditrade_price")
+                channel_cols = st.columns(2)
+                marketplace_enabled = channel_cols[0].checkbox("Show in Marketplace", value=True, key="create_marketplace_enabled")
+                manditrade_enabled = channel_cols[1].checkbox("Show in Mandiplace", value=True, key="create_manditrade_enabled")
+                mandi_qty_cols = st.columns(2)
+                manditrade_minimum_quantity = mandi_qty_cols[0].number_input("Mandiplace Minimum Quantity", min_value=1.0, step=1.0, value=1.0, key="create_manditrade_minimum_quantity")
+                manditrade_increment_quantity = mandi_qty_cols[1].number_input("Mandiplace Quantity Step", min_value=1.0, step=1.0, value=1.0, key="create_manditrade_increment_quantity")
+
+        with create_tabs[4]:
+            with _render_onboarding_section(
+                "Images and Approval",
+                "Upload product images, finish consent checks, and choose the starting status for this product.",
+                eyebrow="Step 5",
+            ):
+                uploaded_files = st.file_uploader(
+                    "Product Images",
+                    accept_multiple_files=True,
+                    type=["png", "jpg", "jpeg", "webp"],
+                    key="create_product_images",
+                )
         owner_consent_record = {}
         delivery_partner_consent_record = {}
-        with st.container(border=True):
-            if is_admin and owner_email.strip():
-                owner_consent_record = _render_consent_panel(
-                    product_consent_service=product_consent_service,
-                    product_name=product_name,
-                    recipient_email=owner_email,
-                    requested_by=current_user_email,
-                    consent_role="owner",
-                    title="Owner Consent",
-                    recipient_label="Owner",
-                    session_prefix="create_owner_consent",
-                )
-            if is_admin and delivery_partner_email.strip():
-                delivery_partner_consent_record = _render_consent_panel(
-                    product_consent_service=product_consent_service,
-                    product_name=product_name,
-                    recipient_email=delivery_partner_email,
-                    requested_by=current_user_email,
-                    consent_role="delivery_partner",
-                    title="Worker Consent",
-                    recipient_label="Worker",
-                    session_prefix="create_delivery_partner_consent",
-                )
-            status = st.selectbox(translator.t("field.status"), options=["APPROVED", "PENDING_APPROVAL"] if is_admin else ["PENDING_APPROVAL"], index=0, key="create_status")
+        with create_tabs[4]:
+            with _render_onboarding_section(
+                "Consent and Status",
+                "Finish the required consent checks before saving the product.",
+                eyebrow="Step 5",
+            ):
+                if is_admin and owner_email.strip():
+                    owner_consent_record = _render_consent_panel(
+                        product_consent_service=product_consent_service,
+                        product_name=product_name,
+                        recipient_email=owner_email,
+                        requested_by=current_user_email,
+                        consent_role="owner",
+                        title="Owner Consent",
+                        recipient_label="Owner",
+                        session_prefix="create_owner_consent",
+                    )
+                if is_admin and delivery_partner_email.strip():
+                    delivery_partner_consent_record = _render_consent_panel(
+                        product_consent_service=product_consent_service,
+                        product_name=product_name,
+                        recipient_email=delivery_partner_email,
+                        requested_by=current_user_email,
+                        consent_role="delivery_partner",
+                        title="Worker Consent",
+                        recipient_label="Worker",
+                        session_prefix="create_delivery_partner_consent",
+                    )
+                status = st.selectbox("Initial Status", options=["APPROVED", "PENDING_APPROVAL"] if is_admin else ["PENDING_APPROVAL"], index=0, key="create_status")
         submitted = st.button(translator.t("action.add_product"), use_container_width=True, key="save_product_button")
 
         if submitted:

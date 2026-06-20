@@ -672,16 +672,24 @@ def render_app() -> None:
         session_service.set_route(current_route)
         page_definition = page_service.get_page_definition(current_route, role)
         st.warning(translator.t("auth.access_denied"))
-    render_template(
-        "page_hero.html",
-        role_label=translator.t(f"role.{role}"),
-        title=translator.t(page_definition.get("title_key", "")),
-        subtitle=translator.t(page_definition.get("subtitle_key", "")),
-    )
-
     dashboard_cards = []
     if page_definition.get("type") == "dashboard":
         dashboard_cards = cache_service.get_config("dashboards").get("dashboards", {}).get(role, {}).get("cards", [])
+        render_template(
+            "page_hero.html",
+            role_label=translator.t(f"role.{role}"),
+            title=translator.t(page_definition.get("title_key", "")),
+            subtitle="",
+            variant_class="mt-page-hero--dashboard",
+        )
+    else:
+        render_template(
+            "page_hero.html",
+            role_label=translator.t(f"role.{role}"),
+            title=translator.t(page_definition.get("title_key", "")),
+            subtitle=translator.t(page_definition.get("subtitle_key", "")),
+            variant_class="",
+        )
 
     data_service = DataService(cache_service)
     datasets = _load_route_datasets(
