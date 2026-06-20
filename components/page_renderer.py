@@ -646,7 +646,7 @@ def _build_superadmin_role_switcher_options(*, cache_service: CacheService, tran
         }
     ]
     for row in user_rows:
-        role = str(row.get("role", "")).strip().lower()
+        role = _normalize_role(str(row.get("role", "")).strip().lower())
         email = str(row.get("email", "")).strip().lower()
         if not role or not email or role == "platform_admin" or role in seen_roles:
             continue
@@ -800,8 +800,9 @@ def render_app() -> None:
         return
 
     authenticated_user = session_service.get_authenticated_user()
-    role = session_service.get_user_role()
+    role = _normalize_role(session_service.get_user_role())
     user = session_service.get_user()
+    user["role"] = _normalize_role(user.get("role", ""))
     current_user_email = str(user.get("email", "") or "").strip().lower()
     authenticated_email = str(authenticated_user.get("email", "") or "").strip().lower()
     is_superadmin = is_bootstrap_admin(authenticated_email)
@@ -860,7 +861,7 @@ def render_app() -> None:
                 session_service.set_effective_user(
                     {
                         "email": selected_option.get("email", ""),
-                        "role": selected_option.get("role", "public_buyer"),
+                        "role": _normalize_role(selected_option.get("role", "public_buyer")),
                         "status": "ACTIVE",
                         "display_name": selected_option.get("display_name", ""),
                         "landing_page": selected_option.get("landing_page", "marketplace"),

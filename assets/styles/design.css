@@ -165,21 +165,38 @@ div[role="radiogroup"] [aria-checked="true"] {
 }
 
 [data-baseweb="popover"],
+[data-baseweb="menu"],
+[data-baseweb="menu"] > div,
+[data-baseweb="menu"] ul,
+[data-baseweb="menu"] li,
 [role="listbox"] {
   background: linear-gradient(180deg, rgba(22, 22, 22, 0.98), rgba(8, 8, 8, 0.98)) !important;
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
   color: #ffffff !important;
 }
 
+[data-baseweb="popover"] *,
+[data-baseweb="menu"] *,
 [role="option"] {
   background: transparent !important;
   color: #ffffff !important;
 }
 
+[data-baseweb="menu"] li[aria-selected="true"],
+[data-baseweb="menu"] li:hover,
 [role="option"][aria-selected="true"],
 [role="option"]:hover {
   background: linear-gradient(135deg, rgba(217, 4, 41, 0.2), rgba(255, 255, 255, 0.06)) !important;
   color: #ffffff !important;
+}
+
+[data-testid="stSidebar"] [data-baseweb="select"] > div,
+[data-testid="stSidebar"] [data-baseweb="base-input"] > div,
+[data-testid="stSidebar"] [data-baseweb="input"] > div {
+  background: linear-gradient(180deg, rgba(18, 18, 18, 0.98), rgba(28, 8, 12, 0.98)) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: 16px !important;
+  box-shadow: none !important;
 }
 
 [data-baseweb="select"] svg,

@@ -4,7 +4,6 @@ from html import escape
 
 import streamlit as st
 
-from components.frontend_layer import render_frontend_section
 from components.html_renderer import render_template
 
 
@@ -48,11 +47,6 @@ def render_sidebar(
     selected_view = str(current_role_view or "__self__")
     with st.sidebar:
         render_template("sidebar_brand.html")
-        render_frontend_section(
-            eyebrow="Workspace",
-            title="Control Center",
-            subtitle="Frontend shell rendered with HTML. Python keeps session, routing, and Drive-backed actions in sync.",
-        )
         if user:
             photo_url = str(user.get("photo_url", "") or "").strip()
             if photo_url:
