@@ -37,18 +37,28 @@ MASTER_CATEGORY_ROWS = [
 ]
 
 
+def _normalize_role_key(role: str) -> str:
+    normalized_role = str(role or "").strip().lower()
+    legacy_role_map = {
+        "mahajan": "merchant",
+        "manufacturer": "merchant",
+        "delivery_partner": "worker",
+    }
+    return legacy_role_map.get(normalized_role, normalized_role)
+
+
 def _build_user_index(users: list[dict]) -> dict[str, dict]:
     return {str(user.get("email", "")).strip().lower(): user for user in users if str(user.get("email", "")).strip()}
 
 
 def _active_users_for_role(users: list[dict], role: str) -> list[dict]:
-    normalized_role = str(role).strip().lower()
+    normalized_role = _normalize_role_key(role)
     accepted_roles = {normalized_role}
     if normalized_role == "worker":
         accepted_roles.add("delivery_partner")
     rows = [
         user for user in users
-        if str(user.get("role", "")).strip().lower() in accepted_roles
+        if _normalize_role_key(user.get("role", "")) in accepted_roles
         and str(user.get("status", "ACTIVE")).strip().upper() == "ACTIVE"
         and str(user.get("email", "")).strip()
     ]
@@ -56,7 +66,7 @@ def _active_users_for_role(users: list[dict], role: str) -> list[dict]:
 
 
 def _owner_candidates_for_role(users: list[dict], products: list[dict], role: str) -> list[dict]:
-    normalized_role = str(role).strip().lower()
+    normalized_role = _normalize_role_key(role)
     candidate_map: dict[str, dict] = {
         str(user.get("email", "")).strip().lower(): dict(user)
         for user in _active_users_for_role(users, normalized_role)
@@ -64,7 +74,7 @@ def _owner_candidates_for_role(users: list[dict], products: list[dict], role: st
     for product in products:
         owner = dict(product.get("owner", {}) or {})
         owner_email = str(owner.get("email", "")).strip().lower()
-        owner_role = str(owner.get("role", "")).strip().lower()
+        owner_role = _normalize_role_key(owner.get("role", ""))
         if not owner_email or owner_role != normalized_role:
             continue
         if owner_email not in candidate_map:
@@ -84,11 +94,19 @@ def _owner_candidates_for_role(users: list[dict], products: list[dict], role: st
 
 
 def _get_owner_type_label(product: dict) -> str:
-    owner_role = str(((product.get("owner") or {}).get("role", ""))).strip().lower()
+    owner_role = _normalize_role_key(((product.get("owner") or {}).get("role", "")))
     for label, value in OWNER_TYPES.items():
         if value == owner_role:
             return label
     return "Merchant"
+
+
+def _product_option_label(product: dict) -> str:
+    product_code = str(product.get("product_code", product.get("product_id", ""))).strip()
+    product_name = str(product.get("product_name", "")).strip()
+    owner_email = str(((product.get("owner") or {}).get("email", ""))).strip().lower()
+    label_parts = [part for part in [product_code, product_name, owner_email] if part]
+    return " | ".join(label_parts) if label_parts else str(product.get("product_id", "")).strip()
 
 
 def _build_category_index(category_rows: list[dict]) -> dict[str, list[str]]:
@@ -550,41 +568,96 @@ def render_products_page(data_service, notification_service, session_service, ca
 
     with tabs[0]:
         render_table(_build_product_table_rows(visible_products), caption="All products")
-        active_product_ids = [product.get("product_id", "") for product in visible_products if str(product.get("product_id", "")).strip()]
-        if active_product_ids:
-            product_action_cols = st.columns(2 if is_admin else 1)
-            archive_product_id = product_action_cols[0].selectbox(translator.t("action.archive"), options=[""] + active_product_ids, key="archive_product_id")
-            if product_action_cols[0].button(translator.t("action.archive"), use_container_width=True) and archive_product_id:
-                _archive_product(products, archive_product_id, current_user_email)
-                try:
-                    data_service.persist_collection("products")
-                    data_service.cache_service.refresh_cache()
-                    st.success("Product archived.")
-                except Exception as exc:
-                    st.error(f"Drive write failed: {exc}")
+        selectable_products = [product for product in visible_products if str(product.get("product_id", "")).strip()]
+        if selectable_products:
+            st.markdown("### Product Operations")
+            operation_options = ["View Details", "Edit Product", translator.t("action.archive")]
             if is_admin:
-                delete_product_id = product_action_cols[1].selectbox("Delete Product", options=[""] + active_product_ids, key="delete_product_id")
-                if product_action_cols[1].button("Delete Product", use_container_width=True, type="primary") and delete_product_id:
+                operation_options.append("Delete Product")
+            selected_operation = st.selectbox(
+                "Choose Operation",
+                options=operation_options,
+                key="products_operation_mode",
+            )
+            product_option_map = {
+                str(product.get("product_id", "")).strip(): product
+                for product in selectable_products
+            }
+            selected_product_id = st.selectbox(
+                "Choose Product",
+                options=[""] + list(product_option_map.keys()),
+                format_func=lambda value: "Select a product" if not value else _product_option_label(product_option_map.get(value, {})),
+                key="products_operation_product_id",
+            )
+            selected_product = product_option_map.get(selected_product_id)
+            if selected_product and selected_operation == "View Details":
+                selected_service_config = _normalize_service_config(selected_product.get("service_config", {}) or {})
+                channel_config = dict((selected_product.get("sales_channels") or {}).get("manditrade", {}) or {})
+                detail_cols = st.columns(3)
+                detail_cols[0].metric("Product Code", str(selected_product.get("product_code", "")).strip() or "-")
+                detail_cols[1].metric("Status", str(selected_product.get("status", "PENDING_APPROVAL")).strip().upper())
+                detail_cols[2].metric("Available Qty", str((selected_product.get("inventory") or {}).get("available_quantity", 0)))
+                st.caption(_product_option_label(selected_product))
+                if selected_product.get("description"):
+                    st.write(str(selected_product.get("description", "")).strip())
+                details_rows = [
+                    {
+                        "category": selected_product.get("category", ""),
+                        "subcategory": selected_product.get("subcategory", ""),
+                        "unit": selected_product.get("unit", "piece"),
+                        "owner_email": ((selected_product.get("owner") or {}).get("email", "")),
+                        "owner_role": _normalize_role_key(((selected_product.get("owner") or {}).get("role", ""))),
+                        "worker_email": ((selected_product.get("delivery_partner") or {}).get("email", "")),
+                        "marketplace_enabled": "Yes" if ((selected_product.get("sales_channels") or {}).get("marketplace") or {}).get("enabled") else "No",
+                        "mandiplace_enabled": "Yes" if channel_config.get("enabled") else "No",
+                        "mandiplace_min_qty": channel_config.get("minimum_quantity", 1),
+                        "mandiplace_step_qty": channel_config.get("increment_quantity", 1),
+                        "admin_price": ((selected_product.get("pricing") or {}).get("admin_price", 0)),
+                        "marketplace_price": ((selected_product.get("pricing") or {}).get("marketplace_price", 0)),
+                        "mandiplace_price": ((selected_product.get("pricing") or {}).get("manditrade_price", 0)),
+                        "packaging_mode": selected_service_config.get("packaging_mode", "owner"),
+                        "shipping_mode": selected_service_config.get("shipping_mode", "owner"),
+                        "delivery_scope": selected_service_config.get("delivery_scope", "custom"),
+                    }
+                ]
+                render_table(details_rows, caption="Product details")
+                existing_images = _ordered_product_images(selected_product.get("images", []) or [])
+                if existing_images:
+                    _render_product_image_gallery(existing_images, media_service, title="Product Images")
+            elif selected_product and selected_operation == translator.t("action.archive"):
+                if st.button(translator.t("action.archive"), use_container_width=True, key="archive_selected_product_button"):
                     previous_products_snapshot = deepcopy(products)
-                    if _delete_product(products, delete_product_id):
+                    _archive_product(products, selected_product_id, current_user_email)
+                    try:
+                        data_service.persist_collection("products")
+                        data_service.cache_service.refresh_cache()
+                        st.success("Product archived.")
+                        st.rerun()
+                    except Exception as exc:
+                        products.clear()
+                        products.extend(previous_products_snapshot)
+                        st.error(f"Drive write failed: {exc}")
+            elif selected_product and selected_operation == "Delete Product" and is_admin:
+                st.warning("This action permanently removes the selected product.")
+                if st.button("Delete Product", use_container_width=True, type="primary", key="delete_selected_product_button"):
+                    previous_products_snapshot = deepcopy(products)
+                    if _delete_product(products, selected_product_id):
                         try:
                             data_service.persist_collection("products")
                             data_service.cache_service.refresh_cache()
-                            st.success(f"Product {delete_product_id} deleted.")
+                            st.success(f"Product {selected_product_id} deleted.")
                             st.rerun()
                         except Exception as exc:
                             products.clear()
                             products.extend(previous_products_snapshot)
                             st.error(f"Drive write failed: {exc}")
-        editable_ids = [product.get("product_id", "") for product in visible_products]
-        if editable_ids:
-            selected_edit_id = st.selectbox(translator.t("module.products.title"), options=[""] + editable_ids, key="edit_product_id")
-            selected_product = next((product for product in visible_products if product.get("product_id") == selected_edit_id), None)
-            if selected_product:
+            elif selected_product and selected_operation == "Edit Product":
                 existing_images = _ordered_product_images(selected_product.get("images", []) or [])
                 selected_owner = dict(selected_product.get("owner", {}) or {})
-                selected_owner_role = str(selected_owner.get("role", OWNER_TYPES[_get_owner_type_label(selected_product)])).strip().lower()
-                owner_type_label = next((label for label, role in OWNER_TYPES.items() if role == selected_owner_role), "Manufacturer")
+                selected_owner_role = _normalize_role_key(
+                    selected_owner.get("role", OWNER_TYPES[_get_owner_type_label(selected_product)])
+                )
+                owner_type_label = next((label for label, role in OWNER_TYPES.items() if role == selected_owner_role), "Merchant")
                 owner_options = _owner_candidates_for_role(users, products, OWNER_TYPES[owner_type_label])
                 existing_owner_values = [row.get("email", "") for row in owner_options]
                 default_owner_mode = "Select Existing" if str(selected_owner.get("email", "")).strip().lower() in {str(value).strip().lower() for value in existing_owner_values} else "Add New"
