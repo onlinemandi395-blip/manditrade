@@ -44,13 +44,11 @@ def render_commerce_catalog_page(
     on_add_to_cart=None,
     on_request=None,
 ) -> None:
-    render_template("commerce_shell_open.html")
     query = render_commerce_search(route=route, placeholder=placeholder)
     categories = sorted({str(product.get("category", "")).strip() for product in products if str(product.get("category", "")).strip()})
     selected_category = render_category_strip(route=route, categories=categories, selected_category="All")
     render_template("commerce_toolbar_open.html")
     filters = render_filter_bar(route=route)
-    render_template("html_close_div.html")
     render_template("html_close_div.html")
 
     visible_products = [
