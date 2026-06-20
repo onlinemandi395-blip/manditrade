@@ -7,7 +7,6 @@ import streamlit as st
 
 from components.html_renderer import render_template
 from components.image_slideshow import open_slideshow
-from services.payment_service import PaymentService
 from services.pricing_service import PricingService
 
 
@@ -57,16 +56,6 @@ def render_product_card(
     merchant_payee_name = str(
         owner_business_details.get("business_name", "") or owner.get("display_name", "") or owner.get("email", "")
     ).strip()
-    merchant_upi_link = ""
-    if merchant_upi_id:
-        merchant_upi_link = PaymentService.build_upi_link_from_values(
-            upi_id=merchant_upi_id,
-            payee_name=merchant_payee_name or "Merchant",
-            amount=float(pricing_service.resolve_sell_price(product, view) or 0) if view in {"marketplace", "manditrade"} else 0,
-            currency=str(pricing.get("currency", "INR")).strip() or "INR",
-            reference=str(product.get("product_id", "")).strip() or "PRODUCT",
-        )
-
     title = html.escape(str(product.get("product_name", product.get("product_id", t("ui.product")))))
     meta = html.escape(f"{product.get('category', 'General')} | {product.get('subcategory', 'General')}")
     thumbnail_markup = _build_thumbnail_markup(primary_image, media_service)
@@ -185,9 +174,4 @@ def render_product_card(
                 slideshow_context=f"{view}_{return_route}_{card_context}",
             )
             st.rerun()
-    if merchant_upi_link and view == "marketplace":
-        st.markdown(
-            f"<div class='mt-catalog-card__upi-link'><a href='{html.escape(merchant_upi_link, quote=True)}'>Merchant payment link</a></div>",
-            unsafe_allow_html=True,
-        )
     st.markdown("</div>", unsafe_allow_html=True)
