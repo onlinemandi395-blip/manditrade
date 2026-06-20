@@ -98,6 +98,8 @@ _DASHBOARD_VIEWPORT_CSS = """
 </style>
 """
 
+_REQUIRED_BUSINESS_FIELDS = ("business_name", "upi_id", "gst_number", "invoice_name")
+
 
 def _sanitize_cart_rows(items: list[dict]) -> list[dict]:
     return [
@@ -315,6 +317,43 @@ def _render_checkout_details_form(*, key_prefix: str, email: str, user_record: d
             "landmark": landmark.strip(),
         },
     }
+
+
+def _profile_business_completion_status(user_profile: dict) -> tuple[bool, list[str]]:
+    details = dict((user_profile or {}).get("details", {}) or {})
+    missing = [field for field in _REQUIRED_BUSINESS_FIELDS if not str(details.get(field, "")).strip()]
+    return (not missing, missing)
+
+
+def _render_checkout_business_profile_form(*, key_prefix: str, user_profile: dict) -> dict:
+    details = dict((user_profile or {}).get("details", {}) or {})
+    st.markdown("#### Business Details")
+    st.caption("Complete your business profile to continue with this B2B checkout.")
+    business_name = st.text_input("Business Name", key=f"{key_prefix}_business_name", value=str(details.get("business_name", "") or ""))
+    gst_number = st.text_input("GST Number", key=f"{key_prefix}_gst_number", value=str(details.get("gst_number", "") or ""))
+    upi_id = st.text_input("UPI ID", key=f"{key_prefix}_upi_id", value=str(details.get("upi_id", "") or ""))
+    invoice_name = st.text_input("Invoice Name", key=f"{key_prefix}_invoice_name", value=str(details.get("invoice_name", "") or ""))
+    invoice_address = st.text_area("Invoice Address", key=f"{key_prefix}_invoice_address", value=str(details.get("invoice_address", "") or ""), height=80)
+    invoice_phone = st.text_input("Invoice Contact Phone", key=f"{key_prefix}_invoice_phone", value=str(details.get("invoice_phone", "") or ""))
+    bank_account_name = st.text_input("Bank Account Name", key=f"{key_prefix}_bank_account_name", value=str(details.get("bank_account_name", "") or ""))
+    bank_account_number = st.text_input("Bank Account Number", key=f"{key_prefix}_bank_account_number", value=str(details.get("bank_account_number", "") or ""))
+    bank_ifsc = st.text_input("Bank IFSC", key=f"{key_prefix}_bank_ifsc", value=str(details.get("bank_ifsc", "") or ""))
+    other_details = st.text_area("Other Details", key=f"{key_prefix}_other_details", value=str(details.get("other_details", "") or ""), height=80)
+    business_details = {
+        "business_name": business_name.strip(),
+        "gst_number": gst_number.strip(),
+        "upi_id": upi_id.strip(),
+        "invoice_name": invoice_name.strip(),
+        "invoice_address": invoice_address.strip(),
+        "invoice_phone": invoice_phone.strip(),
+        "bank_account_name": bank_account_name.strip(),
+        "bank_account_number": bank_account_number.strip(),
+        "bank_ifsc": bank_ifsc.strip(),
+        "other_details": other_details.strip(),
+    }
+    missing = [field for field in _REQUIRED_BUSINESS_FIELDS if not business_details.get(field, "").strip()]
+    business_details["profile_completed"] = not missing
+    return {"details": business_details, "missing": missing}
 
 
 def _get_bootstrap_primary_admin() -> dict:
@@ -951,135 +990,165 @@ def render_app() -> None:
         order_service = OrderService(data_service, notification_service)
         address_book_service = AddressBookService(data_service)
         user_profile_service = UserProfileService(data_service)
+        cart_service = CartService("mt_next_manditrade_cart")
         user_profile = user_profile_service.get_profile(user.get("email", ""))
         products = page_service.filter_rows(datasets.get(page_definition.get("data_source", ""), []), page_definition.get("filters", {}))
         payment_config = order_service.payment_service.get_payment_config()
 
         def on_request(product: dict) -> None:
             try:
-                st.session_state["mt_manditrade_checkout_product_id"] = product.get("product_id", "")
-                st.session_state["mt_manditrade_stage"] = "cart"
+                rules = order_service.get_channel_quantity_rules(product, "manditrade")
+                cart_service.add_to_cart(product, channel="manditrade", quantity=float(rules.get("minimum_quantity", 1) or 1))
+                st.session_state["mt_manditrade_stage"] = "browse"
+                st.session_state["mt_manditrade_notice"] = (
+                    f"Added {product.get('product_name', product.get('product_id', 'product'))} to bulk cart."
+                )
                 st.rerun()
             except Exception as exc:
                 st.error(str(exc))
 
         render_manditrade_page(products, on_request=on_request, media_service=media_service, translator=translator, ui_config=ui_config)
-        selected_product_id = str(st.session_state.get("mt_manditrade_checkout_product_id", "") or "").strip()
+        cart = cart_service.get_cart()
+        notice_message = str(st.session_state.pop("mt_manditrade_notice", "") or "").strip()
+        if notice_message:
+            st.success(notice_message)
         current_manditrade_stage = str(st.session_state.get("mt_manditrade_stage", "browse") or "browse")
-        if not selected_product_id:
+        if not cart.get("items"):
             st.session_state["mt_manditrade_stage"] = "browse"
             current_manditrade_stage = "browse"
-        if selected_product_id:
-            selected_product = next((row for row in products if str(row.get("product_id", "")).strip() == selected_product_id), None)
-            if selected_product:
-                with st.container(border=True):
-                    st.subheader(f"{translator.t('ui.manditrade_checkout')}: {selected_product.get('product_name', '')}")
-                    if not payment_config.get("enabled", False):
-                        st.error("Payment config missing or disabled. Checkout is unavailable.")
-                    else:
-                        quantity_rules = order_service.get_channel_quantity_rules(selected_product, "manditrade")
-                        requested_quantity = st.number_input(
-                            translator.t("field.quantity"),
-                            min_value=float(quantity_rules.get("minimum_quantity", 1) or 1),
-                            step=float(quantity_rules.get("increment_quantity", 1) or 1),
-                            value=float(quantity_rules.get("minimum_quantity", 1) or 1),
-                            key=f"manditrade_quantity_{selected_product_id}",
-                            help=(
-                                f"{translator.t('ui.minimum_quantity')}: {float(quantity_rules.get('minimum_quantity', 1) or 1):g} | "
-                                f"{translator.t('ui.increment_quantity')}: {float(quantity_rules.get('increment_quantity', 1) or 1):g}"
-                            ),
-                        )
-                        unit_price = float(selected_product.get("pricing", {}).get("manditrade_price", 0) or 0)
-                        total_amount = unit_price * float(requested_quantity or 0)
-                        summary_cols = st.columns([2.2, 1, 1], gap="small")
-                        summary_cols[0].caption(
-                            f"Bulk cart: 1 product | Quantity {float(requested_quantity or 0):g} | Total Rs. {total_amount:g}"
-                        )
-                        if current_manditrade_stage == "cart":
-                            if summary_cols[1].button("Proceed to Checkout", use_container_width=True, key=f"manditrade_proceed_checkout_{selected_product_id}"):
-                                st.session_state["mt_manditrade_stage"] = "checkout"
-                                st.rerun()
-                        if current_manditrade_stage != "browse":
-                            if summary_cols[2].button("Continue Shopping", use_container_width=True, key=f"manditrade_continue_shopping_{selected_product_id}"):
-                                st.session_state["mt_manditrade_stage"] = "browse"
-                                st.session_state["mt_manditrade_checkout_product_id"] = ""
-                                st.rerun()
+        if cart.get("items"):
+            flow_cols = st.columns([2.2, 1, 1], gap="small")
+            flow_cols[0].caption(
+                f"Bulk cart: {len(cart.get('items', []))} products | Total Rs. {cart_service.calculate_total():g}"
+            )
+            if flow_cols[1].button("View Cart", use_container_width=True, key="manditrade_view_cart"):
+                st.session_state["mt_manditrade_stage"] = "cart"
+                st.rerun()
+            if current_manditrade_stage != "browse" and flow_cols[2].button("Continue Shopping", use_container_width=True, key="manditrade_continue_shopping"):
+                st.session_state["mt_manditrade_stage"] = "browse"
+                st.session_state["mt_manditrade_checkout_open"] = False
+                st.rerun()
 
-                        if current_manditrade_stage == "checkout":
-                            render_checkout_steps(
-                                title="Bulk order checkout",
-                                item_count=1,
-                                total_amount=total_amount,
-                            )
-                            checkout = _render_checkout_details_form(
-                                key_prefix=f"manditrade_checkout_{selected_product_id}",
-                                email=session_service.get_user().get("email", ""),
-                                user_record=user,
+        if cart.get("items") and current_manditrade_stage in {"cart", "checkout"}:
+            st.markdown("### Bulk Cart and Checkout")
+            cart_cols = st.columns([2.5, 1], gap="large")
+            with cart_cols[0]:
+                with st.container(border=True):
+                    st.subheader("Bulk Cart")
+                    _render_marketplace_cart_editor(cart_service, translator, key_prefix=f"manditrade_{current_manditrade_stage}")
+                if st.session_state.get("mt_manditrade_checkout_open", False):
+                    with st.container(border=True):
+                        render_checkout_steps(
+                            title="Bulk order checkout",
+                            item_count=len(cart.get("items", [])),
+                            total_amount=cart_service.calculate_total(),
+                        )
+                        checkout = _render_checkout_details_form(
+                            key_prefix="manditrade_checkout",
+                            email=session_service.get_user().get("email", ""),
+                            user_record=user,
+                            user_profile=user_profile,
+                            address_book_service=address_book_service,
+                            translator=translator,
+                        )
+                        profile_complete, missing_profile_fields = _profile_business_completion_status(user_profile)
+                        business_profile = {"details": {}, "missing": []}
+                        if not profile_complete:
+                            business_profile = _render_checkout_business_profile_form(
+                                key_prefix="manditrade_business_profile",
                                 user_profile=user_profile,
-                                address_book_service=address_book_service,
-                                translator=translator,
                             )
-                            if st.button(translator.t("ui.confirm_order"), use_container_width=True, key=f"manditrade_confirm_order_{selected_product_id}"):
-                                if not checkout["name"] or not checkout["mobile"] or not checkout["delivery_address"]["address_line_1"] or not checkout["delivery_address"]["city"] or not checkout["delivery_address"]["state"] or not checkout["delivery_address"]["pin_code"]:
-                                    st.error(translator.t("ui.complete_contact_address"))
-                                else:
-                                    try:
+                        if st.button(translator.t("ui.confirm_order"), use_container_width=True, key="manditrade_confirm_order"):
+                            if not checkout["name"] or not checkout["mobile"] or not checkout["delivery_address"]["address_line_1"] or not checkout["delivery_address"]["city"] or not checkout["delivery_address"]["state"] or not checkout["delivery_address"]["pin_code"]:
+                                st.error(translator.t("ui.complete_contact_address"))
+                            elif not profile_complete and business_profile["missing"]:
+                                st.error(f"Complete business profile fields: {', '.join(business_profile['missing'])}")
+                            else:
+                                try:
+                                    latest_profile = user_profile_service.get_or_create_profile(
+                                        email=session_service.get_user().get("email", ""),
+                                        role=user.get("role", "public_buyer"),
+                                        display_name=checkout["name"],
+                                        mobile=checkout["mobile"],
+                                    )
+                                    if not profile_complete:
+                                        updated_profile = dict(latest_profile)
+                                        updated_profile["display_name"] = checkout["name"]
+                                        updated_profile["mobile"] = checkout["mobile"]
+                                        merged_details = dict((latest_profile.get("details", {}) or {}))
+                                        merged_details.update(business_profile["details"])
+                                        updated_profile["details"] = merged_details
+                                        user_profile_service.save_profile(
+                                            actor_email=session_service.get_user().get("email", ""),
+                                            actor_role=user.get("role", "public_buyer"),
+                                            target_email=session_service.get_user().get("email", ""),
+                                            updates=updated_profile,
+                                        )
+                                    if checkout.get("save_address", False):
+                                        address_book_service.save_address(
+                                            email=session_service.get_user().get("email", ""),
+                                            role=user.get("role", "public_buyer"),
+                                            display_name=checkout["name"],
+                                            mobile=checkout["mobile"],
+                                            address=checkout["delivery_address"],
+                                            address_id=checkout.get("address_id", ""),
+                                            label=checkout.get("address_label", ""),
+                                        )
+                                    else:
+                                        user_profile_service.save_profile(
+                                            actor_email=session_service.get_user().get("email", ""),
+                                            actor_role=user.get("role", "public_buyer"),
+                                            target_email=session_service.get_user().get("email", ""),
+                                            updates={
+                                                "display_name": checkout["name"],
+                                                "mobile": checkout["mobile"],
+                                            },
+                                        )
+                                    product_lookup = {str(product.get("product_id", "")).strip(): product for product in products}
+                                    created_orders = []
+                                    for item in cart.get("items", []):
+                                        product = product_lookup.get(str(item.get("product_id", "")).strip())
+                                        if not product:
+                                            raise ValueError(f"Product not found for bulk cart item: {item.get('product_id', '')}")
                                         order = order_service.create_manditrade_order_with_checkout(
-                                            product=selected_product,
+                                            product=product,
                                             requesting_user_email=session_service.get_user().get("email", ""),
                                             requester_name=checkout["name"],
                                             requester_mobile=checkout["mobile"],
                                             delivery_address=checkout["delivery_address"],
-                                            requested_quantity=requested_quantity,
+                                            requested_quantity=float(item.get("quantity", 1) or 1),
                                         )
-                                        address_book_service.get_or_create_user_record(
-                                            email=session_service.get_user().get("email", ""),
-                                            role=user.get("role", "public_buyer"),
-                                            display_name=checkout["name"],
-                                            mobile=checkout["mobile"],
-                                        )
-                                        user_profile_service.get_or_create_profile(
-                                            email=session_service.get_user().get("email", ""),
-                                            role=user.get("role", "public_buyer"),
-                                            display_name=checkout["name"],
-                                            mobile=checkout["mobile"],
-                                        )
-                                        if checkout.get("save_address", False):
-                                            address_book_service.save_address(
-                                                email=session_service.get_user().get("email", ""),
-                                                role=user.get("role", "public_buyer"),
-                                                display_name=checkout["name"],
-                                                mobile=checkout["mobile"],
-                                                address=checkout["delivery_address"],
-                                                address_id=checkout.get("address_id", ""),
-                                                label=checkout.get("address_label", ""),
-                                            )
-                                        else:
-                                            user_profile_service.save_profile(
-                                                actor_email=session_service.get_user().get("email", ""),
-                                                actor_role=user.get("role", "public_buyer"),
-                                                target_email=session_service.get_user().get("email", ""),
-                                                updates={
-                                                    "display_name": checkout["name"],
-                                                    "mobile": checkout["mobile"],
-                                                },
-                                            )
                                         order_service.persist_order_storage(order)
                                         user_profile_service.sync_order_record(order=order)
-                                        data_service.persist_collection("users")
-                                        data_service.persist_collection("payments")
-                                        data_service.persist_collection("notifications")
-                                        data_service.persist_collection("gmail_queue")
-                                        st.session_state["mt_manditrade_checkout_product_id"] = ""
-                                        st.session_state["mt_manditrade_stage"] = "browse"
-                                        st.success(f"MandiTrade order {order.get('order_id', '')} created.")
+                                        created_orders.append(order)
+                                    data_service.persist_collection("users")
+                                    data_service.persist_collection("payments")
+                                    data_service.persist_collection("notifications")
+                                    data_service.persist_collection("gmail_queue")
+                                    cart_service.clear_cart()
+                                    st.session_state["mt_manditrade_checkout_open"] = False
+                                    st.session_state["mt_manditrade_stage"] = "browse"
+                                    st.success(f"MandiTrade orders created: {len(created_orders)}")
+                                    if created_orders:
                                         payment_record = next(
-                                            (row for row in data_service.get_collection_ref("payments") if str(row.get("payment_id", "")).strip() == str(order.get("payment_id", "")).strip()),
+                                            (
+                                                row for row in data_service.get_collection_ref("payments")
+                                                if str(row.get("payment_id", "")).strip() == str(created_orders[0].get("payment_id", "")).strip()
+                                            ),
                                             {},
                                         )
                                         _render_payment_pending_panel(payment_record)
-                                    except Exception as exc:
-                                        st.error(str(exc))
+                                except Exception as exc:
+                                    st.error(str(exc))
+            with cart_cols[1]:
+                checkout_requested = render_cart_panel(cart, cart_service=cart_service, route="manditrade", translator=translator)
+                if not payment_config.get("enabled", False):
+                    st.error("Payment config missing or disabled. Checkout is unavailable.")
+                else:
+                    if checkout_requested:
+                        st.session_state["mt_manditrade_checkout_open"] = True
+                        st.session_state["mt_manditrade_stage"] = "checkout"
+                        st.rerun()
     elif page_definition.get("type") == "products_admin":
         notification_service = NotificationService(data_service)
         render_products_page(data_service, notification_service, session_service, cache_service, translator)
