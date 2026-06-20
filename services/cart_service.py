@@ -36,6 +36,11 @@ class CartService:
                 "unit_price": unit_price,
                 "line_total": round(unit_price * quantity, 2),
                 "cart_item_key": str(item.get("cart_item_key", "")).strip() or product_id,
+                "product_code": str(item.get("product_code", "") or "").strip(),
+                "category": str(item.get("category", "") or "").strip(),
+                "subcategory": str(item.get("subcategory", "") or "").strip(),
+                "unit": str(item.get("unit", "") or "").strip(),
+                "owner_name": str(item.get("owner_name", "") or "").strip(),
             }
             merged_items.append(normalized)
             merged_index[product_id] = normalized
@@ -68,6 +73,11 @@ class CartService:
             "unit_price": sell_price,
             "line_total": round(float(sell_price or 0), 2),
             "cart_item_key": product_id or f"cart-item-{len(st.session_state['mt_next_cart']['items']) + 1}",
+            "product_code": str(product.get("product_code", product_id) or "").strip(),
+            "category": str(product.get("category", "") or "").strip(),
+            "subcategory": str(product.get("subcategory", "") or "").strip(),
+            "unit": str(product.get("unit", "") or "").strip(),
+            "owner_name": str(((product.get("owner") or {}).get("display_name", "")) or "").strip(),
         }
         st.session_state["mt_next_cart"]["items"].append(item)
 

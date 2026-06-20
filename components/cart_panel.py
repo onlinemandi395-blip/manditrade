@@ -13,8 +13,17 @@ def render_cart_panel(cart: dict, *, cart_service, route: str, translator=None) 
     for index, item in enumerate(items):
         product_id = str(item.get("product_id", "")).strip()
         widget_suffix = str(item.get("cart_item_key", "")).strip() or product_id or f"row_{index}"
-        cols = st.columns([3.2, 1.1, 1.3, 0.9], gap="small")
+        cols = st.columns([3.8, 1.25, 1.1, 1.0], gap="small")
+        product_code = str(item.get("product_code", "") or "").strip()
+        category = " / ".join(
+            part for part in [str(item.get("category", "")).strip(), str(item.get("subcategory", "")).strip()] if part
+        )
+        owner_name = str(item.get("owner_name", "") or "").strip()
+        unit = str(item.get("unit", "") or "").strip()
+        detail_parts = [part for part in [product_code, category, owner_name] if part]
         cols[0].markdown(f"**{item.get('product_name', '')}**")
+        if detail_parts:
+            cols[0].caption(" | ".join(detail_parts))
         quantity = cols[1].number_input(
             t("field.quantity"),
             min_value=1.0,
@@ -25,7 +34,8 @@ def render_cart_panel(cart: dict, *, cart_service, route: str, translator=None) 
         if float(quantity or 1) != float(item.get("quantity", 1) or 1):
             cart_service.set_quantity(product_id, quantity)
             st.rerun()
-        cols[2].caption(f"Rs. {float(item.get('line_total', 0) or 0):g}")
+        cols[2].caption(f"Rs. {float(item.get('unit_price', 0) or 0):g}{f' / {unit}' if unit else ''}")
+        cols[2].markdown(f"**Rs. {float(item.get('line_total', 0) or 0):g}**")
         if cols[3].button("Remove", use_container_width=True, key=f"{route}_{widget_suffix}_cart_remove_{index}"):
             cart_service.remove_item(product_id)
             st.rerun()

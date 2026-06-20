@@ -857,16 +857,8 @@ def render_app() -> None:
                 with st.container(border=True):
                     st.subheader(translator.t("ui.cart"))
                     _render_marketplace_cart_editor(cart_service, translator, key_prefix=f"marketplace_{current_stage}")
-            with cart_cols[1]:
-                checkout_requested = render_cart_panel(cart, cart_service=cart_service, route="marketplace", translator=translator)
-                if not payment_config.get("enabled", False):
-                    st.error("Payment config missing or disabled. Checkout is unavailable.")
-                else:
-                    if checkout_requested:
-                        st.session_state["mt_marketplace_checkout_open"] = True
-                        st.session_state["mt_marketplace_stage"] = "checkout"
-                        st.rerun()
-                    if st.session_state.get("mt_marketplace_checkout_open", False):
+                if st.session_state.get("mt_marketplace_checkout_open", False):
+                    with st.container(border=True):
                         render_checkout_steps(
                             title="Checkout",
                             item_count=len(cart.get("items", [])),
@@ -944,6 +936,15 @@ def render_app() -> None:
                                     _render_payment_pending_panel(payment_record)
                                 except Exception as exc:
                                     st.error(str(exc))
+            with cart_cols[1]:
+                checkout_requested = render_cart_panel(cart, cart_service=cart_service, route="marketplace", translator=translator)
+                if not payment_config.get("enabled", False):
+                    st.error("Payment config missing or disabled. Checkout is unavailable.")
+                else:
+                    if checkout_requested:
+                        st.session_state["mt_marketplace_checkout_open"] = True
+                        st.session_state["mt_marketplace_stage"] = "checkout"
+                        st.rerun()
     elif page_definition.get("type") == "manditrade":
         media_service = MediaService(admin_drive_service)
         notification_service = NotificationService(data_service)
