@@ -66,14 +66,14 @@ def render_topbar(
         user_email=user_email,
     )
 
-    action_cols = st.columns([1, 1, 1.6], gap="small")
+    action_cols = st.columns([0.9, 0.9, 2.2], gap="small")
     with action_cols[0]:
         if st.button("Open Control Surface", key="topbar_open_control_surface", use_container_width=True, type="primary"):
             _open_control_dialog()
     with action_cols[1]:
         st.caption(root_folder_name)
     with action_cols[2]:
-        st.caption("Google Drive runtime, role view, language, release, and workspace preferences in one place.")
+        st.caption("Language, role view, runtime, release, account, and workspace settings.")
 
     @st.dialog("MandiTrade Control Surface")
     def _render_control_dialog() -> None:

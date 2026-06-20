@@ -321,9 +321,9 @@ div[role="radiogroup"] [aria-checked="true"] {
 .mt-topbar {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 0.75rem;
-  margin-bottom: 1rem;
-  padding: 1rem 1.1rem;
+  gap: 0.45rem;
+  margin-bottom: 0.6rem;
+  padding: 0.72rem 0.85rem;
   position: relative;
   overflow: hidden;
 }
@@ -365,7 +365,7 @@ div[role="radiogroup"] [aria-checked="true"] {
 }
 
 .mt-topbar__meta h1 {
-  font-size: 1.85rem;
+  font-size: 1.48rem;
 }
 
 .mt-page-title {
@@ -418,58 +418,61 @@ div[data-testid="stHorizontalBlock"] {
 .mt-topbar__meta p,
 .mt-page-subtitle,
 .mt-muted {
-  margin: 0.45rem 0 0;
+  margin: 0.18rem 0 0;
   color: var(--mt-text-soft);
-  line-height: 1.55;
+  line-height: 1.3;
+  font-size: 0.88rem;
 }
 
 .mt-control-surface__identity {
   display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  padding: 0.85rem 0.95rem;
-  border-radius: 18px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(217, 4, 41, 0.07));
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(217, 4, 41, 0.05));
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .mt-control-surface__identity strong {
-  font-size: 1rem;
+  font-size: 0.92rem;
   color: var(--mt-text);
 }
 
 .mt-control-surface__identity span {
   color: var(--mt-text-soft);
-  font-size: 0.85rem;
+  font-size: 0.76rem;
 }
 
 .mt-control-surface__summary {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.6rem;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.35rem;
 }
 
 .mt-control-surface__item {
   display: flex;
   flex-direction: column;
-  gap: 0.28rem;
-  padding: 0.75rem 0.85rem;
-  min-height: 72px;
-  border-radius: 16px;
+  gap: 0.14rem;
+  padding: 0.45rem 0.55rem;
+  min-height: 50px;
+  border-radius: 12px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(217, 4, 41, 0.05));
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .mt-control-surface__item span {
   color: var(--mt-text-soft);
-  font-size: 0.72rem;
+  font-size: 0.62rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
 
 .mt-control-surface__item strong {
   color: var(--mt-text);
-  font-size: 0.96rem;
+  font-size: 0.8rem;
+  line-height: 1.15;
 }
 
 .mt-login-hero {
