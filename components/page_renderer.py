@@ -957,9 +957,18 @@ def render_app() -> None:
             current_stage = "browse"
 
         if cart.get("items"):
+            marketplace_product_lookup = {
+                str(product.get("product_id", "")).strip(): dict(product)
+                for product in products
+                if str(product.get("product_id", "")).strip()
+            }
+            marketplace_pricing_summary = order_service.estimate_cart_totals(
+                items=cart.get("items", []),
+                product_lookup=marketplace_product_lookup,
+            )
             flow_cols = st.columns([2.2, 1, 1], gap="small")
             flow_cols[0].caption(
-                f"Shopping Flow: {len(cart.get('items', []))} items in cart | Total Rs. {cart_service.calculate_total():g}"
+                f"Shopping Flow: {len(cart.get('items', []))} items in cart | Total Rs. {float(marketplace_pricing_summary.get('grand_total', 0) or 0):g}"
             )
             if flow_cols[1].button("View Cart", use_container_width=True, key="marketplace_view_cart"):
                 st.session_state["mt_marketplace_stage"] = "cart"
@@ -984,7 +993,7 @@ def render_app() -> None:
                         render_checkout_steps(
                             title="Checkout",
                             item_count=len(cart.get("items", [])),
-                            total_amount=cart_service.calculate_total(),
+                            total_amount=float(marketplace_pricing_summary.get("grand_total", 0) or 0),
                         )
                         checkout = _render_checkout_details_form(
                             key_prefix="marketplace_checkout",
@@ -1000,7 +1009,7 @@ def render_app() -> None:
                                 st.error(translator.t("ui.complete_contact_address"))
                             else:
                                 try:
-                                    product_lookup = {str(product.get("product_id", "")).strip(): product for product in products}
+                                    product_lookup = marketplace_product_lookup
                                     order = order_service.create_marketplace_order_with_checkout(
                                         items=cart["items"],
                                         buyer_email=session_service.get_user().get("email", ""),
@@ -1008,18 +1017,6 @@ def render_app() -> None:
                                         buyer_mobile=checkout["mobile"],
                                         delivery_address=checkout["delivery_address"],
                                         product_lookup=product_lookup,
-                                    )
-                                    address_book_service.get_or_create_user_record(
-                                        email=session_service.get_user().get("email", ""),
-                                        role=user.get("role", "public_buyer"),
-                                        display_name=checkout["name"],
-                                        mobile=checkout["mobile"],
-                                    )
-                                    user_profile_service.get_or_create_profile(
-                                        email=session_service.get_user().get("email", ""),
-                                        role=user.get("role", "public_buyer"),
-                                        display_name=checkout["name"],
-                                        mobile=checkout["mobile"],
                                     )
                                     if checkout.get("save_address", False):
                                         address_book_service.save_address(
@@ -1032,6 +1029,12 @@ def render_app() -> None:
                                             label=checkout.get("address_label", ""),
                                         )
                                     else:
+                                        address_book_service.get_or_create_user_record(
+                                            email=session_service.get_user().get("email", ""),
+                                            role=user.get("role", "public_buyer"),
+                                            display_name=checkout["name"],
+                                            mobile=checkout["mobile"],
+                                        )
                                         user_profile_service.save_profile(
                                             actor_email=session_service.get_user().get("email", ""),
                                             actor_role=user.get("role", "public_buyer"),
@@ -1042,11 +1045,7 @@ def render_app() -> None:
                                             },
                                         )
                                     order_service.persist_order_storage(order)
-                                    user_profile_service.sync_order_record(order=order)
-                                    data_service.persist_collection("users")
-                                    data_service.persist_collection("payments")
-                                    data_service.persist_collection("notifications")
-                                    data_service.persist_collection("gmail_queue")
+                                    data_service.persist_collections(["users", "payments", "notifications", "gmail_queue"])
                                     cart_service.clear_cart()
                                     st.session_state["mt_marketplace_checkout_open"] = False
                                     st.session_state["mt_marketplace_stage"] = "browse"
@@ -1060,7 +1059,13 @@ def render_app() -> None:
                                 except Exception as exc:
                                     st.error(str(exc))
             with cart_cols[1]:
-                checkout_requested = render_cart_panel(cart, cart_service=cart_service, route="marketplace", translator=translator)
+                checkout_requested = render_cart_panel(
+                    cart,
+                    cart_service=cart_service,
+                    route="marketplace",
+                    translator=translator,
+                    pricing_summary=marketplace_pricing_summary,
+                )
                 if not payment_config.get("enabled", False):
                     st.error("Payment config missing or disabled. Checkout is unavailable.")
                 else:
@@ -1107,9 +1112,18 @@ def render_app() -> None:
             st.session_state["mt_manditrade_stage"] = "browse"
             current_manditrade_stage = "browse"
         if cart.get("items"):
+            manditrade_product_lookup = {
+                str(product.get("product_id", "")).strip(): dict(product)
+                for product in products
+                if str(product.get("product_id", "")).strip()
+            }
+            manditrade_pricing_summary = order_service.estimate_cart_totals(
+                items=cart.get("items", []),
+                product_lookup=manditrade_product_lookup,
+            )
             flow_cols = st.columns([2.2, 1, 1], gap="small")
             flow_cols[0].caption(
-                f"Bulk cart: {len(cart.get('items', []))} products | Total Rs. {cart_service.calculate_total():g}"
+                f"Bulk cart: {len(cart.get('items', []))} products | Total Rs. {float(manditrade_pricing_summary.get('grand_total', 0) or 0):g}"
             )
             if flow_cols[1].button("View Cart", use_container_width=True, key="manditrade_view_cart"):
                 st.session_state["mt_manditrade_stage"] = "cart"
@@ -1131,7 +1145,7 @@ def render_app() -> None:
                         render_checkout_steps(
                             title="Bulk order checkout",
                             item_count=len(cart.get("items", [])),
-                            total_amount=cart_service.calculate_total(),
+                            total_amount=float(manditrade_pricing_summary.get("grand_total", 0) or 0),
                         )
                         checkout = _render_checkout_details_form(
                             key_prefix="manditrade_checkout",
@@ -1157,13 +1171,13 @@ def render_app() -> None:
                                 st.error(f"Complete business profile fields: {', '.join(business_profile['missing'])}")
                             else:
                                 try:
-                                    latest_profile = user_profile_service.get_or_create_profile(
-                                        email=session_service.get_user().get("email", ""),
-                                        role=user.get("role", "public_buyer"),
-                                        display_name=checkout["name"],
-                                        mobile=checkout["mobile"],
-                                    )
                                     if requires_business_profile and not profile_complete:
+                                        latest_profile = user_profile_service.get_or_create_profile(
+                                            email=session_service.get_user().get("email", ""),
+                                            role=user.get("role", "public_buyer"),
+                                            display_name=checkout["name"],
+                                            mobile=checkout["mobile"],
+                                        )
                                         updated_profile = dict(latest_profile)
                                         updated_profile["display_name"] = checkout["name"]
                                         updated_profile["mobile"] = checkout["mobile"]
@@ -1187,6 +1201,12 @@ def render_app() -> None:
                                             label=checkout.get("address_label", ""),
                                         )
                                     else:
+                                        address_book_service.get_or_create_user_record(
+                                            email=session_service.get_user().get("email", ""),
+                                            role=user.get("role", "public_buyer"),
+                                            display_name=checkout["name"],
+                                            mobile=checkout["mobile"],
+                                        )
                                         user_profile_service.save_profile(
                                             actor_email=session_service.get_user().get("email", ""),
                                             actor_role=user.get("role", "public_buyer"),
@@ -1196,7 +1216,7 @@ def render_app() -> None:
                                                 "mobile": checkout["mobile"],
                                             },
                                         )
-                                    product_lookup = {str(product.get("product_id", "")).strip(): product for product in products}
+                                    product_lookup = manditrade_product_lookup
                                     created_orders = []
                                     if role == "client_buyer":
                                         for item in cart.get("items", []):
@@ -1212,7 +1232,6 @@ def render_app() -> None:
                                                 requested_quantity=float(item.get("quantity", 1) or 1),
                                             )
                                             order_service.persist_order_storage(order)
-                                            user_profile_service.sync_order_record(order=order)
                                             created_orders.append(order)
                                     else:
                                         order = order_service.create_marketplace_order_with_checkout(
@@ -1224,12 +1243,8 @@ def render_app() -> None:
                                             product_lookup=product_lookup,
                                         )
                                         order_service.persist_order_storage(order)
-                                        user_profile_service.sync_order_record(order=order)
                                         created_orders.append(order)
-                                    data_service.persist_collection("users")
-                                    data_service.persist_collection("payments")
-                                    data_service.persist_collection("notifications")
-                                    data_service.persist_collection("gmail_queue")
+                                    data_service.persist_collections(["users", "payments", "notifications", "gmail_queue"])
                                     cart_service.clear_cart()
                                     st.session_state["mt_manditrade_checkout_open"] = False
                                     st.session_state["mt_manditrade_stage"] = "browse"
@@ -1246,7 +1261,13 @@ def render_app() -> None:
                                 except Exception as exc:
                                     st.error(str(exc))
             with cart_cols[1]:
-                checkout_requested = render_cart_panel(cart, cart_service=cart_service, route="manditrade", translator=translator)
+                checkout_requested = render_cart_panel(
+                    cart,
+                    cart_service=cart_service,
+                    route="manditrade",
+                    translator=translator,
+                    pricing_summary=manditrade_pricing_summary,
+                )
                 if not payment_config.get("enabled", False):
                     st.error("Payment config missing or disabled. Checkout is unavailable.")
                 else:

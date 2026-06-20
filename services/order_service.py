@@ -183,6 +183,47 @@ class OrderService:
     def list_all_orders(self) -> list[dict]:
         return self.list_marketplace_orders() + self.list_manditrade_orders()
 
+    def estimate_cart_totals(self, *, items: list[dict], product_lookup: dict[str, dict]) -> dict:
+        merchandise_total = 0.0
+        packaging_total = 0.0
+        shipping_total = 0.0
+        grand_total = 0.0
+        normalized_items: list[dict] = []
+        for item in items or []:
+            product_id = str(item.get("product_id", "")).strip()
+            product = dict(product_lookup.get(product_id, {}) or {})
+            if not product:
+                continue
+            channel = str(item.get("channel", "marketplace") or "marketplace").strip().lower() or "marketplace"
+            quantity = float(item.get("quantity", item.get("qty", 1)) or 1)
+            sell_price = self.pricing_service.resolve_sell_price(product, channel)
+            breakdown = self._build_financial_breakdown(
+                product=product,
+                channel=channel,
+                quantity=quantity,
+                sell_price=sell_price,
+            )
+            merchandise_total += float(breakdown.get("merchandise_total", 0) or 0)
+            packaging_total += float(breakdown.get("packaging_charge", 0) or 0)
+            shipping_total += float(breakdown.get("shipping_charge", 0) or 0)
+            grand_total += float(breakdown.get("total_amount", 0) or 0)
+            normalized_items.append(
+                {
+                    "product_id": product_id,
+                    "channel": channel,
+                    "quantity": quantity,
+                    "unit_price": sell_price,
+                    "line_total": round(float(sell_price or 0) * float(quantity or 0), 2),
+                }
+            )
+        return {
+            "items": normalized_items,
+            "merchandise_total": round(merchandise_total, 2),
+            "packaging_charge": round(packaging_total, 2),
+            "shipping_charge": round(shipping_total, 2),
+            "grand_total": round(grand_total, 2),
+        }
+
     def _get_order_collection_name(self, source_channel: str) -> str:
         normalized = str(source_channel or "").strip().lower()
         if normalized == "marketplace":

@@ -5,7 +5,7 @@ import streamlit as st
 from components.html_renderer import render_template
 
 
-def render_cart_panel(cart: dict, *, cart_service, route: str, translator=None) -> bool:
+def render_cart_panel(cart: dict, *, cart_service, route: str, translator=None, pricing_summary: dict | None = None) -> bool:
     t = translator.t if translator else (lambda key: key)
     items = list(cart.get("items", []) or [])
     render_template("cart_summary_open.html")
@@ -39,10 +39,15 @@ def render_cart_panel(cart: dict, *, cart_service, route: str, translator=None) 
         if cols[3].button("Remove", use_container_width=True, key=f"{route}_{widget_suffix}_cart_remove_{index}"):
             cart_service.remove_item(product_id)
             st.rerun()
-    total = cart_service.calculate_total()
+    summary = dict(pricing_summary or {})
+    items_total = float(summary.get("merchandise_total", cart_service.calculate_total()) or 0)
+    packaging_charge = float(summary.get("packaging_charge", 0) or 0)
+    shipping_charge = float(summary.get("shipping_charge", 0) or 0)
+    total = float(summary.get("grand_total", items_total) or items_total)
     st.markdown(f"#### Price Details")
-    st.caption(f"Items Total: Rs. {total:g}")
-    st.caption("Delivery Fee: Rs. 0")
+    st.caption(f"Items Total: Rs. {items_total:g}")
+    st.caption(f"Packaging: Rs. {packaging_charge:g}")
+    st.caption(f"Shipping: Rs. {shipping_charge:g}")
     st.markdown(f"**Total Amount: Rs. {total:g}**")
     proceed = st.button("Proceed to Checkout", use_container_width=True, key=f"{route}_proceed_checkout")
     render_template("html_close_div.html")

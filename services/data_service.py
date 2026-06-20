@@ -73,12 +73,20 @@ class DataService:
     def persist_collection(self, collection: str) -> None:
         if collection == "orders":
             raise ValueError("Orders aggregate is read-only. Persist channel-wise orders instead.")
+        config_name, key, logical_path, collection_rows = self._get_persist_details(collection)
+        payload = {"schema_version": 1, key: collection_rows}
+        with self.performance_service.measure(f"{collection}_save"):
+            self.admin_drive_service.write_json(logical_path, payload)
+        self.cache_service.update_config(config_name, payload)
+        if collection in {"marketplace_orders", "manditrade_orders"}:
+            st.session_state["mt_next_data"].pop("orders", None)
+
+    def _get_persist_details(self, collection: str) -> tuple[str, str, str, list[dict]]:
         database_config = self.cache_service.get_config("database")
         source = database_config.get("collections", {}).get(collection, "") or self.DEFAULT_COLLECTION_MAPPINGS.get(collection, "")
         if ":" not in source:
             raise ValueError(f"Invalid Drive collection mapping for: {collection}")
         config_name, key = source.split(":", 1)
-        collection_rows = self._bootstrap_collection(collection)
         logical_path_map = {
             "users": "01_identity/users.json",
             "products_data": "02_catalog/products.json",
@@ -94,11 +102,31 @@ class DataService:
         logical_path = logical_path_map.get(config_name)
         if not logical_path:
             raise KeyError(f"No Drive file path configured for collection source: {config_name}")
-        payload = {"schema_version": 1, key: collection_rows}
-        with self.performance_service.measure(f"{collection}_save"):
-            self.admin_drive_service.write_json(logical_path, payload)
-        self.cache_service.update_config(config_name, payload)
-        if collection in {"marketplace_orders", "manditrade_orders"}:
+        collection_rows = self._bootstrap_collection(collection)
+        return config_name, key, logical_path, collection_rows
+
+    def persist_collections(self, collections: list[str]) -> None:
+        unique_collections: list[str] = []
+        seen = set()
+        for collection in collections:
+            normalized = str(collection or "").strip()
+            if not normalized or normalized == "orders" or normalized in seen:
+                continue
+            unique_collections.append(normalized)
+            seen.add(normalized)
+        if not unique_collections:
+            return
+        resolver = self.admin_drive_service.get_path_resolver()
+        invalidates_orders = False
+        for collection in unique_collections:
+            config_name, key, logical_path, collection_rows = self._get_persist_details(collection)
+            payload = {"schema_version": 1, key: collection_rows}
+            with self.performance_service.measure(f"{collection}_save"):
+                resolver.create_or_update_json_file(logical_path, payload)
+            self.cache_service.update_config(config_name, payload)
+            if collection in {"marketplace_orders", "manditrade_orders"}:
+                invalidates_orders = True
+        if invalidates_orders:
             st.session_state["mt_next_data"].pop("orders", None)
 
     def normalize_product_record(self, record: dict) -> dict:

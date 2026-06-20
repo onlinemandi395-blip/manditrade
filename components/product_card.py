@@ -91,7 +91,7 @@ def render_product_card(
                 f"<span class='mt-catalog-card__detail'>{html.escape(t('ui.inventory'))}: {inventory.get('available_quantity', 0)} {html.escape(str(product.get('unit', 'piece')))}</span>",
                 f"<span class='mt-catalog-card__detail'>{image_badge}</span>",
             ]
-            if merchant_upi_id:
+            if merchant_upi_id and view == "marketplace":
                 details.append(f"<span class='mt-catalog-card__detail'>Merchant UPI: {html.escape(merchant_upi_id)}</span>")
         else:
             st.error(price_error)
@@ -106,8 +106,6 @@ def render_product_card(
                 f"<span class='mt-catalog-card__detail'>{html.escape(t('ui.increment_quantity'))}: {float(manditrade_rules.get('increment_quantity', 1) or 1):g}</span>",
                 f"<span class='mt-catalog-card__detail'>{html.escape(t('ui.inventory'))}: {inventory.get('available_quantity', 0)} {html.escape(str(product.get('unit', 'piece')))}</span>",
             ]
-            if merchant_upi_id:
-                details.append(f"<span class='mt-catalog-card__detail'>Merchant UPI: {html.escape(merchant_upi_id)}</span>")
         else:
             st.error(price_error)
     else:
@@ -183,7 +181,7 @@ def render_product_card(
                 slideshow_context=f"{view}_{return_route}_{card_context}",
             )
             st.rerun()
-    if merchant_upi_link and view in {"marketplace", "manditrade"}:
+    if merchant_upi_link and view == "marketplace":
         st.markdown(
             f"<div class='mt-catalog-card__upi-link'><a href='{html.escape(merchant_upi_link, quote=True)}'>Merchant payment link</a></div>",
             unsafe_allow_html=True,

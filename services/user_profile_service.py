@@ -219,12 +219,13 @@ class UserProfileService:
         normalized_details.update(dict(next_profile.get("details", {}) or {}))
         next_profile["details"] = normalized_details
         next_profile["updated_at"] = datetime.now(UTC).isoformat()
-        self.ensure_user_workspace(
-            email=normalized_target,
-            role=next_profile.get("role", "public_buyer"),
-            display_name=next_profile.get("display_name", normalized_target.split("@")[0]),
-            mobile=next_profile.get("mobile", ""),
-        )
+        if not current:
+            self.ensure_user_workspace(
+                email=normalized_target,
+                role=next_profile.get("role", "public_buyer"),
+                display_name=next_profile.get("display_name", normalized_target.split("@")[0]),
+                mobile=next_profile.get("mobile", ""),
+            )
         self.admin_drive_service.write_json(
             self._profile_logical_path(normalized_target),
             {"schema_version": 1, "user_profile": next_profile},
@@ -291,10 +292,11 @@ class UserProfileService:
             user_orders["orders"] = rows
             payload["user_orders"] = user_orders
             profile = self.get_profile(email)
-            self.ensure_user_workspace(
-                email=email,
-                role=profile.get("role", "public_buyer"),
-                display_name=profile.get("display_name", email.split("@")[0]),
-                mobile=profile.get("mobile", ""),
-            )
+            if not profile:
+                self.ensure_user_workspace(
+                    email=email,
+                    role=profile.get("role", "public_buyer"),
+                    display_name=profile.get("display_name", email.split("@")[0]),
+                    mobile=profile.get("mobile", ""),
+                )
             self.admin_drive_service.write_json(self._orders_logical_path(email), payload)
