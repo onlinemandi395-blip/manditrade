@@ -480,18 +480,7 @@ def _filter_role_rows(route: str, rows: list[dict], role: str, user_email: str) 
 
 
 def _build_superadmin_role_switcher_options(*, cache_service: CacheService, translator, navigation_service: NavigationService) -> list[dict]:
-    t = translator.t if translator else (lambda key: key)
-    permissions_map = dict(cache_service.get_config("permissions").get("permissions", {}) or {})
-    role_views = cache_service.get_config("role_views").get("role_views", {})
-    runtime_role_ids = sorted(
-        {
-            str(role_id or "").strip().lower()
-            for role_id in [*permissions_map.keys(), *role_views.keys()]
-            if str(role_id or "").strip()
-        }
-    )
-    role_rows = [{"role_id": role_id, "label_key": f"role.{role_id}"} for role_id in runtime_role_ids]
-    options: list[dict] = [
+    return [
         {
             "value": "__self__",
             "label": "My Superadmin View",
@@ -499,28 +488,6 @@ def _build_superadmin_role_switcher_options(*, cache_service: CacheService, tran
             "mode": "self",
         }
     ]
-    for role_row in role_rows:
-        role_id = str(role_row.get("role_id", "") or "").strip().lower()
-        if not role_id:
-            continue
-        role_label = t(str(role_row.get("label_key", "") or f"role.{role_id}"))
-        landing_page = str(role_views.get(role_id, {}).get("landing_page", navigation_service.get_default_route(role_id)) or "dashboard")
-        options.append(
-            {
-                "value": f"role::{role_id}",
-                "label": f"{role_label} View",
-                "caption": f"Open the app as a {role_label.lower()} view.",
-                "mode": "role_view",
-                "user": {
-                    "email": f"superadmin+{role_id}@view.local",
-                    "role": role_id,
-                    "status": "ACTIVE",
-                    "display_name": role_label,
-                    "landing_page": landing_page,
-                },
-            }
-        )
-    return options
 
 
 def _render_root_setup_console(session_service: SessionService, admin_drive_service: AdminDriveService, errors: list[str]) -> None:
@@ -704,6 +671,9 @@ def render_app() -> None:
             translator=translator,
             navigation_service=navigation_service,
         )
+        if session_service.is_acting_as_user():
+            session_service.clear_effective_user()
+            st.rerun()
         if session_service.is_acting_as_user():
             acting_user = session_service.get_user()
             acting_email = str(acting_user.get("email", "") or "").strip().lower()

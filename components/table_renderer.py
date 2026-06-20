@@ -110,6 +110,10 @@ def render_table(rows: list[dict], *, caption: str = "") -> None:
     title = caption or "Data table"
     table_key = f"{_slugify(title)}_{next(_TABLE_INSTANCE_COUNTER)}"
     dataframe = _normalize_rows(rows)
+    if dataframe.empty:
+        render_empty_state("No rows found.")
+        return
+
     columns = list(dataframe.columns)
     preview_columns = ", ".join(columns[:4]) if columns else "No columns"
     if len(columns) > 4:
@@ -124,11 +128,6 @@ def render_table(rows: list[dict], *, caption: str = "") -> None:
             render_template("table_shell_meta.html", label="Visible fields", value=preview_columns)
         with header_right:
             render_template("table_shell_stats.html", rows=str(len(dataframe)), columns=str(len(dataframe.columns)))
-
-        if dataframe.empty:
-            render_empty_state("No rows found.")
-            render_template("table_shell_close.html")
-            return
 
         query = st.text_input(
             "Search table",
