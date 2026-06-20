@@ -241,6 +241,25 @@ div[role="radiogroup"] [aria-checked="true"] {
   caret-color: #f20530 !important;
 }
 
+[data-testid="stNumberInput"] [data-baseweb="input"],
+[data-testid="stNumberInput"] [data-baseweb="base-input"] {
+  background: linear-gradient(180deg, rgba(18, 18, 18, 0.98), rgba(28, 8, 12, 0.98)) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: 16px !important;
+  overflow: hidden !important;
+}
+
+[data-testid="stNumberInput"] button {
+  background: #181818 !important;
+  color: #ffffff !important;
+  border-left: 1px solid rgba(217, 4, 41, 0.24) !important;
+}
+
+[data-testid="stNumberInput"] button:hover {
+  background: #2a0b12 !important;
+  color: #ffffff !important;
+}
+
 [data-testid="stForm"] {
   background: transparent !important;
   border: none !important;
